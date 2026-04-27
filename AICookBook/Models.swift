@@ -51,6 +51,7 @@ struct Recipe: Codable, Identifiable, Hashable {
     var description: String?
     var prepTime: String?
     var cookTime: String?
+    var servings: Int?
     var ingredients: [IngredientGroup]
     var directions: [DirectionStep]
     var thumbnailUrl: String?

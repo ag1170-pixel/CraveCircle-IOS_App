@@ -184,10 +184,10 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showingImportSheet) {
             ImportSheetView(showingSheet: $showingImportSheet)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.height(200)])
                 .presentationDragIndicator(.visible)
         }
-        .sheet(item: Binding(
+        .fullScreenCover(item: Binding(
             get: { environment.selectedRecipe },
             set: { _ in environment.dismissRecipeDetail() }
         )) { recipe in
@@ -225,22 +225,28 @@ struct HomeView: View {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                             ForEach(environment.recipes) { recipe in
                                 VStack(alignment: .leading, spacing: 8) {
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .fill(AppTheme.surface)
-                                        .aspectRatio(1.0, contentMode: .fit)
-                                        .overlay(
-                                            Image(systemName: "photo")
-                                                .font(.system(size: 34))
-                                                .foregroundStyle(AppTheme.textTertiary)
-                                        )
+                                    Image("chickenRecipe")
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(minWidth: 0, maxWidth: .infinity)
+                                        .aspectRatio(1.0, contentMode: .fill)
+                                        .clipped()
+                                        .clipShape(RoundedRectangle(cornerRadius: 14))
                                     Text(recipe.title)
                                         .font(AppFont.body(17, weight: .bold))
                                         .foregroundStyle(AppTheme.textPrimary)
                                         .lineLimit(2)
+                                        .padding(.leading, 4)
                                     Text(recipe.ownerUsername ?? "@unknown")
                                         .font(AppFont.body(15, weight: .medium))
                                         .foregroundStyle(AppTheme.textSecondary)
+                                        .padding(.leading, 4)
+                                        .padding(.bottom, 4)
                                 }
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .stroke(AppTheme.separator, lineWidth: 1)
+                                )
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     environment.selectRecipe(recipe)
@@ -276,20 +282,35 @@ struct HomeView: View {
                 await environment.refreshRecipes()
             }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Text("  AI CookBook  ")
+                        .font(AppFont.body(18, weight: .bold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .fixedSize(horizontal: true, vertical: false)   // prevents truncation
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 12) {
+                        Text(" ")
+                            .font(AppFont.body(18, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
                         Button {
                             showingImportSheet = true
                         } label: {
                             Image(systemName: "square.and.arrow.down")
                                 .foregroundStyle(AppTheme.textPrimary)
                         }
+                        .buttonStyle(.plain)   // optional, but keeps icon clean
+
                         Button {
                             environment.addPreviewRecipe()
                         } label: {
                             Image(systemName: "plus.circle.fill")
                                 .foregroundStyle(AppTheme.textPrimary)
                         }
+                        .buttonStyle(.plain)
+                        Text(" ")
+                            .font(AppFont.body(18, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
                     }
                 }
             }
@@ -305,6 +326,7 @@ struct ImportSheetView: View {
     @Binding var showingSheet: Bool
     @State private var input = ""
     @State private var validationError: String?
+    @FocusState private var isFieldFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -314,6 +336,7 @@ struct ImportSheetView: View {
                 .padding(.top, 15)
 
             TextField("Enter your new findings here!", text: $input)
+                .focused($isFieldFocused)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .keyboardType(.URL)
@@ -321,6 +344,9 @@ struct ImportSheetView: View {
                 .background(AppTheme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .foregroundStyle(AppTheme.textPrimary)
+                .onAppear {
+                    isFieldFocused = true
+                }
             if let validationError {
                 Text(validationError)
                     .font(AppFont.body(12, weight: .medium))
@@ -359,9 +385,15 @@ struct ImportSheetView: View {
                 .clipShape(Capsule())
             }
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            showingSheet = false
+        }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(AppTheme.background.ignoresSafeArea())
+        .ignoresSafeArea(.keyboard)
+        .animation(nil, value: isFieldFocused)
     }
 
     private func isValidInstagramReelURL(_ value: String) -> Bool {
@@ -397,6 +429,7 @@ struct ImportProgressOverlay: View {
         .padding(14)
         .frame(maxWidth: .infinity)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(Rectangle())
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.separator, lineWidth: 1))
     }
 
@@ -423,124 +456,227 @@ struct RecipeDetailView: View {
     @State private var selectedTab = 0
     @State private var checkedIngredients: Set<String> = []
     @State private var checkedSteps: Set<Int> = []
-
+    @State private var servingsMultiplier: Double
+    @State private var showServingsSlider = false
+    @State private var lastHapticStep: Int = 0
+    init(recipe: Recipe) {
+        self.recipe = recipe
+        _servingsMultiplier = State(initialValue: Double(recipe.servings ?? 1))
+    }
+    
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Square image, edge‑to‑edge, with overlays
-                    Rectangle()
-                        .fill(AppTheme.surface)
-                        .aspectRatio(1.0, contentMode: .fill)
-                        .frame(maxWidth: .infinity)
-                        .clipped()
-                        .overlay(alignment: .topLeading) {
+        ScrollView {
+            VStack(spacing: 0) {
+                // Square image, edge‑to‑edge, with overlays
+                Image("chickenRecipe")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: UIScreen.main.bounds.width)   // full screen width
+                    .frame(height: UIScreen.main.bounds.width)  // square height
+                    .clipped()
+                    .overlay(alignment: .topLeading) {
+                        Button {
+                            environment.dismissRecipeDetail()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.title2.weight(.semibold))
+                                .foregroundStyle(.black)
+                                .padding(10)
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
+                        .padding(.top, 60)
+                        .padding(.leading, 16)
+                    }
+                    .overlay(alignment: .bottomLeading) {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(.ultraThinMaterial)   // profile picture stays glass
+                                .frame(width: 28, height: 28)
+                                .overlay(
+                                    Image(systemName: "person.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(AppTheme.textSecondary)
+                                )
+                            Text(recipe.ownerUsername ?? "@unknown")
+                                .font(AppFont.body(14, weight: .medium))
+                                .foregroundStyle(.black)          // black name
+                            Image(systemName: "chevron.right")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.black)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.white, in: Capsule())
+                        .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+                        .padding(16)
+                    }
+                
+                // Text content + segmented picker
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(recipe.title)
+                        .font(AppFont.display(28, weight: .bold))
+                        .padding(.top, 15)
+                        .foregroundStyle(AppTheme.textPrimary)
+                    Text("Prep: \(recipe.prepTime ?? "—") | Cook: \(recipe.cookTime ?? "—")")
+                        .font(AppFont.body(17))
+                        .foregroundStyle(AppTheme.textSecondary)
+                    if let description = recipe.description {
+                        Text(description)
+                            .font(AppFont.body(16))
+                            .foregroundStyle(AppTheme.textPrimary.opacity(0.9))
+                    }
+                    
+                    // Servings & Share buttons
+                    HStack(spacing: 12) {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showServingsSlider.toggle()
+                            }
+                        } label: {
+                            Label("\(Int(servingsMultiplier)) Servings", systemImage: "fork.knife")
+                                .font(AppFont.body(17, weight: .semibold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.glass)
+                        .tint(.black)
+                        .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+
+                        ShareLink(item: shareText, subject: Text(recipe.title)) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                                .font(AppFont.body(17, weight: .semibold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.glass)
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+                    }
+                    
+                    // Slider + reset
+                    if showServingsSlider {
+                        HStack(spacing: 12) {
+                            Slider(value: $servingsMultiplier, in: 1...30, step: 1)
+                                .tint(AppTheme.accent)
                             Button {
-                                environment.dismissRecipeDetail()
+                                withAnimation {
+                                    servingsMultiplier = Double(recipe.servings ?? 1)
+                                }
                             } label: {
-                                Image(systemName: "chevron.left")
-                                    .font(.title2.weight(.semibold))
-                                    .foregroundStyle(.white)
-                                    .padding(10)
-                                    .background(.ultraThinMaterial, in: Circle())
+                                Image(systemName: "arrow.counterclockwise.circle.fill")
+                                    .font(.title2)
                             }
-                            .padding(16)
-                        }
-                        .overlay(alignment: .bottomLeading) {
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(AppTheme.surface)
-                                    .frame(width: 28, height: 28)
-                                    .overlay(
-                                        Image(systemName: "person.fill")
-                                            .font(.caption)
-                                            .foregroundStyle(AppTheme.textSecondary)
-                                    )
-                                Text(recipe.ownerUsername ?? "@unknown")
-                                    .font(AppFont.body(14, weight: .medium))
-                                    .foregroundStyle(.white)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .padding(16)
-                        }
-
-                    // Text content + segmented picker
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(recipe.title)
-                            .font(AppFont.display(28, weight: .bold))
+                            .buttonStyle(.glass)
                             .foregroundStyle(AppTheme.textPrimary)
-                        Text("Prep: \(recipe.prepTime ?? "—") | Cook: \(recipe.cookTime ?? "—")")
-                            .font(AppFont.body(13))
-                            .foregroundStyle(AppTheme.textSecondary)
-                        if let description = recipe.description {
-                            Text(description)
-                                .foregroundStyle(AppTheme.textPrimary.opacity(0.9))
+                            .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+                            .buttonStyle(.bordered)
+                            .foregroundStyle(AppTheme.textPrimary)
                         }
-
-                        Picker("", selection: $selectedTab) {
-                            Text("Ingredients").tag(0)
-                            Text("Directions").tag(1)
-                        }
-                        .pickerStyle(.segmented)
-
-                        if selectedTab == 0 {
-                            ingredientsSection
-                        } else {
-                            directionsSection
+                        .transition(.opacity)
+                        .onChange(of: Int(servingsMultiplier)) { newVal in
+                            let step = newVal / 3
+                            if step != lastHapticStep {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                lastHapticStep = step
+                            }
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 30)
+                    
+                    Picker("", selection: $selectedTab) {
+                        Text("Ingredients").tag(0)
+                        Text("Directions").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    if selectedTab == 0 {
+                        ingredientsSection
+                    } else {
+                        directionsSection
+                    }
                 }
+                .padding(.horizontal, 25)
+                .padding(.bottom, 30)
             }
-            .background(AppTheme.background.ignoresSafeArea())
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .background(AppTheme.background)
+        .ignoresSafeArea(edges: .top)
     }
-
+    
     // MARK: Ingredients (outlined, separated, larger text)
-
+    
+    private var shareText: String {
+        """
+        🍽 \(recipe.title)
+        Prep: \(recipe.prepTime ?? "—") | Cook: \(recipe.cookTime ?? "—")
+        
+        Ingredients:
+        \(recipe.ingredients.flatMap(\.items).joined(separator: "\n"))
+        
+        Directions:
+        \(recipe.directions.map { "\($0.stepIndex). \($0.text)" }.joined(separator: "\n"))
+        """
+    }
+    
     private var ingredientsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(recipe.ingredients, id: \.self) { group in
-                if let name = group.groupName {
-                    Text(name)
-                        .font(AppFont.body(16, weight: .bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .padding(.top, 8)
-                        .padding(.bottom, 4)
-                }
-                ForEach(group.items, id: \.self) { item in
-                    Button {
-                        if checkedIngredients.contains(item) { checkedIngredients.remove(item) } else { checkedIngredients.insert(item) }
-                    } label: {
-                        HStack {
-                            Image(systemName: checkedIngredients.contains(item) ? "checkmark.circle.fill" : "circle")
-                                .font(.body)
-                            Text(item)
-                                .font(AppFont.body(16))
-                                .strikethrough(checkedIngredients.contains(item))
-                            Spacer()
-                        }
-                        .foregroundStyle(checkedIngredients.contains(item) ? AppTheme.textTertiary : AppTheme.textPrimary)
-                        .padding(.vertical, 10)
+            ForEach(recipe.ingredients.flatMap(\.items), id: \.self) { item in
+                Button {
+                    if checkedIngredients.contains(item) { checkedIngredients.remove(item) } else { checkedIngredients.insert(item) }
+                } label: {
+                    HStack(alignment: .firstTextBaseline) {
+                        Image(systemName: checkedIngredients.contains(item) ? "checkmark.circle.fill" : "circle")
+                            .font(.title2)
+                        ingredientText(for: item, multiplier: servingsMultiplier)
+                        Spacer()
                     }
-                    .buttonStyle(.plain)
-                    Divider()
-                        .overlay(AppTheme.separator)
+                    .font(AppFont.body(20))
+                    .foregroundStyle(checkedIngredients.contains(item) ? AppTheme.textTertiary : AppTheme.textPrimary)
+                    .padding(.vertical, 15)
                 }
+                .buttonStyle(.plain)
+                Divider()
+                    .overlay(AppTheme.separator)
             }
         }
-        .padding(12)
+        .padding(16)               // more room inside the container
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.white)
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: 20)
                 .stroke(AppTheme.separator, lineWidth: 1)
         )
+        .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
     }
-
+    
+    private func ingredientText(for item: String, multiplier: Double) -> Text {
+        let pattern = #"^([\d.,]+)\s+(.+)$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return Text(item)
+        }
+        let range = NSRange(location: 0, length: item.utf16.count)
+        if let match = regex.firstMatch(in: item, range: range),
+           let quantRange = Range(match.range(at: 1), in: item),
+           let restRange = Range(match.range(at: 2), in: item) {
+            let quantityString = String(item[quantRange])
+                .replacingOccurrences(of: ",", with: ".")
+            if let original = Double(quantityString) {
+                let scaled = original * multiplier
+                let formatted: String
+                if scaled == floor(scaled) {
+                    formatted = String(Int(scaled))
+                } else {
+                    formatted = String(format: "%.1f", scaled)
+                }
+                let rest = String(item[restRange])
+                return Text(formatted).fontWeight(.semibold) + Text(" ") + Text(rest)
+            }
+        }
+        return Text(item)
+    }
+    
     // MARK: Directions (outlined, separated, larger text)
-
+    
     private var directionsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(recipe.directions, id: \.stepIndex) { step in
@@ -548,119 +684,121 @@ struct RecipeDetailView: View {
                     if checkedSteps.contains(step.stepIndex) { checkedSteps.remove(step.stepIndex) } else { checkedSteps.insert(step.stepIndex) }
                 } label: {
                     HStack(alignment: .top, spacing: 12) {
-                        Text(String(format: "%02d", step.stepIndex))
-                            .font(AppFont.mono(18, weight: .bold))
-                            .foregroundStyle(AppTheme.accent)
                         Text(step.text)
-                            .font(AppFont.body(16))
+                            .font(AppFont.body(20))
                             .multilineTextAlignment(.leading)
                             .strikethrough(checkedSteps.contains(step.stepIndex))
                         Spacer()
                         Image(systemName: checkedSteps.contains(step.stepIndex) ? "checkmark.square.fill" : "square")
-                            .font(.body)
+                            .font(.title2)
                     }
                     .foregroundStyle(checkedSteps.contains(step.stepIndex) ? AppTheme.textTertiary : AppTheme.textPrimary)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 15)
                 }
                 .buttonStyle(.plain)
                 Divider()
                     .overlay(AppTheme.separator)
             }
         }
-        .padding(12)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.white)
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: 20)
                 .stroke(AppTheme.separator, lineWidth: 1)
         )
+        .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
     }
 }
-
-// MARK: - Grocery List
-
-struct GroceryListView: View {
-    @EnvironmentObject private var environment: AppEnvironment
-
-    var body: some View {
-        NavigationStack {
-            if environment.groceryItems.isEmpty {
-                VStack(spacing: 12) {
-                    Text("No items in your grocery list.")
-                        .foregroundStyle(AppTheme.textSecondary)
-                    Text("Add ingredients from a recipe to get started.")
-                        .font(AppFont.body(14))
-                        .foregroundStyle(AppTheme.textTertiary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
-                    ForEach(environment.groceryItems) { item in
-                        Button {
-                            Task {
-                                await environment.toggleGroceryItem(id: item.id, checked: !item.checked)
-                            }
-                        } label: {
-                            HStack {
-                                Image(systemName: item.checked ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(item.checked ? AppTheme.accent : AppTheme.textTertiary)
-                                Text(item.ingredientName)
-                                    .strikethrough(item.checked)
-                                    .foregroundStyle(item.checked ? AppTheme.textTertiary : AppTheme.textPrimary)
-                                Spacer()
-                            }
-                        }
-                        .buttonStyle(.plain)
+        
+    // MARK: - Grocery List
+    
+    struct GroceryListView: View {
+        @EnvironmentObject private var environment: AppEnvironment
+        
+        var body: some View {
+            NavigationStack {
+                if environment.groceryItems.isEmpty {
+                    VStack(spacing: 12) {
+                        Text("No items in your grocery list.")
+                            .foregroundStyle(AppTheme.textSecondary)
+                        Text("Add ingredients from a recipe to get started.")
+                            .font(AppFont.body(14))
+                            .foregroundStyle(AppTheme.textTertiary)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        ForEach(environment.groceryItems) { item in
+                            Button {
+                                Task {
+                                    await environment.toggleGroceryItem(id: item.id, checked: !item.checked)
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: item.checked ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(item.checked ? AppTheme.accent : AppTheme.textTertiary)
+                                    Text(item.ingredientName)
+                                        .strikethrough(item.checked)
+                                        .foregroundStyle(item.checked ? AppTheme.textTertiary : AppTheme.textPrimary)
+                                    Spacer()
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .listStyle(.plain)
                 }
-                .listStyle(.plain)
+            }
+            .task {
+                await environment.loadGroceryList()
             }
         }
-        .task {
-            await environment.loadGroceryList()
-        }
     }
-}
-
-// MARK: - Profile
-
-struct ProfileView: View {
-    @EnvironmentObject private var environment: AppEnvironment
-
-    var body: some View {
-        VStack(spacing: 18) {
-            Text(environment.currentUser?.username ?? "Chef")
-                .font(AppFont.display(30))
+    
+    // MARK: - Profile
+    
+    struct ProfileView: View {
+        @EnvironmentObject private var environment: AppEnvironment
+        
+        var body: some View {
+            VStack(spacing: 18) {
+                Text(environment.currentUser?.username ?? "Chef")
+                    .font(AppFont.display(30))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text(environment.currentUser?.fullName ?? "Profile preview")
+                    .foregroundStyle(AppTheme.textSecondary)
+                Button("Log out") {
+                    environment.signOut()
+                }
                 .foregroundStyle(AppTheme.textPrimary)
-            Text(environment.currentUser?.fullName ?? "Profile preview")
-                .foregroundStyle(AppTheme.textSecondary)
-            Button("Log out") {
-                environment.signOut()
+                .padding(.horizontal, 26)
+                .padding(.vertical, 10)
+                .background(AppTheme.accent)
+                .clipShape(Capsule())
             }
-            .foregroundStyle(AppTheme.textPrimary)
-            .padding(.horizontal, 26)
-            .padding(.vertical, 10)
-            .background(AppTheme.accent)
-            .clipShape(Capsule())
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(AppTheme.background.ignoresSafeArea())
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(AppTheme.background.ignoresSafeArea())
     }
-}
-
-// MARK: - Placeholder
-
-struct PlaceholderTabView: View {
-    let title: String
-    let subtitle: String
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Text(title.uppercased())
-                .font(AppFont.display(28))
-                .foregroundStyle(AppTheme.textPrimary)
-            Text(subtitle)
-                .foregroundStyle(AppTheme.textSecondary)
+    
+    // MARK: - Placeholder
+    
+    struct PlaceholderTabView: View {
+        let title: String
+        let subtitle: String
+        
+        var body: some View {
+            VStack(spacing: 12) {
+                Text(title.uppercased())
+                    .font(AppFont.display(28))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text(subtitle)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(AppTheme.background.ignoresSafeArea())
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(AppTheme.background.ignoresSafeArea())
     }
-}

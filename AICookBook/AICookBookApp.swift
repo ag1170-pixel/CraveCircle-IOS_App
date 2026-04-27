@@ -15,6 +15,7 @@ struct AICookBookApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(environment)
+                .preferredColorScheme(.light)   // force light theme
         }
     }
 }
