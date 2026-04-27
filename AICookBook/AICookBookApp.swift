@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct AICookBookApp: App {
+    @StateObject private var environment = AppEnvironment()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                .environmentObject(environment)
         }
     }
 }
