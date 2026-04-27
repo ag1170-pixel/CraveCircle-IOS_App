@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - Root
+
 struct RootView: View {
     @EnvironmentObject private var environment: AppEnvironment
 
@@ -30,6 +32,8 @@ struct RootView: View {
         })
     }
 }
+
+// MARK: - Login
 
 struct LoginView: View {
     @EnvironmentObject private var environment: AppEnvironment
@@ -120,6 +124,8 @@ struct LoginView: View {
     }
 }
 
+// MARK: - Tab configuration
+
 enum TabItem: String, CaseIterable {
     case home = "HOME"
     case creators = "CREATORS"
@@ -138,6 +144,8 @@ enum TabItem: String, CaseIterable {
     }
 }
 
+// MARK: - Main Tab Bar
+
 struct MainTabView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var showingImportSheet = false
@@ -152,8 +160,8 @@ struct MainTabView: View {
                 PlaceholderTabView(title: "Creators", subtitle: "Friends feed coming next.")
             }
 
-            Tab("KITCHEN", systemImage: TabItem.kitchen.symbol) {
-                PlaceholderTabView(title: "Kitchen", subtitle: "Cook mode and checklist coming next.")
+            Tab("GROCERIES", systemImage: "basket.fill") {
+                GroceryListView()
             }
 
             Tab("PROFILE", systemImage: TabItem.profile.symbol) {
@@ -174,8 +182,10 @@ struct MainTabView: View {
                     .padding(.horizontal, 16)
             }
         }
-        .fullScreenCover(isPresented: $showingImportSheet) {
+        .sheet(isPresented: $showingImportSheet) {
             ImportSheetView(showingSheet: $showingImportSheet)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
         .sheet(item: Binding(
             get: { environment.selectedRecipe },
@@ -191,58 +201,73 @@ struct MainTabView: View {
     }
 }
 
+// MARK: - Home Grid
+
 struct HomeView: View {
     @EnvironmentObject private var environment: AppEnvironment
+    @State private var selectedHomeTab = 0
     @Binding var showingImportSheet: Bool
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 20) {
-                    Text("COLLECTIONS >")
-                        .font(AppFont.display(30))
-                        .foregroundStyle(AppTheme.textPrimary)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 10) {
-                            ForEach(0..<6, id: \.self) { _ in
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(AppTheme.surface)
-                                    .frame(width: 94, height: 94)
-                                    .overlay(Image(systemName: "photo").foregroundStyle(AppTheme.textTertiary))
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    Picker("Home Tab", selection: $selectedHomeTab) {
+                        Text("Recipes").tag(0)
+                        Text("Collections").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .controlSize(.large)
+                    .padding(.bottom, 8)
+
+                    if selectedHomeTab == 0 {
+                        // Recipes grid
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                            ForEach(environment.recipes) { recipe in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(AppTheme.surface)
+                                        .aspectRatio(1.0, contentMode: .fit)
+                                        .overlay(
+                                            Image(systemName: "photo")
+                                                .font(.system(size: 34))
+                                                .foregroundStyle(AppTheme.textTertiary)
+                                        )
+                                    Text(recipe.title)
+                                        .font(AppFont.body(17, weight: .bold))
+                                        .foregroundStyle(AppTheme.textPrimary)
+                                        .lineLimit(2)
+                                    Text(recipe.ownerUsername ?? "@unknown")
+                                        .font(AppFont.body(15, weight: .medium))
+                                        .foregroundStyle(AppTheme.textSecondary)
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    environment.selectRecipe(recipe)
+                                }
+                            }
+                        }
+                        .redacted(reason: environment.recipes.isEmpty ? .placeholder : [])
+                    } else {
+                        // Collections placeholder grid
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                            ForEach(0..<6, id: \.self) { index in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(AppTheme.surface)
+                                        .aspectRatio(1.0, contentMode: .fit)
+                                        .overlay(
+                                            Image(systemName: "folder.fill")
+                                                .font(.system(size: 34))
+                                                .foregroundStyle(AppTheme.textTertiary)
+                                        )
+                                    Text("Collection \(index + 1)")
+                                        .font(AppFont.body(17, weight: .bold))
+                                        .foregroundStyle(AppTheme.textPrimary)
+                                }
                             }
                         }
                     }
-
-                    Text("RECIPES >")
-                        .font(AppFont.display(30))
-                        .foregroundStyle(AppTheme.textPrimary)
-
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        ForEach(environment.recipes) { recipe in
-                            VStack(alignment: .leading, spacing: 8) {
-                                RoundedRectangle(cornerRadius: 14)
-                                    .fill(AppTheme.surface)
-                                    .frame(height: 140)
-                                    .overlay(
-                                        Image(systemName: "photo")
-                                            .font(.system(size: 30))
-                                            .foregroundStyle(AppTheme.textTertiary)
-                                    )
-                                Text(recipe.title)
-                                    .font(AppFont.body(15, weight: .bold))
-                                    .foregroundStyle(AppTheme.textPrimary)
-                                    .lineLimit(2)
-                                Text(recipe.ownerUsername ?? "@unknown")
-                                    .font(AppFont.body(12, weight: .medium))
-                                    .foregroundStyle(AppTheme.textSecondary)
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                environment.selectRecipe(recipe)
-                            }
-                        }
-                    }
-                    .redacted(reason: environment.recipes.isEmpty ? .placeholder : [])
                 }
                 .padding(16)
                 .padding(.bottom, 110)
@@ -273,6 +298,8 @@ struct HomeView: View {
     }
 }
 
+// MARK: - Import Sheet
+
 struct ImportSheetView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Binding var showingSheet: Bool
@@ -281,14 +308,11 @@ struct ImportSheetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Capsule()
-                .fill(AppTheme.textTertiary.opacity(0.35))
-                .frame(width: 42, height: 5)
-                .frame(maxWidth: .infinity, alignment: .center)
-
-            Text("WHATS COOKING!?")
+            Text("WHAT'S COOKING!?")
                 .font(AppFont.display(30))
                 .foregroundStyle(AppTheme.textPrimary)
+                .padding(.top, 15)
+
             TextField("Enter your new findings here!", text: $input)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -303,8 +327,10 @@ struct ImportSheetView: View {
                     .foregroundStyle(AppTheme.destructive)
             }
             HStack {
-                Button("Paste Link") {
+                Button {
                     input = UIPasteboard.general.string ?? ""
+                } label: {
+                    Label("Paste Link", systemImage: "doc.on.clipboard")
                 }
                 .foregroundStyle(AppTheme.textPrimary)
                 .padding(.horizontal, 18)
@@ -343,6 +369,8 @@ struct ImportSheetView: View {
         return value.range(of: pattern, options: .regularExpression) != nil
     }
 }
+
+// MARK: - Import Progress Overlay
 
 struct ImportProgressOverlay: View {
     let status: ImportStatus
@@ -387,6 +415,8 @@ struct ImportProgressOverlay: View {
     }
 }
 
+// MARK: - Recipe Detail (Redesigned)
+
 struct RecipeDetailView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State var recipe: Recipe
@@ -397,54 +427,89 @@ struct RecipeDetailView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    RoundedRectangle(cornerRadius: 0)
+                VStack(spacing: 0) {
+                    // Square image, edge‑to‑edge, with overlays
+                    Rectangle()
                         .fill(AppTheme.surface)
-                        .frame(height: 260)
-                        .overlay(Image(systemName: "photo").foregroundStyle(AppTheme.textTertiary))
-                    Text(recipe.title)
-                        .font(AppFont.display(28, weight: .bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                    Text("Prep: \(recipe.prepTime ?? "—") | Cook: \(recipe.cookTime ?? "—")")
-                        .font(AppFont.body(13))
-                        .foregroundStyle(AppTheme.textSecondary)
-                    if let description = recipe.description {
-                        Text(description)
-                            .foregroundStyle(AppTheme.textPrimary.opacity(0.9))
-                    }
+                        .aspectRatio(1.0, contentMode: .fill)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                        .overlay(alignment: .topLeading) {
+                            Button {
+                                environment.dismissRecipeDetail()
+                            } label: {
+                                Image(systemName: "chevron.left")
+                                    .font(.title2.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(10)
+                                    .background(.ultraThinMaterial, in: Circle())
+                            }
+                            .padding(16)
+                        }
+                        .overlay(alignment: .bottomLeading) {
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(AppTheme.surface)
+                                    .frame(width: 28, height: 28)
+                                    .overlay(
+                                        Image(systemName: "person.fill")
+                                            .font(.caption)
+                                            .foregroundStyle(AppTheme.textSecondary)
+                                    )
+                                Text(recipe.ownerUsername ?? "@unknown")
+                                    .font(AppFont.body(14, weight: .medium))
+                                    .foregroundStyle(.white)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .padding(16)
+                        }
 
-                    Picker("", selection: $selectedTab) {
-                        Text("Ingredients").tag(0)
-                        Text("Directions").tag(1)
-                    }
-                    .pickerStyle(.segmented)
+                    // Text content + segmented picker
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(recipe.title)
+                            .font(AppFont.display(28, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                        Text("Prep: \(recipe.prepTime ?? "—") | Cook: \(recipe.cookTime ?? "—")")
+                            .font(AppFont.body(13))
+                            .foregroundStyle(AppTheme.textSecondary)
+                        if let description = recipe.description {
+                            Text(description)
+                                .foregroundStyle(AppTheme.textPrimary.opacity(0.9))
+                        }
 
-                    if selectedTab == 0 {
-                        ingredientsSection
-                    } else {
-                        directionsSection
+                        Picker("", selection: $selectedTab) {
+                            Text("Ingredients").tag(0)
+                            Text("Directions").tag(1)
+                        }
+                        .pickerStyle(.segmented)
+
+                        if selectedTab == 0 {
+                            ingredientsSection
+                        } else {
+                            directionsSection
+                        }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 30)
                 }
-                .padding(.bottom, 30)
             }
-            .padding(.horizontal, 16)
             .background(AppTheme.background.ignoresSafeArea())
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") { environment.dismissRecipeDetail() }
-                        .foregroundStyle(AppTheme.textPrimary)
-                }
-            }
         }
     }
 
+    // MARK: Ingredients (outlined, separated, larger text)
+
     private var ingredientsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(recipe.ingredients, id: \.self) { group in
                 if let name = group.groupName {
                     Text(name)
-                        .font(AppFont.body(14, weight: .bold))
+                        .font(AppFont.body(16, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
+                        .padding(.top, 8)
+                        .padding(.bottom, 4)
                 }
                 ForEach(group.items, id: \.self) { item in
                     Button {
@@ -452,40 +517,110 @@ struct RecipeDetailView: View {
                     } label: {
                         HStack {
                             Image(systemName: checkedIngredients.contains(item) ? "checkmark.circle.fill" : "circle")
+                                .font(.body)
                             Text(item)
+                                .font(AppFont.body(16))
                                 .strikethrough(checkedIngredients.contains(item))
                             Spacer()
                         }
+                        .foregroundStyle(checkedIngredients.contains(item) ? AppTheme.textTertiary : AppTheme.textPrimary)
+                        .padding(.vertical, 10)
                     }
-                    .foregroundStyle(checkedIngredients.contains(item) ? AppTheme.textTertiary : AppTheme.textPrimary)
+                    .buttonStyle(.plain)
+                    Divider()
+                        .overlay(AppTheme.separator)
                 }
             }
         }
+        .padding(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(AppTheme.separator, lineWidth: 1)
+        )
     }
 
+    // MARK: Directions (outlined, separated, larger text)
+
     private var directionsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(recipe.directions, id: \.stepIndex) { step in
                 Button {
                     if checkedSteps.contains(step.stepIndex) { checkedSteps.remove(step.stepIndex) } else { checkedSteps.insert(step.stepIndex) }
                 } label: {
-                    HStack(alignment: .top) {
+                    HStack(alignment: .top, spacing: 12) {
                         Text(String(format: "%02d", step.stepIndex))
+                            .font(AppFont.mono(18, weight: .bold))
                             .foregroundStyle(AppTheme.accent)
-                            .font(AppFont.mono(16, weight: .bold))
                         Text(step.text)
+                            .font(AppFont.body(16))
                             .multilineTextAlignment(.leading)
                             .strikethrough(checkedSteps.contains(step.stepIndex))
                         Spacer()
                         Image(systemName: checkedSteps.contains(step.stepIndex) ? "checkmark.square.fill" : "square")
+                            .font(.body)
+                    }
+                    .foregroundStyle(checkedSteps.contains(step.stepIndex) ? AppTheme.textTertiary : AppTheme.textPrimary)
+                    .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                Divider()
+                    .overlay(AppTheme.separator)
+            }
+        }
+        .padding(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(AppTheme.separator, lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Grocery List
+
+struct GroceryListView: View {
+    @EnvironmentObject private var environment: AppEnvironment
+
+    var body: some View {
+        NavigationStack {
+            if environment.groceryItems.isEmpty {
+                VStack(spacing: 12) {
+                    Text("No items in your grocery list.")
+                        .foregroundStyle(AppTheme.textSecondary)
+                    Text("Add ingredients from a recipe to get started.")
+                        .font(AppFont.body(14))
+                        .foregroundStyle(AppTheme.textTertiary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(environment.groceryItems) { item in
+                        Button {
+                            Task {
+                                await environment.toggleGroceryItem(id: item.id, checked: !item.checked)
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: item.checked ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(item.checked ? AppTheme.accent : AppTheme.textTertiary)
+                                Text(item.ingredientName)
+                                    .strikethrough(item.checked)
+                                    .foregroundStyle(item.checked ? AppTheme.textTertiary : AppTheme.textPrimary)
+                                Spacer()
+                            }
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
-                .foregroundStyle(checkedSteps.contains(step.stepIndex) ? AppTheme.textTertiary : AppTheme.textPrimary)
-                Divider().overlay(AppTheme.separator)
+                .listStyle(.plain)
             }
+        }
+        .task {
+            await environment.loadGroceryList()
         }
     }
 }
+
+// MARK: - Profile
 
 struct ProfileView: View {
     @EnvironmentObject private var environment: AppEnvironment
@@ -510,6 +645,8 @@ struct ProfileView: View {
         .background(AppTheme.background.ignoresSafeArea())
     }
 }
+
+// MARK: - Placeholder
 
 struct PlaceholderTabView: View {
     let title: String

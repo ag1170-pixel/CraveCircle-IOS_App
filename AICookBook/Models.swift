@@ -62,6 +62,12 @@ struct IngredientGroup: Codable, Hashable {
     var items: [String]
 }
 
+struct GroceryItem: Codable, Identifiable, Equatable {
+    let id: String
+    let ingredientName: String
+    var checked: Bool
+}
+
 struct DirectionStep: Codable, Hashable {
     var stepIndex: Int
     var text: String

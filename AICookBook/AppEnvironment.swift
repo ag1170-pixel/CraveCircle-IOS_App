@@ -14,6 +14,8 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var recipes: [Recipe] = []
     @Published private(set) var selectedRecipe: Recipe?
     @Published private(set) var importState: ImportFlowState = .idle
+    @Published private(set) var groceryItems: [GroceryItem] = []
+    @Published var groceryError: String?
     @Published var errorMessage: String?
 
     let config: AppConfig
@@ -131,12 +133,36 @@ final class AppEnvironment: ObservableObject {
             importState = .failed(message: error.localizedDescription)
         }
     }
+    
+    func loadGroceryList() async {
+        do {
+            groceryItems = try await apiClient.fetchGroceryList()
+            groceryError = nil
+        } catch {
+            if case APIError.unauthorized = error {
+                groceryItems = []
+            }
+            groceryError = "Could not load grocery list."
+        }
+    }
+
+    func toggleGroceryItem(id: String, checked: Bool) async {
+        do {
+            let updated = try await apiClient.toggleGroceryItem(id: id, checked: checked)
+            if let idx = groceryItems.firstIndex(where: { $0.id == updated.id }) {
+                groceryItems[idx] = updated
+            }
+            groceryError = nil
+        } catch {
+            groceryError = "Failed to update item."
+        }
+    }
 
     func cancelImport() {
         importTask?.cancel()
         importState = .idle
     }
-
+    
     private func beginPolling(jobId: String) {
         importTask?.cancel()
         importTask = Task { [weak self] in

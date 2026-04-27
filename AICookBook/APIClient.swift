@@ -8,9 +8,23 @@ actor APIClient {
         self.config = config
         self.tokenStore = tokenStore
     }
+    
+    func fetchGroceryList() async throws -> [GroceryItem] {
+        return try await request(path: "grocery-list")
+    }
+
+    func toggleGroceryItem(id: String, checked: Bool) async throws -> GroceryItem {
+        let payload = ["checked": checked]
+        return try await request(path: "grocery-list/\(id)", method: "PATCH", body: payload)
+    }
 
     func fetchProfile() async throws -> UserProfile {
         try await request(path: "profile")
+    }
+    
+    func addRecipeToGroceryList(recipeId: String) async throws -> [GroceryItem] {
+        let url = config.apiBaseURL.appending(path: "grocery-list/\(recipeId)")
+        return try await request(url: url, method: "POST")
     }
 
     func fetchRecipes(limit: Int, offset: Int) async throws -> [Recipe] {
