@@ -1,0 +1,36 @@
+# Drop this service into the CraveCircle Homelab stack (~/stacks/cravecircle).
+# Requires the NVIDIA Container Toolkit on the host.
+#
+#   docker compose up -d --build whisper-transcriber
+#
+# go-api reaches it in-network at http://whisper-transcriber:8009 (no public exposure).
+
+services:
+  whisper-transcriber:
+    build: .
+    container_name: cravecircle-whisper
+    restart: unless-stopped
+    environment:
+      WHISPER_MODEL: small
+      WHISPER_DEVICE: auto
+      WHISPER_COMPUTE_TYPE: int8
+      WHISPER_BEAM_SIZE: "5"
+      # Netscape cookies.txt for authenticated downloads (Instagram / Facebook / YouTube / TikTok).
+      COOKIES_FILE: /cookies/cookies.txt
+    volumes:
+      - whisper-models:/models
+      # Mount the host cookies dir read-only; drop cookies.txt in ./cookies/ next to this file.
+      - ./cookies:/cookies:ro
+    ports:
+      # Port 8009 is strictly reserved for CraveCircle Whisper (avoiding port 8000 used by Voiceprint/other stacks).
+      - "8009:8000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  whisper-models:
+

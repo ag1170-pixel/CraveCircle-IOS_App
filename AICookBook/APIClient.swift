@@ -42,8 +42,10 @@ actor APIClient {
         return try await requestSingle(url: url)
     }
 
-    func submitImport(url: String) async throws -> ImportSubmitResponse {
-        let payload = ["url": url]
+    func submitImport(url: String, targetLanguage: String) async throws -> ImportSubmitResponse {
+        // target_language: the user's preferred recipe language — the pipeline transcribes
+        // the reel, detects the source language, and translates into this before storing.
+        let payload = ["url": url, "target_language": targetLanguage]
         return try await request(path: "reels/import", method: "POST", body: payload)
     }
 
@@ -76,10 +78,12 @@ actor APIClient {
     }
 
     private func requestData(url: URL, method: String, body: Encodable?, didRetryAfterRefresh: Bool = false) async throws -> Data {
-        guard let token = tokenStore.readAccessToken(), !token.isEmpty else { throw APIError.unauthorized }
+        let token = tokenStore.readAccessToken()
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let token, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let body {
             request.httpBody = try JSONEncoder().encode(AnyEncodable(body))

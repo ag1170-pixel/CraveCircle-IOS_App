@@ -1,0 +1,29 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Xcode build artifacts & user state
+build/
+DerivedData/
+*.xcuserstate
+**/xcuserdata/
+*.xcuserdatad/
+*.moved-aside
+
+# Claude Code local state (worktrees, caches)
+.claude/
+
+# Impeccable skill working files (logo scratch, review screenshots)
+.impeccable/
+
+# Python backend virtualenv & temp
+**/.venv/
+**/__pycache__/
+*.pyc
+whisper-transcriber/.tmp/
+
+# Secrets — never commit auth cookies, env, or keys
+**/cookies.txt
+**/cookies/
+*.env
+.env.*

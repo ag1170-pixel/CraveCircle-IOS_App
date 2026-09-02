@@ -10,12 +10,14 @@ struct AppConfig {
         let dict = Bundle.main.infoDictionary ?? [:]
         let env = ProcessInfo.processInfo.environment
 
-        let apiBaseRaw = (dict["API_BASE_URL"] as? String) ?? env["API_BASE_URL"] ?? "http://localhost:8000"
+        let customAPI = UserDefaults.standard.string(forKey: "custom_api_url")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let defaultHost = "http://100.70.151.71:8009"
+        let apiBaseRaw = (customAPI != nil && !customAPI!.isEmpty) ? customAPI! : ((dict["API_BASE_URL"] as? String) ?? env["API_BASE_URL"] ?? defaultHost)
         let supabaseURLRaw = (dict["SUPABASE_URL"] as? String) ?? env["SUPABASE_URL"] ?? "https://vaxuvotnzufwxcvsktke.supabase.co"
         let anonRaw = ((dict["SUPABASE_ANON_KEY"] as? String) ?? env["SUPABASE_ANON_KEY"] ?? defaultAnonKey)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let apiURL = URL(string: apiBaseRaw) ?? URL(string: "http://localhost:8000")!
+        let apiURL = URL(string: apiBaseRaw) ?? URL(string: defaultHost)!
         let supabaseURL = URL(string: supabaseURLRaw) ?? URL(string: "https://vaxuvotnzufwxcvsktke.supabase.co")!
         let serviceRoleDetected = jwtRole(from: anonRaw) == "service_role"
         let safeAnonKey = serviceRoleDetected ? "" : anonRaw

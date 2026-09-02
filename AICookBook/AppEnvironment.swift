@@ -18,6 +18,28 @@ final class AppEnvironment: ObservableObject {
     @Published var groceryError: String?
     @Published var errorMessage: String?
 
+    // Social & Follows
+    @Published private(set) var followedCreators: Set<String> = []
+    @Published private(set) var savedRecipeIds: Set<String> = ["recipe-spicy-paneer-wrap", "recipe-butter-chicken"]
+    
+    // Friends & Circle
+    @Published private(set) var circleFriends: [FriendItem] = FriendItem.samples
+    @Published private(set) var incomingRequests: [FriendRequestItem] = FriendRequestItem.incomingSamples
+    @Published private(set) var outgoingRequests: [FriendRequestItem] = FriendRequestItem.outgoingSamples
+    
+    // Collections
+    @Published private(set) var ownedCollections: [CollectionItem] = CollectionItem.ownedSamples
+    @Published private(set) var sharedCollections: [CollectionItem] = CollectionItem.sharedSamples
+    
+    // Studio Drafts & Published
+    @Published private(set) var studioDraftIds: Set<String> = ["recipe-hot-honey-chicken", "recipe-spicy-paneer-wrap"]
+    
+    // Notifications & Activity
+    @Published private(set) var circleNotifications: [CircleNotificationItem] = CircleNotificationItem.samples
+
+    // Recipe Comments
+    @Published private(set) var recipeComments: [String: [RecipeComment]] = RecipeComment.defaultSamples
+
     let config: AppConfig
     private let tokenStore: TokenStore
     private let authClient: SupabaseAuthClient
@@ -32,11 +54,21 @@ final class AppEnvironment: ObservableObject {
         self.tokenStore = tokenStore
         self.authClient = SupabaseAuthClient(config: config, tokenStore: tokenStore)
         self.apiClient = APIClient(config: config, tokenStore: tokenStore)
+        self.groceryItems = GroceryItem.demo
     }
 
     func bootstrap() async {
         guard tokenStore.readAccessToken() != nil else {
+            #if DEBUG
+            // Dev preview: backend auth is down (deleted Supabase), so open the app with
+            // placeholder content instead of the login wall. Guarded to DEBUG builds only.
+            currentUser = UserProfile(id: "preview-user", username: "@aicookbook", fullName: "You", avatarUrl: nil)
+            recipes = Recipe.placeholderRecipes
+            groceryItems = GroceryItem.demo
+            appState = .signedIn
+            #else
             appState = .signedOut
+            #endif
             return
         }
 
@@ -123,39 +155,359 @@ final class AppEnvironment: ObservableObject {
         selectedRecipe = nil
     }
 
+    /// Save edits to a recipe the user owns (updates the list + open detail).
+    func updateRecipe(_ updated: Recipe) {
+        if let i = recipes.firstIndex(where: { $0.id == updated.id }) { recipes[i] = updated }
+        if selectedRecipe?.id == updated.id { selectedRecipe = updated }
+        // TODO: PATCH /recipes/{id} once the backend is reachable.
+    }
+
+    /// True when the signed-in user owns this recipe (edit is owner-only).
+    func isOwner(of recipe: Recipe) -> Bool {
+        currentUser?.id == recipe.ownerId
+    }
+
+    // Shared with the Share Extension (same literal strings live in ShareViewController).
+    static let appGroupID = "group.com.anassyed.AICookBook"
+    static let pendingImportKey = "pending_import_url"
+
+    /// Pull a link shared into the app from the system Share sheet and import it.
+    /// No-op when there's nothing pending or an import is already running.
+    func importFromSharedURL() async {
+        guard
+            let defaults = UserDefaults(suiteName: Self.appGroupID),
+            let urlString = defaults.string(forKey: Self.pendingImportKey),
+            !urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return }
+        defaults.removeObject(forKey: Self.pendingImportKey)   // consume once
+
+        guard importState == .idle else { return }
+        await startImport(from: urlString)
+    }
+
     func startImport(from instagramURL: String) async {
         do {
             importState = .submitting
-            let response = try await apiClient.submitImport(url: instagramURL)
+            let targetLanguage = UserDefaults.standard.string(forKey: LanguagePrefs.key) ?? LanguagePrefs.default.rawValue
+            let response = try await apiClient.submitImport(url: instagramURL, targetLanguage: targetLanguage)
             importState = .polling(jobId: response.jobId, status: response.status ?? .queued)
             beginPolling(jobId: response.jobId)
         } catch {
             importState = .failed(message: error.localizedDescription)
         }
     }
+
+    /// On-device import: video → transcribe (Neural Engine) → structure (Foundation Models) → recipe.
+    /// No backend, no auth, no download. Drives the same import-progress UI.
+    func importFromVideo(_ url: URL) async {
+        importState = .submitting
+        guard await OnDeviceTranscriber.ensureAuthorized() else {
+            importState = .failed(message: "Enable Speech Recognition in Settings to import on device.")
+            return
+        }
+        importState = .polling(jobId: "on-device", status: .transcribing)
+
+        // 1) Transcribe narration. A silent / music-only clip just yields an empty string here —
+        //    that's expected, not a failure, so we fall through to on-screen text.
+        var transcript = ""
+        if let out = try? await OnDeviceTranscriber.transcribe(url: url, localeID: "en-US") {
+            transcript = out.text
+        }
+
+        // 2) Little or no narration => read the ON-SCREEN text with Vision OCR (many reels put the
+        //    whole recipe on screen with no voiceover and no caption).
+        var onScreen = ""
+        if transcript.count < 40 {
+            importState = .polling(jobId: "on-device", status: .extracting)
+            onScreen = await VideoTextOCR.recognizeText(url: url)
+        }
+
+        // 3) Structure it (Foundation Models when available, else heuristic).
+        importState = .polling(jobId: "on-device", status: .extracting)
+        let recipe = await RecipeExtractor.extract(
+            transcript: transcript, caption: nil, ownerId: currentUser?.id ?? "you",
+            sourceLanguage: nil, onScreenText: onScreen
+        )
+
+        // 4) Nothing readable anywhere (no audio, no caption, no on-screen text) => fail with a
+        //    clear reason instead of saving an empty recipe.
+        guard recipeHasContent(recipe) else {
+            importState = .failed(message: "We couldn't find a recipe in that video — no spoken steps and no on-screen text we could read. Try a clip where the creator narrates or lists the recipe.")
+            return
+        }
+
+        recipes.insert(recipe, at: 0)
+        selectedRecipe = recipe
+        importState = .done(recipeId: recipe.id)
+    }
+
+    /// True when an extracted recipe actually has ingredients or steps.
+    private func recipeHasContent(_ r: Recipe) -> Bool {
+        r.ingredients.contains { !$0.items.isEmpty } || !r.directions.isEmpty
+    }
     
     func loadGroceryList() async {
+        // Grocery is local-first in this build (items carry client-side UUIDs). Only adopt the
+        // backend list when it actually has items — an empty response must not wipe the
+        // locally-added / demo items the user is looking at.
         do {
-            groceryItems = try await apiClient.fetchGroceryList()
+            let remote = try await apiClient.fetchGroceryList()
+            if !remote.isEmpty { groceryItems = remote }
             groceryError = nil
         } catch {
-            if case APIError.unauthorized = error {
-                groceryItems = []
-            }
-            groceryError = "Could not load grocery list."
+            // Backend unreachable or no grocery endpoint — keep the local list, stay silent.
+            groceryError = nil
         }
     }
 
     func toggleGroceryItem(id: String, checked: Bool) async {
+        // Local toggle is the source of truth here; the remote sync is best-effort. A missing
+        // backend row must not surface an error banner over a checkbox that already flipped.
         do {
             let updated = try await apiClient.toggleGroceryItem(id: id, checked: checked)
             if let idx = groceryItems.firstIndex(where: { $0.id == updated.id }) {
                 groceryItems[idx] = updated
             }
-            groceryError = nil
         } catch {
-            groceryError = "Failed to update item."
+            // best-effort; local state already reflects the toggle
         }
+        groceryError = nil
+    }
+
+    // MARK: - Follow Actions
+    func toggleFollow(creatorHandle: String) {
+        if followedCreators.contains(creatorHandle) {
+            followedCreators.remove(creatorHandle)
+        } else {
+            followedCreators.insert(creatorHandle)
+        }
+    }
+    
+    func isFollowing(creatorHandle: String) -> Bool {
+        followedCreators.contains(creatorHandle)
+    }
+
+    // MARK: - Saved / Bookmark Actions
+    func toggleSaveRecipe(id: String) {
+        if savedRecipeIds.contains(id) {
+            savedRecipeIds.remove(id)
+        } else {
+            savedRecipeIds.insert(id)
+        }
+        UserDefaults.standard.set(Array(savedRecipeIds), forKey: "saved_recipe_ids")
+    }
+    
+    func isSaved(recipeId: String) -> Bool {
+        savedRecipeIds.contains(recipeId)
+    }
+
+    // MARK: - Liked / Heart Actions
+    @Published private(set) var likedRecipeIds: Set<String> = ["recipe_butter_chicken", "recipe_hot_honey_chicken"]
+
+    var likedRecipes: [Recipe] {
+        recipes.filter { likedRecipeIds.contains($0.id) }
+    }
+
+    func isLiked(recipeId: String) -> Bool {
+        likedRecipeIds.contains(recipeId)
+    }
+
+    func toggleLikeRecipe(id: String) {
+        if likedRecipeIds.contains(id) {
+            likedRecipeIds.remove(id)
+            Haptics.tap()
+        } else {
+            likedRecipeIds.insert(id)
+            Haptics.success()
+            if let r = recipes.first(where: { $0.id == id }) {
+                let notif = CircleNotificationItem(
+                    title: "Liked Recipe",
+                    message: "You liked '\(r.title)'",
+                    timeAgo: "Just now",
+                    symbol: "heart.fill",
+                    isRead: false
+                )
+                circleNotifications.insert(notif, at: 0)
+            }
+        }
+        UserDefaults.standard.set(Array(likedRecipeIds), forKey: "liked_recipe_ids")
+    }
+
+    // MARK: - Friend Actions
+    func sendFriendRequest(usernameOrEmail: String) {
+        let clean = usernameOrEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        let handle = clean.hasPrefix("@") ? clean : "@\(clean)"
+        let name = clean.replacingOccurrences(of: "@", with: "").capitalized
+        let newRequest = FriendRequestItem(name: name, username: handle)
+        outgoingRequests.insert(newRequest, at: 0)
+    }
+    
+    func acceptFriendRequest(id: UUID) {
+        guard let index = incomingRequests.firstIndex(where: { $0.id == id }) else { return }
+        let req = incomingRequests.remove(at: index)
+        let friend = FriendItem(id: UUID(), name: req.name, username: req.username, bio: "Food enthusiast & Circle member", recipesCount: 4, avatarAsset: nil)
+        circleFriends.insert(friend, at: 0)
+        followedCreators.insert(req.username)
+        
+        let notif = CircleNotificationItem(title: "New Circle Friend", message: "You and \(req.name) are now connected!", timeAgo: "Just now", symbol: "person.2.fill", isRead: false)
+        circleNotifications.insert(notif, at: 0)
+    }
+    
+    func declineFriendRequest(id: UUID) {
+        incomingRequests.removeAll { $0.id == id }
+    }
+    
+    func cancelOutgoingRequest(id: UUID) {
+        outgoingRequests.removeAll { $0.id == id }
+    }
+
+    // MARK: - Share Recipe With Friend
+    func shareRecipeWithFriend(recipeId: String, friend: FriendItem) {
+        guard let recipe = recipes.first(where: { $0.id == recipeId }) else { return }
+        let notif = CircleNotificationItem(title: "Recipe Shared", message: "Shared '\(recipe.title)' with \(friend.name)", timeAgo: "Just now", symbol: "paperplane.fill", isRead: false, recipeId: recipeId)
+        circleNotifications.insert(notif, at: 0)
+    }
+
+    // MARK: - Collections Actions
+    func createCollection(name: String, isShared: Bool, imageName: String? = nil) {
+        let clean = name.trimmingCharacters(in: .whitespaces)
+        guard !clean.isEmpty else { return }
+        let img = imageName ?? (recipes.first?.thumbnailUrl ?? "chickenRecipe")
+        let item = CollectionItem(id: UUID(), name: clean, count: 0, shared: isShared, imageName: img, recipeIds: [])
+        if isShared {
+            sharedCollections.insert(item, at: 0)
+        } else {
+            ownedCollections.insert(item, at: 0)
+        }
+    }
+    
+    func deleteCollection(id: UUID) {
+        ownedCollections.removeAll { $0.id == id }
+        sharedCollections.removeAll { $0.id == id }
+    }
+    
+    func addRecipeToCollection(recipeId: String, collectionId: UUID) {
+        if let idx = ownedCollections.firstIndex(where: { $0.id == collectionId }) {
+            if !ownedCollections[idx].recipeIds.contains(recipeId) {
+                ownedCollections[idx].recipeIds.append(recipeId)
+                ownedCollections[idx].count = ownedCollections[idx].recipeIds.count
+            }
+        } else if let idx = sharedCollections.firstIndex(where: { $0.id == collectionId }) {
+            if !sharedCollections[idx].recipeIds.contains(recipeId) {
+                sharedCollections[idx].recipeIds.append(recipeId)
+                sharedCollections[idx].count = sharedCollections[idx].recipeIds.count
+            }
+        }
+    }
+
+    // MARK: - Studio Publishing Actions
+    func isDraft(recipeId: String) -> Bool {
+        studioDraftIds.contains(recipeId)
+    }
+    
+    func publishDraft(recipeId: String) {
+        studioDraftIds.remove(recipeId)
+        if let recipe = recipes.first(where: { $0.id == recipeId }) {
+            let notif = CircleNotificationItem(title: "Recipe Published", message: "Your recipe '\(recipe.title)' is now live on your profile.", timeAgo: "Just now", symbol: "sparkles", isRead: false, recipeId: recipeId)
+            circleNotifications.insert(notif, at: 0)
+        }
+    }
+    
+    func unpublishRecipe(recipeId: String) {
+        studioDraftIds.insert(recipeId)
+    }
+    
+    func promoteToStudio(recipe: Recipe) {
+        studioDraftIds.insert(recipe.id)
+    }
+
+    // MARK: - Grocery Batch Add & Local Toggle
+    @discardableResult
+    func addIngredientsToGrocery(recipe: Recipe, servings: Int? = nil) -> Int {
+        var added = 0
+        let baseServings = recipe.servings ?? 2
+        let targetServings = servings ?? baseServings
+
+        for group in recipe.ingredients {
+            for item in group.items {
+                let trimmed = item.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty else { continue }
+                let scaledText = IngredientScaler.scale(text: trimmed, from: baseServings, to: targetServings)
+                let newItem = GroceryItem(id: UUID().uuidString, ingredientName: scaledText, checked: false)
+                groceryItems.append(newItem)
+                added += 1
+            }
+        }
+        return added
+    }
+
+    func addCustomGroceryItem(name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        let newItem = GroceryItem(id: UUID().uuidString, ingredientName: trimmed, checked: false)
+        groceryItems.insert(newItem, at: 0)
+    }
+
+    func toggleGroceryItemLocal(id: String) {
+        if let idx = groceryItems.firstIndex(where: { $0.id == id }) {
+            groceryItems[idx].checked.toggle()
+        }
+    }
+
+    func removeGroceryItem(id: String) {
+        groceryItems.removeAll { $0.id == id }
+    }
+
+    func clearCheckedGroceryItems() {
+        groceryItems.removeAll { $0.checked }
+    }
+
+    // MARK: - Recipe Comments
+    func comments(for recipeId: String) -> [RecipeComment] {
+        recipeComments[recipeId] ?? []
+    }
+
+    func addComment(recipeId: String, text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let user = currentUser?.fullName ?? "You"
+        let handle = currentUser?.username ?? "@cravecircle"
+        let newComment = RecipeComment(
+            recipeId: recipeId,
+            authorName: user,
+            authorUsername: handle,
+            text: trimmed,
+            timeAgo: "Just now",
+            likesCount: 0,
+            isLiked: false
+        )
+        var list = recipeComments[recipeId] ?? []
+        list.insert(newComment, at: 0)
+        recipeComments[recipeId] = list
+
+        let notif = CircleNotificationItem(
+            title: "Comment Posted",
+            message: "You commented on '\(recipes.first(where: { $0.id == recipeId })?.title ?? "Recipe")'",
+            timeAgo: "Just now",
+            symbol: "bubble.left.fill",
+            isRead: false,
+            recipeId: recipeId
+        )
+        circleNotifications.insert(notif, at: 0)
+    }
+
+    func toggleCommentLike(recipeId: String, commentId: UUID) {
+        guard var list = recipeComments[recipeId],
+              let idx = list.firstIndex(where: { $0.id == commentId }) else { return }
+        if list[idx].isLiked {
+            list[idx].isLiked = false
+            list[idx].likesCount = max(0, list[idx].likesCount - 1)
+        } else {
+            list[idx].isLiked = true
+            list[idx].likesCount += 1
+        }
+        recipeComments[recipeId] = list
     }
 
     func cancelImport() {
@@ -181,7 +533,6 @@ final class AppEnvironment: ObservableObject {
                             } else {
                                 self.recipes.insert(recipe, at: 0)
                             }
-                            self.selectedRecipe = recipe
                             self.importState = .done(recipeId: recipeId)
                         }
                         return

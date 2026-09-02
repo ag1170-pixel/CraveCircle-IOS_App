@@ -43,83 +43,162 @@ struct LoginView: View {
     @State private var loading = false
     @State private var isSignUpMode = false
     @State private var inlineMessage: String?
+    @State private var isError = false
+
+    private var canSubmit: Bool {
+        !email.isEmpty && !password.isEmpty && (!isSignUpMode || !confirmPassword.isEmpty)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Spacer()
-            Text("AICOOKBOOK")
-                .font(AppFont.display(34))
-                .foregroundStyle(AppTheme.textPrimary)
-            Picker("", selection: $isSignUpMode) {
-                Text("Log In").tag(false)
-                Text("Sign Up").tag(true)
+        ScrollView {
+            VStack(spacing: 0) {
+                hero
+                form
             }
-            .pickerStyle(.segmented)
-            TextField("Email", text: $email)
-                .textInputAutocapitalization(.never)
-                .keyboardType(.emailAddress)
-                .autocorrectionDisabled()
-                .padding()
-                .background(AppTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .foregroundStyle(AppTheme.textPrimary)
-            SecureField("Password", text: $password)
-                .textInputAutocapitalization(.never)
-                .padding()
-                .background(AppTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .foregroundStyle(AppTheme.textPrimary)
-            if isSignUpMode {
-                SecureField("Confirm Password", text: $confirmPassword)
-                    .textInputAutocapitalization(.never)
-                    .padding()
-                    .background(AppTheme.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                    .foregroundStyle(AppTheme.textPrimary)
-            }
-            if let inlineMessage {
-                Text(inlineMessage)
-                    .font(AppFont.body(13, weight: .medium))
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-            Button {
-                loading = true
-                Task {
-                    if isSignUpMode {
-                        guard password == confirmPassword else {
-                            inlineMessage = "Passwords do not match."
-                            loading = false
-                            return
-                        }
-                        do {
-                            try await environment.signUp(email: email, password: password)
-                            inlineMessage = "Account has been created. Please log in."
-                            isSignUpMode = false
-                            confirmPassword = ""
-                        } catch {
-                            inlineMessage = error.localizedDescription
-                        }
-                    } else {
-                        await environment.signIn(email: email, password: password)
-                    }
-                    loading = false
-                }
-            } label: {
-                Text(loading ? (isSignUpMode ? "Creating account..." : "Signing in...") : (isSignUpMode ? "CREATE ACCOUNT" : "LET'S COOK"))
-                    .font(AppFont.body(16, weight: .bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(AppTheme.accent)
-                    .clipShape(Capsule())
-            }
-            .disabled(loading || email.isEmpty || password.isEmpty || (isSignUpMode && confirmPassword.isEmpty))
-            Spacer()
         }
-        .padding(24)
         .background(AppTheme.background.ignoresSafeArea())
-        .onChange(of: isSignUpMode) { _, _ in
-            inlineMessage = nil
+        .ignoresSafeArea(edges: .top)
+        .scrollDismissesKeyboard(.interactively)
+        .scrollIndicators(.hidden)
+    }
+
+    // MARK: Hero
+
+    private var hero: some View {
+        ZStack(alignment: .bottomLeading) {
+            Image("chickenRecipe")
+                .resizable().scaledToFill()
+                .frame(height: 360)
+                .clipped()
+            LinearGradient(
+                colors: [.black.opacity(0.25), .black.opacity(0.1), AppTheme.background],
+                startPoint: .top, endPoint: .bottom
+            )
+            VStack(alignment: .leading, spacing: 6) {
+                Text("CraveCircle")
+                    .font(AppFont.serif(42, weight: .bold))
+                    .foregroundStyle(.white)
+                Text("Your living cookbook.")
+                    .font(AppFont.body(17, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+            .padding(.horizontal, AppSpacing.lg)
+            .padding(.bottom, AppSpacing.md)
+        }
+        .frame(height: 360)
+    }
+
+    // MARK: Form
+
+    private var form: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            LimeSegmentedControl(segments: ["Log In", "Sign Up"], selection: Binding(
+                get: { isSignUpMode ? 1 : 0 },
+                set: { isSignUpMode = ($0 == 1); inlineMessage = nil }
+            ))
+            .padding(.bottom, AppSpacing.xxs)
+
+            field("Email", text: $email, icon: "envelope", secure: false, keyboard: .emailAddress)
+            field("Password", text: $password, icon: "lock", secure: true)
+            if isSignUpMode {
+                field("Confirm password", text: $confirmPassword, icon: "lock.rotation", secure: true)
+            }
+
+            if let inlineMessage {
+                Label(inlineMessage, systemImage: isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                    .font(AppFont.body(13, weight: .medium))
+                    .foregroundStyle(isError ? AppTheme.destructive : AppTheme.accentInk)
+            }
+
+            submitButton.padding(.top, AppSpacing.xxs)
+
+            Text("Email sign-in only. We never post to your socials.")
+                .font(AppFont.body(12))
+                .foregroundStyle(AppTheme.textTertiary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, AppSpacing.xs)
+        }
+        .padding(AppSpacing.lg)
+    }
+
+    private var submitButton: some View {
+        Button {
+            submit()
+        } label: {
+            HStack(spacing: 8) {
+                if loading { ProgressView().tint(AppTheme.onAccent) }
+                Text(loading
+                     ? (isSignUpMode ? "Creating account…" : "Signing in…")
+                     : (isSignUpMode ? "Create Account" : "Let's Cook"))
+                    .font(AppFont.body(16, weight: .bold))
+            }
+            .foregroundStyle(AppTheme.onAccent)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 15)
+            .background(AppTheme.accent, in: Capsule())
+            .opacity(canSubmit && !loading ? 1 : 0.5)
+        }
+        .buttonStyle(PressableStyle())
+        .disabled(!canSubmit || loading)
+    }
+
+    // MARK: Field builder
+
+    @ViewBuilder
+    private func field(_ placeholder: String, text: Binding<String>, icon: String, secure: Bool, keyboard: UIKeyboardType = .default) -> some View {
+        HStack(spacing: AppSpacing.sm) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppTheme.textTertiary)
+                .frame(width: 20)
+            Group {
+                if secure {
+                    SecureField(placeholder, text: text)
+                } else {
+                    TextField(placeholder, text: text)
+                        .keyboardType(keyboard)
+                }
+            }
+            .font(AppFont.body(16))
+            .foregroundStyle(AppTheme.textPrimary)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+        }
+        .padding(.horizontal, AppSpacing.md)
+        .padding(.vertical, 15)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .stroke(AppTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    // MARK: Actions (logic unchanged)
+
+    private func submit() {
+        loading = true
+        Task {
+            if isSignUpMode {
+                guard password == confirmPassword else {
+                    inlineMessage = "Passwords do not match."
+                    isError = true
+                    loading = false
+                    return
+                }
+                do {
+                    try await environment.signUp(email: email, password: password)
+                    inlineMessage = "Account created. Please log in."
+                    isError = false
+                    isSignUpMode = false
+                    confirmPassword = ""
+                } catch {
+                    inlineMessage = error.localizedDescription
+                    isError = true
+                }
+            } else {
+                await environment.signIn(email: email, password: password)
+            }
+            loading = false
         }
     }
 }
@@ -149,54 +228,215 @@ enum TabItem: String, CaseIterable {
 struct MainTabView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var showingImportSheet = false
+    @State private var showingProgressDetail = false
+    @State private var tab: AppTab = .home
+
+    @ViewBuilder private var content: some View {
+        switch tab {
+        case .home: HomeScreen(showingImportSheet: $showingImportSheet)
+        case .studio: StudioScreen()
+        case .groceries: GroceryScreen()
+        case .search: NavigationStack { SearchScreen() }
+        case .profile: ProfileScreen()
+        }
+    }
 
     var body: some View {
-        TabView {
-            Tab("HOME", systemImage: TabItem.home.symbol) {
-                HomeView(showingImportSheet: $showingImportSheet)
-            }
-
-            Tab("CREATORS", systemImage: TabItem.creators.symbol) {
-                PlaceholderTabView(title: "Creators", subtitle: "Friends feed coming next.")
-            }
-
-            Tab("GROCERIES", systemImage: "basket.fill") {
-                GroceryListView()
-            }
-
-            Tab("PROFILE", systemImage: TabItem.profile.symbol) {
-                ProfileView()
-            }
-
-            Tab(role: .search) {
-                PlaceholderTabView(title: "Search", subtitle: "Search will be added soon.")
-            }
+        ZStack(alignment: .bottom) {
+            AppTheme.background.ignoresSafeArea()
+            content
+                .id(tab)
+                .transition(.opacity)
+            CraveTabBar(selected: $tab)
+                .padding(.bottom, 6)
         }
-        .tint(AppTheme.textPrimary)
-        .tabBarMinimizeBehavior(.onScrollDown)
-        .toolbarBackground(.ultraThinMaterial, for: .tabBar)
-        .toolbarBackgroundVisibility(.visible, for: .tabBar)
-        .safeAreaInset(edge: .bottom, spacing: 10) {
-            if case .polling(_, let status) = environment.importState {
-                ImportProgressOverlay(status: status, onCancel: environment.cancelImport)
-                    .padding(.horizontal, 16)
-            }
+        .overlay(alignment: .top) {
+            ImportToastBanner(onOpenDetails: { showingProgressDetail = true })
+                .padding(.top, 46)
         }
+        .animation(.easeInOut(duration: 0.22), value: tab)
         .sheet(isPresented: $showingImportSheet) {
-            ImportSheetView(showingSheet: $showingImportSheet)
-                .presentationDetents([.height(200)])
+            ImportSheet(showing: $showingImportSheet)
+                .presentationDetents([.height(470)])
                 .presentationDragIndicator(.visible)
+                .presentationBackground(AppTheme.background)
+        }
+        .sheet(isPresented: $showingProgressDetail) {
+            ImportProgressScreen(reopenImport: { showingImportSheet = true })
+                .presentationDetents([.fraction(0.85), .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(AppTheme.background)
         }
         .fullScreenCover(item: Binding(
             get: { environment.selectedRecipe },
             set: { _ in environment.dismissRecipeDetail() }
         )) { recipe in
-            RecipeDetailView(recipe: recipe)
+            RecipeDetailScreen(recipe: recipe)
         }
         .task {
             if environment.recipes.isEmpty {
                 await environment.refreshRecipes()
             }
+        }
+    }
+}
+
+// MARK: - Floating Live Import Banner (Async / Non-Blocking)
+
+struct ImportToastBanner: View {
+    @EnvironmentObject private var environment: AppEnvironment
+    var onOpenDetails: () -> Void
+
+    var body: some View {
+        if environment.importState != .idle {
+            HStack(spacing: 12) {
+                indicatorIcon
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(titleText)
+                        .font(AppFont.body(14, weight: .bold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
+                    Text(subtitleText)
+                        .font(AppFont.body(12))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 4)
+
+                actionButton
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                AppTheme.surface
+                    .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 6)
+            )
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(borderStrokeColor, lineWidth: 1.5)
+            )
+            .padding(.horizontal, AppSpacing.md)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .onTapGesture {
+                handleTap()
+            }
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: environment.importState)
+        }
+    }
+
+    private var isDone: Bool {
+        if case .done = environment.importState { return true }
+        return false
+    }
+
+    private var isError: Bool {
+        if case .failed = environment.importState { return true }
+        return false
+    }
+
+    private var borderStrokeColor: Color {
+        if isDone { return AppTheme.accent }
+        if isError { return AppTheme.destructive }
+        return AppTheme.hairline
+    }
+
+    private var titleText: String {
+        switch environment.importState {
+        case .submitting: return "Connecting to Kitchen..."
+        case .polling(_, let status):
+            switch status {
+            case .queued: return "Queued in kitchen"
+            case .downloading: return "Downloading Reel..."
+            case .transcribing: return "Transcribing Audio (Whisper)..."
+            case .extracting: return "Extracting Recipe & Kcal..."
+            case .done: return "Recipe Plated! ✨"
+            case .error: return "Import Failed"
+            }
+        case .done:
+            return "Recipe Plated! ✨"
+        case .failed:
+            return "Import Failed"
+        case .idle:
+            return ""
+        }
+    }
+
+    private var subtitleText: String {
+        switch environment.importState {
+        case .submitting, .polling:
+            return "Cooking in background · tap for details"
+        case .done:
+            return "Tap to open and start cooking"
+        case .failed(let msg):
+            return msg
+        case .idle:
+            return ""
+        }
+    }
+
+    @ViewBuilder private var indicatorIcon: some View {
+        switch environment.importState {
+        case .done:
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(AppTheme.accentInk)
+        case .failed:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(AppTheme.destructive)
+        default:
+            ProgressView()
+                .tint(AppTheme.accentInk)
+                .scaleEffect(0.9)
+        }
+    }
+
+    @ViewBuilder private var actionButton: some View {
+        if isDone {
+            Button("View") {
+                handleTap()
+            }
+            .font(AppFont.body(13, weight: .bold))
+            .foregroundStyle(AppTheme.onAccent)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(AppTheme.accent, in: Capsule())
+            .buttonStyle(.plain)
+        } else if isError {
+            Button {
+                environment.cancelImport()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
+            .buttonStyle(.plain)
+        } else {
+            Button {
+                onOpenDetails()
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func handleTap() {
+        switch environment.importState {
+        case .done(let recipeId):
+            if let rec = environment.recipes.first(where: { $0.id == recipeId }) {
+                environment.selectRecipe(rec)
+            }
+            environment.cancelImport()
+        case .failed:
+            onOpenDetails()
+        default:
+            onOpenDetails()
         }
     }
 }
