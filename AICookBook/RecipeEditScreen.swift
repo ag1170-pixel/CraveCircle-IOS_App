@@ -124,10 +124,10 @@ struct RecipeEditScreen: View {
                 AsyncImage(url: url) { img in
                     img.resizable().scaledToFill()
                 } placeholder: {
-                    Image("chickenRecipe").resizable().scaledToFill()
+                    RecipeImagePlaceholder(isBuffering: true, size: 32)
                 }
             } else {
-                Image("chickenRecipe").resizable().scaledToFill()
+                RecipeImagePlaceholder(isBuffering: false, size: 32)
             }
         }
         .frame(height: 150)

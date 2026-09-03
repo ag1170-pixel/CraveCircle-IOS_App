@@ -274,6 +274,32 @@ struct CreatorAvatarView: View {
     }
 }
 
+/// Elegant image placeholder that displays an active buffering spinner while loading,
+/// or a subtle branded chef hat on error/empty state (never an unrelated dish image).
+struct RecipeImagePlaceholder: View {
+    var isBuffering: Bool = true
+    var size: CGFloat? = nil
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(hex: "2A2421"), Color(hex: "1C1816")],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            if isBuffering {
+                ProgressView()
+                    .tint(AppTheme.accent)
+                    .scaleEffect(1.1)
+            } else {
+                ChefHatLogo(size: size ?? 32)
+                    .opacity(0.45)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
 /// System-like interactive pop: drag from the left edge to go back (fullScreenCover has no UINavigationController).
 struct LeadingEdgeBackModifier: ViewModifier {
     let onBack: () -> Void

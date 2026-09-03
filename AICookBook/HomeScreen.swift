@@ -371,10 +371,19 @@ func cover(_ recipe: Recipe) -> some View {
                 Image(thumb).resizable()
             } else if let urlString = recipe.thumbnailUrl, let url = URL(string: urlString), (url.scheme == "http" || url.scheme == "https" || url.scheme == "file") {
                 AsyncImage(url: url) { phase in
-                    if case .success(let image) = phase { image.resizable() } else { Image("chickenRecipe").resizable() }
+                    switch phase {
+                    case .success(let image):
+                        image.resizable()
+                    case .failure:
+                        RecipeImagePlaceholder(isBuffering: false, size: 28)
+                    case .empty:
+                        RecipeImagePlaceholder(isBuffering: true, size: 28)
+                    @unknown default:
+                        RecipeImagePlaceholder(isBuffering: false, size: 28)
+                    }
                 }
             } else {
-                Image("chickenRecipe").resizable()
+                RecipeImagePlaceholder(isBuffering: false, size: 28)
             }
         }
         .scaledToFill()

@@ -202,17 +202,19 @@ struct RecipeDetailScreen: View {
         } else if let urlString = recipe.thumbnailUrl, let url = URL(string: urlString), (url.scheme == "http" || url.scheme == "https" || url.scheme == "file") {
             AsyncImage(url: url) { phase in
                 switch phase {
-                case .success(let image): image.resizable().scaledToFill()
-                default: fallbackImage
+                case .success(let image):
+                    image.resizable().scaledToFill()
+                case .failure:
+                    RecipeImagePlaceholder(isBuffering: false, size: 48)
+                case .empty:
+                    RecipeImagePlaceholder(isBuffering: true, size: 48)
+                @unknown default:
+                    RecipeImagePlaceholder(isBuffering: false, size: 48)
                 }
             }
         } else {
-            fallbackImage
+            RecipeImagePlaceholder(isBuffering: false, size: 48)
         }
-    }
-
-    private var fallbackImage: some View {
-        Image("chickenRecipe").resizable().scaledToFill()
     }
 
     private var heroFooter: some View {
