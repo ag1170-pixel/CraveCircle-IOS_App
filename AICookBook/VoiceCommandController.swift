@@ -4,7 +4,8 @@
 //
 //  Hands-free flashcard navigation by VOICE. Listens on-device (SFSpeechRecognizer +
 //  AVAudioEngine) with hardware acoustic noise cancellation and "Hey Siri"-style
-//  keyword activation ("Hey Crave, next" / "Hey Crave, back" / "Crave next").
+//  keyword activation ("Hey Crave"). Once activated, stays active until the user
+//  leaves the screen or toggles off.
 //
 
 import Foundation
@@ -34,7 +35,6 @@ final class VoiceCommandController: NSObject, ObservableObject {
     private var task: SFSpeechRecognitionTask?
 
     private var lastFireTime: CFTimeInterval = 0
-    private var wakeExpiryTime: CFTimeInterval = 0
     private var lastConsumedIndex: Int = 0
     private let cooldown: CFTimeInterval = 0.6
 
@@ -109,6 +109,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
     func stop() {
         isListening = false
         wakeActive = false
+        lastHeard = ""
         teardownAudio()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
@@ -152,7 +153,6 @@ final class VoiceCommandController: NSObject, ObservableObject {
         req.contextualStrings = ["Hey Crave", "Crave", "next", "back", "next step", "go back", "previous"]
         request = req
         lastConsumedIndex = 0
-        wakeExpiryTime = 0
 
         let node = audioEngine.inputNode
         node.removeTap(onBus: 0)
@@ -187,8 +187,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
                 self.handle(result.bestTranscription)
                 if result.isFinal { self.restart() }
             }
-            if let error {
-                print("[VoiceCommand] recognitionTask error: \(error.localizedDescription)")
+            if error != nil {
                 self.restart()
             }
         }
@@ -222,13 +221,6 @@ final class VoiceCommandController: NSObject, ObservableObject {
         let now = CACurrentMediaTime()
         let newSegments = Array(segments[lastConsumedIndex...])
 
-        // Check if wake active window has expired
-        if wakeActive && now > wakeExpiryTime {
-            wakeActive = false
-            print("[VoiceCommand] Wake window timed out, returning to standby")
-            publish { self.wakeActive = false }
-        }
-
         for (offset, seg) in newSegments.enumerated() {
             let word = seg.substring.lowercased().trimmingCharacters(in: .punctuationCharacters)
             if word.isEmpty { continue }
@@ -246,8 +238,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
 
             if isWake && !wakeActive {
                 wakeActive = true
-                wakeExpiryTime = now + 6.0 // Active for 6 seconds
-                print("[VoiceCommand] 🌟 WAKE WORD: 'Hey Crave' activated!")
+                print("[VoiceCommand] 🌟 WAKE WORD: 'Hey Crave' activated! Staying open for entire cook session.")
                 publish {
                     self.wakeActive = true
                     self.lastHeard = "Hey Crave!"
@@ -272,7 +263,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
                 }
             }
 
-            // 3. Single command words when wakeActive is true
+            // 3. Single command words when wakeActive is true (stays active!)
             if wakeActive && now - lastFireTime >= cooldown {
                 if nextWords.contains(word) {
                     print("[VoiceCommand] 👉 Executing NEXT command (word: '\(word)')")
@@ -291,15 +282,20 @@ final class VoiceCommandController: NSObject, ObservableObject {
 
     private func fireCommand(_ cmd: Command) {
         lastFireTime = CACurrentMediaTime()
-        wakeExpiryTime = 0
         publish {
             self.lastHeard = cmd == .next ? "Next" : "Back"
             Haptics.tap()
             self.onCommand?(cmd)
         }
-        // Keep wakeActive true for 1.2s to show success animation on mascot, then tuck away
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            self?.wakeActive = false
+        // Keep the mascot floating and listening throughout the cook session!
+        // Just clear the confirmation status after 1.8s so it says "Say Next or Back" again.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak self] in
+            guard let self, self.wakeActive else { return }
+            self.publish {
+                if self.lastHeard == "Next" || self.lastHeard == "Back" {
+                    self.lastHeard = ""
+                }
+            }
         }
     }
 

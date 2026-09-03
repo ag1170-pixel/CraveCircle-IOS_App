@@ -107,14 +107,14 @@ struct FloatingVoiceAssistantView: View {
         if voice.permissionDenied {
             return "Mic / Speech Off"
         }
-        if !voice.isListening {
-            return "Warming up…"
+        if !voice.lastHeard.isEmpty && (voice.lastHeard == "Next" || voice.lastHeard == "Back") {
+            return "\(voice.lastHeard) Step! ✨"
         }
         if voice.wakeActive {
             return "I'm listening!"
         }
-        if !voice.lastHeard.isEmpty && (voice.lastHeard == "Next" || voice.lastHeard == "Back") {
-            return "\(voice.lastHeard) Step! ✨"
+        if !voice.isListening {
+            return "Warming up…"
         }
         return "Hey Crave"
     }
