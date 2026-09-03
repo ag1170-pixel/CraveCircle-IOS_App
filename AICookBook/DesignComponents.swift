@@ -175,35 +175,147 @@ struct IngredientRow: View {
     }
 }
 
-/// Direction step — mono accent number, body text, trailing checkbox.
+/// Parses dense cooking direction text into an action headline, body detail, and glanceable parameter tags (time / temp).
+enum DirectionStepParser {
+    struct ParsedStep {
+        let headline: String
+        let detail: String?
+        let badges: [String]
+    }
+
+    static func parse(_ raw: String) -> ParsedStep {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return ParsedStep(headline: "", detail: nil, badges: [])
+        }
+
+        var badges: [String] = []
+
+        // Time regex: e.g. "30 minutes", "5-6 min", "6–8 minutes", "1 hour", "2 hrs"
+        if let timeRegex = try? NSRegularExpression(pattern: #"\b(\d+[\d\s–\-\.]*(?:mins?|minutes?|hours?|hrs?))\b"#, options: .caseInsensitive) {
+            let nsString = trimmed as NSString
+            let matches = timeRegex.matches(in: trimmed, options: [], range: NSRange(location: 0, length: nsString.length))
+            for m in matches.prefix(2) {
+                let badge = nsString.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespaces)
+                let simplified = badge
+                    .replacingOccurrences(of: "minutes", with: "min", options: .caseInsensitive)
+                    .replacingOccurrences(of: "minute", with: "min", options: .caseInsensitive)
+                    .replacingOccurrences(of: "hours", with: "hr", options: .caseInsensitive)
+                    .replacingOccurrences(of: "hour", with: "hr", options: .caseInsensitive)
+                if !badges.contains(simplified) {
+                    badges.append(simplified)
+                }
+            }
+        }
+
+        // Temp regex: e.g. "350°F (175°C)", "170 degree", "375°F"
+        if let tempRegex = try? NSRegularExpression(pattern: #"\b(\d{2,3}\s*°\s*[FC](?:\s*\/\s*\d{2,3}\s*°\s*[FC])?|\d{2,3}\s*degree(?:\s*temp)?)\b"#, options: .caseInsensitive) {
+            let nsString = trimmed as NSString
+            let matches = tempRegex.matches(in: trimmed, options: [], range: NSRange(location: 0, length: nsString.length))
+            if let m = matches.first {
+                var badge = nsString.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespaces)
+                if badge.lowercased().contains("degree") {
+                    badge = badge.replacingOccurrences(of: "degree temp", with: "°C", options: .caseInsensitive)
+                                 .replacingOccurrences(of: "degree", with: "°C", options: .caseInsensitive)
+                }
+                if !badges.contains(badge) {
+                    badges.append(badge)
+                }
+            }
+        }
+
+        // Separate into headline and detailed instructions
+        let sentences = trimmed.components(separatedBy: ". ").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+
+        if sentences.count >= 2 {
+            let head = sentences[0].trimmingCharacters(in: .whitespaces) + "."
+            let rest = sentences.dropFirst().joined(separator: ". ").trimmingCharacters(in: .whitespaces)
+            let detail = rest.hasSuffix(".") ? rest : rest + "."
+            return ParsedStep(headline: head, detail: detail, badges: badges)
+        } else {
+            return ParsedStep(headline: trimmed, detail: nil, badges: badges)
+        }
+    }
+}
+
+/// Direction step — action headline, parameter tags (time/temp), clear body text, card layout, trailing checkbox.
 struct DirectionRow: View {
     let index: Int
     let text: String
     let checked: Bool
     let toggle: () -> Void
 
+    private var parsed: DirectionStepParser.ParsedStep {
+        DirectionStepParser.parse(text)
+    }
+
     var body: some View {
         Button {
             Haptics.toggle(!checked)
             toggle()
         } label: {
-            HStack(alignment: .top, spacing: AppSpacing.md) {
+            HStack(alignment: .top, spacing: 14) {
+                // Step Number Badge
                 Text(String(format: "%02d", index))
-                    .font(AppFont.mono(15, weight: .bold))
+                    .font(AppFont.mono(13, weight: .bold))
                     .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.accentInk)
-                    .padding(.top, 2)
-                Text(text)
-                    .font(AppFont.body(17))
-                    .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.textPrimary)
-                    .strikethrough(checked, color: AppTheme.textTertiary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(width: 32, height: 32)
+                    .background(checked ? AnyShapeStyle(AppTheme.hairline) : AnyShapeStyle(AppTheme.accentSoft), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(checked ? Color.clear : AppTheme.accent.opacity(0.35), lineWidth: 0.8))
+
+                // Content Block
+                VStack(alignment: .leading, spacing: 6) {
+                    // Headline
+                    Text(parsed.headline)
+                        .font(AppFont.body(16, weight: .bold))
+                        .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.textPrimary)
+                        .strikethrough(checked, color: AppTheme.textTertiary)
+                        .lineSpacing(2)
+                        .multilineTextAlignment(.leading)
+
+                    // Optional Detail
+                    if let detail = parsed.detail, !detail.isEmpty {
+                        Text(detail)
+                            .font(AppFont.body(15))
+                            .foregroundStyle(checked ? AppTheme.textTertiary.opacity(0.7) : AppTheme.textSecondary)
+                            .strikethrough(checked, color: AppTheme.textTertiary)
+                            .lineSpacing(3)
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    // Badges (Time & Temperature)
+                    if !parsed.badges.isEmpty {
+                        HStack(spacing: 6) {
+                            ForEach(parsed.badges, id: \.self) { badge in
+                                HStack(spacing: 4) {
+                                    Image(systemName: badge.contains("°") ? "thermometer.medium" : "clock.fill")
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text(badge)
+                                        .font(AppFont.label(11, weight: .bold))
+                                }
+                                .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.accentInk)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .background(checked ? AnyShapeStyle(AppTheme.hairline) : AnyShapeStyle(AppTheme.accentSoft), in: Capsule())
+                            }
+                        }
+                        .padding(.top, 2)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Checkbox
                 Image(systemName: checked ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22, weight: .regular))
+                    .font(.system(size: 22, weight: .medium))
                     .foregroundStyle(checked ? AppTheme.accentInk : AppTheme.textTertiary)
                     .contentTransition(.symbolEffect(.replace))
+                    .padding(.top, 4)
             }
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
+            .padding(14)
+            .background(checked ? AppTheme.surface.opacity(0.4) : AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+            .shadow(color: .black.opacity(checked ? 0 : 0.03), radius: 6, y: 2)
+            .contentShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
         }
         .buttonStyle(.plain)
     }

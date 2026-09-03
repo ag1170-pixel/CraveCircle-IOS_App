@@ -68,7 +68,12 @@ final class AppEnvironment: ObservableObject {
     private func hydrateLocal() {
         let saved = LocalStore.load([Recipe].self, from: "recipes.json") ?? []
         var merged = saved
-        let savedIds = Set(saved.map(\.id))
+        for (i, r) in merged.enumerated() {
+            if let fresh = Recipe.placeholderRecipes.first(where: { $0.id == r.id }) {
+                merged[i] = fresh
+            }
+        }
+        let savedIds = Set(merged.map(\.id))
         for sample in Recipe.placeholderRecipes where !savedIds.contains(sample.id) { merged.append(sample) }
         recipes = merged
 

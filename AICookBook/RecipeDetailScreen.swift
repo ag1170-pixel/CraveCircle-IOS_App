@@ -701,16 +701,11 @@ struct RecipeDetailScreen: View {
     // MARK: Directions
 
     private var directionsList: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 12) {
             let steps = recipe.directions.sorted { $0.stepIndex < $1.stepIndex }
             ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
-                VStack(spacing: 0) {
-                    DirectionRow(index: i + 1, text: step.text, checked: checkedSteps.contains(step.stepIndex)) {
-                        toggle(&checkedSteps, step.stepIndex)
-                    }
-                    if i < steps.count - 1 {
-                        Rectangle().fill(AppTheme.separator).frame(height: 1)
-                    }
+                DirectionRow(index: i + 1, text: step.text, checked: checkedSteps.contains(step.stepIndex)) {
+                    toggle(&checkedSteps, step.stepIndex)
                 }
             }
         }

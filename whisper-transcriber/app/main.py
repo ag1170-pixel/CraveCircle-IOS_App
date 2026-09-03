@@ -474,6 +474,16 @@ def parse_recipe_content(caption: str, transcript: str, video_title: str = "",
     if len(directions) < 3 and groups:
         directions = _enrich_short_directions(directions, groups, title)
 
+    # Split compound directions into clean separate sequential steps
+    split_dirs = []
+    for d in directions:
+        parts = [p.strip() for p in re.split(r"(?<=[.!?])\s+", d) if p.strip()]
+        if len(parts) > 1 and all(len(p) > 12 for p in parts):
+            split_dirs.extend(parts)
+        else:
+            split_dirs.append(d)
+    directions = split_dirs
+
     nutrition = estimate_nutrition(groups, servings=2)
 
     return {

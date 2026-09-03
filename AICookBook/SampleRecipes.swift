@@ -64,12 +64,14 @@ extension Recipe {
                 )
             ],
             directions: [
-                DirectionStep(stepIndex: 1, text: "Whisk buttermilk, smoked paprika, garlic powder, onion powder, cayenne, and salt. Submerge chicken thighs and marinate for at least 30 minutes."),
-                DirectionStep(stepIndex: 2, text: "In a wide shallow bowl, whisk flour, cornstarch, baking powder, and cajun seasoning. Drizzle 2 tbsp buttermilk marinade into the flour to create shaggy flakes."),
-                DirectionStep(stepIndex: 3, text: "Dredge each chicken thigh thoroughly, pressing flour firmly into every crevice. Rest for 5 minutes while oil heats to 350°F (175°C)."),
-                DirectionStep(stepIndex: 4, text: "Fry chicken in batches for 6–8 minutes until deeply golden brown and crispy (internal temp 165°F / 74°C). Drain on a wire rack."),
-                DirectionStep(stepIndex: 5, text: "Warm honey, butter, hot sauce, red pepper flakes, and cider vinegar in a saucepan until bubbling. Generously brush over hot fried chicken."),
-                DirectionStep(stepIndex: 6, text: "Toss cabbage with mayo and pickle juice. Layer toasted bottom bun, pickles, crispy glazed chicken, crunchy slaw, and top bun.")
+                DirectionStep(stepIndex: 1, text: "Whisk marinade. Combine buttermilk, smoked paprika, garlic powder, onion powder, cayenne, and salt in a large bowl."),
+                DirectionStep(stepIndex: 2, text: "Marinate chicken. Submerge chicken thighs in the marinade, cover, and chill for at least 30 minutes."),
+                DirectionStep(stepIndex: 3, text: "Prepare crispy dredge. Whisk flour, cornstarch, baking powder, and cajun seasoning in a wide shallow dish. Drizzle in 2 tbsp buttermilk marinade to create shaggy flakes."),
+                DirectionStep(stepIndex: 4, text: "Dredge & rest. Press each chicken thigh firmly into the flour mixture on all sides. Rest on a plate for 5 minutes."),
+                DirectionStep(stepIndex: 5, text: "Heat frying oil. Pour oil into a heavy pot and heat to 350°F (175°C)."),
+                DirectionStep(stepIndex: 6, text: "Fry in batches. Cook chicken for 6–8 minutes until deeply golden brown and crispy with an internal temp of 165°F (74°C). Drain on a wire rack."),
+                DirectionStep(stepIndex: 7, text: "Simmer hot honey glaze. Warm honey, butter, hot sauce, red pepper flakes, and cider vinegar in a saucepan until bubbling, then brush generously over hot chicken."),
+                DirectionStep(stepIndex: 8, text: "Assemble burgers. Toss cabbage with mayo and pickle juice. Layer toasted bottom brioche, pickles, glazed crispy chicken, crunchy slaw, and top bun.")
             ],
             thumbnailUrl: "recipe_hot_honey_chicken",
             ownerUsername: "@nada_dl",
