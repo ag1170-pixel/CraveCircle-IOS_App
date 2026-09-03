@@ -38,6 +38,8 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>CraveCircle connects to your CraveCircle server to import recipes from cooking videos.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>CraveCircle listens for “next” and “back” so you can move through recipe steps hands-free while cooking.</string>
+	<string>CraveCircle listens for “Hey Crave, next” and “Hey Crave, back” so you can move through recipe steps hands-free while cooking.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>CraveCircle uses speech recognition for hands-free voice navigation (“Hey Crave, next”, “Hey Crave, back”) while cooking.</string>
 </dict>
 </plist>

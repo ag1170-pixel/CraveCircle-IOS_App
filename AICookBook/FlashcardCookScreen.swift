@@ -97,29 +97,37 @@ struct FlashcardCookScreen: View {
             if voiceOn { voice.start() } else { voice.stop() }
         } label: {
             HStack(spacing: 7) {
-                Image(systemName: voiceOn ? "mic.fill" : "mic.slash.fill")
+                Image(systemName: voiceOn ? (voice.wakeActive ? "waveform.badge.mic" : "mic.fill") : "mic.slash.fill")
                     .font(.system(size: 13, weight: .bold))
                 Text(voiceStatusText)
                     .font(AppFont.body(13, weight: .semibold))
                 if voiceOn && voice.isListening {
                     Circle()
-                        .fill(AppTheme.accent)
+                        .fill(voice.wakeActive ? AppTheme.accent : AppTheme.accentSoft)
                         .frame(width: 8, height: 8)
+                        .scaleEffect(voice.wakeActive ? 1.3 : 1.0)
                 }
             }
-            .foregroundStyle(voiceOn ? AppTheme.accentInk : AppTheme.textSecondary)
+            .foregroundStyle(voiceOn ? (voice.wakeActive ? AppTheme.accent : AppTheme.accentInk) : AppTheme.textSecondary)
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
-            .background(AppTheme.surface, in: Capsule())
-            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            .background(voice.wakeActive ? AppTheme.accentSoft : AppTheme.surface, in: Capsule())
+            .overlay(Capsule().stroke(voice.wakeActive ? AppTheme.accent : AppTheme.hairline, lineWidth: voice.wakeActive ? 1.5 : 1))
+            .shadow(color: voice.wakeActive ? AppTheme.accent.opacity(0.3) : Color.clear, radius: 8, y: 2)
+            .animation(AppMotion.smooth, value: voice.wakeActive)
         }
         .buttonStyle(PressableStyle())
     }
 
     private var voiceStatusText: String {
         if !voiceOn { return "Voice off" }
-        if voice.permissionDenied { return "Enable mic" }
-        if voice.isListening { return "Say “next” / “back”" }
+        if voice.permissionDenied { return "Enable mic & speech" }
+        if voice.isListening {
+            if voice.wakeActive {
+                return "Listening… say “Next”"
+            }
+            return "Say “Hey Crave”"
+        }
         return "Starting…"
     }
 
