@@ -22,6 +22,14 @@ verification.** → Owns **logic, data & ops**.
 **The interface between us:** `AppEnvironment` methods + the models in `Models.swift`. Antigravity's
 screens call `environment.doThing()`; Claude implements/backends `doThing()`. Neither reaches across.
 
+**Access reality (this decides several assignments, not just preference):**
+- **Only Claude can reach the Homelab** (SSH `homelab` / `100.70.151.71`) and the **Obsidian vault**
+  (`SergantSwaggBase`). So **all backend/Docker/Supabase-exposure/tunnel/cookies work and all
+  ops-doc updates are Claude's** — Antigravity physically can't do them.
+- **Claude keeps the Obsidian vault as the shared source of ops truth** (homelab, endpoints,
+  deploy steps). Antigravity: when you need a private detail (an IP, a deploy command, a secret
+  location), ask via a `// NEED(claude): …` note or the handoff doc — it's in the vault, not the repo.
+
 ---
 
 ## File ownership (edit only your side; coordinate on shared)
