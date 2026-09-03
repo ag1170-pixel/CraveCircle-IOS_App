@@ -34,16 +34,17 @@ final class VoiceCommandController: NSObject, ObservableObject {
     private var task: SFSpeechRecognitionTask?
 
     private var lastFireTime: CFTimeInterval = 0
-    private var wakeExpiryTime: TimeInterval = -1.0
-    private let cooldown: CFTimeInterval = 0.8
+    private var wakeExpiryTime: CFTimeInterval = 0
+    private var lastConsumedIndex: Int = 0
+    private let cooldown: CFTimeInterval = 0.6
 
-    // Phonetic variations of Crave / Hey Crave (covers different accents & speech recognizer interpretations)
-    private let wakeTriggers = [
-        "hey crave", "hey creave", "hey krave", "hey brave", "hey grave",
-        "crave", "creave", "krave", "brave", "hey circle"
+    // Words that trigger navigation
+    private let nextWords: Set<String> = [
+        "next", "forward", "skip", "continue", "advance"
     ]
-    private let nextTriggers = ["next", "forward", "skip", "continue", "go next"]
-    private let backTriggers = ["back", "previous", "prev", "return", "repeat", "go back"]
+    private let backWords: Set<String> = [
+        "back", "previous", "prev", "last", "reverse", "return", "repeat", "beck", "pack"
+    ]
 
     // MARK: Lifecycle
 
@@ -148,9 +149,10 @@ final class VoiceCommandController: NSObject, ObservableObject {
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
         req.requiresOnDeviceRecognition = false
-        req.contextualStrings = ["Hey Crave", "Crave", "next", "back", "next step", "go back"]
+        req.contextualStrings = ["Hey Crave", "Crave", "next", "back", "next step", "go back", "previous"]
         request = req
-        wakeExpiryTime = -1.0
+        lastConsumedIndex = 0
+        wakeExpiryTime = 0
 
         let node = audioEngine.inputNode
         node.removeTap(onBus: 0)
@@ -208,69 +210,78 @@ final class VoiceCommandController: NSObject, ObservableObject {
         task?.cancel()
         task = nil
         request = nil
+        lastConsumedIndex = 0
     }
 
     // MARK: Keyword & Command Matching
 
     private func handle(_ transcription: SFTranscription) {
-        let text = transcription.formattedString.lowercased()
         let segments = transcription.segments
-        guard !segments.isEmpty else { return }
+        guard segments.count > lastConsumedIndex else { return }
 
         let now = CACurrentMediaTime()
-        let latestSegment = segments.last!
-        let currentAudioTime = latestSegment.timestamp + latestSegment.duration
+        let newSegments = Array(segments[lastConsumedIndex...])
 
-        // 1. Wake word detection: "Hey Crave" / "Crave" / "Hey Creave"
-        var wakeHeard = false
-        for trigger in wakeTriggers {
-            if text.contains(trigger) {
-                wakeHeard = true
-                break
-            }
-        }
-
-        if wakeHeard && !wakeActive {
-            wakeActive = true
-            wakeExpiryTime = currentAudioTime + 6.0 // 6 seconds active window
-            print("[VoiceCommand] 🌟 WAKE WORD DETECTED: 'Hey Crave' activated!")
-            publish {
-                self.wakeActive = true
-                self.lastHeard = "Hey Crave!"
-                Haptics.select()
-            }
-        }
-
-        // 2. Check if wake window has timed out
-        if wakeActive && wakeExpiryTime > 0 && currentAudioTime > wakeExpiryTime {
+        // Check if wake active window has expired
+        if wakeActive && now > wakeExpiryTime {
             wakeActive = false
             print("[VoiceCommand] Wake window timed out, returning to standby")
             publish { self.wakeActive = false }
         }
 
-        // 3. Command execution (Next / Back)
-        if now - lastFireTime >= cooldown {
-            let hasNext = nextTriggers.contains(where: { text.hasSuffix($0) || text.contains("\($0) ") || text.contains(" \($0)") })
-            let hasBack = backTriggers.contains(where: { text.hasSuffix($0) || text.contains("\($0) ") || text.contains(" \($0)") })
+        for (offset, seg) in newSegments.enumerated() {
+            let word = seg.substring.lowercased().trimmingCharacters(in: .punctuationCharacters)
+            if word.isEmpty { continue }
 
-            if wakeActive {
-                if hasNext {
-                    print("[VoiceCommand] 👉 Executing NEXT command")
+            let globalIndex = lastConsumedIndex + offset
+
+            // 1. Check for Wake Word: "crave", "creave", "krave", "brave" or "hey crave"
+            var isWake = (word == "crave" || word == "creave" || word == "krave" || word == "brave")
+            if !isWake && offset > 0 {
+                let prev = newSegments[offset - 1].substring.lowercased().trimmingCharacters(in: .punctuationCharacters)
+                if prev == "hey" && (word == "crave" || word == "circle" || word == "creave") {
+                    isWake = true
+                }
+            }
+
+            if isWake && !wakeActive {
+                wakeActive = true
+                wakeExpiryTime = now + 6.0 // Active for 6 seconds
+                print("[VoiceCommand] 🌟 WAKE WORD: 'Hey Crave' activated!")
+                publish {
+                    self.wakeActive = true
+                    self.lastHeard = "Hey Crave!"
+                    Haptics.select()
+                }
+            }
+
+            // 2. Direct two-word commands: "next step", "go back", "step back", "previous step"
+            if offset > 0 && now - lastFireTime >= cooldown {
+                let prev = newSegments[offset - 1].substring.lowercased().trimmingCharacters(in: .punctuationCharacters)
+                let pair = "\(prev) \(word)"
+                if pair == "next step" || pair == "go next" {
+                    print("[VoiceCommand] 👉 Executing direct NEXT STEP command")
+                    lastConsumedIndex = globalIndex + 1
                     fireCommand(.next)
                     return
-                } else if hasBack {
-                    print("[VoiceCommand] 👈 Executing BACK command")
+                } else if pair == "go back" || pair == "previous step" || pair == "last step" || pair == "step back" {
+                    print("[VoiceCommand] 👈 Executing direct GO BACK command")
+                    lastConsumedIndex = globalIndex + 1
                     fireCommand(.previous)
                     return
                 }
-            } else {
-                // Direct intentional 2-word commands work even without prior wake word
-                if text.contains("next step") || text.contains("go next") {
-                    print("[VoiceCommand] 👉 Executing direct NEXT STEP command")
+            }
+
+            // 3. Single command words when wakeActive is true
+            if wakeActive && now - lastFireTime >= cooldown {
+                if nextWords.contains(word) {
+                    print("[VoiceCommand] 👉 Executing NEXT command (word: '\(word)')")
+                    lastConsumedIndex = globalIndex + 1
                     fireCommand(.next)
                     return
-                } else if text.contains("go back") || text.contains("previous step") || text.contains("last step") {
-                    print("[VoiceCommand] 👈 Executing direct GO BACK command")
+                } else if backWords.contains(word) {
+                    print("[VoiceCommand] 👈 Executing BACK command (word: '\(word)')")
+                    lastConsumedIndex = globalIndex + 1
                     fireCommand(.previous)
                     return
                 }
@@ -280,14 +291,14 @@ final class VoiceCommandController: NSObject, ObservableObject {
 
     private func fireCommand(_ cmd: Command) {
         lastFireTime = CACurrentMediaTime()
-        wakeExpiryTime = -1.0
+        wakeExpiryTime = 0
         publish {
             self.lastHeard = cmd == .next ? "Next" : "Back"
             Haptics.tap()
             self.onCommand?(cmd)
         }
         // Keep wakeActive true for 1.2s to show success animation on mascot, then tuck away
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
             self?.wakeActive = false
         }
     }
