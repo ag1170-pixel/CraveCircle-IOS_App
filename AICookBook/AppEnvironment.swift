@@ -11,15 +11,15 @@ final class AppEnvironment: ObservableObject {
 
     @Published private(set) var appState: AppState = .loading
     @Published private(set) var currentUser: UserProfile?
-    @Published private(set) var recipes: [Recipe] = []
+    @Published private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
     @Published private(set) var selectedRecipe: Recipe?
     @Published private(set) var importState: ImportFlowState = .idle
-    @Published private(set) var groceryItems: [GroceryItem] = []
+    @Published private(set) var groceryItems: [GroceryItem] = [] { didSet { persist(groceryItems, "grocery.json") } }
     @Published var groceryError: String?
     @Published var errorMessage: String?
 
     // Social & Follows
-    @Published private(set) var followedCreators: Set<String> = []
+    @Published private(set) var followedCreators: Set<String> = [] { didSet { persist(Array(followedCreators), "followed_creators.json") } }
     @Published private(set) var savedRecipeIds: Set<String> = ["recipe-spicy-paneer-wrap", "recipe-butter-chicken"]
     
     // Friends & Circle
@@ -28,11 +28,11 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var outgoingRequests: [FriendRequestItem] = FriendRequestItem.outgoingSamples
     
     // Collections
-    @Published private(set) var ownedCollections: [CollectionItem] = CollectionItem.ownedSamples
-    @Published private(set) var sharedCollections: [CollectionItem] = CollectionItem.sharedSamples
-    
+    @Published private(set) var ownedCollections: [CollectionItem] = CollectionItem.ownedSamples { didSet { persist(ownedCollections, "owned_collections.json") } }
+    @Published private(set) var sharedCollections: [CollectionItem] = CollectionItem.sharedSamples { didSet { persist(sharedCollections, "shared_collections.json") } }
+
     // Studio Drafts & Published
-    @Published private(set) var studioDraftIds: Set<String> = ["recipe-hot-honey-chicken", "recipe-spicy-paneer-wrap"]
+    @Published private(set) var studioDraftIds: Set<String> = ["recipe-hot-honey-chicken", "recipe-spicy-paneer-wrap"] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
     
     // Notifications & Activity
     @Published private(set) var circleNotifications: [CircleNotificationItem] = CircleNotificationItem.samples
@@ -46,6 +46,13 @@ final class AppEnvironment: ObservableObject {
     private let apiClient: APIClient
     private var importTask: Task<Void, Never>?
 
+    /// Guards on-disk autosave: property `didSet`s only persist AFTER `hydrateLocal()` has loaded
+    /// the saved state, so loading doesn't immediately overwrite the files.
+    private var hydrated = false
+    private func persist<T: Encodable>(_ value: T, _ file: String) {
+        if hydrated { LocalStore.save(value, to: file) }
+    }
+
     init(
         config: AppConfig = .current,
         tokenStore: TokenStore = TokenStore()
@@ -54,17 +61,39 @@ final class AppEnvironment: ObservableObject {
         self.tokenStore = tokenStore
         self.authClient = SupabaseAuthClient(config: config, tokenStore: tokenStore)
         self.apiClient = APIClient(config: config, tokenStore: tokenStore)
-        self.groceryItems = GroceryItem.demo
+    }
+
+    /// Load the persisted library (recipes/collections/grocery/flags) from disk, merging any new
+    /// bundled sample recipes by id so content updates still appear. Runs once, before autosave arms.
+    private func hydrateLocal() {
+        let saved = LocalStore.load([Recipe].self, from: "recipes.json") ?? []
+        var merged = saved
+        let savedIds = Set(saved.map(\.id))
+        for sample in Recipe.placeholderRecipes where !savedIds.contains(sample.id) { merged.append(sample) }
+        recipes = merged
+
+        ownedCollections = LocalStore.load([CollectionItem].self, from: "owned_collections.json") ?? CollectionItem.ownedSamples
+        sharedCollections = LocalStore.load([CollectionItem].self, from: "shared_collections.json") ?? CollectionItem.sharedSamples
+        groceryItems = LocalStore.load([GroceryItem].self, from: "grocery.json") ?? GroceryItem.demo
+        if let drafts = LocalStore.load([String].self, from: "studio_drafts.json") { studioDraftIds = Set(drafts) }
+        if let follows = LocalStore.load([String].self, from: "followed_creators.json") { followedCreators = Set(follows) }
+
+        // These were saved to UserDefaults but never read back — fix the round-trip here.
+        let defaults = UserDefaults.standard
+        if let s = defaults.array(forKey: "saved_recipe_ids") as? [String] { savedRecipeIds = Set(s) }
+        if let l = defaults.array(forKey: "liked_recipe_ids") as? [String] { likedRecipeIds = Set(l) }
+
+        hydrated = true
     }
 
     func bootstrap() async {
+        hydrateLocal()   // load the persisted library (recipes/collections/grocery) before anything else
+
         guard tokenStore.readAccessToken() != nil else {
             #if DEBUG
-            // Dev preview: backend auth is down (deleted Supabase), so open the app with
-            // placeholder content instead of the login wall. Guarded to DEBUG builds only.
+            // Dev preview: backend auth is down (deleted Supabase), so open the app signed-in with
+            // the local library (hydrated above) instead of the login wall. DEBUG only.
             currentUser = UserProfile(id: "preview-user", username: "@aicookbook", fullName: "You", avatarUrl: nil)
-            recipes = Recipe.placeholderRecipes
-            groceryItems = GroceryItem.demo
             appState = .signedIn
             #else
             appState = .signedOut
@@ -110,6 +139,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     func signOut() {
+        hydrated = false          // don't let clearing state overwrite the on-disk library
         importTask?.cancel()
         tokenStore.clearSession()
         currentUser = nil
