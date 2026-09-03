@@ -155,10 +155,10 @@ def _seed_initial_recipes() -> None:
     }
 
 
-_CTA = re.compile(r"(follow|link in bio|comment below|save this|tag a|subscribe|full recipe|check out|dm me|like and)", re.I)
-_SECTION_ING = re.compile(r"^\s*ingredients?\s*:?\s*$", re.I)
-_SECTION_DIR = re.compile(r"^\s*(directions?|method|steps?|instructions?)\s*:?\s*$", re.I)
-_END_SECTIONS = re.compile(r"^\s*(notes?|tips?|subscribe|more recipes|follow|socials?|newsletter)\s*:?\s*$", re.I)
+_CTA = re.compile(r"(follow|link in bio|comment below|save this|tag a|subscribe|full recipe|check out|dm me|like and|for more|let me know|share this|tap the link)", re.I)
+_SECTION_ING = re.compile(r"^\s*[*_~#\[({«<✨\s]*ingredients?\s*[*_~#\])}»>\s]*[-:–—=]?\s*$", re.I)
+_SECTION_DIR = re.compile(r"^\s*[*_~#\[({«<✨\s]*(directions?|method|steps?|instructions?|process|recipe)\s*[*_~#\])}»>\s]*[-:–—=]?\s*$", re.I)
+_END_SECTIONS = re.compile(r"^\s*(notes?|tips?|subscribe|more recipes|follow|socials?|newsletter)\s*[-:–—=]?\s*$", re.I)
 
 
 def _is_latin(line: str) -> bool:
@@ -288,7 +288,7 @@ def _extract_conversational_ingredients(transcript: str) -> list[str]:
 # On-screen text (OCR) has no "Ingredients:"/"Method:" headers, so classify line-by-line:
 # a line with a quantity+unit is an ingredient; a line starting with a cooking verb is a step.
 _QTY_LINE = re.compile(r"\b(\d+(?:[.,/]\d+)?|½|¼|¾|⅓|⅔)\s*(g|kg|mg|ml|l|oz|lb|lbs|cup|cups|tbsp|tbs|tblsp|tablespoon|tablespoons|tsp|teaspoon|teaspoons|clove|cloves|slice|slices|can|cans|pinch|egg|eggs|stick|sticks)\b", re.I)
-_IMPERATIVE = re.compile(r"^\s*(add|mix|stir|pour|heat|bake|cook|fry|boil|simmer|whisk|combine|blend|chop|slice|dice|season|serve|fold|knead|marinate|grill|roast|preheat|drain|cover|remove|garnish|sprinkle|coat|dip|layer|spread|place|cut|melt|beat|toss|saute|saut|sear|rest|let|transfer|top|bring|reduce|flip|repeat|set)\b", re.I)
+_IMPERATIVE = re.compile(r"^\s*(add|mix|stir|pour|heat|bake|cook|fry|air\s*fry|boil|simmer|whisk|combine|blend|chop|slice|dice|season|serve|fold|knead|marinate|grill|roast|preheat|drain|cover|remove|garnish|sprinkle|coat|dip|layer|spread|place|cut|melt|beat|toss|saute|saut|sear|rest|let|transfer|top|bring|reduce|flip|repeat|set)\b", re.I)
 
 
 def _parse_structured_lines(text: str, capture_title: bool) -> tuple[str, list[dict], list[str]]:
@@ -301,7 +301,7 @@ def _parse_structured_lines(text: str, capture_title: bool) -> tuple[str, list[d
 
     for raw in text.splitlines():
         line = raw.strip()
-        if not line or not _is_latin(line) or line.startswith("#"):
+        if not line or not _is_latin(line) or line.startswith(("#", "[", "(tags", "tag:")):
             continue
         if _CTA.search(line) or line.startswith(("http://", "https://", "►", "• http")):
             continue
@@ -322,6 +322,12 @@ def _parse_structured_lines(text: str, capture_title: bool) -> tuple[str, list[d
             mode = "dir"
             continue
         if mode == "ing":
+            if _IMPERATIVE.match(line) and len(line) > 12 and not _QTY_LINE.search(line):
+                mode = "dir"
+                step = _strip_marker(line)
+                if step and not step.startswith(("http://", "https://")) and len(step) > 4 and not _CTA.search(step):
+                    directions.append(step)
+                continue
             if line.endswith(":") and len(line) < 42:
                 cur = {"group_name": line[:-1].strip(), "items": []}
                 groups.append(cur)
@@ -334,7 +340,7 @@ def _parse_structured_lines(text: str, capture_title: bool) -> tuple[str, list[d
                 cur["items"].append(item)
         elif mode == "dir":
             step = _strip_marker(line)
-            if step and not step.startswith(("http://", "https://")) and len(step) > 4:
+            if step and not step.startswith(("http://", "https://")) and len(step) > 4 and not _CTA.search(step):
                 directions.append(step)
 
     return title, [g for g in groups if g["items"]], directions
