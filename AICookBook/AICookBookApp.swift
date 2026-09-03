@@ -17,8 +17,6 @@ struct AICookBookApp: App {
             RootView()
                 .environmentObject(environment)
                 // Dark-first design, full light + dark parity — follow the system appearance.
-                // A reel shared from Instagram / YouTube / TikTok arrives via the Share Extension,
-                // which stashes the link in the App Group and opens cravecircle://import.
                 .onOpenURL { url in
                     guard url.scheme == "cravecircle" else { return }
                     Task { await environment.importFromSharedURL() }
@@ -28,6 +26,10 @@ struct AICookBookApp: App {
                     if phase == .active {
                         Task { await environment.importFromSharedURL() }
                     }
+                }
+                .onAppear {
+                    // Cold-launch check: scenePhase is already .active at launch so onChange doesn't fire.
+                    Task { await environment.importFromSharedURL() }
                 }
         }
     }

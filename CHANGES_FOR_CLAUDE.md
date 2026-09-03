@@ -70,10 +70,26 @@
 
 ## 4. Verification & Git State
 
-* **Build Command:**
-  ```bash
-  xcodebuild -project AICookBook.xcodeproj -scheme AICookBook -configuration Debug \
-    -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath /tmp/ag-build build
-  ```
-  **Result:** `** BUILD SUCCEEDED **`
-* **Pushed Commit:** `26a6dc2` on `crave-app/main` (`git@github.com:ag1170-pixel/CraveCircle-IOS_App.git`).
+## 5. End-to-End Share-Import Pipeline Diagnosis & Fix
+
+When running the E2E share-import test through the simulator (`pending_import_url` seeded into the App Group suite), two issues prevented the link from being consumed and landing in `recipes.json`:
+
+1. **Cold Launch ScenePhase Gap (`AICookBookApp.swift`):**
+   * *Diagnosis:* The app was only listening to `.onChange(of: scenePhase) { _, phase in if phase == .active { ... } }` and `.onOpenURL`. In SwiftUI, `scenePhase` is initialized to `.active` on a cold launch, so `.onChange` does not trigger on initial presentation.
+   * *Fix:* Added `.onAppear { Task { await environment.importFromSharedURL() } }` on `RootView`.
+2. **App Transport Security Blocking Homelab IP (`Config/AICookBook-Info.plist`):**
+   * *Diagnosis:* The app was configured with `NSAllowsLocalNetworking: true`. In iOS 10+, Apple restricts `NSAllowsLocalNetworking` to `.local` domains and link-local ranges, overriding `NSAllowsArbitraryLoads` for Carrier-Grade NAT (CGNAT) IPs like Tailscale (`100.64.0.0/10`). As a result, the request to `http://100.70.151.71:8009/reels/import` was rejected with `Code=-1022 ("The resource could not be loaded because the App Transport Security policy requires the use of a secure connection.")`.
+   * *Fix:* Removed `NSAllowsLocalNetworking` and added an explicit `NSExceptionDomains` entry for `100.70.151.71` allowing insecure HTTP loads.
+3. **Verification Result:**
+   * Seeded YouTube link `https://www.youtube.com/watch?v=q8oy0pz5YKA`.
+   * Launched app: consumed pending link, submitted to backend, polled job `job-ca2dba9fa0` through download and transcription, fetched extracted recipe `"3 Ingredient Sugar Cookies"`, and persisted into `recipes.json`.
+   * Verified store:
+     ```
+     Total recipes persisted: 27
+     Top recipe in store:
+       ID: recipe-d73ad9ea
+       Title: 3 Ingredient Sugar Cookies
+       Owner: @Dished
+     ```
+   * Verified `pending_import_url` removed from group preferences.
+
