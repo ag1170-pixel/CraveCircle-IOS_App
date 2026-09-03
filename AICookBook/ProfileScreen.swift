@@ -17,6 +17,7 @@ struct ProfileScreen: View {
     @State private var showServerPicker = false
     @State private var showNotifications = false
     @State private var showAccountSheet = false
+    @State private var activeSafariURL: IdentifiableURL? = nil
 
     private var language: AppLanguage {
         AppLanguage(rawValue: langCode) ?? LanguagePrefs.default
@@ -58,6 +59,12 @@ struct ProfileScreen: View {
             AccountSheet()
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $activeSafariURL) { item in
+            SafariView(url: item.url)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .ignoresSafeArea()
         }
     }
 
@@ -142,6 +149,48 @@ struct ProfileScreen: View {
                 .font(AppFont.body(12))
                 .foregroundStyle(AppTheme.textTertiary)
                 .padding(.horizontal, AppSpacing.xs)
+
+            Text("Legal & Support").sectionLabelStyle()
+                .padding(.top, AppSpacing.sm)
+
+            VStack(spacing: 0) {
+                SettingRow(
+                    icon: "questionmark.circle.fill",
+                    title: "Help & Support",
+                    tint: .teal
+                ) {
+                    activeSafariURL = IdentifiableURL(url: AppConfig.supportURL)
+                }
+                Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                SettingRow(
+                    icon: "hand.raised.shield.fill",
+                    title: "Privacy Policy",
+                    tint: .green
+                ) {
+                    activeSafariURL = IdentifiableURL(url: AppConfig.privacyPolicyURL)
+                }
+                Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                SettingRow(
+                    icon: "doc.text.fill",
+                    title: "Terms of Service",
+                    tint: .blue
+                ) {
+                    activeSafariURL = IdentifiableURL(url: AppConfig.termsOfServiceURL)
+                }
+            }
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+
+            VStack(spacing: 2) {
+                Text("CraveCircle v1.0")
+                    .font(AppFont.body(13, weight: .medium))
+                    .foregroundStyle(AppTheme.textSecondary)
+                Text("Crafted for cooks & food lovers")
+                    .font(AppFont.body(11))
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, AppSpacing.xs)
 
             Button(role: .destructive) {
                 Haptics.tap(); environment.signOut()
@@ -511,3 +560,11 @@ struct KitchenServerSheet: View {
         dismiss()
     }
 }
+
+// MARK: - Identifiable URL Helper
+
+struct IdentifiableURL: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+

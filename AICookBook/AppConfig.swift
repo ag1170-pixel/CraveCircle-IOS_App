@@ -6,6 +6,10 @@ struct AppConfig {
     let supabaseAnonKey: String
     let isServiceRoleKeyConfigured: Bool
 
+    static let privacyPolicyURL = URL(string: "https://cravecircle.cc/privacy")!
+    static let termsOfServiceURL = URL(string: "https://cravecircle.cc/terms")!
+    static let supportURL = URL(string: "https://cravecircle.cc/support")!
+
     static var current: AppConfig {
         let dict = Bundle.main.infoDictionary ?? [:]
         let env = ProcessInfo.processInfo.environment
