@@ -52,6 +52,11 @@ struct FlashcardCookScreen: View {
             VStack {
                 topBar
                 Spacer()
+                if voiceOn {
+                    FloatingVoiceAssistantView(voice: voice)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .padding(.bottom, 12)
+                }
                 bottomBar
             }
         }
@@ -92,6 +97,12 @@ struct FlashcardCookScreen: View {
 
     private var voicePill: some View {
         Button {
+            if voice.permissionDenied {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+                return
+            }
             voiceOn.toggle()
             Haptics.tap()
             if voiceOn { voice.start() } else { voice.stop() }

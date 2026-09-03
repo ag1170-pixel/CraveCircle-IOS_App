@@ -26,10 +26,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
     var onCommand: ((Command) -> Void)?
 
     private let recognizer: SFSpeechRecognizer? = {
-        if let current = SFSpeechRecognizer(locale: Locale.current), current.isAvailable {
-            return current
-        }
-        return SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+        SFSpeechRecognizer(locale: Locale(identifier: "en-US")) ?? SFSpeechRecognizer()
     }()
 
     private let audioEngine = AVAudioEngine()
@@ -37,32 +34,69 @@ final class VoiceCommandController: NSObject, ObservableObject {
     private var task: SFSpeechRecognitionTask?
 
     private var lastFireTime: CFTimeInterval = 0
-    private var lastTriggeredAudioTime: TimeInterval = -1.0
-    private var wakeExpiryAudioTime: TimeInterval = -1.0
+    private var lastAudioTimestamp: TimeInterval = -1.0
+    private var wakeExpiryTime: TimeInterval = -1.0
     private let cooldown: CFTimeInterval = 0.8
 
-    // Wake keywords (like "Hey Siri")
-    private let wakeTriggers = ["hey crave", "crave", "hey circle", "circle"]
-    // Direction commands
-    private let nextTriggers: Set<String> = ["next", "forward", "skip", "continue"]
-    private let backTriggers: Set<String> = ["back", "previous", "prev", "return", "repeat"]
+    // Phonetic variations of Crave / Hey Crave (covers different accents & speech recognizer interpretations)
+    private let wakeTriggers = [
+        "hey crave", "hey creave", "hey krave", "hey brave", "hey grave",
+        "crave", "creave", "krave", "brave", "hey circle"
+    ]
+    private let nextTriggers = ["next", "forward", "skip", "continue", "go next"]
+    private let backTriggers = ["back", "previous", "prev", "return", "repeat", "go back"]
 
     // MARK: Lifecycle
 
     func start() {
-        SFSpeechRecognizer.requestAuthorization { [weak self] status in
-            guard let self else { return }
-            guard status == .authorized else {
-                self.publish { self.permissionDenied = true; self.available = false }
-                return
-            }
-            AVAudioApplication.requestRecordPermission { granted in
-                guard granted else {
-                    self.publish { self.permissionDenied = true; self.available = false }
-                    return
+        let status = SFSpeechRecognizer.authorizationStatus()
+        switch status {
+        case .notDetermined:
+            SFSpeechRecognizer.requestAuthorization { [weak self] auth in
+                DispatchQueue.main.async {
+                    if auth == .authorized {
+                        self?.checkMicAndBegin()
+                    } else {
+                        self?.permissionDenied = true
+                        self?.available = false
+                    }
                 }
-                self.publish { self.beginSession() }
             }
+        case .authorized:
+            checkMicAndBegin()
+        case .denied, .restricted:
+            publish {
+                self.permissionDenied = true
+                self.available = false
+            }
+        @unknown default:
+            publish { self.available = false }
+        }
+    }
+
+    private func checkMicAndBegin() {
+        let session = AVAudioSession.sharedInstance()
+        switch session.recordPermission {
+        case .undetermined:
+            session.requestRecordPermission { [weak self] granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        self?.beginSession()
+                    } else {
+                        self?.permissionDenied = true
+                        self?.available = false
+                    }
+                }
+            }
+        case .granted:
+            beginSession()
+        case .denied:
+            publish {
+                self.permissionDenied = true
+                self.available = false
+            }
+        @unknown default:
+            publish { self.available = false }
         }
     }
 
@@ -77,18 +111,23 @@ final class VoiceCommandController: NSObject, ObservableObject {
 
     private func beginSession() {
         guard let recognizer, recognizer.isAvailable else {
-            available = false
+            publish {
+                self.available = false
+                self.lastHeard = "Speech unavailable"
+            }
             return
         }
         do {
             let session = AVAudioSession.sharedInstance()
-            // .voiceChat activates iOS hardware beamforming, acoustic echo cancellation,
-            // and background noise suppression — crucial for noisy kitchen environments.
+            // .voiceChat activates hardware beamforming and spatial kitchen noise suppression
             try session.setCategory(.playAndRecord, mode: .voiceChat,
                                     options: [.duckOthers, .defaultToSpeaker, .allowBluetooth])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
-            available = false
+            publish {
+                self.available = false
+                self.lastHeard = "Audio error"
+            }
             return
         }
         startTask()
@@ -97,18 +136,22 @@ final class VoiceCommandController: NSObject, ObservableObject {
     private func startTask() {
         teardownAudio()
 
+        guard let recognizer, recognizer.isAvailable else {
+            publish { self.available = false }
+            return
+        }
+
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
-        if recognizer?.supportsOnDeviceRecognition == true {
-            req.requiresOnDeviceRecognition = true
-        }
-        // Custom contextual strings help speech recognizer prioritize "crave", "next", "back"
+        // Allows both offline and online recognition gracefully without failing
+        req.requiresOnDeviceRecognition = false
         req.contextualStrings = ["Hey Crave", "Crave", "next", "back", "next step", "go back"]
         request = req
-        lastTriggeredAudioTime = -1.0
-        wakeExpiryAudioTime = -1.0
+        lastAudioTimestamp = -1.0
+        wakeExpiryTime = -1.0
 
         let node = audioEngine.inputNode
+        node.removeTap(onBus: 0)
         let format = node.outputFormat(forBus: 0)
         node.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             self?.request?.append(buffer)
@@ -118,25 +161,30 @@ final class VoiceCommandController: NSObject, ObservableObject {
         do {
             try audioEngine.start()
         } catch {
-            publish { self.available = false }
+            publish {
+                self.available = false
+                self.lastHeard = "Engine error"
+            }
             return
         }
         publish { self.isListening = true }
 
-        task = recognizer?.recognitionTask(with: req) { [weak self] result, error in
+        task = recognizer.recognitionTask(with: req) { [weak self] result, error in
             guard let self else { return }
             if let result {
                 self.handle(result.bestTranscription)
                 if result.isFinal { self.restart() }
             }
-            if error != nil { self.restart() }
+            if error != nil {
+                self.restart()
+            }
         }
     }
 
     private func restart() {
         guard isListening else { return }
         teardownAudio()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
             guard let self, self.isListening else { return }
             self.startTask()
         }
@@ -154,87 +202,70 @@ final class VoiceCommandController: NSObject, ObservableObject {
     // MARK: Keyword & Command Matching
 
     private func handle(_ transcription: SFTranscription) {
+        let text = transcription.formattedString.lowercased()
         let segments = transcription.segments
         guard !segments.isEmpty else { return }
 
         let now = CACurrentMediaTime()
-        var currentWake = wakeActive
+        let latestSegment = segments.last!
+        let currentAudioTime = latestSegment.timestamp + latestSegment.duration
 
-        for i in 0..<segments.count {
-            let seg = segments[i]
-            // Skip segments already processed by a previous command
-            if seg.timestamp < lastTriggeredAudioTime { continue }
-
-            let rawWord = seg.substring.lowercased().trimmingCharacters(in: .punctuationCharacters)
-            if rawWord.isEmpty { continue }
-
-            // 1. Check for Wake Word ("Hey Crave" / "Crave")
-            var isWakeWord = (rawWord == "crave")
-            if i > 0 {
-                let prevWord = segments[i - 1].substring.lowercased().trimmingCharacters(in: .punctuationCharacters)
-                if prevWord == "hey" && (rawWord == "crave" || rawWord == "circle") {
-                    isWakeWord = true
-                }
-            }
-
-            if isWakeWord {
-                currentWake = true
-                wakeExpiryAudioTime = seg.timestamp + 5.0 // Active for 5s of speech
-                publish {
-                    self.wakeActive = true
-                    self.lastHeard = "Hey Crave…"
-                    Haptics.select()
-                }
-            }
-
-            // Check if wake state has timed out
-            if currentWake && seg.timestamp > wakeExpiryAudioTime {
-                currentWake = false
-                publish { self.wakeActive = false }
-            }
-
-            // 2. Multi-word direct commands ("next step", "go back")
-            if i > 0 {
-                let prevWord = segments[i - 1].substring.lowercased().trimmingCharacters(in: .punctuationCharacters)
-                let pair = "\(prevWord) \(rawWord)"
-                if pair == "next step" || pair == "go next" {
-                    if now - lastFireTime >= cooldown {
-                        fireCommand(.next, audioTimestamp: seg.timestamp + seg.duration)
-                        return
-                    }
-                } else if pair == "go back" || pair == "last step" || pair == "previous step" {
-                    if now - lastFireTime >= cooldown {
-                        fireCommand(.previous, audioTimestamp: seg.timestamp + seg.duration)
-                        return
-                    }
-                }
-            }
-
-            // 3. Single-word command gated by wake word OR spoken clearly
-            if currentWake {
-                if nextTriggers.contains(rawWord) {
-                    if now - lastFireTime >= cooldown {
-                        fireCommand(.next, audioTimestamp: seg.timestamp + seg.duration)
-                        return
-                    }
-                } else if backTriggers.contains(rawWord) {
-                    if now - lastFireTime >= cooldown {
-                        fireCommand(.previous, audioTimestamp: seg.timestamp + seg.duration)
-                        return
-                    }
-                }
+        // 1. Wake word detection: "Hey Crave" / "Crave" / "Hey Creave"
+        var wakeHeard = false
+        for trigger in wakeTriggers {
+            if text.contains(trigger) {
+                wakeHeard = true
+                break
             }
         }
 
-        publish {
-            self.lastHeard = segments.suffix(2).map(\.substring).joined(separator: " ")
+        if wakeHeard && !wakeActive {
+            wakeActive = true
+            wakeExpiryTime = currentAudioTime + 6.0 // 6 seconds active window
+            publish {
+                self.wakeActive = true
+                self.lastHeard = "Hey Crave!"
+                Haptics.select()
+            }
+        }
+
+        // 2. Check if wake window has expired
+        if wakeActive && wakeExpiryTime > 0 && currentAudioTime > wakeExpiryTime {
+            wakeActive = false
+            publish { self.wakeActive = false }
+        }
+
+        // 3. Command execution (Next / Back)
+        if now - lastFireTime >= cooldown {
+            // Either wake word is currently active OR direct compound phrase (e.g. "next step", "go back")
+            let hasNext = nextTriggers.contains(where: { text.hasSuffix($0) || text.contains("\($0) ") || text.contains(" \($0)") })
+            let hasBack = backTriggers.contains(where: { text.hasSuffix($0) || text.contains("\($0) ") || text.contains(" \($0)") })
+
+            if wakeActive {
+                if hasNext {
+                    fireCommand(.next)
+                    return
+                } else if hasBack {
+                    fireCommand(.previous)
+                    return
+                }
+            } else {
+                // Direct intentional 2-word commands work even without prior wake word
+                if text.contains("next step") || text.contains("go next") {
+                    fireCommand(.next)
+                    return
+                } else if text.contains("go back") || text.contains("previous step") || text.contains("last step") {
+                    fireCommand(.previous)
+                    return
+                }
+            }
         }
     }
 
-    private func fireCommand(_ cmd: Command, audioTimestamp: TimeInterval) {
+    private func fireCommand(_ cmd: Command) {
         lastFireTime = CACurrentMediaTime()
-        lastTriggeredAudioTime = audioTimestamp
-        wakeExpiryAudioTime = -1.0
+        wakeActive = false
+        wakeExpiryTime = -1.0
         publish {
             self.wakeActive = false
             self.lastHeard = cmd == .next ? "Next" : "Back"
@@ -247,4 +278,3 @@ final class VoiceCommandController: NSObject, ObservableObject {
         DispatchQueue.main.async(execute: block)
     }
 }
-
