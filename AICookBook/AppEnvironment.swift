@@ -254,7 +254,7 @@ final class AppEnvironment: ObservableObject {
 
         // 3) Structure it (Foundation Models when available, else heuristic).
         importState = .polling(jobId: "on-device", status: .extracting)
-        let recipe = await RecipeExtractor.extract(
+        var recipe = await RecipeExtractor.extract(
             transcript: transcript, caption: nil, ownerId: currentUser?.id ?? "you",
             sourceLanguage: nil, onScreenText: onScreen
         )
@@ -264,6 +264,13 @@ final class AppEnvironment: ObservableObject {
         guard recipeHasContent(recipe) else {
             importState = .failed(message: "We couldn't find a recipe in that video — no spoken steps and no on-screen text we could read. Try a clip where the creator narrates or lists the recipe.")
             return
+        }
+
+        // 5) Give it a real cover: grab a representative frame from the video and store it locally,
+        //    so the imported recipe looks like a real recipe instead of the generic fallback.
+        if let data = await VideoThumbnail.jpeg(from: url),
+           let file = LocalStore.saveData(data, to: "thumb-\(recipe.id).jpg") {
+            recipe.thumbnailUrl = file.absoluteString
         }
 
         recipes.insert(recipe, at: 0)

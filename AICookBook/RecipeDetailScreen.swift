@@ -163,7 +163,7 @@ struct RecipeDetailScreen: View {
     @ViewBuilder private var heroImage: some View {
         if let thumb = recipe.thumbnailUrl, UIImage(named: thumb) != nil {
             Image(thumb).resizable().scaledToFill()
-        } else if let urlString = recipe.thumbnailUrl, let url = URL(string: urlString), (url.scheme == "http" || url.scheme == "https") {
+        } else if let urlString = recipe.thumbnailUrl, let url = URL(string: urlString), (url.scheme == "http" || url.scheme == "https" || url.scheme == "file") {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image): image.resizable().scaledToFill()

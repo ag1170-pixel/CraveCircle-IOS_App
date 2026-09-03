@@ -39,4 +39,16 @@ enum LocalStore {
     static func delete(_ name: String) {
         try? FileManager.default.removeItem(at: url(name))
     }
+
+    /// Write raw bytes (e.g. a JPEG thumbnail) and return the file URL to reference it by.
+    @discardableResult
+    static func saveData(_ data: Data, to name: String) -> URL? {
+        let target = url(name)
+        do {
+            try data.write(to: target, options: .atomic)
+            return target
+        } catch {
+            return nil
+        }
+    }
 }

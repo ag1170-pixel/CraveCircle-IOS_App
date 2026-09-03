@@ -351,7 +351,7 @@ func cover(_ recipe: Recipe) -> some View {
         Group {
             if let thumb = recipe.thumbnailUrl, UIImage(named: thumb) != nil {
                 Image(thumb).resizable()
-            } else if let urlString = recipe.thumbnailUrl, let url = URL(string: urlString), (url.scheme == "http" || url.scheme == "https") {
+            } else if let urlString = recipe.thumbnailUrl, let url = URL(string: urlString), (url.scheme == "http" || url.scheme == "https" || url.scheme == "file") {
                 AsyncImage(url: url) { phase in
                     if case .success(let image) = phase { image.resizable() } else { Image("chickenRecipe").resizable() }
                 }
