@@ -596,5 +596,754 @@ extension Recipe {
                 estimated: false
             )
         )
+        ,
+        Recipe(
+            id: "recipe-birria-tacos",
+            ownerId: "creator-zaatar",
+            title: "Birria Beef Tacos with Consomé",
+            description: "Slow-braised shredded beef tucked into crispy chili-dipped corn tortillas with melted Oaxaca cheese, served with rich consomé for dipping.",
+            prepTime: "25 min",
+            cookTime: "45 min",
+            servings: 4,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Braised Beef & Broth",
+                    items: [
+                        "700g beef chuck roast (cubed)",
+                        "4 dried guajillo chilies (stemmed and seeded)",
+                        "2 dried ancho chilies (stemmed and seeded)",
+                        "1 medium onion (halved)",
+                        "4 cloves garlic",
+                        "2 cups beef broth",
+                        "1 tsp ground cumin",
+                        "1 tsp dried Mexican oregano",
+                        "1 tsp kosher salt"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Tacos & Assembly",
+                    items: [
+                        "8 corn tortillas",
+                        "200g Oaxaca or Monterey Jack cheese (shredded)",
+                        "0.5 cup diced white onion",
+                        "0.5 cup chopped fresh cilantro",
+                        "2 fresh limes (cut into wedges)"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Toast dried chilies in a dry pan for 2 minutes, then soak in hot water until softened. Blend chilies, onion, garlic, cumin, oregano, and salt with 1 cup broth until smooth."),
+                DirectionStep(stepIndex: 2, text: "Sear beef cubes in a Dutch oven until browned. Pour chili puree and remaining beef broth over beef. Cover and braise on low heat for 45 minutes until fork-tender and shreddable."),
+                DirectionStep(stepIndex: 3, text: "Shred beef with two forks. Skim the seasoned chili oil floating on top of the broth into a shallow bowl."),
+                DirectionStep(stepIndex: 4, text: "Dip corn tortillas into the warm chili oil, then place on a hot skillet. Top with shredded cheese and braised beef, fold in half, and sear until crispy on both sides."),
+                DirectionStep(stepIndex: 5, text: "Ladle warm consomé broth into bowls, top with cilantro and onion, and serve alongside hot tacos with lime wedges.")
+            ],
+            thumbnailUrl: "recipe_birria_tacos",
+            ownerUsername: "@zaatarandzeal",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-crispy-gyoza",
+            ownerId: "creator-chefbot",
+            title: "Crispy Lace-Skirt Vegetable Gyoza",
+            description: "Pan-fried Japanese dumplings with a golden lace skirt, packed with cabbage, shiitake mushrooms, ginger, and scallions.",
+            prepTime: "20 min",
+            cookTime: "10 min",
+            servings: 3,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Vegetable Filling",
+                    items: [
+                        "2 cups finely shredded napa cabbage",
+                        "6 fresh shiitake mushrooms (finely minced)",
+                        "2 stalks scallions (thinly sliced)",
+                        "1 tbsp freshly grated ginger",
+                        "2 cloves garlic (minced)",
+                        "1 tbsp toasted sesame oil",
+                        "1 tbsp low-sodium soy sauce",
+                        "0.5 tsp white pepper"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Wrappers & Lace Skirt",
+                    items: [
+                        "18 round gyoza wrappers",
+                        "2 tbsp neutral cooking oil",
+                        "1 tsp cornstarch",
+                        "0.33 cup cold water"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Dipping Sauce",
+                    items: [
+                        "2 tbsp soy sauce",
+                        "1 tbsp rice vinegar",
+                        "1 tsp chili oil (rayu)"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Toss shredded cabbage with a pinch of salt, let sit 10 minutes, and squeeze out excess moisture. Mix with minced mushrooms, scallions, ginger, garlic, sesame oil, soy sauce, and white pepper."),
+                DirectionStep(stepIndex: 2, text: "Place 1 tbsp filling in the center of each wrapper, wet the edges with water, pleat the top edge 4–5 times, and press firmly to seal."),
+                DirectionStep(stepIndex: 3, text: "Whisk cornstarch and cold water in a small bowl until dissolved."),
+                DirectionStep(stepIndex: 4, text: "Heat oil in a non-stick skillet over medium-high heat. Arrange dumplings in a circle and sear bottoms for 2 minutes until golden."),
+                DirectionStep(stepIndex: 5, text: "Pour cornstarch slurry around the dumplings, cover with a lid immediately, and steam for 5 minutes until wrappers are translucent."),
+                DirectionStep(stepIndex: 6, text: "Remove lid and let cook uncovered until the bottom slurry crisps into a golden lacy honeycomb skirt. Invert onto a plate and serve with dipping sauce.")
+            ],
+            thumbnailUrl: "recipe_crispy_gyoza",
+            ownerUsername: "@chefbot",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-mushroom-risotto",
+            ownerId: "creator-kristy",
+            title: "Creamy Wild Mushroom Risotto",
+            description: "Slow-stirred arborio rice with sautéed cremini, shiitake, and porcini mushrooms, finished with butter, fresh thyme, and aged parmesan.",
+            prepTime: "15 min",
+            cookTime: "25 min",
+            servings: 4,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Sautéed Mushrooms",
+                    items: [
+                        "300g mixed wild mushrooms (cremini, shiitake, chanterelle)",
+                        "2 tbsp unsalted butter",
+                        "2 cloves garlic (thinly sliced)",
+                        "2 sprigs fresh thyme leaves"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Risotto Base",
+                    items: [
+                        "1.5 cups arborio rice",
+                        "1 small shallot (finely diced)",
+                        "0.5 cup dry white wine",
+                        "4 cups warm vegetable or chicken broth",
+                        "2 tbsp extra virgin olive oil",
+                        "0.5 cup grated parmigiano reggiano",
+                        "2 tbsp cold butter (cubed)",
+                        "0.5 tsp cracked black pepper"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Heat 2 tbsp butter in a pan over high heat. Sauté sliced wild mushrooms with garlic and thyme for 5–6 minutes until deeply caramelized. Season and set aside."),
+                DirectionStep(stepIndex: 2, text: "In a wide heavy saucepan, heat olive oil over medium. Cook diced shallot until translucent. Add arborio rice and toast for 2 minutes until edges are pearly."),
+                DirectionStep(stepIndex: 3, text: "Pour in dry white wine, stirring constantly until fully absorbed."),
+                DirectionStep(stepIndex: 4, text: "Add warm broth one ladle at a time, stirring gently and allowing each ladle to absorb before adding the next, cooking for 18–20 minutes until rice is creamy yet al dente."),
+                DirectionStep(stepIndex: 5, text: "Remove from heat. Vigorously beat in cold cubed butter, grated parmesan, and 3/4 of the sautéed mushrooms until glossy and flowing."),
+                DirectionStep(stepIndex: 6, text: "Spoon into warm shallow bowls, top with reserved mushrooms, extra parmesan, fresh thyme, and cracked black pepper.")
+            ],
+            thumbnailUrl: "recipe_mushroom_risotto",
+            ownerUsername: "@Kristy.Graver",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-avocado-toast",
+            ownerId: "creator-priya",
+            title: "Sourdough Avocado Toast with Poached Eggs",
+            description: "Toasted artisan sourdough loaded with citrus mashed avocado, jammy soft-poached eggs, chili flakes, and everything bagel seasoning.",
+            prepTime: "10 min",
+            cookTime: "5 min",
+            servings: 2,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Citrus Avocado Mash",
+                    items: [
+                        "2 ripe Haas avocados",
+                        "1 tbsp fresh lemon juice",
+                        "1 tbsp extra virgin olive oil",
+                        "0.5 tsp flaky sea salt",
+                        "0.25 tsp crushed red pepper flakes"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Toast & Eggs",
+                    items: [
+                        "2 thick slices artisan sourdough bread",
+                        "2 large pasture-raised eggs",
+                        "1 tbsp white vinegar (for poaching water)",
+                        "1 tbsp everything bagel seasoning",
+                        "0.25 cup fresh pea shoots or microgreens"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Scoop avocado flesh into a bowl. Mash with lemon juice, olive oil, sea salt, and red pepper flakes with a fork, leaving slight texture."),
+                DirectionStep(stepIndex: 2, text: "Bring 3 inches of water to a gentle simmer in a small saucepan. Stir in vinegar and create a gentle vortex with a spoon."),
+                DirectionStep(stepIndex: 3, text: "Crack each egg into a ramekin and gently slide into the center of the whirlpool. Poach for 3 minutes for jammy runny yolks, then transfer with a slotted spoon to a paper towel."),
+                DirectionStep(stepIndex: 4, text: "Toast sourdough slices until deeply golden and crunchy."),
+                DirectionStep(stepIndex: 5, text: "Mound mashed avocado generously across the toast. Crown each with a poached egg, everything bagel seasoning, and fresh microgreens.")
+            ],
+            thumbnailUrl: "recipe_avocado_toast",
+            ownerUsername: "@priyacooks",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-thai-basil-chicken",
+            ownerId: "creator-nada",
+            title: "Spicy Thai Holy Basil Chicken (Pad Krapow)",
+            description: "Sizzling minced chicken stir-fried with fragrant holy basil, garlic, and fiery bird's eye chilies, served over jasmine rice with a crispy fried egg.",
+            prepTime: "10 min",
+            cookTime: "8 min",
+            servings: 2,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Stir Fry Ingredients",
+                    items: [
+                        "350g ground chicken (or finely diced thighs)",
+                        "1 cup fresh Thai holy basil or Italian basil leaves",
+                        "4 cloves garlic (coarsely pounded)",
+                        "3 red bird's eye chilies (minced)",
+                        "2 tbsp vegetable oil"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Savory Umami Sauce",
+                    items: [
+                        "1.5 tbsp oyster sauce",
+                        "1 tbsp low-sodium soy sauce",
+                        "1 tsp dark sweet soy sauce",
+                        "1 tsp fish sauce",
+                        "1 tsp raw sugar",
+                        "2 tbsp water"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Serving Accompaniments",
+                    items: [
+                        "2 cups cooked jasmine rice",
+                        "2 large eggs (fried crispy in oil)"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "In a small bowl, stir together oyster sauce, regular soy sauce, dark soy sauce, fish sauce, sugar, and water."),
+                DirectionStep(stepIndex: 2, text: "Heat 2 tbsp oil in a wok over high heat until smoking. Add pounded garlic and chilies, stir-frying for 30 seconds until intensely aromatic."),
+                DirectionStep(stepIndex: 3, text: "Add minced chicken, breaking it apart with a spatula and cooking for 3–4 minutes until lightly browned."),
+                DirectionStep(stepIndex: 4, text: "Pour in the sauce mixture and toss rapidly for 1 minute until sauce coats chicken and bubbles."),
+                DirectionStep(stepIndex: 5, text: "Turn off the heat, add fresh basil leaves, and toss gently until just wilted from residual heat."),
+                DirectionStep(stepIndex: 6, text: "Serve hot over warm jasmine rice, crowned with a Thai-style crispy fried egg with a runny yolk.")
+            ],
+            thumbnailUrl: "recipe_thai_basil_chicken",
+            ownerUsername: "@nada_dl",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-french-onion-soup",
+            ownerId: "creator-kristy",
+            title: "Classic French Onion Soup Gratinée",
+            description: "Deeply caramelized sweet onions simmered in rich beef broth and white wine, topped with toasted baguette and broiled bubbly gruyère.",
+            prepTime: "15 min",
+            cookTime: "40 min",
+            servings: 4,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Caramelized Onion Broth",
+                    items: [
+                        "1kg yellow sweet onions (thinly sliced)",
+                        "3 tbsp unsalted butter",
+                        "1 tbsp olive oil",
+                        "0.5 cup dry white wine",
+                        "5 cups rich beef bone broth",
+                        "2 sprigs fresh thyme",
+                        "1 bay leaf",
+                        "1 tsp sea salt & black pepper"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Gratinée Topping",
+                    items: [
+                        "4 thick slices French baguette (toasted)",
+                        "1.5 cups shredded cave-aged Gruyère cheese",
+                        "0.25 cup grated parmesan cheese"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Melt butter and oil in a large Dutch oven over medium-low heat. Add sliced onions with a pinch of salt and cook for 35–40 minutes, stirring occasionally, until deeply golden brown and sweet."),
+                DirectionStep(stepIndex: 2, text: "Pour in dry white wine to deglaze the pot, scraping up all the savory fond from the bottom."),
+                DirectionStep(stepIndex: 3, text: "Add beef broth, thyme sprigs, and bay leaf. Bring to a boil, reduce heat, and simmer gently for 20 minutes. Discard thyme and bay leaf."),
+                DirectionStep(stepIndex: 4, text: "Ladle hot soup into oven-safe ceramic bowls placed on a baking sheet."),
+                DirectionStep(stepIndex: 5, text: "Top each bowl with a slice of toasted baguette and blanket generously with shredded Gruyère and parmesan."),
+                DirectionStep(stepIndex: 6, text: "Broil under high heat for 3–4 minutes until cheese is melted, bubbling, and golden-brown. Garnish with fresh thyme and serve hot.")
+            ],
+            thumbnailUrl: "recipe_french_onion_soup",
+            ownerUsername: "@Kristy.Graver",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-falafel-bowl",
+            ownerId: "creator-zaatar",
+            title: "Mediterranean Crispy Falafel Mezze Bowl",
+            description: "Crispy herb-packed chickpea falafels nestled over fluffy saffron rice, creamy hummus, pickled cucumbers, kalamata olives, and lemon tahini drizzle.",
+            prepTime: "20 min",
+            cookTime: "15 min",
+            servings: 3,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Herbed Falafel",
+                    items: [
+                        "1.5 cups dried chickpeas (soaked overnight, not canned)",
+                        "1 small onion (chopped)",
+                        "1 cup fresh parsley leaves",
+                        "1 cup fresh cilantro leaves",
+                        "3 cloves garlic",
+                        "1 tbsp ground cumin",
+                        "1 tsp ground coriander",
+                        "1 tsp sea salt",
+                        "1 tbsp toasted sesame seeds",
+                        "Oil for shallow frying"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Bowl Fixings & Tahini",
+                    items: [
+                        "2 cups cooked turmeric basmati rice",
+                        "0.75 cup classic smooth hummus",
+                        "1 cup diced Persian cucumber & cherry tomatoes",
+                        "0.33 cup pitted kalamata olives",
+                        "0.33 cup pickled pink onions",
+                        "3 tbsp creamy tahini paste",
+                        "1.5 tbsp fresh lemon juice",
+                        "2 tbsp ice water"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "In a food processor, pulse soaked raw chickpeas, onion, herbs, garlic, cumin, coriander, and salt until finely minced (do not puree). Stir in sesame seeds and chill for 20 minutes."),
+                DirectionStep(stepIndex: 2, text: "Scoop mixture and shape into golf-ball sized rounds, flattening slightly."),
+                DirectionStep(stepIndex: 3, text: "Heat 1 inch of oil to 360°F (180°C). Fry falafels in batches for 4–5 minutes until deeply golden brown and crisp on the exterior. Drain on paper towels."),
+                DirectionStep(stepIndex: 4, text: "Whisk tahini paste, lemon juice, and ice water until pale, silky, and pourable."),
+                DirectionStep(stepIndex: 5, text: "Build bowls: divide warm turmeric rice, dollop smooth hummus with a sprinkle of paprika, add cucumber-tomato salad, olives, pickled onions, and warm crunchy falafels."),
+                DirectionStep(stepIndex: 6, text: "Drizzle generously with lemon tahini sauce and serve immediately.")
+            ],
+            thumbnailUrl: "recipe_falafel_bowl",
+            ownerUsername: "@zaatarandzeal",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-chocolate-lava-cake",
+            ownerId: "creator-aisha",
+            title: "Molten Dark Chocolate Lava Cakes",
+            description: "Decadent dark chocolate individual cakes with an oozing molten center, served warm with vanilla bean gelato and fresh raspberries.",
+            prepTime: "15 min",
+            cookTime: "12 min",
+            servings: 2,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Cake Batter",
+                    items: [
+                        "100g bittersweet dark chocolate (70% chopped)",
+                        "0.5 cup unsalted butter",
+                        "2 large whole eggs",
+                        "2 egg yolks",
+                        "0.25 cup granulated sugar",
+                        "1 tsp pure vanilla extract",
+                        "2 tbsp all-purpose flour",
+                        "0.25 tsp sea salt"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Serving & Garnish",
+                    items: [
+                        "1 tbsp cocoa powder (for dusting ramekins)",
+                        "1 tbsp powdered sugar (for dusting)",
+                        "2 scoops vanilla bean ice cream",
+                        "0.5 cup fresh raspberries"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Preheat oven to 425°F (220°C). Butter two 6-ounce ceramic ramekins and dust inside thoroughly with cocoa powder, tapping out excess."),
+                DirectionStep(stepIndex: 2, text: "Melt chopped dark chocolate and butter together in a heatproof bowl set over a pot of simmering water until glossy and smooth."),
+                DirectionStep(stepIndex: 3, text: "In a separate bowl, whisk whole eggs, egg yolks, sugar, and vanilla vigorously for 2 minutes until pale and slightly frothy."),
+                DirectionStep(stepIndex: 4, text: "Gently fold melted chocolate mixture into the egg mixture. Sift in flour and salt, folding just until no flour streaks remain."),
+                DirectionStep(stepIndex: 5, text: "Divide batter evenly between prepared ramekins. Bake for 11–12 minutes until cake edges are firm and set, but the center jiggles."),
+                DirectionStep(stepIndex: 6, text: "Rest for 1 minute, run a thin butter knife along the rim, and invert onto dessert plates. Dust with powdered sugar and serve warm with vanilla gelato and fresh raspberries.")
+            ],
+            thumbnailUrl: "recipe_chocolate_lava_cake",
+            ownerUsername: "@aishaskitchen",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-korean-bibimbap",
+            ownerId: "creator-deveats",
+            title: "Sizzling Dolsot Bibimbap",
+            description: "Crisp stone-bowl short-grain rice topped with seasoned beef, sautéed spinach, carrots, bean sprouts, shiitake mushrooms, egg, and spicy gochujang.",
+            prepTime: "20 min",
+            cookTime: "15 min",
+            servings: 2,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Marinated Bulgogi Beef",
+                    items: [
+                        "200g ribeye or sirloin beef (thinly sliced)",
+                        "1.5 tbsp soy sauce",
+                        "1 tbsp brown sugar",
+                        "1 tbsp toasted sesame oil",
+                        "1 clove garlic (minced)"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Vegetable Toppings (Namul)",
+                    items: [
+                        "2 cups fresh baby spinach (blanched & seasoned with sesame)",
+                        "1 cup soybean sprouts (blanched with garlic & salt)",
+                        "1 medium carrot (julienned & sautéed)",
+                        "4 fresh shiitake mushrooms (sliced & sautéed)",
+                        "2 tbsp sesame oil"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Base & Sauce",
+                    items: [
+                        "3 cups cooked warm short-grain white rice",
+                        "2 fresh egg yolks",
+                        "2 tbsp Korean gochujang chili paste",
+                        "1 tbsp warm water",
+                        "1 tsp toasted sesame seeds"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Marinate thinly sliced beef with soy sauce, sugar, sesame oil, and garlic for 15 minutes. Stir-fry in a hot skillet for 2–3 minutes until caramelized."),
+                DirectionStep(stepIndex: 2, text: "Sauté each vegetable separately with a drop of sesame oil and a pinch of salt to preserve their vibrant distinct colors and textures."),
+                DirectionStep(stepIndex: 3, text: "Brush the interior of two heavy stone bowls (or cast iron skillets) with 1 tbsp sesame oil. Pack warm rice into the bottom and heat over medium flame for 5 minutes until rice sizzles and forms a crispy golden crust."),
+                DirectionStep(stepIndex: 4, text: "Arrange beef, seasoned spinach, carrots, bean sprouts, and mushrooms neatly in colorful wedges over the rice."),
+                DirectionStep(stepIndex: 5, text: "Place an egg yolk in the center of each bowl and sprinkle with sesame seeds."),
+                DirectionStep(stepIndex: 6, text: "Mix gochujang with 1 tbsp water and sesame oil. Serve sizzling hot, stirring thoroughly right before eating.")
+            ],
+            thumbnailUrl: "recipe_korean_bibimbap",
+            ownerUsername: "@deveats",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-tikka-masala",
+            ownerId: "creator-sanjeev",
+            title: "Royal Chicken Tikka Masala",
+            description: "Tender tandoori-marinated chicken bites simmered in a luscious spiced tomato, cream, and fenugreek gravy, paired with garlic butter naan.",
+            prepTime: "25 min",
+            cookTime: "25 min",
+            servings: 4,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Tandoori Chicken Marinade",
+                    items: [
+                        "600g boneless chicken breast (cut into bite-sized chunks)",
+                        "0.5 cup thick plain Greek yogurt",
+                        "1 tbsp ginger-garlic paste",
+                        "1 tbsp Kashmiri red chili powder",
+                        "1 tsp garam masala",
+                        "1 tsp ground cumin",
+                        "1 tbsp fresh lemon juice",
+                        "1 tsp kosher salt"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Makhani Masala Sauce",
+                    items: [
+                        "2 tbsp ghee or butter",
+                        "1 large yellow onion (finely diced)",
+                        "1 tbsp ginger-garlic paste",
+                        "2 cups crushed San Marzano canned tomatoes",
+                        "0.5 cup heavy cream",
+                        "1 tbsp kasuri methi (dried fenugreek leaves, crushed)",
+                        "1 tsp honey or brown sugar",
+                        "0.25 cup fresh cilantro (chopped)"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Whisk yogurt, ginger-garlic paste, Kashmiri chili, garam masala, cumin, lemon juice, and salt. Coat chicken thoroughly and marinate 30 minutes."),
+                DirectionStep(stepIndex: 2, text: "Broil chicken on a wire rack at 450°F (230°C) for 12–15 minutes until tender with charred edges."),
+                DirectionStep(stepIndex: 3, text: "Melt ghee in a wide saucepan over medium heat. Sauté diced onions until lightly golden. Add ginger-garlic paste and cook 1 minute."),
+                DirectionStep(stepIndex: 4, text: "Add crushed tomatoes, simmer for 10 minutes until oil separates from the masala, then blend until silky smooth."),
+                DirectionStep(stepIndex: 5, text: "Return sauce to pan, stir in heavy cream, honey, and crushed kasuri methi. Add charred chicken tikka and simmer gently for 5 minutes."),
+                DirectionStep(stepIndex: 6, text: "Garnish with a swirl of cream, ginger matchsticks, and fresh cilantro. Serve with warm garlic butter naan and fragrant basmati rice.")
+            ],
+            thumbnailUrl: "recipe_tikka_masala",
+            ownerUsername: "@Sanjeev.Kapoor",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-garlic-butter-shrimp",
+            ownerId: "creator-nada",
+            title: "Citrus Garlic Butter Grilled Shrimp Skewers",
+            description: "Char-grilled jumbo shrimp brushed with sizzled garlic butter, lemon zest, smoked paprika, and chopped flat-leaf parsley.",
+            prepTime: "10 min",
+            cookTime: "8 min",
+            servings: 3,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Grilled Shrimp",
+                    items: [
+                        "500g jumbo shrimp (peeled, deveined, tails on)",
+                        "2 tbsp olive oil",
+                        "1 tsp smoked paprika",
+                        "0.5 tsp garlic powder",
+                        "0.5 tsp sea salt & black pepper"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Sizzling Garlic Herb Butter",
+                    items: [
+                        "4 tbsp unsalted butter",
+                        "4 cloves garlic (finely minced)",
+                        "Zest and juice of 1 fresh lemon",
+                        "2 tbsp finely chopped flat-leaf parsley",
+                        "0.25 tsp red chili flakes"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Thread jumbo shrimp onto soaked bamboo skewers. Toss with olive oil, smoked paprika, garlic powder, salt, and pepper."),
+                DirectionStep(stepIndex: 2, text: "In a small skillet, melt butter over medium-low heat. Sauté minced garlic for 1 minute until fragrant. Remove from heat and stir in lemon zest, lemon juice, parsley, and chili flakes."),
+                DirectionStep(stepIndex: 3, text: "Heat grill or cast-iron skillet to high heat until smoking hot."),
+                DirectionStep(stepIndex: 4, text: "Grill shrimp skewers for 2–3 minutes per side until pink, opaque, and kissed with char marks."),
+                DirectionStep(stepIndex: 5, text: "Brush skewers generously with the warm sizzling garlic herb butter immediately off the heat."),
+                DirectionStep(stepIndex: 6, text: "Serve hot with grilled lemon halves and crusty bread for dipping in the pan juices.")
+            ],
+            thumbnailUrl: "recipe_garlic_butter_shrimp",
+            ownerUsername: "@nada_dl",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-summer-rolls",
+            ownerId: "creator-priya",
+            title: "Fresh Vietnamese Shrimp & Mango Summer Rolls",
+            description: "Translucent rice paper wraps filled with plump poached shrimp, crisp cucumber, julienned sweet mango, vermicelli noodles, and fresh mint with peanut hoisin dip.",
+            prepTime: "20 min",
+            cookTime: "5 min",
+            servings: 2,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Summer Roll Wraps",
+                    items: [
+                        "8 round rice paper sheets (banh trang)",
+                        "16 cooked jumbo shrimp (peeled, halved lengthwise)",
+                        "1 ripe mango (peeled and julienned)",
+                        "1 English cucumber (cut into matchsticks)",
+                        "100g thin rice vermicelli noodles (cooked and cooled)",
+                        "1 cup fresh mint leaves",
+                        "1 cup fresh cilantro leaves"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Creamy Peanut Hoisin Dip",
+                    items: [
+                        "0.33 cup creamy peanut butter",
+                        "2 tbsp hoisin sauce",
+                        "1 tbsp soy sauce",
+                        "1 tbsp fresh lime juice",
+                        "0.25 cup warm water",
+                        "1 tbsp roasted crushed peanuts (for garnish)"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Cook vermicelli noodles according to package, rinse in cold water, and drain thoroughly."),
+                DirectionStep(stepIndex: 2, text: "Whisk peanut butter, hoisin sauce, soy sauce, lime juice, and warm water together until smooth and creamy. Garnish with crushed peanuts."),
+                DirectionStep(stepIndex: 3, text: "Dip one rice paper sheet into a shallow bowl of warm water for 5 seconds until pliable. Lay flat on a clean cutting board."),
+                DirectionStep(stepIndex: 4, text: "Layer fresh mint, cilantro, cucumber, mango, and a small nest of vermicelli across the bottom third of the sheet."),
+                DirectionStep(stepIndex: 5, text: "Place 3–4 shrimp halves cut-side-down in a row above the filling so they show through the translucent wrapper."),
+                DirectionStep(stepIndex: 6, text: "Fold the bottom edge over the filling, tuck in both sides tightly, and roll forward snugly. Slice diagonally and serve with peanut dip.")
+            ],
+            thumbnailUrl: "recipe_summer_rolls",
+            ownerUsername: "@priyacooks",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-margherita-pizza",
+            ownerId: "creator-kristy",
+            title: "Artisan Neapolitan Margherita Pizza",
+            description: "Wood-fired style airy fermented crust topped with crushed San Marzano tomatoes, torn fresh mozzarella fior di latte, and aromatic basil leaves.",
+            prepTime: "20 min",
+            cookTime: "10 min",
+            servings: 3,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Dough & Sauce",
+                    items: [
+                        "1 artisan pizza dough ball (300g, fermented)",
+                        "0.75 cup crushed San Marzano canned tomatoes",
+                        "1 tbsp extra virgin olive oil",
+                        "0.5 tsp sea salt"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Cheese & Fresh Toppings",
+                    items: [
+                        "150g fresh mozzarella fior di latte (torn into pieces & drained)",
+                        "8 fresh sweet basil leaves",
+                        "1 tbsp freshly grated parmigiano reggiano",
+                        "1 tbsp extra virgin olive oil (for drizzling)"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Preheat oven with a pizza stone or heavy steel at 500°F (260°C) for at least 45 minutes."),
+                DirectionStep(stepIndex: 2, text: "Crush San Marzano tomatoes by hand with olive oil and sea salt. Tear mozzarella and drain on paper towels to remove excess moisture."),
+                DirectionStep(stepIndex: 3, text: "Stretch pizza dough on a floured surface by pressing from the center outward, leaving an airy 1-inch raised cornicione rim."),
+                DirectionStep(stepIndex: 4, text: "Spread crushed tomato sauce gently over the base, leaving the crust bare. Scatter torn fresh mozzarella evenly."),
+                DirectionStep(stepIndex: 5, text: "Slide onto the blazing hot pizza stone. Bake for 8–10 minutes until the crust is blistered with charred spots and cheese is bubbling."),
+                DirectionStep(stepIndex: 6, text: "Finish immediately with fresh basil leaves, grated parmigiano reggiano, and a drizzle of extra virgin olive oil.")
+            ],
+            thumbnailUrl: "recipe_margherita_pizza",
+            ownerUsername: "@Kristy.Graver",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-beef-udon",
+            ownerId: "creator-deveats",
+            title: "Savory Beef Udon Noodle Bowl",
+            description: "Thick chewy udon noodles in a dashi broth topped with tender thinly sliced simmered beef, caramelized sweet leeks, and soft-poached egg.",
+            prepTime: "10 min",
+            cookTime: "12 min",
+            servings: 2,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Simmered Sweet Beef",
+                    items: [
+                        "200g thinly sliced beef chuck or ribeye",
+                        "1 large leek or scallion (sliced diagonally into 2-inch batons)",
+                        "1 tbsp soy sauce",
+                        "1 tbsp mirin",
+                        "1 tbsp sake or rice wine",
+                        "1 tsp brown sugar"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Noodles & Dashi Broth",
+                    items: [
+                        "2 packs fresh or frozen Sanuki udon noodles (400g)",
+                        "3 cups Japanese dashi broth",
+                        "2 tbsp light soy sauce",
+                        "1 tbsp mirin",
+                        "2 soft-poached eggs (onsen tamago)",
+                        "1 tbsp sliced scallions & togarashi for garnish"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "In a skillet, combine 1 tbsp soy sauce, 1 tbsp mirin, sake, sugar, and sliced leeks. Simmer over medium heat for 3 minutes until leeks soften."),
+                DirectionStep(stepIndex: 2, text: "Add thinly sliced beef, simmering for 2–3 minutes until just cooked through and glossy. Set aside."),
+                DirectionStep(stepIndex: 3, text: "In a soup pot, bring dashi broth, light soy sauce, and 1 tbsp mirin to a simmer."),
+                DirectionStep(stepIndex: 4, text: "Boil udon noodles in water for 1 minute until chewy and plump. Drain thoroughly and divide between two large noodle bowls."),
+                DirectionStep(stepIndex: 5, text: "Ladle piping hot dashi broth over the noodles."),
+                DirectionStep(stepIndex: 6, text: "Crown with the simmered sweet beef and leeks, a soft-poached egg, fresh sliced scallions, and a dusting of Japanese togarashi pepper.")
+            ],
+            thumbnailUrl: "recipe_beef_udon",
+            ownerUsername: "@deveats",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-acai-bowl",
+            ownerId: "creator-aisha",
+            title: "Tropical Brazilian Açaí Power Bowl",
+            description: "Thick frozen organic açaí berry blend crowned with sliced bananas, strawberries, crunchy golden granola, chia seeds, and raw honeycomb.",
+            prepTime: "10 min",
+            cookTime: "0 min",
+            servings: 2,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Thick Açaí Base",
+                    items: [
+                        "200g frozen unsweetened açaí puree packets",
+                        "1 frozen ripe banana",
+                        "0.5 cup frozen mixed berries",
+                        "0.33 cup unsweetened almond milk",
+                        "1 tbsp pure maple syrup"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Fresh Superfood Toppings",
+                    items: [
+                        "1 fresh banana (sliced)",
+                        "0.5 cup fresh ripe strawberries (halved)",
+                        "0.5 cup toasted almond granola",
+                        "1 tbsp black chia seeds",
+                        "1 tbsp unsweetened toasted coconut flakes",
+                        "1 tbsp raw honeycomb or honey drizzle"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Break frozen açaí packets into pieces and place in a high-powered blender along with frozen banana, frozen berries, maple syrup, and almond milk."),
+                DirectionStep(stepIndex: 2, text: "Blend on low speed, using the tamper to push ingredients into blades, until thick like soft-serve gelato (add almond milk only 1 tbsp at a time if needed)."),
+                DirectionStep(stepIndex: 3, text: "Spoon the vibrant purple smoothie base into two chilled bowls, smoothing the surface with a spoon."),
+                DirectionStep(stepIndex: 4, text: "Arrange sliced fresh banana, halved strawberries, and crunchy granola in neat rows across the top."),
+                DirectionStep(stepIndex: 5, text: "Scatter chia seeds and toasted coconut flakes over the fruit."),
+                DirectionStep(stepIndex: 6, text: "Drizzle with raw honeycomb or honey and serve immediately with spoons.")
+            ],
+            thumbnailUrl: "recipe_acai_bowl",
+            ownerUsername: "@aishaskitchen",
+            sourceLanguage: "en",
+            nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-classic-tiramisu",
+            ownerId: "creator-kristy",
+            title: "Authentic Venetian Espresso Tiramisu",
+            description: "Espresso-dipped savoiardi ladyfingers layered with airy whipped mascarpone cream, dark chocolate shavings, and dusted with Dutch cocoa.",
+            prepTime: "25 min",
+            cookTime: "0 min",
+            servings: 6,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Espresso Soak",
+                    items: [
+                        "1.5 cups freshly brewed strong espresso (cooled)",
+                        "2 tbsp dark rum or amaretto (optional)",
+                        "1 tbsp sugar"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Whipped Mascarpone Cream",
+                    items: [
+                        "4 large egg yolks",
+                        "0.5 cup granulated sugar",
+                        "450g Italian mascarpone cheese (room temperature)",
+                        "1 cup heavy whipping cream (chilled)",
+                        "1 tsp pure vanilla extract"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Assembly & Dusting",
+                    items: [
+                        "24 crisp Italian savoiardi ladyfingers",
+                        "3 tbsp Dutch-process unsweetened cocoa powder",
+                        "50g dark chocolate shavings"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "In a heatproof glass bowl over a pot of simmering water, whisk egg yolks and sugar for 5 minutes until pale, thick, and sugar has dissolved. Remove from heat and let cool."),
+                DirectionStep(stepIndex: 2, text: "Gently fold room-temperature mascarpone into the yolk mixture until silky and combined."),
+                DirectionStep(stepIndex: 3, text: "In a cold bowl, whip heavy cream and vanilla extract to medium-stiff peaks. Gently fold whipped cream into mascarpone mixture in two additions."),
+                DirectionStep(stepIndex: 4, text: "Mix cooled espresso, rum, and sugar in a shallow dish. Quickly dip each ladyfinger for 1–2 seconds per side (do not soak)."),
+                DirectionStep(stepIndex: 5, text: "Arrange a single layer of dipped ladyfingers in an 8x8 baking dish. Spread half of the mascarpone cream smoothly on top, followed by dark chocolate shavings."),
+                DirectionStep(stepIndex: 6, text: "Repeat with a second layer of dipped ladyfingers and the remaining cream. Dust generously with unsweetened cocoa powder through a fine sieve, and chill for at least 4 hours (or overnight) before slicing.")
+            ],
+            thumbnailUrl: "recipe_classic_tiramisu",
+            ownerUsername: "@Kristy.Graver",
+            sourceLanguage: "en",
+            nutrition: nil
+        )
+
     ]
 }
