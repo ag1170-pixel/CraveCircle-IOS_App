@@ -1,104 +1,79 @@
-# Handoff Note for Claude: App Store Legal & Support In-App Integration
+# Handoff Note for Claude: Recipe Content Expansion & Ponytail Integration
 
 **Date:** September 3, 2026  
-**Author:** Antigravity  
-**Context:** App Store preparation & legal compliance per user brief `TASK_Privacy_Terms_Support.md` and drafts in `POLICIES_CraveCircle.md`.
+**Author:** Antigravity (UI/Content Lane)  
+**Context:** Content library expansion per `ANTIGRAVITY_CONTENT_TASK.md` and Ponytail engineering standard integration per user request.
 
 ---
 
 ## 1. Summary of What Was Done
 
-To prepare the **CraveCircle** iOS app (`com.anassyed.AICookBook`) for Apple App Store review (Guidelines 5.1.1 & 5.1.2) and App Store Connect submission:
-1. Added static legal and support URLs to the app configuration.
-2. Added a dedicated **"Legal & Support"** card in `ProfileScreen.swift` opening Privacy Policy, Terms of Service, and Help & Support in a native in-app Safari view.
-3. Committed and pushed all changes along with the policy briefs to GitHub (`ag1170-pixel/CraveCircle-IOS_App`).
-4. Updated all project documentation and architecture logs in the Obsidian vault (`SergantSwaggBase`).
+1. **Recipe Catalog Expansion (10 → 26 Dishes):**
+   - Expanded built-in recipes in `AICookBook/SampleRecipes.swift` from 10 to 26 dishes.
+   - Varied cuisines: Mexican (Birria Tacos), Japanese (Crispy Gyoza, Beef Udon), Italian (Mushroom Risotto, Margherita Pizza, Tiramisu), French (Onion Soup Gratinée), Thai (Pad Krapow), Indian (Chicken Tikka Masala), Mediterranean (Falafel Mezze Bowl), Vietnamese (Summer Rolls), and Breakfast/Dessert (Sourdough Avocado Toast, Açaí Power Bowl, Molten Lava Cake).
+   - Every ingredient line strictly has explicit quantity and unit (`200g`, `1 tbsp`, `2 cloves`, `1 cup`) so `NutritionEstimator` and `IngredientScaler` execute accurately without heuristic failure.
+   - Mapped all recipes to universal 1024×1024 imagesets in `AICookBook/Assets.xcassets/` (`recipe_<slug>`).
+   - Clean build confirmed with `xcodebuild` targeting `iPhone 17 Pro` simulator (`** BUILD SUCCEEDED **`). Committed (`26a6dc2`) and pushed to `crave-app/main`.
+
+2. **Ponytail Integration (GitHub & Coding Architecture):**
+   - **GitHub Fork:** Forked upstream `DietrichGebert/ponytail` to Anas's GitHub: [`ag1170-pixel/ponytail`](https://github.com/ag1170-pixel/ponytail).
+   - **Repository Rules:** Added `AGENTS.md` and `.cursor/rules/ponytail.mdc` in the root of `CraveCircle-IOS_App` so all coding assistants (Claude Code, Cursor, Copilot, Codex, Antigravity) enforce the 7-rung decision ladder.
+   - **Obsidian Architecture:** Created canonical standard `Punctualities/Ponytail-Methodology.md` in `SergantSwaggBase`, updated `Punctualities/00-Read-First.md`, `Punctualities/How-Agents-Act.md`, `Projects/CraveCircle/iOS-Architecture-and-Methods.md`, and `Projects/CraveCircle/CraveCircle.md`.
 
 ---
 
-## 2. Files Modified & Why
+## 2. Files Modified / Created in This Repo
 
-### 1. `AICookBook/AppConfig.swift`
-* **Changes:**
-  Added three static constants to `AppConfig`:
-  ```swift
-  static let privacyPolicyURL = URL(string: "https://cravecircle.cc/privacy")!
-  static let termsOfServiceURL = URL(string: "https://cravecircle.cc/terms")!
-  static let supportURL = URL(string: "https://cravecircle.cc/support")!
-  ```
-* **Why:** Centralizes the production URLs for legal policies and user support in one configuration file instead of hardcoding URLs across UI views.
+### 1. `AICookBook/SampleRecipes.swift`
+* **Changes:** Appended 16 fully formed `Recipe(...)` entries to `Recipe.placeholderRecipes` (total = 26 recipes).
+* **Why:** Fulfills `ANTIGRAVITY_CONTENT_TASK.md` goal of growing the starter catalog so the Home feed, Library, and search feel vibrant and production-ready on launch.
+* **Integrity:** Kept `nutrition: nil` on new recipes to leverage on-device macro estimation; all ingredients strictly include units.
 
----
+### 2. `AGENTS.md` (Repo Root)
+* **Changes:** Added Ponytail "lazy senior developer" rule definitions and 7-rung decision ladder:
+  1. YAGNI?
+  2. Already in codebase?
+  3. Standard library?
+  4. Native platform feature?
+  5. Existing dependency?
+  6. Can it be one line?
+  7. Minimum working code.
+* **Why:** Read natively by AI agent tooling (Claude, Codex, Amp, Jules, Copilot CLI) on every session start.
 
-### 2. `AICookBook/ProfileScreen.swift`
-* **Changes:**
-  1. **State:** Added `@State private var activeSafariURL: IdentifiableURL? = nil`.
-  2. **UI Section:** Added a new **"Legal & Support"** card under Profile preferences before the "Log out" button:
-     * **Help & Support** (`questionmark.circle.fill` / `.teal`) → triggers `AppConfig.supportURL`
-     * **Privacy Policy** (`hand.raised.shield.fill` / `.green`) → triggers `AppConfig.privacyPolicyURL`
-     * **Terms of Service** (`doc.text.fill` / `.blue`) → triggers `AppConfig.termsOfServiceURL`
-  3. **Presentation:** Attached `.sheet(item: $activeSafariURL)` presenting `SafariView(url: item.url)` (`SFSafariViewController`) with `.presentationDetents([.large])` and native drag dismissal.
-  4. **Branding:** Added subtle version and brand footer: `"CraveCircle v1.0 · Crafted for cooks & food lovers"`.
-  5. **Helper Model:** Defined `IdentifiableURL: Identifiable` (`id = UUID()`, `url: URL`) for clean SwiftUI sheet presentation.
-* **Why:**
-  * Apple App Store Guidelines require easily accessible Privacy Policy and Support URLs.
-  * Presenting via `SafariView` keeps users inside the app with standard Safari reader, security, and navigation controls rather than kicking them out to an external browser.
+### 3. `.cursor/rules/ponytail.mdc`
+* **Changes:** Added Cursor-specific system rule mapping Ponytail YAGNI principles.
+* **Why:** Enforces the same senior developer discipline when editing via Cursor IDE.
 
----
-
-### 3. `TASK_Privacy_Terms_Support.md` (Committed to repo root)
-* **Contents:**
-  * The locked technical brief documenting the app's **exact on-device data truth** (hand-pose camera frames analyzed in real time with zero recording/streaming; microphone keyword spotting on-device; Neural Engine audio transcription + Vision OCR on-device with video discarded immediately; zero analytics or third-party tracking SDKs; link-import via self-hosted backend).
-  * Hosting specs (`/privacy`, `/terms`, `/support` on `cravecircle.cc`).
-  * App Store Connect submission checklist.
+### 4. Untouched Architect Files (Respecting `WORK_DIVISION.md`)
+* Preserved your unstaged working-tree additions in:
+  - `AICookBook/AppEnvironment.swift` (`ownedRecipes`, `myDrafts`, `myPublished`)
+  - `AICookBook/LibraryScreen.swift`
+  - `AICookBook/StudioScreen.swift`
+* Did NOT touch: `AppConfig.swift`, `Models.swift`, `Nutrition.swift`, `project.pbxproj`, `Config/`.
 
 ---
 
-### 4. `POLICIES_CraveCircle.md` (Committed to repo root)
-* **Contents:**
-  * Ready-to-publish complete text drafts tailored precisely to what the iOS app actually does:
-    1. **Privacy Policy** (highlighting on-device privacy safeguards)
-    2. **Terms of Service** (including nutrition disclaimer and user-generated content terms)
-    3. **Support & FAQ** (common questions on link vs. on-device import, permissions, account deletion)
+## 3. Obsidian Vault Notes Updated (`SergantSwaggBase`)
+
+1. **`Punctualities/Ponytail-Methodology.md`** (NEW):
+   - Exhaustive guide on the 7-rung decision ladder, bug fix root-cause policy, YAGNI rules, deliberate shortcut notation (`// ponytail: <ceiling & upgrade path>`), and iOS native framework mapping.
+2. **`Punctualities/00-Read-First.md`**:
+   - Added Rule 3 mandating the Ponytail ladder before touching code.
+3. **`Punctualities/How-Agents-Act.md`**:
+   - Added `### Engineering Standard — Ponytail Lazy Senior Dev Mode` under `## While working (every project)`.
+4. **`Projects/CraveCircle/iOS-Architecture-and-Methods.md`**:
+   - Added Section 14 detailing the Ponytail standard applied specifically to native iOS & SwiftUI frameworks.
+5. **`Projects/CraveCircle/CraveCircle.md`**:
+   - Appended session log under `## 2026-09-03 — Starter Content Expansion & Ponytail Methodology Integration`.
 
 ---
 
-## 3. Obsidian Vault Updates Made
+## 4. Verification & Git State
 
-The following notes in `/Users/user38/SergantSwaggBase/Projects/CraveCircle/` were updated:
-
-1. **`CraveCircle.md`**:
-   * Header table updated to list `https://github.com/ag1170-pixel/CraveCircle-IOS_App` as the primary iOS repo.
-   * Added `## 2026-09-03 — App Store Legal & Support In-App Integration` log summarizing the files changed, data truth, and verification.
-2. **`iOS-Architecture-and-Methods.md`**:
-   * Added `## 13. App Store Legal & Support In-App Integration — 2026-09-03` detailing static endpoints, `ProfileScreen` UI rows, `IdentifiableURL` sheet presentation mechanics, and App Store guideline mapping.
-
----
-
-## 4. Git & Build Status
-
-* **Build Verification:**
+* **Build Command:**
   ```bash
-  xcodebuild -project AICookBook.xcodeproj -scheme AICookBook -destination 'generic/platform=iOS' -derivedDataPath ./build CODE_SIGNING_ALLOWED=NO build
+  xcodebuild -project AICookBook.xcodeproj -scheme AICookBook -configuration Debug \
+    -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -derivedDataPath /tmp/ag-build build
   ```
-  **Result:** `** BUILD SUCCEEDED **` (0 errors, 0 warnings).
-* **Git Remote:**
-  * `origin`: `git@github.com:ag1170-pixel/CraveCircle-IOS_App.git`
-  * `crave-app`: `git@github.com:ag1170-pixel/CraveCircle-IOS_App.git`
-* **Commit:** `d9d3647` on `main` pushed to `ag1170-pixel/CraveCircle-IOS_App.git`.
-
----
-
-## 5. Next Step: Web Plumbing (`cravecircle.cc`)
-
-The website repository is **`ag1170-pixel/Crave.circle_heropage`** (Next.js 16 app deployed on Vercel at `cravecircle.cc`).
-The remaining task is to:
-1. Add routes `src/app/(marketing)/privacy/page.tsx`, `src/app/(marketing)/terms/page.tsx`, and `src/app/(marketing)/support/page.tsx`.
-2. Populate them with the copy from `POLICIES_CraveCircle.md`.
-3. Replace the 5 placeholders:
-   * `[SUPPORT_EMAIL]`
-   * `[LEGAL_ENTITY]`
-   * `[CONTACT_ADDRESS]`
-   * `[JURISDICTION]`
-   * `[EFFECTIVE_DATE]`
-4. Deploy to Vercel so the live URLs resolve 200 for App Store Connect submission.
+  **Result:** `** BUILD SUCCEEDED **`
+* **Pushed Commit:** `26a6dc2` on `crave-app/main` (`git@github.com:ag1170-pixel/CraveCircle-IOS_App.git`).
