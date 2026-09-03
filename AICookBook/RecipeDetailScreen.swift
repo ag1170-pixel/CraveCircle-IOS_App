@@ -26,6 +26,7 @@ struct RecipeDetailScreen: View {
     @State private var showShareSheet = false
     @State private var showCreatorSheet = false
     @State private var showWatchReel = false
+    @State private var showDeleteConfirm = false
     @AppStorage(LanguagePrefs.key) private var preferredLang = LanguagePrefs.default.rawValue
     @State private var showGroceryBanner = false
     @State private var addedGroceryCount = 0
@@ -33,6 +34,7 @@ struct RecipeDetailScreen: View {
     @State private var heartBurstScale: CGFloat = 0.2
     @State private var heartBurstOpacity: Double = 0.0
     @State private var heartBurstY: CGFloat = 0
+    @State private var showOriginalRecipeInfo = false
 
     private let heroHeight: CGFloat = 380
 
@@ -58,6 +60,7 @@ struct RecipeDetailScreen: View {
         }
         .background(AppTheme.background.ignoresSafeArea())
         .ignoresSafeArea(edges: .top)
+        .leadingEdgeBack { environment.dismissRecipeDetail() }
         .overlay(alignment: .bottom) {
             if showGroceryBanner {
                 HStack(spacing: 8) {
@@ -72,6 +75,28 @@ struct RecipeDetailScreen: View {
                 .background(AppTheme.surface, in: Capsule())
                 .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
                 .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+                .padding(.bottom, 24)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if showOriginalRecipeInfo {
+                HStack(spacing: 9) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(Color(hex: "FFB340"))
+                        .font(.system(size: 15, weight: .bold))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Chef's Original Recipe")
+                            .font(AppFont.body(13, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                        Text("Handcrafted & published directly on CraveCircle.")
+                            .font(AppFont.body(12))
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 11)
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+                .shadow(color: .black.opacity(0.18), radius: 14, y: 5)
+                .padding(.horizontal, AppSpacing.md)
                 .padding(.bottom, 24)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -101,6 +126,16 @@ struct RecipeDetailScreen: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
+        }
+        .alert("Delete this recipe?", isPresented: $showDeleteConfirm) {
+            Button("Delete", role: .destructive) {
+                Haptics.success()
+                environment.deleteOwnedRecipe(id: recipe.id)
+                environment.dismissRecipeDetail()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes it from your library. Other people’s recipes can’t be deleted.")
         }
     }
 
@@ -150,6 +185,7 @@ struct RecipeDetailScreen: View {
                     .frame(height: height * 0.65)
                     .frame(maxHeight: .infinity, alignment: .bottom)
                     .offset(y: reduceMotion ? 0 : -stretch)
+                    .allowsHitTesting(false)
 
                 heroFooter
                     .padding(.horizontal, AppSpacing.md)
@@ -231,39 +267,78 @@ struct RecipeDetailScreen: View {
 
             Spacer(minLength: 4)
 
-            Button {
-                Haptics.tap()
-                showWatchReel = true
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "play.fill").font(.system(size: 12, weight: .bold))
-                    Text("Watch").font(AppFont.body(14, weight: .bold))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 15)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.8))
-                .shadow(color: .black.opacity(0.2), radius: 3, x: 0, y: 1)
-            }
-            .buttonStyle(PressableStyle())
-            .contextMenu {
+            if recipe.isImportedFromSocial {
                 Button {
+                    Haptics.tap()
                     showWatchReel = true
                 } label: {
-                    Label("Watch in App", systemImage: "play.circle")
+                    HStack(spacing: 6) {
+                        Image(systemName: "play.fill").font(.system(size: 12, weight: .bold))
+                        Text("Watch").font(AppFont.body(14, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.8))
+                    .shadow(color: .black.opacity(0.2), radius: 3, x: 0, y: 1)
                 }
+                .buttonStyle(PressableStyle())
+                .contextMenu {
+                    Button {
+                        showWatchReel = true
+                    } label: {
+                        Label("Watch in App", systemImage: "play.circle")
+                    }
+                    Button {
+                        UIApplication.shared.open(recipe.reelUrl)
+                    } label: {
+                        Label("Open in Instagram App", systemImage: "arrow.up.right.square")
+                    }
+                    Button {
+                        UIPasteboard.general.string = recipe.reelUrl.absoluteString
+                        Haptics.tap()
+                    } label: {
+                        Label("Copy Reel Link", systemImage: "doc.on.doc")
+                    }
+                }
+            } else {
                 Button {
-                    UIApplication.shared.open(recipe.reelUrl)
+                    Haptics.select()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                        showOriginalRecipeInfo = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        withAnimation(.easeInOut(duration: 0.4)) {
+                            showOriginalRecipeInfo = false
+                        }
+                    }
                 } label: {
-                    Label("Open in Instagram App", systemImage: "arrow.up.right.square")
+                    HStack(spacing: 5) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color(hex: "FFB340"))
+                        Text("Original")
+                            .font(AppFont.body(13, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color(hex: "FFB340").opacity(0.6), .white.opacity(0.25)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1.0
+                            )
+                    )
+                    .shadow(color: .black.opacity(0.2), radius: 3, x: 0, y: 1)
                 }
-                Button {
-                    UIPasteboard.general.string = recipe.reelUrl.absoluteString
-                    Haptics.tap()
-                } label: {
-                    Label("Copy Reel Link", systemImage: "doc.on.doc")
-                }
+                .buttonStyle(PressableStyle())
             }
         }
     }
@@ -318,44 +393,59 @@ struct RecipeDetailScreen: View {
                     Haptics.tap()
                     showShareSheet = true
                 }
-                if environment.isOwner(of: recipe) {
-                    GlassIconButton(systemImage: "square.and.pencil") { showEdit = true }
-                } else {
-                    Menu {
-                        let saved = environment.isSaved(recipeId: recipe.id)
-                        Button {
-                            Haptics.select()
-                            environment.toggleSaveRecipe(id: recipe.id)
+                Menu {
+                    if environment.canDelete(recipe) {
+                        Button(role: .destructive) {
+                            Haptics.tap()
+                            showDeleteConfirm = true
                         } label: {
-                            Label(saved ? "Remove from Saved" : "Save Recipe", systemImage: saved ? "bookmark.fill" : "bookmark")
+                            Label("Delete from Library", systemImage: "trash")
                         }
+                    }
 
-                        Button {
-                            Haptics.success()
-                            let count = environment.addIngredientsToGrocery(recipe: recipe)
-                            addedGroceryCount = count
-                            withAnimation { showGroceryBanner = true }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                                withAnimation { showGroceryBanner = false }
-                            }
-                        } label: {
-                            Label("Add to Grocery List", systemImage: "basket")
-                        }
-
+                    if environment.isOwner(of: recipe) {
                         Button {
                             Haptics.tap()
-                            showShareSheet = true
+                            showEdit = true
                         } label: {
-                            Label("Share with Circle", systemImage: "paperplane")
+                            Label("Edit Recipe", systemImage: "pencil")
+                        }
+                    }
+
+                    let saved = environment.isSaved(recipeId: recipe.id)
+                    Button {
+                        Haptics.select()
+                        environment.toggleSaveRecipe(id: recipe.id)
+                    } label: {
+                        Label(saved ? "Remove from Saved" : "Save Recipe", systemImage: saved ? "bookmark.fill" : "bookmark")
+                    }
+
+                    Button {
+                        Haptics.success()
+                        let count = environment.addIngredientsToGrocery(recipe: recipe)
+                        addedGroceryCount = count
+                        withAnimation { showGroceryBanner = true }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                            withAnimation { showGroceryBanner = false }
                         }
                     } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 40, height: 40)
-                            .background(.ultraThinMaterial, in: Circle())
-                            .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 0.5))
+                        Label("Add to Grocery List", systemImage: "basket")
                     }
+
+                    Button {
+                        Haptics.tap()
+                        showShareSheet = true
+                    } label: {
+                        Label("Share with Circle", systemImage: "paperplane")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.25), lineWidth: 0.8))
+                        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
                 }
             }
         }
@@ -413,7 +503,7 @@ struct RecipeDetailScreen: View {
 
     @ViewBuilder private var originChip: some View {
         let userLang = AppLanguage(rawValue: preferredLang) ?? LanguagePrefs.default
-        let isManual = recipe.sourceUrl == nil || recipe.sourceLanguage == nil || recipe.sourceLanguage == "manual" || environment.isOwner(of: recipe)
+        let isManual = !recipe.isImportedFromSocial
 
         if isManual {
             HStack(spacing: 6) {

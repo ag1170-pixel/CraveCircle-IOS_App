@@ -120,6 +120,17 @@ struct HomeScreen: View {
         }
     }
 
+    // MARK: Feed computation
+    private var freshFeedRecipes: [Recipe] {
+        let feed = environment.recipes.filter { !environment.canDelete($0) }
+        return feed.isEmpty ? environment.recipes : feed
+    }
+
+    private var libraryGridRecipes: [Recipe] {
+        let personal = environment.recipes.filter { environment.canDelete($0) || environment.isSaved(recipeId: $0.id) }
+        return personal.isEmpty ? Array(environment.recipes.prefix(6)) : personal
+    }
+
     // MARK: Fresh in your Circle
 
     private var freshSection: some View {
@@ -136,12 +147,12 @@ struct HomeScreen: View {
             }
             .padding(.horizontal, AppSpacing.md)
 
-            if environment.recipes.isEmpty {
+            if freshFeedRecipes.isEmpty {
                 EmptyRecipesState { showingImportSheet = true }
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: AppSpacing.md) {
-                        ForEach(environment.recipes) { recipe in
+                        ForEach(freshFeedRecipes) { recipe in
                             FreshCard(recipe: recipe) { environment.selectRecipe(recipe) }
                         }
                     }
@@ -162,7 +173,7 @@ struct HomeScreen: View {
             .padding(.horizontal, AppSpacing.md)
 
             LazyVGrid(columns: columns, spacing: AppSpacing.lg) {
-                ForEach(environment.recipes) { recipe in
+                ForEach(libraryGridRecipes) { recipe in
                     LibraryCard(recipe: recipe) { environment.selectRecipe(recipe) }
                 }
             }
@@ -338,6 +349,13 @@ struct LibraryCard: View {
                 environment.selectRecipe(recipe)
             } label: {
                 Label("View Recipe", systemImage: "fork.knife")
+            }
+            if environment.canDelete(recipe) {
+                Button(role: .destructive) {
+                    environment.deleteOwnedRecipe(id: recipe.id)
+                } label: {
+                    Label("Delete from Library", systemImage: "trash")
+                }
             }
         }
     }

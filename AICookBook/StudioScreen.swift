@@ -35,13 +35,17 @@ struct StudioScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.xl) {
                     header
-                    statsGrid
-                    LimeSegmentedControl(
-                        segments: ["Drafts \(drafts.count)", "Published \(published.count)"],
-                        selection: $tab
-                    )
-                    recipeGrid
-                    libraryStrip
+                    if environment.canPublish {
+                        statsGrid
+                        LimeSegmentedControl(
+                            segments: ["Drafts \(drafts.count)", "Published \(published.count)"],
+                            selection: $tab
+                        )
+                        recipeGrid
+                        libraryStrip
+                    } else {
+                        enrollCard
+                    }
                 }
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.top, AppSpacing.xs)
@@ -86,9 +90,11 @@ struct StudioScreen: View {
                     .foregroundStyle(AppTheme.textSecondary)
             }
             Spacer()
-            PillButton(title: "New", systemImage: "plus", kind: .filled) {
-                Haptics.tap()
-                showNewRecipe = true
+            if environment.canPublish {
+                PillButton(title: "New", systemImage: "plus", kind: .filled) {
+                    Haptics.tap()
+                    showNewRecipe = true
+                }
             }
         }
         .padding(.top, AppSpacing.xs)
@@ -175,7 +181,7 @@ struct StudioScreen: View {
                     .foregroundStyle(AppTheme.textSecondary)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: AppSpacing.md) {
-                        ForEach(environment.recipes) { recipe in
+                        ForEach(environment.ownedRecipes) { recipe in
                             LibraryPromoteCard(recipe: recipe) {
                                 Haptics.success()
                                 withAnimation(AppMotion.snappy) {
@@ -187,6 +193,70 @@ struct StudioScreen: View {
                     }
                 }
                 .scrollClipDisabled()
+            }
+        }
+    }
+
+    private var enrollCard: some View {
+        VStack(spacing: AppSpacing.lg) {
+            ZStack {
+                Circle()
+                    .fill(AppTheme.accentSoft)
+                    .frame(width: 80, height: 80)
+                Image(systemName: "sparkles.rectangle.stack.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(AppTheme.accentInk)
+            }
+            .padding(.top, AppSpacing.sm)
+
+            VStack(spacing: 6) {
+                Text("CraveCircle Creator Studio")
+                    .font(AppFont.serif(22, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .multilineTextAlignment(.center)
+                Text("Publish recipes directly to the Circle, curate your culinary drafts, and build your food community.")
+                    .font(AppFont.body(14))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, AppSpacing.sm)
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                enrollBenefit(icon: "pencil.and.list.clipboard", title: "Author & Edit Recipes", subtitle: "Full control over ingredients, instructions, and servings.")
+                enrollBenefit(icon: "arrow.up.circle.fill", title: "Publish to Circle", subtitle: "Share your culinary creations with food lovers worldwide.")
+                enrollBenefit(icon: "chart.line.uptrend.xyaxis", title: "Creator Insights", subtitle: "Track saves, likes, and engagement on your recipes.")
+            }
+            .padding(AppSpacing.md)
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+
+            PillButton(title: "Enroll as Creator", systemImage: "sparkles", kind: .filled) {
+                Haptics.success()
+                withAnimation(AppMotion.snappy) {
+                    environment.enrollInStudio()
+                }
+            }
+            .padding(.top, AppSpacing.xs)
+        }
+        .padding(AppSpacing.lg)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card * 1.5, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: AppRadius.card * 1.5, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+        .shadow(color: .black.opacity(0.06), radius: 16, y: 6)
+    }
+
+    private func enrollBenefit(icon: String, title: String, subtitle: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(AppTheme.accentInk)
+                .frame(width: 28, height: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(AppFont.body(14, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text(subtitle)
+                    .font(AppFont.body(12))
+                    .foregroundStyle(AppTheme.textSecondary)
             }
         }
     }

@@ -70,6 +70,7 @@ struct CookModeScreen: View {
             }
         }
         .background(AppTheme.background.ignoresSafeArea())
+        .leadingEdgeBack { dismiss() }
     }
 
     // MARK: Header with progress

@@ -93,3 +93,32 @@ When running the E2E share-import test through the simulator (`pending_import_ur
      ```
    * Verified `pending_import_url` removed from group preferences.
 
+---
+
+## 6. Roles, Deletion, Social "Watch" Badging & Native Swipe-Back (Session 2026-09-03)
+
+### 1. Database & App User Roles (`Models.swift`, `AppEnvironment.swift`)
+* Added `AccountRole`:
+  - `.user`: General consumers. Can browse, save, like, cook, and import reels into their personal phone library. Cannot publish to the public feed.
+  - `.creator`: Studio-enrolled creators. Can manage private drafts and publish recipes to the Circle.
+  - `.admin`: Founder account with full platform permissions.
+* **Studio Access Control (`StudioScreen.swift`):** Standard users see `enrollCard` inviting them to enroll in Creator Studio (`environment.enrollInStudio()`). Creators and Admins see full drafting, publishing, and metric controls.
+
+### 2. Instagram-Style Library Deletion Rules (`AppEnvironment.swift`, `HomeScreen.swift`, `RecipeDetailScreen.swift`)
+* **Ownership Rule:** Users can only delete recipes from their personal library (recipes they authored or imported to their device). They cannot delete other creators' recipes.
+* Added `environment.canDelete(recipe)` and `environment.deleteOwnedRecipe(id:)`.
+* Context menus on `LibraryCard` (`HomeScreen` & `LibraryScreen`) show destructive "Delete from Library" only when `canDelete == true`.
+* `RecipeDetailScreen` provides a trash icon with an alert confirmation dialog for owned recipes.
+
+### 3. Social Reel "Watch" Detection & Backend Ingestion (`whisper-transcriber/app/main.py`)
+* Fixed Whisper backend `recipe_obj` to persist `"source_url": url`. Deployed live to container `cravecircle-whisper` on homelab.
+* Added `recipe.isImportedFromSocial` checking Instagram, TikTok, YouTube, and Facebook hostnames.
+* Social imports display `[ ▶ Watch ]` with in-app Safari and Instagram deep-links; original handcrafted recipes display `[ ✨ Original ]` with an informational toast banner.
+* In `AppEnvironment.beginPolling()`, assigned local user ownership to imported recipes while preserving creator attribution (`ownerUsername`), allowing immediate deletion/management and auto-selecting the imported recipe on completion.
+
+### 4. Native iOS Interactive Swipe-Back Gesture (`DesignComponents.swift`)
+* Replaced fullScreenCover's missing back gesture with `LeadingEdgeBackModifier` (`.leadingEdgeBack { environment.dismissRecipeDetail() }`).
+* Implemented a 32pt leading touch target, horizontal drag intent gating, real-time interactive shadow, and velocity-sensitive spring dismissal.
+
+### 5. Invariant Self-Checks (`Models.swift`, `AppEnvironment.swift`)
+* Added `CraveCircleInvariantChecks._runChecks` executed during `bootstrap()` in `#if DEBUG`, verifying URL parsing, role permissions, and publication rules without external test frameworks.

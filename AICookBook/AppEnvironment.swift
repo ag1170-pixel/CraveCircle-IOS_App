@@ -87,13 +87,16 @@ final class AppEnvironment: ObservableObject {
     }
 
     func bootstrap() async {
+        #if DEBUG
+        _ = CraveCircleInvariantChecks._runChecks
+        #endif
         hydrateLocal()   // load the persisted library (recipes/collections/grocery) before anything else
 
         guard tokenStore.readAccessToken() != nil else {
             #if DEBUG
             // Dev preview: backend auth is down (deleted Supabase), so open the app signed-in with
             // the local library (hydrated above) instead of the login wall. DEBUG only.
-            currentUser = UserProfile(id: "preview-user", username: "@aicookbook", fullName: "You", avatarUrl: nil)
+            currentUser = UserProfile(id: "preview-user", username: "@aicookbook", fullName: "You", avatarUrl: nil, role: .admin)
             appState = .signedIn
             #else
             appState = .signedOut
@@ -192,9 +195,36 @@ final class AppEnvironment: ObservableObject {
         // TODO: PATCH /recipes/{id} once the backend is reachable.
     }
 
-    /// True when the signed-in user owns this recipe (edit is owner-only).
+    /// True when the signed-in user owns this recipe (edit/delete are owner-only).
     func isOwner(of recipe: Recipe) -> Bool {
         currentUser?.id == recipe.ownerId
+    }
+
+    /// Instagram rule: you can delete your own library reel, never someone else's.
+    /// Admin (the founder) can delete any recipe. Any reel imported onto this phone can be removed.
+    func canDelete(_ recipe: Recipe) -> Bool {
+        if currentUser?.role == .admin { return true }
+        if isOwner(of: recipe) { return true }
+        if recipe.isImportedFromSocial || recipe.sourceUrl != nil { return true }
+        let isSample = Recipe.placeholderRecipes.contains(where: { $0.id == recipe.id })
+        return !isSample
+    }
+
+    var canPublish: Bool { currentUser?.canPublish ?? false }
+
+    func enrollInStudio() {
+        guard var user = currentUser, user.role == .user else { return }
+        user.role = .creator
+        currentUser = user
+    }
+
+    func deleteOwnedRecipe(id: String) {
+        guard let recipe = recipes.first(where: { $0.id == id }), canDelete(recipe) else { return }
+        recipes.removeAll { $0.id == id }
+        savedRecipeIds.remove(id)
+        likedRecipeIds.remove(id)
+        studioDraftIds.remove(id)
+        if selectedRecipe?.id == id { selectedRecipe = nil }
     }
 
     // MARK: - Owner-aware recipe collections (single source of truth for "your" recipes)
@@ -452,6 +482,10 @@ final class AppEnvironment: ObservableObject {
     }
     
     func publishDraft(recipeId: String) {
+        guard canPublish,
+              let recipe = recipes.first(where: { $0.id == recipeId }),
+              isOwner(of: recipe)
+        else { return }
         studioDraftIds.remove(recipeId)
         if let recipe = recipes.first(where: { $0.id == recipeId }) {
             let notif = CircleNotificationItem(title: "Recipe Published", message: "Your recipe '\(recipe.title)' is now live on your profile.", timeAgo: "Just now", symbol: "sparkles", isRead: false, recipeId: recipeId)
@@ -460,10 +494,15 @@ final class AppEnvironment: ObservableObject {
     }
     
     func unpublishRecipe(recipeId: String) {
+        guard canPublish,
+              let recipe = recipes.first(where: { $0.id == recipeId }),
+              isOwner(of: recipe)
+        else { return }
         studioDraftIds.insert(recipeId)
     }
     
     func promoteToStudio(recipe: Recipe) {
+        guard canPublish, isOwner(of: recipe) else { return }
         studioDraftIds.insert(recipe.id)
     }
 
@@ -571,13 +610,32 @@ final class AppEnvironment: ObservableObject {
                         self.importState = .polling(jobId: jobId, status: job.status)
                     }
                     if job.status == .done, let recipeId = job.recipeId {
-                        let recipe = try await self.apiClient.fetchRecipe(id: recipeId)
+                        var recipe = try await self.apiClient.fetchRecipe(id: recipeId)
+                        if let myId = self.currentUser?.id, !myId.isEmpty {
+                            recipe = Recipe(
+                                id: recipe.id,
+                                ownerId: myId,
+                                title: recipe.title,
+                                description: recipe.description,
+                                prepTime: recipe.prepTime,
+                                cookTime: recipe.cookTime,
+                                servings: recipe.servings,
+                                ingredients: recipe.ingredients,
+                                directions: recipe.directions,
+                                thumbnailUrl: recipe.thumbnailUrl,
+                                ownerUsername: recipe.ownerUsername,
+                                sourceLanguage: recipe.sourceLanguage,
+                                nutrition: recipe.nutrition,
+                                sourceUrl: recipe.sourceUrl
+                            )
+                        }
                         await MainActor.run {
                             if let index = self.recipes.firstIndex(where: { $0.id == recipe.id }) {
                                 self.recipes[index] = recipe
                             } else {
                                 self.recipes.insert(recipe, at: 0)
                             }
+                            self.selectedRecipe = recipe
                             self.importState = .done(recipeId: recipeId)
                         }
                         return

@@ -367,6 +367,72 @@ def _extract_from_ocr(ocr_text: str) -> tuple[list[str], list[str]]:
     return ingredients, directions
 
 
+def _enrich_short_directions(directions: list, groups: list, title: str) -> list:
+    """When a creator caption only provides the final cooking step (e.g. 'Air fry for 5-6 minutes'),
+    flesh out the logical prep and assembly steps from the ingredient list."""
+    if len(directions) >= 3:
+        return directions
+
+    all_items = []
+    for g in groups:
+        all_items.extend(g.get("items", []))
+
+    if not all_items:
+        return directions
+
+    base_items = []
+    sauce_items = []
+    cheese_items = []
+    main_mix = []
+    cleaned_names = []
+
+    for item in all_items:
+        raw_name = re.sub(r"[-–—:]?\s*\d+[\d\s\/\.,]*(?:cup|tbsp|tsp|g|kg|ml|oz|lb|slice|piece|slices|pieces)?\s*", "", item, flags=re.IGNORECASE).strip()
+        raw_name = re.sub(r"^[-–—:\s]+|[-–—:\s]+$", "", raw_name).strip()
+        if not raw_name:
+            continue
+        cleaned_names.append(raw_name)
+        low = raw_name.lower()
+        if any(w in low for w in ["bread", "toast", "bun", "tortilla", "wrap", "base", "crust", "rice", "pasta", "noodle"]):
+            base_items.append(raw_name)
+        elif any(w in low for w in ["cheese", "mozzarella", "cheddar", "parmesan"]):
+            cheese_items.append(raw_name)
+        elif any(w in low for w in ["butter", "ghee", "oil"]):
+            pass
+        elif any(w in low for w in ["sauce", "paste", "mayo", "chutney"]):
+            sauce_items.append(raw_name)
+        else:
+            main_mix.append(raw_name)
+
+    enriched = []
+    if main_mix:
+        mix_str = ", ".join(main_mix[:5])
+        if sauce_items:
+            mix_str += f" and {sauce_items[0]}"
+        enriched.append(f"In a mixing bowl, combine {mix_str}. Mix well until evenly coated.")
+    elif cleaned_names:
+        enriched.append(f"In a bowl, combine and prepare {', '.join(cleaned_names[:4])}.")
+
+    if base_items:
+        enriched.append(f"Arrange the {base_items[0]}. Spread a thin layer of butter or sauce, then spoon the prepared filling generously over each.")
+    elif sauce_items and not main_mix:
+        enriched.append(f"Stir in the {', '.join(sauce_items)} and mix thoroughly.")
+
+    if cheese_items:
+        enriched.append(f"Top generously with {', '.join(cheese_items)}.")
+
+    if directions:
+        for d in directions:
+            d_clean = re.sub(r"\s*[😍❤️🔥👏👍]+", "", d).strip()
+            if d_clean and d_clean not in enriched:
+                enriched.append(d_clean)
+    else:
+        enriched.append("Cook until golden, crisp, and heated through.")
+
+    enriched.append("Serve hot immediately and enjoy!")
+    return enriched
+
+
 def parse_recipe_content(caption: str, transcript: str, video_title: str = "",
                          author: str = "", ocr_text: str = "") -> dict:
     title = video_title.strip() if video_title and not video_title.startswith("Video by") else ""
@@ -404,6 +470,9 @@ def parse_recipe_content(caption: str, transcript: str, video_title: str = "",
 
     if not title:
         title = "Delicious Homemade Recipe"
+
+    if len(directions) < 3 and groups:
+        directions = _enrich_short_directions(directions, groups, title)
 
     nutrition = estimate_nutrition(groups, servings=2)
 
@@ -530,6 +599,7 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
                 "thumbnail_url": thumbnail,
                 "owner_username": f"@{author}" if not author.startswith("@") else author,
                 "source_language": source_lang,
+                "source_url": url,
                 "nutrition": parsed["nutrition"]
             }
 

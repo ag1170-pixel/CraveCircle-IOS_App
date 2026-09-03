@@ -274,3 +274,54 @@ struct CreatorAvatarView: View {
     }
 }
 
+/// System-like interactive pop: drag from the left edge to go back (fullScreenCover has no UINavigationController).
+struct LeadingEdgeBackModifier: ViewModifier {
+    let onBack: () -> Void
+    @State private var offset: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .offset(x: max(0, offset))
+            .shadow(color: .black.opacity(offset > 0 ? min(0.3, Double(offset / 300)) : 0), radius: 12, x: -4, y: 0)
+            .overlay(alignment: .leading) {
+                Color.clear
+                    .frame(width: 32)
+                    .contentShape(Rectangle())
+                    .highPriorityGesture(
+                        DragGesture(minimumDistance: 12)
+                            .onChanged { value in
+                                if abs(value.translation.width) > abs(value.translation.height) {
+                                    offset = max(0, value.translation.width)
+                                }
+                            }
+                            .onEnded { value in
+                                let isHorizontal = abs(value.translation.width) > abs(value.translation.height)
+                                let pop = isHorizontal && (value.translation.width > 75 || value.predictedEndTranslation.width > 120)
+                                if pop {
+                                    Haptics.tap()
+                                    withAnimation(.easeOut(duration: 0.18)) {
+                                        offset = UIScreen.main.bounds.width
+                                    }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        onBack()
+                                        offset = 0
+                                    }
+                                } else {
+                                    withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                                        offset = 0
+                                    }
+                                }
+                            }
+                    )
+                    .ignoresSafeArea()
+            }
+            .onAppear { offset = 0 }
+    }
+}
+
+extension View {
+    func leadingEdgeBack(_ onBack: @escaping () -> Void) -> some View {
+        modifier(LeadingEdgeBackModifier(onBack: onBack))
+    }
+}
+

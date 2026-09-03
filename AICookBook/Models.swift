@@ -1,10 +1,44 @@
 import Foundation
 
+/// App account role. Consumers browse; creators (Studio-enrolled) publish; admin is the founder.
+enum AccountRole: String, Codable {
+    case user
+    case creator
+    case admin
+
+    var canPublish: Bool { self == .creator || self == .admin }
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = AccountRole(rawValue: raw) ?? .user
+    }
+}
+
 struct UserProfile: Codable, Identifiable {
     let id: String
     var username: String?
     var fullName: String?
     var avatarUrl: String?
+    var role: AccountRole
+
+    var canPublish: Bool { role.canPublish }
+
+    init(id: String, username: String? = nil, fullName: String? = nil, avatarUrl: String? = nil, role: AccountRole = .user) {
+        self.id = id
+        self.username = username
+        self.fullName = fullName
+        self.avatarUrl = avatarUrl
+        self.role = role
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        username = try c.decodeIfPresent(String.self, forKey: .username)
+        fullName = try c.decodeIfPresent(String.self, forKey: .fullName)
+        avatarUrl = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
+        role = try c.decodeIfPresent(AccountRole.self, forKey: .role) ?? .user
+    }
 }
 
 enum ImportStatus: String, Codable {
@@ -60,12 +94,23 @@ struct Recipe: Codable, Identifiable, Hashable {
     var nutrition: RecipeNutrition?   // per-serving; server-computed from ingredients, else estimated
     var sourceUrl: String?        // URL of the source Instagram / TikTok reel
 
+    /// True only when this recipe was imported from a social reel (Instagram / TikTok / YouTube / Facebook).
+    var isImportedFromSocial: Bool { Self.isSocialImportURL(sourceUrl) }
+
     var reelUrl: URL {
         if let sourceUrl, let url = URL(string: sourceUrl) {
             return url
         }
         let cleanHandle = ownerUsername?.replacingOccurrences(of: "@", with: "") ?? "cravecircle"
         return URL(string: "https://www.instagram.com/\(cleanHandle)/") ?? URL(string: "https://www.instagram.com/reels/")!
+    }
+
+    static func isSocialImportURL(_ raw: String?) -> Bool {
+        guard let raw, let url = URL(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let host = url.host?.lowercased()
+        else { return false }
+        let social: [String] = ["instagram.com", "tiktok.com", "youtube.com", "youtu.be", "facebook.com", "fb.watch"]
+        return social.contains { host == $0 || host.hasSuffix(".\($0)") }
     }
 }
 
@@ -217,3 +262,17 @@ struct RecipeComment: Codable, Identifiable, Hashable {
         ]
     ]
 }
+
+#if DEBUG
+enum CraveCircleInvariantChecks {
+    static let _runChecks: Void = {
+        precondition(Recipe.isSocialImportURL(nil) == false)
+        precondition(Recipe.isSocialImportURL("https://www.instagram.com/reel/AbC123/") == true)
+        precondition(Recipe.isSocialImportURL("https://tiktok.com/@x/video/1") == true)
+        precondition(Recipe.isSocialImportURL("https://cravecircle.cc/recipes/1") == false)
+        precondition(AccountRole.user.canPublish == false)
+        precondition(AccountRole.creator.canPublish == true)
+        precondition(AccountRole.admin.canPublish == true)
+    }()
+}
+#endif
