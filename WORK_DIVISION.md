@@ -1,5 +1,10 @@
 # CraveCircle — Work Division: Claude ⨯ Antigravity
 
+> **Focus (2026-09-03, revised by founder):** make the **app itself perfect and feature-complete
+> first** — every button/flow working, features connected end-to-end, more content. **Launch/auth/App-Store
+> paperwork is deferred** (don't optimize for public release yet). Antigravity's first job = **recipe
+> content** (`ANTIGRAVITY_CONTENT_TASK.md`), then the UI polish lane below.
+
 Goal: finish the app to a shippable, everything-works state. We share one repo
 (`/Users/user38/Projects/CraveCircle.cc` → `ag1170-pixel/CraveCircle-IOS_App`), so this splits by
 **layer + file ownership** to avoid merge collisions, and assigns each task to whoever is stronger at it.
@@ -36,7 +41,7 @@ screens call `environment.doThing()`; Claude implements/backends `doThing()`. Ne
 
 | Owner | Files |
 |---|---|
-| **Antigravity (UI/web)** | `*Screen.swift`, `*Sheet.swift`, `*View.swift`, `DesignSystem.swift`, `DesignComponents.swift`, `BrandAndTabBar.swift`, `Assets.xcassets/*`, `FlashcardCookScreen.swift` (visual layer), the **website** repo |
+| **Antigravity (UI/web/content)** | `*Screen.swift`, `*Sheet.swift`, `*View.swift`, `DesignSystem.swift`, `DesignComponents.swift`, `BrandAndTabBar.swift`, `Assets.xcassets/*`, `SampleRecipes.swift` (recipe content), `FlashcardCookScreen.swift` (visual layer), the **website** repo |
 | **Claude (logic/data/ops)** | `AppEnvironment.swift`, `APIClient.swift`, `AppConfig.swift`, `Models.swift`, `Nutrition.swift`, `IngredientScaler.swift`, `OnDeviceTranscriber.swift`, `RecipeExtractor.swift`, `VideoTextOCR.swift`, `HandGestureController.swift`, `VoiceCommandController.swift`, `SupabaseAuthClient.swift`, `whisper-transcriber/*`, `*.entitlements`, `Config/*`, `project.pbxproj`, backend/homelab |
 | **Shared (announce before editing)** | `RootView.swift`, `AICookBookApp.swift`, `Localization.swift` |
 
