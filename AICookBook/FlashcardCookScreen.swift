@@ -51,14 +51,42 @@ struct FlashcardCookScreen: View {
 
             VStack {
                 topBar
+                if voice.permissionDenied {
+                    Button {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 13, weight: .bold))
+                            Text("Speech / Mic Disabled · Tap to Enable in Settings")
+                                .font(AppFont.body(13, weight: .bold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.red, in: Capsule())
+                        .shadow(color: .black.opacity(0.2), radius: 6, y: 2)
+                    }
+                    .padding(.top, 6)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
                 Spacer()
-                if voiceOn {
+                if voiceOn && voice.wakeActive {
                     FloatingVoiceAssistantView(voice: voice)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .padding(.bottom, 12)
+                        .transition(
+                            .asymmetric(
+                                insertion: .scale(scale: 0.6).combined(with: .opacity).combined(with: .move(edge: .bottom)),
+                                removal: .scale(scale: 0.8).combined(with: .opacity)
+                            )
+                        )
+                        .padding(.bottom, 16)
                 }
                 bottomBar
             }
+            .animation(.spring(response: 0.45, dampingFraction: 0.75), value: voice.wakeActive)
+            .animation(.easeInOut(duration: 0.25), value: voice.permissionDenied)
         }
         .onAppear {
             gesture.onGesture = { dir in advance(dir) }

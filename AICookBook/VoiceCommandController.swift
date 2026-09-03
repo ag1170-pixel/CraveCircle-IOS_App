@@ -34,7 +34,6 @@ final class VoiceCommandController: NSObject, ObservableObject {
     private var task: SFSpeechRecognitionTask?
 
     private var lastFireTime: CFTimeInterval = 0
-    private var lastAudioTimestamp: TimeInterval = -1.0
     private var wakeExpiryTime: TimeInterval = -1.0
     private let cooldown: CFTimeInterval = 0.8
 
@@ -49,37 +48,43 @@ final class VoiceCommandController: NSObject, ObservableObject {
     // MARK: Lifecycle
 
     func start() {
-        let status = SFSpeechRecognizer.authorizationStatus()
-        switch status {
-        case .notDetermined:
-            SFSpeechRecognizer.requestAuthorization { [weak self] auth in
-                DispatchQueue.main.async {
-                    if auth == .authorized {
-                        self?.checkMicAndBegin()
-                    } else {
-                        self?.permissionDenied = true
-                        self?.available = false
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let status = SFSpeechRecognizer.authorizationStatus()
+            print("[VoiceCommand] Speech authorizationStatus: \(status.rawValue)")
+            switch status {
+            case .notDetermined:
+                SFSpeechRecognizer.requestAuthorization { auth in
+                    DispatchQueue.main.async {
+                        print("[VoiceCommand] requestAuthorization result: \(auth.rawValue)")
+                        if auth == .authorized {
+                            self.checkMicAndBegin()
+                        } else {
+                            self.permissionDenied = true
+                            self.available = false
+                        }
                     }
                 }
-            }
-        case .authorized:
-            checkMicAndBegin()
-        case .denied, .restricted:
-            publish {
+            case .authorized:
+                self.checkMicAndBegin()
+            case .denied, .restricted:
                 self.permissionDenied = true
                 self.available = false
+            @unknown default:
+                self.available = false
             }
-        @unknown default:
-            publish { self.available = false }
         }
     }
 
     private func checkMicAndBegin() {
         let session = AVAudioSession.sharedInstance()
-        switch session.recordPermission {
+        let perm = session.recordPermission
+        print("[VoiceCommand] Mic recordPermission: \(perm.rawValue)")
+        switch perm {
         case .undetermined:
             session.requestRecordPermission { [weak self] granted in
                 DispatchQueue.main.async {
+                    print("[VoiceCommand] Mic requestRecordPermission granted: \(granted)")
                     if granted {
                         self?.beginSession()
                     } else {
@@ -119,7 +124,6 @@ final class VoiceCommandController: NSObject, ObservableObject {
         }
         do {
             let session = AVAudioSession.sharedInstance()
-            // .voiceChat activates hardware beamforming and spatial kitchen noise suppression
             try session.setCategory(.playAndRecord, mode: .voiceChat,
                                     options: [.duckOthers, .defaultToSpeaker, .allowBluetooth])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
@@ -143,16 +147,21 @@ final class VoiceCommandController: NSObject, ObservableObject {
 
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
-        // Allows both offline and online recognition gracefully without failing
         req.requiresOnDeviceRecognition = false
         req.contextualStrings = ["Hey Crave", "Crave", "next", "back", "next step", "go back"]
         request = req
-        lastAudioTimestamp = -1.0
         wakeExpiryTime = -1.0
 
         let node = audioEngine.inputNode
         node.removeTap(onBus: 0)
         let format = node.outputFormat(forBus: 0)
+        guard format.sampleRate > 0 else {
+            publish {
+                self.available = false
+                self.lastHeard = "Invalid audio format"
+            }
+            return
+        }
         node.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             self?.request?.append(buffer)
         }
@@ -163,11 +172,12 @@ final class VoiceCommandController: NSObject, ObservableObject {
         } catch {
             publish {
                 self.available = false
-                self.lastHeard = "Engine error"
+                self.lastHeard = "Engine start error"
             }
             return
         }
         publish { self.isListening = true }
+        print("[VoiceCommand] Engine started, listening for 'Hey Crave'...")
 
         task = recognizer.recognitionTask(with: req) { [weak self] result, error in
             guard let self else { return }
@@ -175,7 +185,8 @@ final class VoiceCommandController: NSObject, ObservableObject {
                 self.handle(result.bestTranscription)
                 if result.isFinal { self.restart() }
             }
-            if error != nil {
+            if let error {
+                print("[VoiceCommand] recognitionTask error: \(error.localizedDescription)")
                 self.restart()
             }
         }
@@ -184,7 +195,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
     private func restart() {
         guard isListening else { return }
         teardownAudio()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             guard let self, self.isListening else { return }
             self.startTask()
         }
@@ -222,6 +233,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
         if wakeHeard && !wakeActive {
             wakeActive = true
             wakeExpiryTime = currentAudioTime + 6.0 // 6 seconds active window
+            print("[VoiceCommand] 🌟 WAKE WORD DETECTED: 'Hey Crave' activated!")
             publish {
                 self.wakeActive = true
                 self.lastHeard = "Hey Crave!"
@@ -229,32 +241,36 @@ final class VoiceCommandController: NSObject, ObservableObject {
             }
         }
 
-        // 2. Check if wake window has expired
+        // 2. Check if wake window has timed out
         if wakeActive && wakeExpiryTime > 0 && currentAudioTime > wakeExpiryTime {
             wakeActive = false
+            print("[VoiceCommand] Wake window timed out, returning to standby")
             publish { self.wakeActive = false }
         }
 
         // 3. Command execution (Next / Back)
         if now - lastFireTime >= cooldown {
-            // Either wake word is currently active OR direct compound phrase (e.g. "next step", "go back")
             let hasNext = nextTriggers.contains(where: { text.hasSuffix($0) || text.contains("\($0) ") || text.contains(" \($0)") })
             let hasBack = backTriggers.contains(where: { text.hasSuffix($0) || text.contains("\($0) ") || text.contains(" \($0)") })
 
             if wakeActive {
                 if hasNext {
+                    print("[VoiceCommand] 👉 Executing NEXT command")
                     fireCommand(.next)
                     return
                 } else if hasBack {
+                    print("[VoiceCommand] 👈 Executing BACK command")
                     fireCommand(.previous)
                     return
                 }
             } else {
                 // Direct intentional 2-word commands work even without prior wake word
                 if text.contains("next step") || text.contains("go next") {
+                    print("[VoiceCommand] 👉 Executing direct NEXT STEP command")
                     fireCommand(.next)
                     return
                 } else if text.contains("go back") || text.contains("previous step") || text.contains("last step") {
+                    print("[VoiceCommand] 👈 Executing direct GO BACK command")
                     fireCommand(.previous)
                     return
                 }
@@ -264,13 +280,15 @@ final class VoiceCommandController: NSObject, ObservableObject {
 
     private func fireCommand(_ cmd: Command) {
         lastFireTime = CACurrentMediaTime()
-        wakeActive = false
         wakeExpiryTime = -1.0
         publish {
-            self.wakeActive = false
             self.lastHeard = cmd == .next ? "Next" : "Back"
             Haptics.tap()
             self.onCommand?(cmd)
+        }
+        // Keep wakeActive true for 1.2s to show success animation on mascot, then tuck away
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.wakeActive = false
         }
     }
 
