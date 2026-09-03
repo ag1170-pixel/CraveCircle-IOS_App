@@ -24,7 +24,7 @@ struct LibraryScreen: View {
         case 2: // Saved
             return environment.recipes.filter { environment.isSaved(recipeId: $0.id) }
         case 3: // Created
-            return environment.recipes.filter { environment.isOwner(of: $0) || !environment.isDraft(recipeId: $0.id) }
+            return environment.ownedRecipes
         default: // All
             return environment.recipes
         }
@@ -38,7 +38,7 @@ struct LibraryScreen: View {
                         "All \(environment.recipes.count)",
                         "Liked \(environment.likedRecipeIds.count)",
                         "Saved \(environment.savedRecipeIds.count)",
-                        "Created \(environment.recipes.filter { !environment.isDraft(recipeId: $0.id) }.count)"
+                        "Created \(environment.ownedRecipes.count)"
                     ],
                     selection: $filter
                 )

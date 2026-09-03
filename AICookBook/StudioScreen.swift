@@ -21,11 +21,11 @@ struct StudioScreen: View {
     ]
 
     private var drafts: [Recipe] {
-        environment.recipes.filter { environment.isDraft(recipeId: $0.id) }
+        environment.myDrafts        // your own draft recipes (owner-aware)
     }
 
     private var published: [Recipe] {
-        environment.recipes.filter { !environment.isDraft(recipeId: $0.id) }
+        environment.myPublished     // your own published recipes (owner-aware)
     }
 
     private var shownRecipes: [Recipe] { tab == 0 ? drafts : published }

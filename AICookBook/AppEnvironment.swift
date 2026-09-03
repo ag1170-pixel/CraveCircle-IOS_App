@@ -197,6 +197,14 @@ final class AppEnvironment: ObservableObject {
         currentUser?.id == recipe.ownerId
     }
 
+    // MARK: - Owner-aware recipe collections (single source of truth for "your" recipes)
+    /// Recipes the signed-in user created or imported.
+    var ownedRecipes: [Recipe] { recipes.filter { isOwner(of: $0) } }
+    /// The user's own recipes still in Studio draft.
+    var myDrafts: [Recipe] { ownedRecipes.filter { isDraft(recipeId: $0.id) } }
+    /// The user's own recipes that are published.
+    var myPublished: [Recipe] { ownedRecipes.filter { !isDraft(recipeId: $0.id) } }
+
     // Shared with the Share Extension (same literal strings live in ShareViewController).
     static let appGroupID = "group.com.anassyed.AICookBook"
     static let pendingImportKey = "pending_import_url"
