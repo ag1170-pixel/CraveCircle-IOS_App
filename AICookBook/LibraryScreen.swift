@@ -63,7 +63,20 @@ struct LibraryScreen: View {
                     LazyVGrid(columns: columns, spacing: AppSpacing.sm) {
                         ForEach(filteredRecipes) { recipe in
                             LibraryCard(recipe: recipe) { environment.selectRecipe(recipe) }
+                                .onAppear {
+                                    // Infinite scroll: load the next page as the last card appears
+                                    // (only on the full "All" list — the other tabs are local subsets).
+                                    if filter == 0, recipe.id == filteredRecipes.last?.id {
+                                        Task { await environment.loadMoreRecipes() }
+                                    }
+                                }
                         }
+                    }
+                    if filter == 0 && environment.isLoadingMore {
+                        ProgressView()
+                            .tint(AppTheme.accentInk)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, AppSpacing.md)
                     }
                 }
             }

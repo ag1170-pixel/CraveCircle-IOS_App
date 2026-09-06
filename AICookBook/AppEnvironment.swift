@@ -18,6 +18,12 @@ final class AppEnvironment: ObservableObject {
     @Published var groceryError: String?
     @Published var errorMessage: String?
 
+    // Infinite scroll (paged from the backend as the user scrolls; harmless offline/local-only).
+    @Published private(set) var isLoadingMore = false
+    @Published private(set) var hasMoreRecipes = true
+    private var recipePage = 0
+    private let recipePageSize = 20
+
     // Social & Follows
     @Published private(set) var followedCreators: Set<String> = [] { didSet { persist(Array(followedCreators), "followed_creators.json") } }
     @Published private(set) var savedRecipeIds: Set<String> = ["recipe-spicy-paneer-wrap", "recipe-butter-chicken"]
@@ -166,6 +172,25 @@ final class AppEnvironment: ObservableObject {
         } catch {
             recipes = Recipe.placeholderRecipes
             errorMessage = "Could not load recipes from backend. Showing preview data."
+        }
+    }
+
+    /// Infinite scroll: append the next page of recipes as the user nears the end of the list.
+    /// Pages from the backend when reachable; on error/empty it simply stops (local set stands),
+    /// so there's no runaway loop offline. Recipe rows are tiny JSON; images are bounded by URLCache.
+    func loadMoreRecipes() async {
+        guard !isLoadingMore, hasMoreRecipes else { return }
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        do {
+            let next = try await apiClient.fetchRecipes(limit: recipePageSize, offset: recipePage * recipePageSize)
+            if next.count < recipePageSize { hasMoreRecipes = false }
+            let existing = Set(recipes.map(\.id))
+            let fresh = next.filter { !existing.contains($0.id) }
+            if !fresh.isEmpty { recipes.append(contentsOf: fresh) }
+            recipePage += 1
+        } catch {
+            hasMoreRecipes = false   // no backend / offline → stop paging
         }
     }
 

@@ -13,7 +13,8 @@ import UIKit
 
 enum VideoThumbnail {
     /// Returns JPEG data for a frame ~15% into the clip (skips black intros, avoids the very end).
-    static func jpeg(from url: URL, maxDimension: CGFloat = 1080, quality: CGFloat = 0.85) async -> Data? {
+    /// Kept modest (≤800px, q0.8 ≈ 80-150 KB) so a big library of imports stays storage-light.
+    static func jpeg(from url: URL, maxDimension: CGFloat = 800, quality: CGFloat = 0.8) async -> Data? {
         let asset = AVURLAsset(url: url)
         guard let duration = try? await asset.load(.duration) else { return nil }
         let total = CMTimeGetSeconds(duration)
