@@ -30,7 +30,7 @@ from typing import Optional
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Header, BackgroundTasks
 from pydantic import BaseModel
 
-from .transcriber import transcribe, MODEL_NAME, DEVICE, _model
+from .transcriber import transcribe, detect_speech, MODEL_NAME, DEVICE, _model
 
 app = FastAPI(title="CraveCircle Local Backend & Transcriber", version="2.0")
 API_KEY = os.getenv("WHISPER_API_KEY", "")
@@ -554,6 +554,103 @@ def _ocr_video_frames(media_path: str, tmp: str, max_frames: int = 14) -> str:
     return "\n".join(lines)
 
 
+def _caption_extract(caption: str, video_title: str) -> tuple[str, list, list]:
+    """Extract (title, ingredient-groups, steps) from a caption — headers or header-less."""
+    title = video_title.strip() if (video_title and not video_title.startswith("Video by")) else ""
+    cap_title, groups, directions = _parse_structured_lines(caption, capture_title=not title)
+    title = title or cap_title
+    if caption.strip() and (not groups or not directions):
+        items, dirs = _extract_from_ocr(caption)   # header-less heuristic
+        if not groups and items:
+            groups = [{"group_name": "Main Ingredients", "items": items}]
+        if not directions and dirs:
+            directions = dirs
+    return title, groups, directions
+
+
+def _has_qty(groups: list) -> bool:
+    return any(_QTY_LINE.search(i) for g in groups for i in g.get("items", []))
+
+
+def _transcript_steps(transcript: str) -> list:
+    out = []
+    for s in re.split(r"(?<=[.!?])\s+", transcript.strip()):
+        s = s.strip()
+        if len(s) > 12 and not _CTA.search(s):
+            out.append(s)
+    return out
+
+
+def assemble_recipe(caption: str, transcript: str, ocr_text: str, has_speech: bool,
+                    video_title: str = "", author: str = "") -> dict:
+    """Best-source-per-field merge (pipeline v2).
+    STEPS: prefer spoken narration when a person is genuinely cooking on-camera and it's
+    substantial; else the caption; else on-screen text.
+    INGREDIENTS: prefer the written caption (real quantities); else OCR; else audio-derived.
+    """
+    title, cap_groups, cap_dirs = _caption_extract(caption, video_title)
+
+    # audio-derived
+    aud_dirs = _transcript_steps(transcript) if transcript.strip() else []
+    aud_items = _extract_conversational_ingredients(transcript) if transcript.strip() else []
+    aud_groups = [{"group_name": "Main Ingredients", "items": aud_items}] if aud_items else []
+    audio_is_cooking = bool(transcript.strip()) and _IMPERATIVE.search(transcript) is not None
+
+    # ocr-derived
+    ocr_items, ocr_dirs = _extract_from_ocr(ocr_text) if ocr_text.strip() else ([], [])
+    ocr_groups = [{"group_name": "Main Ingredients", "items": ocr_items}] if ocr_items else []
+
+    # STEPS — audio wins only when there's real narration with cooking instructions and it's
+    # at least as complete as the caption; otherwise caption, then OCR.
+    if has_speech and audio_is_cooking and len(aud_dirs) >= max(2, len(cap_dirs)):
+        directions = aud_dirs
+    elif cap_dirs:
+        directions = cap_dirs
+    elif ocr_dirs:
+        directions = ocr_dirs
+    else:
+        directions = aud_dirs or []
+
+    # INGREDIENTS — written quantities win.
+    if cap_groups and _has_qty(cap_groups):
+        groups = cap_groups
+    elif ocr_groups and _has_qty(ocr_groups):
+        groups = ocr_groups
+    elif cap_groups:
+        groups = cap_groups
+    elif ocr_groups:
+        groups = ocr_groups
+    else:
+        groups = aud_groups
+
+    if not title:
+        title = "Delicious Homemade Recipe"
+
+    if len(directions) < 3 and groups:
+        directions = _enrich_short_directions(directions, groups, title)
+
+    split_dirs = []
+    for d in directions:
+        parts = [p.strip() for p in re.split(r"(?<=[.!?])\s+", d) if p.strip()]
+        if len(parts) > 1 and all(len(p) > 12 for p in parts):
+            split_dirs.extend(parts)
+        else:
+            split_dirs.append(d)
+    directions = split_dirs
+
+    nutrition = estimate_nutrition(groups, servings=2)
+    return {
+        "title": title,
+        "description": f"Extracted from @{author}'s cooking reel." if author else "Freshly extracted cooking reel recipe.",
+        "prep_time": "10 min",
+        "cook_time": "15 min",
+        "servings": 2,
+        "ingredients": groups,
+        "directions": [{"step_index": i + 1, "text": t} for i, t in enumerate(directions)],
+        "nutrition": nutrition,
+    }
+
+
 def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
     JOBS[job_id]["status"] = "downloading"
     local_tmp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".tmp")
@@ -569,36 +666,47 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
             thumbnail = meta.get("thumbnail")
             video_title = meta.get("title") or ""
 
-            # 1) CAPTION-FIRST (fast path): most creator captions carry the entire recipe.
-            #    Parse the caption alone — if that's already complete, SKIP the slow video
-            #    download + transcription entirely (turns ~100s into ~2-3s, esp. for
-            #    Indian-language reels whose captions are English).
-            JOBS[job_id]["status"] = "extracting"
-            parsed = parse_recipe_content(caption, "", video_title=video_title, author=author)
-            source_lang = "en"
+            # PIPELINE v2 — best source per field (audio-first for steps, caption for quantities).
+            transcript, source_lang, has_speech = "", "en", False
 
-            # 2) Caption thin → fall back to the video: audio (Whisper) + on-screen text (OCR).
-            #    Only here do we pay for the download + transcription.
-            if not _recipe_is_complete(parsed):
-                JOBS[job_id]["status"] = "downloading"
-                media_out = os.path.join(tmp, "media.%(ext)s")
-                _run_ytdlp(["-f", "best[height<=720]/best", "-o", media_out], url)
-                media_files = [f for f in glob.glob(os.path.join(tmp, "media.*")) if not f.endswith(".json")]
-                if media_files:
-                    media_path = media_files[0]
-                    JOBS[job_id]["status"] = "transcribing"
+            # 1) Download AUDIO only (small & fast) to check for narration and transcribe it.
+            JOBS[job_id]["status"] = "downloading"
+            audio_out = os.path.join(tmp, "audio.%(ext)s")
+            try:
+                _run_ytdlp(["-f", "bestaudio/best", "-o", audio_out], url)
+            except Exception:
+                pass
+            audio_files = [f for f in glob.glob(os.path.join(tmp, "audio.*")) if not f.endswith(".json")]
+
+            # 2) VAD: is a person actually narrating, or is it just a music/B-roll bed?
+            if audio_files:
+                JOBS[job_id]["status"] = "transcribing"
+                has_speech, _secs = detect_speech(audio_files[0])
+                if has_speech:                       # only pay for Whisper when someone's talking
                     try:
-                        r = transcribe(media_path, language=None, task="transcribe")
+                        r = transcribe(audio_files[0], language=None, task="transcribe")
                         transcript, source_lang = r.text, (r.language or "en")
                     except Exception:
                         transcript = ""
-                    JOBS[job_id]["status"] = "extracting"
-                    parsed = parse_recipe_content(caption, transcript, video_title=video_title, author=author)
-                    if not _recipe_is_complete(parsed):
-                        ocr_text = _ocr_video_frames(media_path, tmp)
+
+            # 3) Merge caption + audio (best per field).
+            JOBS[job_id]["status"] = "extracting"
+            parsed = assemble_recipe(caption, transcript, "", has_speech,
+                                     video_title=video_title, author=author)
+
+            # 4) Still thin → grab the video and OCR the on-screen text (silent recipe overlays).
+            if not _recipe_is_complete(parsed):
+                video_out = os.path.join(tmp, "video.%(ext)s")
+                try:
+                    _run_ytdlp(["-f", "best[height<=720]/best", "-o", video_out], url)
+                    vids = [f for f in glob.glob(os.path.join(tmp, "video.*")) if not f.endswith(".json")]
+                    if vids:
+                        ocr_text = _ocr_video_frames(vids[0], tmp)
                         if ocr_text.strip():
-                            parsed = parse_recipe_content(caption, transcript, video_title=video_title,
-                                                          author=author, ocr_text=ocr_text)
+                            parsed = assemble_recipe(caption, transcript, ocr_text, has_speech,
+                                                     video_title=video_title, author=author)
+                except Exception:
+                    pass
 
             # Truly nothing usable (no audio, no caption, no readable on-screen text) =>
             # fail gracefully with a clear reason instead of storing an empty recipe.

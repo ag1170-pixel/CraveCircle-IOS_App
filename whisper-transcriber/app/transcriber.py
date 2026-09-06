@@ -22,6 +22,7 @@ import numpy as np
 from faster_whisper import WhisperModel, decode_audio
 
 MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
+MIN_SPEECH_SECONDS = float(os.getenv("MIN_SPEECH_SECONDS", "4.0"))  # below this = music/B-roll, not narration
 DEVICE = os.getenv("WHISPER_DEVICE", "auto")            # "cuda" | "cpu" | "auto"
 COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")    # float16 (GPU) | int8 (CPU)
 BEAM_SIZE = int(os.getenv("WHISPER_BEAM_SIZE", "5"))
@@ -89,6 +90,21 @@ def _run(audio: np.ndarray, language: str | None, task: str) -> tuple[list[Segme
         )
         segs = [Segment(start=s.start, end=s.end, text=s.text.strip()) for s in segments_iter]
         return segs, info
+
+
+def detect_speech(audio_path: str) -> tuple[bool, float]:
+    """Cheap pre-check (Silero VAD) — is there real narration, or just music/background?
+    Returns (has_speech, speech_seconds). Far faster than a full transcription, so we can skip
+    Whisper entirely on the many reels that are just B-roll over a music bed."""
+    try:
+        from faster_whisper.vad import get_speech_timestamps, VadOptions
+        audio = decode_audio(audio_path, sampling_rate=SAMPLE_RATE)
+        segments = get_speech_timestamps(audio, vad_options=VadOptions(min_silence_duration_ms=500))
+        speech_samples = sum(int(s["end"]) - int(s["start"]) for s in segments)
+        seconds = speech_samples / SAMPLE_RATE
+        return (seconds >= MIN_SPEECH_SECONDS, round(seconds, 1))
+    except Exception:
+        return (True, 0.0)   # if VAD is unavailable, don't block transcription
 
 
 def transcribe(
