@@ -73,12 +73,11 @@ struct CraveTabBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             ForEach(AppTab.allCases, id: \.self) { tab in
                 tabButton(tab)
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.78), value: selected)
         .padding(6)
         .background {
             Capsule(style: .continuous)
@@ -90,8 +89,8 @@ struct CraveTabBar: View {
                                            startPoint: .top, endPoint: .bottom),
                             lineWidth: 0.75)
                 )
-                .shadow(color: .black.opacity(0.14), radius: 20, y: 10)   // deep floating shadow
-                .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
+                .shadow(color: .black.opacity(0.16), radius: 20, y: 10)   // big surface → deeper shadow
+                .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
         }
     }
 
@@ -103,27 +102,24 @@ struct CraveTabBar: View {
             Haptics.select()
             withAnimation(reduceMotion
                           ? .easeOut(duration: 0.2)
-                          : .spring(response: 0.35, dampingFraction: 0.78)) {   // fluid Apple spring
+                          : .spring(response: 0.4, dampingFraction: 0.82)) {
                 selected = tab
             }
         } label: {
-            ZStack {
-                if isSelected {
-                    Capsule(style: .continuous)
-                        .fill(AppTheme.accentSoft)
-                        .matchedGeometryEffect(id: "tabpill", in: ns)
+            Image(systemName: tab.icon)
+                .font(.system(size: 17, weight: .semibold))
+                .symbolVariant(isSelected ? .fill : .none)
+                .symbolEffect(.bounce, value: isSelected)
+                .foregroundStyle(isSelected ? AppTheme.accentInk : AppTheme.textSecondary)
+                .frame(width: 44, height: 44)
+                .background {
+                    if isSelected {
+                        Capsule(style: .continuous)
+                            .fill(AppTheme.accentSoft)
+                            .matchedGeometryEffect(id: "tabpill", in: ns)
+                    }
                 }
-
-                Image(systemName: tab.icon)
-                    .font(.system(size: 19, weight: isSelected ? .bold : .medium))
-                    .symbolVariant(isSelected ? .fill : .none)
-                    .symbolEffect(.bounce, value: isSelected)
-                    .scaleEffect(isSelected ? 1.12 : 1.0)
-                    .foregroundStyle(isSelected ? AppTheme.accentInk : AppTheme.textSecondary)
-                    .animation(AppMotion.snappy, value: isSelected)
-            }
-            .frame(width: 52, height: 44)
-            .contentShape(Capsule())
+                .contentShape(Capsule())
         }
         .buttonStyle(TabPressStyle())
         .accessibilityLabel(tab.title)
@@ -135,7 +131,7 @@ struct CraveTabBar: View {
 private struct TabPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.92 : 1)
-            .animation(.spring(response: 0.28, dampingFraction: 0.7), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.9 : 1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
