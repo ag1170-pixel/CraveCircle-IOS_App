@@ -359,11 +359,19 @@ struct ImportToastBanner: View {
             }
         case .done:
             return "Recipe Plated! ✨"
-        case .failed:
-            return "Import Failed"
+        case .failed(let msg):
+            return noContent(msg) ? "No recipe found" : "Import didn't finish"
         case .idle:
             return ""
         }
+    }
+
+    /// A calm "couldn't read a recipe" outcome vs. a real error (music/caption-less reels).
+    private func noContent(_ m: String) -> Bool {
+        let l = m.lowercased()
+        return l.contains("couldn't find") || l.contains("no spoken") || l.contains("no recipe")
+            || l.contains("readable") || l.contains("on-screen text") || l.contains("narrat")
+            || l.contains("list the recipe")
     }
 
     private var subtitleText: String {
@@ -385,10 +393,10 @@ struct ImportToastBanner: View {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(AppTheme.accentInk)
-        case .failed:
-            Image(systemName: "exclamationmark.triangle.fill")
+        case .failed(let msg):
+            Image(systemName: noContent(msg) ? "text.magnifyingglass" : "exclamationmark.triangle.fill")
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(AppTheme.destructive)
+                .foregroundStyle(noContent(msg) ? AppTheme.textSecondary : AppTheme.destructive)
         default:
             ProgressView()
                 .tint(AppTheme.accentInk)

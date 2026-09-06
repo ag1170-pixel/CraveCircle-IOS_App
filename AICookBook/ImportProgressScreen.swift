@@ -91,12 +91,13 @@ struct ImportProgressScreen: View {
 
     private var headline: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(isError ? "Import failed" : (isDone ? "It's ready" : "Cooking it up"))
+            Text(isError ? (isNoContent ? "No recipe to read here" : "Import didn't finish")
+                          : (isDone ? "It's ready" : "Cooking it up"))
                 .font(AppFont.display(32, weight: .heavy))
                 .foregroundStyle(AppTheme.textPrimary)
                 .contentTransition(.numericText())
             Text(isError
-                 ? (errorMessage ?? "Something went wrong. Try another link.")
+                 ? (errorMessage ?? "That link didn't work — try another cooking reel.")
                  : (isDone ? "Your recipe is plated and waiting." : "Turning the reel into a recipe you can cook."))
                 .font(AppFont.body(16))
                 .foregroundStyle(AppTheme.textSecondary)
@@ -109,10 +110,12 @@ struct ImportProgressScreen: View {
     @ViewBuilder private var footer: some View {
         if isError {
             VStack(spacing: AppSpacing.xs) {
-                PillButton(title: "Try again", systemImage: "arrow.clockwise", kind: .filled, fullWidth: true) {
+                PillButton(title: isNoContent ? "Try another link" : "Try again",
+                           systemImage: isNoContent ? "link" : "arrow.clockwise",
+                           kind: .filled, fullWidth: true) {
                     environment.cancelImport(); reopenImport()
                 }
-                PillButton(title: "Cancel", kind: .outlined, fullWidth: true) {
+                PillButton(title: "Close", kind: .outlined, fullWidth: true) {
                     environment.cancelImport()
                 }
             }
@@ -163,6 +166,14 @@ struct ImportProgressScreen: View {
         if let demoError { return demoError }
         if case .failed(let m) = environment.importState { return m }
         return nil
+    }
+    /// A "we couldn't read a recipe here" outcome (vs. a real connection/system error) — this is
+    /// normal for music-only / caption-less reels, so we present it calmly, not as a failure.
+    private var isNoContent: Bool {
+        guard let m = errorMessage?.lowercased() else { return false }
+        return m.contains("couldn't find") || m.contains("no spoken") || m.contains("no recipe")
+            || m.contains("readable") || m.contains("on-screen text") || m.contains("narrat")
+            || m.contains("list the recipe")
     }
 
     private func currentIndex() -> Int {
