@@ -272,7 +272,8 @@ struct MainTabView: View {
             get: { environment.selectedRecipe },
             set: { _ in environment.dismissRecipeDetail() }
         )) { recipe in
-            RecipeDetailScreen(recipe: recipe)
+            RecipeDetailPager(start: recipe)
+                .environmentObject(environment)
         }
         .task {
             if environment.recipes.isEmpty {

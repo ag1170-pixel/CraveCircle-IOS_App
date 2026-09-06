@@ -485,25 +485,8 @@ struct RecipeDetailScreen: View {
             Group {
                 if tab == 0 { ingredientsList } else { directionsList }
             }
-            .id(tab)
-            .transition(.asymmetric(
-                insertion: .move(edge: tab == 1 ? .trailing : .leading).combined(with: .opacity),
-                removal:   .move(edge: tab == 1 ? .leading : .trailing).combined(with: .opacity)
-            ))
-            .animation(reduceMotion ? .easeOut(duration: 0.2)
-                                    : .spring(response: 0.4, dampingFraction: 0.85), value: tab)
-            .contentShape(Rectangle())
-            .simultaneousGesture(          // swipe left/right to switch, alongside the tap control
-                DragGesture(minimumDistance: 24)
-                    .onEnded { value in
-                        guard abs(value.translation.width) > abs(value.translation.height) * 1.4,
-                              abs(value.translation.width) > 44 else { return }
-                        let newTab = value.translation.width < 0 ? 1 : 0   // swipe left → Directions
-                        guard newTab != tab else { return }
-                        tab = newTab
-                        Haptics.select()
-                    }
-            )
+            .transition(.opacity)
+            .animation(.easeInOut(duration: 0.2), value: tab)   // page-level swipe switches recipes instead
 
             Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.top, AppSpacing.sm)
 
@@ -742,6 +725,31 @@ struct RecipeDetailScreen: View {
             return top > 0 ? top + 4 : 54
         }
         return 56
+    }
+}
+
+// MARK: - Swipeable recipe pager
+//
+// Presents the tapped recipe inside a horizontal pager over the whole library, so a left/right
+// swipe moves to the next / previous recipe (native .page paging, 1:1 finger tracking).
+struct RecipeDetailPager: View {
+    @EnvironmentObject private var environment: AppEnvironment
+    @State private var currentId: String
+
+    init(start: Recipe) {
+        _currentId = State(initialValue: start.id)
+    }
+
+    var body: some View {
+        TabView(selection: $currentId) {
+            ForEach(environment.recipes) { recipe in
+                RecipeDetailScreen(recipe: recipe)
+                    .tag(recipe.id)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .ignoresSafeArea()
+        .background(AppTheme.background.ignoresSafeArea())
     }
 }
 
