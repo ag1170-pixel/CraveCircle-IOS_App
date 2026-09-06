@@ -20,7 +20,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
     @Published private(set) var isListening = false
     @Published private(set) var available = true
     @Published private(set) var permissionDenied = false
-    @Published private(set) var wakeActive = false
+    @Published private(set) var wakeActive = true
     @Published private(set) var lastHeard = ""
 
     /// Fired on the main thread when a command word is heard.
@@ -108,7 +108,6 @@ final class VoiceCommandController: NSObject, ObservableObject {
 
     func stop() {
         isListening = false
-        wakeActive = false
         lastHeard = ""
         teardownAudio()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -179,7 +178,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
             return
         }
         publish { self.isListening = true }
-        print("[VoiceCommand] Engine started, listening for 'Hey Crave'...")
+        print("[VoiceCommand] Engine started, listening for 'next' / 'back'...")
 
         task = recognizer.recognitionTask(with: req) { [weak self] result, error in
             guard let self else { return }

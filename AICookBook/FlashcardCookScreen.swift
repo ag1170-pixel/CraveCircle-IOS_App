@@ -162,10 +162,7 @@ struct FlashcardCookScreen: View {
         if !voiceOn { return "Voice off" }
         if voice.permissionDenied { return "Enable mic & speech" }
         if voice.isListening {
-            if voice.wakeActive {
-                return "Listening… say “Next”"
-            }
-            return "Say “Hey Crave”"
+            return "Listening… say “Next”"
         }
         return "Starting…"
     }
