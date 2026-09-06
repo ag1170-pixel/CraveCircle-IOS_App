@@ -16,7 +16,7 @@ struct RecipeDetailScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var tab = 0                       // 0 = Ingredients, 1 = Directions
+    @Binding var tab: Int                            // 0 = Ingredients, 1 = Directions (owned by the pager)
     @State private var checkedIngredients: Set<String> = []
     @State private var checkedSteps: Set<Int> = []
     @State private var descriptionExpanded = false
@@ -37,11 +37,13 @@ struct RecipeDetailScreen: View {
     @State private var heartBurstOpacity: Double = 0.0
     @State private var heartBurstY: CGFloat = 0
     @State private var showOriginalRecipeInfo = false
+    @State private var showReportSheet = false
 
     private let heroHeight: CGFloat = 380
 
-    init(recipe: Recipe) {
+    init(recipe: Recipe, tab: Binding<Int> = .constant(0)) {
         _recipe = State(initialValue: recipe)
+        _tab = tab
         _servings = State(initialValue: recipe.servings ?? 2)
     }
 
@@ -128,6 +130,11 @@ struct RecipeDetailScreen: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
+        }
+        .sheet(isPresented: $showReportSheet) {
+            ReportIssueSheet(recipe: recipe)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
         }
         .alert("Delete this recipe?", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
@@ -442,6 +449,13 @@ struct RecipeDetailScreen: View {
                     } label: {
                         Label("Share with Circle", systemImage: "paperplane")
                     }
+                    
+                    Button {
+                        Haptics.tap()
+                        showReportSheet = true
+                    } label: {
+                        Label("Report Issue", systemImage: "exclamationmark.triangle")
+                    }
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 16, weight: .bold))
@@ -742,28 +756,64 @@ struct RecipeDetailScreen: View {
     }
 }
 
-// MARK: - Swipeable recipe pager
+// MARK: - Swipeable recipe pager (segment → then dish)
 //
-// Presents the tapped recipe inside a horizontal pager over the whole library, so a left/right
-// swipe moves to the next / previous recipe (native .page paging, 1:1 finger tracking).
+// A horizontal swipe steps through a combined sequence: Ingredients → Directions → NEXT dish's
+// Ingredients → its Directions → …  and the exact mirror when swiping back. So from a dish you
+// first flip to its Directions, and only the next swipe moves to the next recipe.
 struct RecipeDetailPager: View {
     @EnvironmentObject private var environment: AppEnvironment
-    @State private var currentId: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var index = 0
+    @State private var segment = 0            // 0 = Ingredients, 1 = Directions
+    @State private var resolved = false
+    private let startId: String
 
-    init(start: Recipe) {
-        _currentId = State(initialValue: start.id)
+    init(start: Recipe) { self.startId = start.id }
+
+    private var swipeAnim: Animation {
+        reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.4, dampingFraction: 0.85)
     }
 
     var body: some View {
-        TabView(selection: $currentId) {
-            ForEach(environment.recipes) { recipe in
-                RecipeDetailScreen(recipe: recipe)
-                    .tag(recipe.id)
+        let recipes = environment.recipes
+        let safe = min(max(index, 0), max(recipes.count - 1, 0))
+        Group {
+            if recipes.indices.contains(safe) {
+                RecipeDetailScreen(recipe: recipes[safe], tab: $segment)
+                    .id(recipes[safe].id)     // fresh per-recipe state; segment persists via binding
             }
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .ignoresSafeArea()
         .background(AppTheme.background.ignoresSafeArea())
+        .onAppear {
+            if !resolved { index = recipes.firstIndex { $0.id == startId } ?? 0; resolved = true }
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { value in
+                    guard abs(value.translation.width) > abs(value.translation.height) * 1.3,
+                          abs(value.translation.width) > 55 else { return }
+                    if value.translation.width < 0 { forward(recipes.count) } else { backward() }
+                }
+        )
+    }
+
+    private func forward(_ count: Int) {
+        withAnimation(swipeAnim) {
+            if segment == 0 { segment = 1 }                       // Ingredients → Directions
+            else if index < count - 1 { index += 1; segment = 0 } // Directions → next dish (Ingredients)
+            else { return }
+        }
+        Haptics.select()
+    }
+
+    private func backward() {
+        withAnimation(swipeAnim) {
+            if segment == 1 { segment = 0 }                       // Directions → Ingredients
+            else if index > 0 { index -= 1; segment = 1 }         // Ingredients → prev dish (Directions)
+            else { return }
+        }
+        Haptics.select()
     }
 }
 
