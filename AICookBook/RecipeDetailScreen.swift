@@ -20,6 +20,8 @@ struct RecipeDetailScreen: View {
     @State private var checkedIngredients: Set<String> = []
     @State private var checkedSteps: Set<Int> = []
     @State private var descriptionExpanded = false
+    @State private var descFullHeight: CGFloat = 0        // natural height of the full description
+    @State private var descClampedHeight: CGFloat = 0     // height when clamped to 3 lines
     @State private var servings: Int
     @State private var showCook = false
     @State private var showEdit = false
@@ -572,13 +574,25 @@ struct RecipeDetailScreen: View {
     }
 
     private func descriptionBlock(_ description: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        // Only show the toggle when the text actually overflows 3 lines — compare the clamped
+        // height against a hidden full-height copy, so short descriptions never show "Show more".
+        let isTruncated = descFullHeight > descClampedHeight + 1
+        return VStack(alignment: .leading, spacing: 6) {
             Text(description)
                 .font(AppFont.body(16))
                 .foregroundStyle(AppTheme.textSecondary)
                 .lineSpacing(3)
                 .lineLimit(descriptionExpanded ? nil : 3)
-            if description.count > 120 {
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { descClampedHeight = $0 }
+                .background(
+                    Text(description)
+                        .font(AppFont.body(16))
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { descFullHeight = $0 }
+                        .hidden()
+                )
+            if isTruncated || descriptionExpanded {
                 Button(descriptionExpanded ? "Show less" : "Show more") {
                     withAnimation(AppMotion.smooth) { descriptionExpanded.toggle() }
                 }
