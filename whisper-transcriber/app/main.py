@@ -569,34 +569,36 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
             thumbnail = meta.get("thumbnail")
             video_title = meta.get("title") or ""
 
-            # One capped-resolution video file gives us BOTH the audio (Whisper) and the
-            # frames (on-screen-text OCR). Works for Instagram / Facebook / YouTube / TikTok.
-            JOBS[job_id]["status"] = "transcribing"
-            media_out = os.path.join(tmp, "media.%(ext)s")
-            _run_ytdlp(["-f", "best[height<=720]/best", "-o", media_out], url)
-            media_files = [f for f in glob.glob(os.path.join(tmp, "media.*")) if not f.endswith(".json")]
-            if not media_files:
-                raise RuntimeError("Couldn't download that video. Try another public link.")
-            media_path = media_files[0]
-
-            # Whisper reads the audio straight from the video via ffmpeg. If the clip has no
-            # audio (music-only / silent), we simply get an empty transcript — no crash.
-            try:
-                r = transcribe(media_path, language=None, task="transcribe")
-                transcript, source_lang = r.text, (r.language or "en")
-            except Exception:
-                transcript, source_lang = "", "en"
-
+            # 1) CAPTION-FIRST (fast path): most creator captions carry the entire recipe.
+            #    Parse the caption alone — if that's already complete, SKIP the slow video
+            #    download + transcription entirely (turns ~100s into ~2-3s, esp. for
+            #    Indian-language reels whose captions are English).
             JOBS[job_id]["status"] = "extracting"
-            parsed = parse_recipe_content(caption, transcript, video_title=video_title, author=author)
+            parsed = parse_recipe_content(caption, "", video_title=video_title, author=author)
+            source_lang = "en"
 
-            # Fallback: nothing solid from caption + narration => read ON-SCREEN text (OCR).
-            # This rescues the common case of a silent reel with the recipe only on screen.
+            # 2) Caption thin → fall back to the video: audio (Whisper) + on-screen text (OCR).
+            #    Only here do we pay for the download + transcription.
             if not _recipe_is_complete(parsed):
-                ocr_text = _ocr_video_frames(media_path, tmp)
-                if ocr_text.strip():
-                    parsed = parse_recipe_content(caption, transcript, video_title=video_title,
-                                                  author=author, ocr_text=ocr_text)
+                JOBS[job_id]["status"] = "downloading"
+                media_out = os.path.join(tmp, "media.%(ext)s")
+                _run_ytdlp(["-f", "best[height<=720]/best", "-o", media_out], url)
+                media_files = [f for f in glob.glob(os.path.join(tmp, "media.*")) if not f.endswith(".json")]
+                if media_files:
+                    media_path = media_files[0]
+                    JOBS[job_id]["status"] = "transcribing"
+                    try:
+                        r = transcribe(media_path, language=None, task="transcribe")
+                        transcript, source_lang = r.text, (r.language or "en")
+                    except Exception:
+                        transcript = ""
+                    JOBS[job_id]["status"] = "extracting"
+                    parsed = parse_recipe_content(caption, transcript, video_title=video_title, author=author)
+                    if not _recipe_is_complete(parsed):
+                        ocr_text = _ocr_video_frames(media_path, tmp)
+                        if ocr_text.strip():
+                            parsed = parse_recipe_content(caption, transcript, video_title=video_title,
+                                                          author=author, ocr_text=ocr_text)
 
             # Truly nothing usable (no audio, no caption, no readable on-screen text) =>
             # fail gracefully with a clear reason instead of storing an empty recipe.
