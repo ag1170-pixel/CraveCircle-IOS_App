@@ -856,7 +856,9 @@ struct RecipeDetailPager: View {
     }
 
     var body: some View {
-        let recipes = environment.recipes
+        // Swipe within the caller's context (e.g. Library's Liked/Saved/Created tab) when one was
+        // given, so left/right stays inside what's actually on screen; otherwise the full library.
+        let recipes = environment.recipeSwipeContext ?? environment.recipes
         let safe = min(max(index, 0), max(recipes.count - 1, 0))
         Group {
             if recipes.indices.contains(safe) {

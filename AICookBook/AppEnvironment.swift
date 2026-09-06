@@ -212,12 +212,19 @@ final class AppEnvironment: ObservableObject {
         recipes.insert(next, at: 0)
     }
 
-    func selectRecipe(_ recipe: Recipe) {
+    /// The recipe list the detail pager should swipe through. Set alongside `selectedRecipe`
+    /// whenever the caller has a narrower context (e.g. Library's Liked/Saved/Created tabs) so a
+    /// left/right swipe stays inside what's actually on screen, not the full unfiltered library.
+    @Published private(set) var recipeSwipeContext: [Recipe]?
+
+    func selectRecipe(_ recipe: Recipe, in context: [Recipe]? = nil) {
+        recipeSwipeContext = context
         selectedRecipe = recipe
     }
 
     func dismissRecipeDetail() {
         selectedRecipe = nil
+        recipeSwipeContext = nil
     }
 
     /// Save edits to a recipe the user owns (updates the list + open detail).
