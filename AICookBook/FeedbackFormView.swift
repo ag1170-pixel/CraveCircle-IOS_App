@@ -43,6 +43,14 @@ struct FeedbackFormView: View {
                     Button("Cancel") { dismiss() }
                         .foregroundStyle(AppTheme.textPrimary)
                 }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+                    .font(AppFont.body(16, weight: .bold))
+                    .foregroundStyle(AppTheme.accent)
+                }
             }
             .overlay {
                 if showThankYou {
@@ -56,7 +64,7 @@ struct FeedbackFormView: View {
     
     private var disappointmentCard: some View {
         cardContainer {
-            Text("How disappointed would you be if you could no longer use CraveCircle?")
+            Text("How would you feel if you could never use CraveCircle again?")
                 .font(AppFont.display(24, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .multilineTextAlignment(.center)
@@ -75,7 +83,7 @@ struct FeedbackFormView: View {
     
     private var commonalityCard: some View {
         cardContainer {
-            Text("What do you think our biggest fans have in common?")
+            Text("What kind of person would love this app the most?")
                 .font(AppFont.display(24, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .multilineTextAlignment(.center)
@@ -96,7 +104,7 @@ struct FeedbackFormView: View {
     
     private var improvementsCard: some View {
         cardContainer {
-            Text("What could we improve to make you love it even more?")
+            Text("What is one thing we could change to make this app perfect for you?")
                 .font(AppFont.display(24, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .multilineTextAlignment(.center)
@@ -117,7 +125,7 @@ struct FeedbackFormView: View {
     
     private var additionalCard: some View {
         cardContainer {
-            Text("Any other magic you'd like to see?")
+            Text("Any other thoughts you want to share with us?")
                 .font(AppFont.display(24, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .multilineTextAlignment(.center)
