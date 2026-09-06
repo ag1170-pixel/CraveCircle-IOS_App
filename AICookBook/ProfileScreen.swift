@@ -17,6 +17,7 @@ struct ProfileScreen: View {
     @State private var showServerPicker = false
     @State private var showNotifications = false
     @State private var showAccountSheet = false
+    @State private var showFeedbackForm = false
     @State private var activeSafariURL: IdentifiableURL? = nil
 
     private var language: AppLanguage {
@@ -65,6 +66,9 @@ struct ProfileScreen: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showFeedbackForm) {
+            FeedbackFormView()
         }
     }
 
@@ -154,6 +158,14 @@ struct ProfileScreen: View {
                 .padding(.top, AppSpacing.sm)
 
             VStack(spacing: 0) {
+                SettingRow(
+                    icon: "star.bubble.fill",
+                    title: "Give Feedback",
+                    tint: .orange
+                ) {
+                    showFeedbackForm = true
+                }
+                Divider().overlay(AppTheme.separator).padding(.leading, 56)
                 SettingRow(
                     icon: "questionmark.circle.fill",
                     title: "Help & Support",

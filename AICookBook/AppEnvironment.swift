@@ -342,7 +342,7 @@ final class AppEnvironment: ObservableObject {
         }
 
         recipes.insert(recipe, at: 0)
-        selectedRecipe = recipe
+        // Do NOT auto-set selectedRecipe here.
         importState = .done(recipeId: recipe.id)
     }
 
@@ -665,7 +665,9 @@ final class AppEnvironment: ObservableObject {
                             } else {
                                 self.recipes.insert(recipe, at: 0)
                             }
-                            self.selectedRecipe = recipe
+                            // Do NOT auto-set selectedRecipe here. It causes a presentation conflict
+                            // if the ImportProgressScreen sheet is currently active. Let the user
+                            // explicitly tap "View" or "Open recipe" to select it.
                             self.importState = .done(recipeId: recipeId)
                         }
                         return

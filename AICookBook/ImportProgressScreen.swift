@@ -118,7 +118,17 @@ struct ImportProgressScreen: View {
             }
         } else if isDone {
             PillButton(title: "Open recipe", systemImage: "arrow.right", kind: .filled, fullWidth: true) {
-                environment.cancelImport()   // dismiss progress; selectedRecipe drives detail
+                let state = environment.importState
+                dismiss() // This dismisses the progress sheet
+                environment.cancelImport() // clear banner
+                if case .done(let recipeId) = state {
+                    if let rec = environment.recipes.first(where: { $0.id == recipeId }) {
+                        // Give the sheet time to dismiss before triggering fullScreenCover
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            environment.selectRecipe(rec)
+                        }
+                    }
+                }
             }
         } else {
             PillButton(title: "Cancel", kind: .outlined, fullWidth: true) {
