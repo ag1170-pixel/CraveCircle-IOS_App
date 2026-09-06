@@ -78,6 +78,20 @@ struct ImportJob: Codable, Identifiable {
     let recipeId: String?
 }
 
+enum RecipeVisibility: String, Codable {
+    case everyone
+    case followers
+}
+
+struct SharedRecipeRecord: Codable, Identifiable, Hashable {
+    let id: String
+    let recipeId: String
+    let fromUserId: String
+    let toUserId: String
+    let createdAt: Date
+    let channel: String?
+}
+
 struct Recipe: Codable, Identifiable, Hashable {
     let id: String
     let ownerId: String
@@ -93,6 +107,7 @@ struct Recipe: Codable, Identifiable, Hashable {
     var sourceLanguage: String?   // BCP-47 code of the reel's original language, if translated
     var nutrition: RecipeNutrition?   // per-serving; server-computed from ingredients, else estimated
     var sourceUrl: String?        // URL of the source Instagram / TikTok reel
+    var visibility: RecipeVisibility = .everyone
 
     /// True only when this recipe was imported from a social reel (Instagram / TikTok / YouTube / Facebook).
     var isImportedFromSocial: Bool { Self.isSocialImportURL(sourceUrl) }

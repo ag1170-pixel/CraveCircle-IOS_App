@@ -145,6 +145,11 @@ struct ProfileScreen: View {
                 }
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
                 SettingRow(icon: "waveform", title: "On-device transcription", detail: "Beta", tint: AppTheme.accent) { showTranscribeTest = true }
+                Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                SettingRow(icon: "trash.fill", title: "Clear cache", detail: "Free up space", tint: .gray) {
+                    URLCache.shared.removeAllCachedResponses()
+                    Haptics.success()
+                }
             }
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))

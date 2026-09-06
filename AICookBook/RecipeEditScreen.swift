@@ -15,6 +15,7 @@ struct RecipeEditScreen: View {
     var onSave: (Recipe) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var environment: AppEnvironment
     @State private var draft: Recipe
     @State private var pickedItem: PhotosPickerItem?
     @State private var pickedImage: UIImage?
@@ -39,6 +40,30 @@ struct RecipeEditScreen: View {
                     TextField("Prep time (e.g. 12 min)", text: $draft.prepTime.orEmpty())
                     TextField("Cook time (e.g. 8 min)", text: $draft.cookTime.orEmpty())
                     Stepper("Servings: \(draft.servings ?? 1)", value: servingsBinding, in: 1...30)
+                }
+                
+                Section("Community Visibility") {
+                    if environment.canPublish {
+                        Picker("Who can see this", selection: $draft.visibility) {
+                            Text("Everyone").tag(RecipeVisibility.everyone)
+                            Text("Followers Only").tag(RecipeVisibility.followers)
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Share with your Circle")
+                                .font(.body.weight(.semibold))
+                            Text("Enroll as a Creator to publish recipes and control visibility.")
+                                .font(.subheadline)
+                                .foregroundStyle(AppTheme.textSecondary)
+                            Button("Join Studio") {
+                                Haptics.success()
+                                environment.enrollInStudio()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .padding(.top, 4)
+                        }
+                        .padding(.vertical, 4)
+                    }
                 }
 
                 ForEach(draft.ingredients.indices, id: \.self) { i in
@@ -120,11 +145,21 @@ struct RecipeEditScreen: View {
         Group {
             if let pickedImage {
                 Image(uiImage: pickedImage).resizable().scaledToFill()
-            } else if let s = draft.thumbnailUrl, let url = URL(string: s) {
-                AsyncImage(url: url) { img in
-                    img.resizable().scaledToFill()
-                } placeholder: {
-                    RecipeImagePlaceholder(isBuffering: true, size: 32)
+            } else if let thumb = draft.thumbnailUrl, UIImage(named: thumb) != nil {
+                Image(thumb).resizable().scaledToFill()
+            } else if let s = draft.thumbnailUrl, let url = URL(string: s),
+                      url.scheme == "http" || url.scheme == "https" || url.scheme == "file" {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let img):
+                        img.resizable().scaledToFill()
+                    case .failure:
+                        RecipeImagePlaceholder(isBuffering: false, size: 32)
+                    case .empty:
+                        RecipeImagePlaceholder(isBuffering: true, size: 32)
+                    @unknown default:
+                        RecipeImagePlaceholder(isBuffering: false, size: 32)
+                    }
                 }
             } else {
                 RecipeImagePlaceholder(isBuffering: false, size: 32)

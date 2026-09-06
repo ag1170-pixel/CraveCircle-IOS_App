@@ -243,6 +243,33 @@ final class AppEnvironment: ObservableObject {
 
     var canPublish: Bool { currentUser?.canPublish ?? false }
 
+    // MARK: - Community MVP Logic Stubs
+    
+    @Published var sharedLog: [SharedRecipeRecord] = []
+    
+    var communityFeed: [Recipe] {
+        recipes.filter { isFollowing(creatorHandle: $0.ownerUsername ?? "") }
+    }
+    
+    func canView(_ recipe: Recipe) -> Bool {
+        if recipe.visibility == .everyone { return true }
+        if isOwner(of: recipe) { return true }
+        if let username = recipe.ownerUsername, isFollowing(creatorHandle: username) { return true }
+        return false
+    }
+    
+    func recordShare(recipeId: String, friend: FriendItem) {
+        let record = SharedRecipeRecord(
+            id: UUID().uuidString,
+            recipeId: recipeId,
+            fromUserId: currentUser?.id ?? "me",
+            toUserId: friend.id.uuidString,
+            createdAt: Date(),
+            channel: "in-app"
+        )
+        sharedLog.insert(record, at: 0)
+    }
+
     func enrollInStudio() {
         guard var user = currentUser, user.role == .user else { return }
         user.role = .creator

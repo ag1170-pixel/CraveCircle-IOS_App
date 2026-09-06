@@ -55,7 +55,11 @@ struct RecipeDetailScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     header
-                    content
+                    if environment.canView(recipe) {
+                        content
+                    } else {
+                        followGate
+                    }
                 }
             }
             .coordinateSpace(name: "scroll")
@@ -180,6 +184,7 @@ struct RecipeDetailScreen: View {
                 heroImage
                     .frame(width: geo.size.width, height: height)
                     .clipped()
+                    .blur(radius: environment.canView(recipe) ? 0 : 20)
                     .offset(y: reduceMotion ? 0 : -stretch)
                     .contentShape(Rectangle())
                     .onTapGesture(count: 2) {
@@ -541,6 +546,47 @@ struct RecipeDetailScreen: View {
                 .ignoresSafeArea(edges: .bottom)
                 .offset(y: -AppSpacing.lg)
         )
+    }
+
+    private var followGate: some View {
+        VStack(spacing: AppSpacing.lg) {
+            Image(systemName: "lock.circle.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(AppTheme.accentSoft)
+            
+            Text("Followers Only")
+                .font(AppFont.display(24, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+            
+            Text("Follow \(recipe.ownerUsername ?? "@creator") to unlock this recipe and see all their latest dishes.")
+                .font(AppFont.body(16))
+                .foregroundStyle(AppTheme.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, AppSpacing.lg)
+            
+            Button {
+                Haptics.success()
+                if let handle = recipe.ownerUsername {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
+                        environment.toggleFollow(creatorHandle: handle)
+                    }
+                }
+            } label: {
+                Text("Follow to Unlock")
+                    .font(AppFont.body(16, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 14)
+                    .background(Color(hex: "1877F2"), in: Capsule())
+                    .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
+            }
+            .buttonStyle(PressableStyle())
+        }
+        .padding(.vertical, 80)
+        .frame(maxWidth: .infinity)
+        .background(AppTheme.background)
+        .clipShape(.rect(topLeadingRadius: AppRadius.sheet, topTrailingRadius: AppRadius.sheet))
+        .offset(y: -AppSpacing.lg)
     }
 
     @ViewBuilder private var originChip: some View {

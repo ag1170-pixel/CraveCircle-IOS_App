@@ -276,7 +276,7 @@ struct StudioScreen: View {
             directions: [
                 DirectionStep(stepIndex: 1, text: "Prep ingredients and heat pan.")
             ],
-            thumbnailUrl: "recipe_hot_honey_chicken",
+            thumbnailUrl: nil,
             ownerUsername: environment.currentUser?.username ?? "@aicookbook"
         )
         return RecipeEditScreen(

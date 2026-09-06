@@ -265,6 +265,16 @@ struct FreshCard: View {
                 cover(recipe)
                     .frame(width: 168, height: 130)
                     .clipShape(RoundedRectangle(cornerRadius: AppRadius.tile, style: .continuous))
+                    .overlay(alignment: .topTrailing) {
+                        if recipe.visibility == .followers {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(AppTheme.accentInk)
+                                .padding(6)
+                                .background(AppTheme.accentSoft.opacity(0.9), in: Circle())
+                                .padding(8)
+                        }
+                    }
                 Text(recipe.title)
                     .font(AppFont.body(15, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
@@ -321,6 +331,16 @@ struct LibraryCard: View {
                             )
                             .overlay(Circle().stroke(.white, lineWidth: 2))
                             .padding(10)
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        if recipe.visibility == .followers {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(AppTheme.accentInk)
+                                .padding(6)
+                                .background(AppTheme.accentSoft.opacity(0.9), in: Circle())
+                                .padding(8)
+                        }
                     }
                 Text(recipe.title)
                     .font(AppFont.body(16, weight: .bold))
