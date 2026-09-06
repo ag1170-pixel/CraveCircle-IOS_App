@@ -10,11 +10,34 @@
 import Foundation
 import AVFoundation
 import UIKit
+import ImageIO
+import UniformTypeIdentifiers
+
+/// Encodes runtime images (import thumbnails, picked photos) as HEIC — Apple's native format,
+/// ~40–50% smaller than JPEG at the same quality — with a JPEG fallback for the rare device
+/// that can't encode HEIC. Callers save with the returned `ext` so the file type is honest.
+enum ImageEncoder {
+    static func encode(_ image: UIImage, quality: CGFloat = 0.8) -> (data: Data, ext: String)? {
+        if let heic = heic(image, quality: quality) { return (heic, "heic") }
+        if let jpeg = image.jpegData(compressionQuality: quality) { return (jpeg, "jpg") }
+        return nil
+    }
+
+    private static func heic(_ image: UIImage, quality: CGFloat) -> Data? {
+        guard let cg = image.cgImage else { return nil }
+        let out = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(out, UTType.heic.identifier as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(dest, cg, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
+        guard CGImageDestinationFinalize(dest) else { return nil }
+        return out as Data
+    }
+}
 
 enum VideoThumbnail {
-    /// Returns JPEG data for a frame ~15% into the clip (skips black intros, avoids the very end).
-    /// Kept modest (≤800px, q0.8 ≈ 80-150 KB) so a big library of imports stays storage-light.
-    static func jpeg(from url: URL, maxDimension: CGFloat = 800, quality: CGFloat = 0.8) async -> Data? {
+    /// Returns encoded image data (HEIC when supported, else JPEG) plus its file extension, for a
+    /// frame ~15% into the clip (skips black intros, avoids the very end). Kept modest (≤800px)
+    /// so a big library of imports stays storage-light; HEIC roughly halves the per-thumbnail cost.
+    static func frame(from url: URL, maxDimension: CGFloat = 800, quality: CGFloat = 0.8) async -> (data: Data, ext: String)? {
         let asset = AVURLAsset(url: url)
         guard let duration = try? await asset.load(.duration) else { return nil }
         let total = CMTimeGetSeconds(duration)
@@ -30,6 +53,6 @@ enum VideoThumbnail {
         generator.requestedTimeToleranceAfter = CMTime(seconds: 1, preferredTimescale: 600)
 
         guard let cg = try? await generator.image(at: time).image else { return nil }
-        return UIImage(cgImage: cg).jpegData(compressionQuality: quality)
+        return ImageEncoder.encode(UIImage(cgImage: cg), quality: quality)
     }
 }

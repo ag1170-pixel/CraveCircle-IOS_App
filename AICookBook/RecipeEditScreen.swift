@@ -174,10 +174,10 @@ struct RecipeEditScreen: View {
 
     /// Persist a picked photo to the caches dir and point the recipe at it (file:// URL).
     private func persistPickedImage() {
-        guard let img = pickedImage, let data = img.jpegData(compressionQuality: 0.85) else { return }
+        guard let img = pickedImage, let out = ImageEncoder.encode(img, quality: 0.85) else { return }
         let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        let url = dir.appendingPathComponent("recipe-\(draft.id)-\(Int(Date().timeIntervalSince1970)).jpg")
-        try? data.write(to: url)
+        let url = dir.appendingPathComponent("recipe-\(draft.id)-\(Int(Date().timeIntervalSince1970)).\(out.ext)")
+        try? out.data.write(to: url)
         draft.thumbnailUrl = url.absoluteString
     }
 

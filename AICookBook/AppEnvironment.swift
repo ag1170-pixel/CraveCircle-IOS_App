@@ -365,8 +365,8 @@ final class AppEnvironment: ObservableObject {
 
         // 5) Give it a real cover: grab a representative frame from the video and store it locally,
         //    so the imported recipe looks like a real recipe instead of the generic fallback.
-        if let data = await VideoThumbnail.jpeg(from: url),
-           let file = LocalStore.saveData(data, to: "thumb-\(recipe.id).jpg") {
+        if let thumb = await VideoThumbnail.frame(from: url),
+           let file = LocalStore.saveData(thumb.data, to: "thumb-\(recipe.id).\(thumb.ext)") {
             recipe.thumbnailUrl = file.absoluteString
         }
 

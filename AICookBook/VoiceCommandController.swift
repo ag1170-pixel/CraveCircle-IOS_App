@@ -148,7 +148,9 @@ final class VoiceCommandController: NSObject, ObservableObject {
 
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
-        req.requiresOnDeviceRecognition = false
+        // Privacy: keep recognition on-device so the mic audio never leaves the phone.
+        // Falls back to server only on the rare device without on-device support.
+        req.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
         req.contextualStrings = ["Hey Crave", "Crave", "next", "back", "next step", "go back", "previous"]
         request = req
         lastConsumedIndex = 0
