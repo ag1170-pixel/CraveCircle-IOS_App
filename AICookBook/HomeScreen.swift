@@ -365,31 +365,32 @@ struct LibraryCard: View {
 
 @ViewBuilder
 func cover(_ recipe: Recipe) -> some View {
-    GeometryReader { geo in
-        Group {
-            if let thumb = recipe.thumbnailUrl, UIImage(named: thumb) != nil {
-                Image(thumb).resizable()
-            } else if let urlString = recipe.thumbnailUrl, let url = URL(string: urlString), (url.scheme == "http" || url.scheme == "https" || url.scheme == "file") {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable()
-                    case .failure:
-                        RecipeImagePlaceholder(isBuffering: false, size: 28)
-                    case .empty:
-                        RecipeImagePlaceholder(isBuffering: true, size: 28)
-                    @unknown default:
-                        RecipeImagePlaceholder(isBuffering: false, size: 28)
-                    }
+    ZStack {
+        if let thumb = recipe.thumbnailUrl, UIImage(named: thumb) != nil {
+            Image(thumb)
+                .resizable()
+                .scaledToFill()
+        } else if let urlString = recipe.thumbnailUrl, let url = URL(string: urlString), (url.scheme == "http" || url.scheme == "https" || url.scheme == "file") {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    RecipeImagePlaceholder(isBuffering: false, size: 28)
+                case .empty:
+                    RecipeImagePlaceholder(isBuffering: true, size: 28)
+                @unknown default:
+                    RecipeImagePlaceholder(isBuffering: false, size: 28)
                 }
-            } else {
-                RecipeImagePlaceholder(isBuffering: false, size: 28)
             }
+        } else {
+            RecipeImagePlaceholder(isBuffering: false, size: 28)
         }
-        .scaledToFill()
-        .frame(width: geo.size.width, height: geo.size.height)
-        .clipped()
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .clipped()
 }
 
 struct CreatorLine: View {

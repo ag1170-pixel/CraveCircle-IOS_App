@@ -231,40 +231,26 @@ struct MainTabView: View {
     @State private var showingProgressDetail = false
     @State private var tab: AppTab = .home
 
-    // Silky-smooth view switching: state is preserved across tabs, zero gesture conflicts
-    // with HomeScreen carousels, and zero touch delay on buttons.
-    private var tabContent: some View {
-        ZStack {
-            HomeScreen(showingImportSheet: $showingImportSheet)
-                .opacity(tab == .home ? 1 : 0)
-                .allowsHitTesting(tab == .home)
-
-            StudioScreen()
-                .opacity(tab == .studio ? 1 : 0)
-                .allowsHitTesting(tab == .studio)
-
-            GroceryScreen()
-                .opacity(tab == .groceries ? 1 : 0)
-                .allowsHitTesting(tab == .groceries)
-
-            NavigationStack { SearchScreen() }
-                .opacity(tab == .search ? 1 : 0)
-                .allowsHitTesting(tab == .search)
-
-            ProfileScreen()
-                .opacity(tab == .profile ? 1 : 0)
-                .allowsHitTesting(tab == .profile)
+    // Swipeable pager: a horizontal swipe moves between tabs with 1:1 finger tracking, and the
+    // floating CraveTabBar taps drive the same selection. Native .page style is interruptible.
+    private var pager: some View {
+        TabView(selection: $tab) {
+            HomeScreen(showingImportSheet: $showingImportSheet).tag(AppTab.home)
+            StudioScreen().tag(AppTab.studio)
+            GroceryScreen().tag(AppTab.groceries)
+            NavigationStack { SearchScreen() }.tag(AppTab.search)
+            ProfileScreen().tag(AppTab.profile)
         }
-        .animation(.easeInOut(duration: 0.2), value: tab)
+        .tabViewStyle(.page(indexDisplayMode: .never))
         .ignoresSafeArea(.container, edges: .bottom)
     }
 
     var body: some View {
         ZStack(alignment: .bottom) {
             AppTheme.background.ignoresSafeArea()
-            tabContent
+            pager
             CraveTabBar(selected: $tab)
-                .padding(.bottom, 16)
+                .padding(.bottom, 6)
         }
         .overlay(alignment: .top) {
             ImportToastBanner(onOpenDetails: { showingProgressDetail = true })
