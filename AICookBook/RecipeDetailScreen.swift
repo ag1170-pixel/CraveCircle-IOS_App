@@ -17,6 +17,8 @@ struct RecipeDetailScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Binding var tab: Int                            // 0 = Ingredients, 1 = Directions (owned by the pager)
+    private let onSwitchRecipe: ((Int) -> Void)?     // +1 next / -1 prev — swipe OUTSIDE the segment region
+    @State private var segmentFrame: CGRect = .zero  // Ingredients/Directions region, in the "detail" space
     @State private var checkedIngredients: Set<String> = []
     @State private var checkedSteps: Set<Int> = []
     @State private var descriptionExpanded = false
@@ -41,9 +43,10 @@ struct RecipeDetailScreen: View {
 
     private let heroHeight: CGFloat = 380
 
-    init(recipe: Recipe, tab: Binding<Int> = .constant(0)) {
+    init(recipe: Recipe, tab: Binding<Int> = .constant(0), onSwitchRecipe: ((Int) -> Void)? = nil) {
         _recipe = State(initialValue: recipe)
         _tab = tab
+        self.onSwitchRecipe = onSwitchRecipe
         _servings = State(initialValue: recipe.servings ?? 2)
     }
 
@@ -64,6 +67,23 @@ struct RecipeDetailScreen: View {
         }
         .background(AppTheme.background.ignoresSafeArea())
         .ignoresSafeArea(edges: .top)
+        .coordinateSpace(.named("detail"))
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 25, coordinateSpace: .named("detail"))
+                .onEnded { value in
+                    guard abs(value.translation.width) > abs(value.translation.height) * 1.3,
+                          abs(value.translation.width) > 50 else { return }
+                    let goLeft = value.translation.width < 0
+                    if segmentFrame.contains(value.startLocation) {
+                        // swipe INSIDE the Ingredients/Directions region → switch those two
+                        withAnimation(.easeInOut(duration: 0.22)) { tab = goLeft ? 1 : 0 }
+                        Haptics.select()
+                    } else {
+                        // swipe anywhere ELSE on the page → previous / next recipe
+                        onSwitchRecipe?(goLeft ? 1 : -1)
+                    }
+                }
+        )
         .leadingEdgeBack { environment.dismissRecipeDetail() }
         .overlay(alignment: .bottom) {
             if showGroceryBanner {
@@ -502,7 +522,10 @@ struct RecipeDetailScreen: View {
                 if tab == 0 { ingredientsList } else { directionsList }
             }
             .transition(.opacity)
-            .animation(.easeInOut(duration: 0.2), value: tab)   // page-level swipe switches recipes instead
+            .animation(.easeInOut(duration: 0.2), value: tab)
+            .contentShape(Rectangle())
+            // Report this region so a swipe here toggles Ingredients/Directions; elsewhere = switch recipe.
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("detail")) } action: { segmentFrame = $0 }
 
             Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.top, AppSpacing.sm)
 
@@ -756,11 +779,11 @@ struct RecipeDetailScreen: View {
     }
 }
 
-// MARK: - Swipeable recipe pager (segment → then dish)
+// MARK: - Swipeable recipe pager (region-scoped)
 //
-// A horizontal swipe steps through a combined sequence: Ingredients → Directions → NEXT dish's
-// Ingredients → its Directions → …  and the exact mirror when swiping back. So from a dish you
-// first flip to its Directions, and only the next swipe moves to the next recipe.
+// Region-based swiping: a swipe INSIDE the Ingredients/Directions section toggles those two; a
+// swipe ANYWHERE ELSE on the page moves to the previous/next recipe. RecipeDetailScreen owns the
+// gesture (it knows the section's frame) and calls back here to change the recipe.
 struct RecipeDetailPager: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -780,40 +803,22 @@ struct RecipeDetailPager: View {
         let safe = min(max(index, 0), max(recipes.count - 1, 0))
         Group {
             if recipes.indices.contains(safe) {
-                RecipeDetailScreen(recipe: recipes[safe], tab: $segment)
-                    .id(recipes[safe].id)     // fresh per-recipe state; segment persists via binding
+                RecipeDetailScreen(recipe: recipes[safe], tab: $segment, onSwitchRecipe: { dir in
+                    // Swipe OUTSIDE the Ingredients/Directions region → previous / next recipe.
+                    withAnimation(swipeAnim) {
+                        if dir > 0, index < recipes.count - 1 { index += 1; segment = 0 }
+                        else if dir < 0, index > 0 { index -= 1; segment = 0 }
+                        else { return }
+                    }
+                    Haptics.select()
+                })
+                .id(recipes[safe].id)     // fresh per-recipe state; segment persists via binding
             }
         }
         .background(AppTheme.background.ignoresSafeArea())
         .onAppear {
             if !resolved { index = recipes.firstIndex { $0.id == startId } ?? 0; resolved = true }
         }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 30)
-                .onEnded { value in
-                    guard abs(value.translation.width) > abs(value.translation.height) * 1.3,
-                          abs(value.translation.width) > 55 else { return }
-                    if value.translation.width < 0 { forward(recipes.count) } else { backward() }
-                }
-        )
-    }
-
-    private func forward(_ count: Int) {
-        withAnimation(swipeAnim) {
-            if segment == 0 { segment = 1 }                       // Ingredients → Directions
-            else if index < count - 1 { index += 1; segment = 0 } // Directions → next dish (Ingredients)
-            else { return }
-        }
-        Haptics.select()
-    }
-
-    private func backward() {
-        withAnimation(swipeAnim) {
-            if segment == 1 { segment = 0 }                       // Directions → Ingredients
-            else if index > 0 { index -= 1; segment = 1 }         // Ingredients → prev dish (Directions)
-            else { return }
-        }
-        Haptics.select()
     }
 }
 
