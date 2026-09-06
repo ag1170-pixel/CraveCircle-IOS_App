@@ -40,6 +40,7 @@ struct RecipeDetailScreen: View {
     @State private var heartBurstY: CGFloat = 0
     @State private var showOriginalRecipeInfo = false
     @State private var showReportSheet = false
+    @State private var viewStartTime: Date? = nil
 
     private let heroHeight: CGFloat = 380
 
@@ -169,6 +170,15 @@ struct RecipeDetailScreen: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This removes it from your library. Other people’s recipes can’t be deleted.")
+        }
+        .onAppear {
+            viewStartTime = Date()
+        }
+        .onDisappear {
+            if let start = viewStartTime {
+                let duration = Int(Date().timeIntervalSince(start))
+                environment.logInteraction(recipeId: recipe.id, eventType: "view", durationSeconds: duration)
+            }
         }
     }
 
@@ -517,6 +527,7 @@ struct RecipeDetailScreen: View {
             actionRow
 
             PillButton(title: "Start Cooking", systemImage: "flame.fill", kind: .filled, fullWidth: true) {
+                environment.logInteraction(recipeId: recipe.id, eventType: "cook")
                 showCook = true
             }
 

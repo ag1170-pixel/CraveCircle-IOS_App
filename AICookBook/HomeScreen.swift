@@ -29,6 +29,9 @@ struct HomeScreen: View {
                 VStack(alignment: .leading, spacing: AppSpacing.xl) {
                     followingSection
                     freshSection
+                    if !environment.suggestedRecipes.isEmpty {
+                        suggestedSection
+                    }
                     librarySection
                 }
                 .padding(.top, AppSpacing.sm)
@@ -36,7 +39,15 @@ struct HomeScreen: View {
             }
             .background(AppTheme.background.ignoresSafeArea())
             .scrollIndicators(.hidden)
-            .refreshable { await environment.refreshRecipes() }
+            .refreshable { 
+                await environment.refreshRecipes()
+                await environment.fetchSuggestedFeed()
+            }
+            .task {
+                if environment.suggestedRecipes.isEmpty {
+                    await environment.fetchSuggestedFeed()
+                }
+            }
             .safeAreaInset(edge: .top) { topBar }
             .navigationDestination(isPresented: $navigateToFriends) {
                 FriendsScreen()
@@ -160,6 +171,33 @@ struct HomeScreen: View {
                 }
                 .scrollClipDisabled()
             }
+        }
+    }
+    
+    // MARK: Suggested for You
+    
+    private var suggestedSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(Color(hex: "FFB340"))
+                    .font(.system(size: 18, weight: .semibold))
+                Text("Suggested for You")
+                    .font(AppFont.display(20, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, AppSpacing.md)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: AppSpacing.md) {
+                    ForEach(environment.suggestedRecipes) { recipe in
+                        FreshCard(recipe: recipe) { environment.selectRecipe(recipe) }
+                    }
+                }
+                .padding(.horizontal, AppSpacing.md)
+            }
+            .scrollClipDisabled()
         }
     }
 

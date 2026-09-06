@@ -428,6 +428,7 @@ final class AppEnvironment: ObservableObject {
             savedRecipeIds.remove(id)
         } else {
             savedRecipeIds.insert(id)
+            logInteraction(recipeId: id, eventType: "save")
         }
         UserDefaults.standard.set(Array(savedRecipeIds), forKey: "saved_recipe_ids")
     }
@@ -453,6 +454,7 @@ final class AppEnvironment: ObservableObject {
             Haptics.tap()
         } else {
             likedRecipeIds.insert(id)
+            logInteraction(recipeId: id, eventType: "like")
             Haptics.success()
             if let r = recipes.first(where: { $0.id == id }) {
                 let notif = CircleNotificationItem(
@@ -583,6 +585,9 @@ final class AppEnvironment: ObservableObject {
                 added += 1
             }
         }
+        if added > 0 {
+            logInteraction(recipeId: recipe.id, eventType: "grocery")
+        }
         return added
     }
 
@@ -629,6 +634,7 @@ final class AppEnvironment: ObservableObject {
         var list = recipeComments[recipeId] ?? []
         list.insert(newComment, at: 0)
         recipeComments[recipeId] = list
+        logInteraction(recipeId: recipeId, eventType: "comment")
 
         let notif = CircleNotificationItem(
             title: "Comment Posted",
@@ -652,6 +658,52 @@ final class AppEnvironment: ObservableObject {
             list[idx].likesCount += 1
         }
         recipeComments[recipeId] = list
+    }
+
+    // MARK: - Telemetry / Recommendation Engine
+    
+    struct InteractionEvent: Codable {
+        let id: String
+        let recipeId: String
+        let eventType: String
+        let durationSeconds: Int?
+        let timestamp: Date
+    }
+    
+    @Published private(set) var pendingInteractions: [InteractionEvent] = []
+    @Published private(set) var suggestedRecipes: [Recipe] = []
+    
+    func logInteraction(recipeId: String, eventType: String, durationSeconds: Int? = nil) {
+        let event = InteractionEvent(
+            id: UUID().uuidString,
+            recipeId: recipeId,
+            eventType: eventType,
+            durationSeconds: durationSeconds,
+            timestamp: Date()
+        )
+        pendingInteractions.append(event)
+        
+        if pendingInteractions.count >= 10 {
+            flushTelemetry()
+        }
+    }
+    
+    func flushTelemetry() {
+        guard !pendingInteractions.isEmpty else { return }
+        let toSend = pendingInteractions
+        pendingInteractions.removeAll()
+        
+        Task {
+            // TODO: POST /rpc/log_interactions to Supabase
+            // print("Flushed \(toSend.count) telemetry events to backend.")
+        }
+    }
+    
+    func fetchSuggestedFeed() async {
+        // Stub for Supabase RPC call that returns scored recipes
+        // For now, simulate by returning a randomized subset of un-owned recipes
+        let pool = recipes.filter { !isOwner(of: $0) && !isSaved(recipeId: $0.id) }
+        suggestedRecipes = Array(pool.shuffled().prefix(6))
     }
 
     func cancelImport() {
