@@ -17,12 +17,26 @@ struct RecipeDetailScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var tab = 0                       // 0 = Ingredients, 1 = Directions
+    private var onSelectTab: ((Int) -> Void)?
+    @State private var internalServings: Int
+    private var externalServings: Binding<Int>?
+
+    private var servings: Int {
+        get { externalServings?.wrappedValue ?? internalServings }
+        nonmutating set {
+            if let externalServings {
+                externalServings.wrappedValue = newValue
+            } else {
+                internalServings = newValue
+            }
+        }
+    }
+
     @State private var checkedIngredients: Set<String> = []
     @State private var checkedSteps: Set<Int> = []
     @State private var descriptionExpanded = false
     @State private var descFullHeight: CGFloat = 0        // natural height of the full description
     @State private var descClampedHeight: CGFloat = 0     // height when clamped to 3 lines
-    @State private var servings: Int
     @State private var showCook = false
     @State private var showEdit = false
     @State private var showShareSheet = false
@@ -40,9 +54,17 @@ struct RecipeDetailScreen: View {
 
     private let heroHeight: CGFloat = 380
 
-    init(recipe: Recipe) {
+    init(
+        recipe: Recipe,
+        tab: Int = 0,
+        servings: Binding<Int>? = nil,
+        onSelectTab: ((Int) -> Void)? = nil
+    ) {
         _recipe = State(initialValue: recipe)
-        _servings = State(initialValue: recipe.servings ?? 2)
+        _tab = State(initialValue: tab)
+        _internalServings = State(initialValue: recipe.servings ?? 2)
+        self.externalServings = servings
+        self.onSelectTab = onSelectTab
     }
 
     var body: some View {
@@ -481,14 +503,24 @@ struct RecipeDetailScreen: View {
                 showCook = true
             }
 
-            LimeSegmentedControl(segments: ["Ingredients", "Directions"], selection: $tab)
-                .padding(.top, 2)
+            LimeSegmentedControl(
+                segments: ["Ingredients", "Directions"],
+                selection: Binding(
+                    get: { tab },
+                    set: { newTab in
+                        guard newTab != tab else { return }
+                        tab = newTab
+                        onSelectTab?(newTab)
+                    }
+                )
+            )
+            .padding(.top, 2)
 
             Group {
                 if tab == 0 { ingredientsList } else { directionsList }
             }
             .transition(.opacity)
-            .animation(.easeInOut(duration: 0.2), value: tab)   // page-level swipe switches recipes instead
+            .animation(.easeInOut(duration: 0.2), value: tab)
 
             Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.top, AppSpacing.sm)
 
@@ -744,26 +776,68 @@ struct RecipeDetailScreen: View {
 
 // MARK: - Swipeable recipe pager
 //
-// Presents the tapped recipe inside a horizontal pager over the whole library, so a left/right
-// swipe moves to the next / previous recipe (native .page paging, 1:1 finger tracking).
+// Presents recipes inside a horizontal linear pager where each recipe has two pages:
+// 1. Ingredients (tab 0)
+// 2. Directions (tab 1)
+//
+// Linear sequence: Dish 1 Ingredients → (swipe) Dish 1 Directions → (swipe) Dish 2 Ingredients → (swipe) Dish 2 Directions...
+// And the reverse mirror going back.
 struct RecipeDetailPager: View {
     @EnvironmentObject private var environment: AppEnvironment
-    @State private var currentId: String
+    @State private var currentKey: String
+    @State private var servingsMap: [String: Int] = [:]
+    private let startRecipe: Recipe
 
     init(start: Recipe) {
-        _currentId = State(initialValue: start.id)
+        self.startRecipe = start
+        _currentKey = State(initialValue: "\(start.id):0")
+    }
+
+    private var pagerRecipes: [Recipe] {
+        if environment.recipes.contains(where: { $0.id == startRecipe.id }) {
+            return environment.recipes
+        }
+        return [startRecipe] + environment.recipes
     }
 
     var body: some View {
-        TabView(selection: $currentId) {
-            ForEach(environment.recipes) { recipe in
-                RecipeDetailScreen(recipe: recipe)
-                    .tag(recipe.id)
+        TabView(selection: $currentKey) {
+            ForEach(pagerRecipes) { recipe in
+                RecipeDetailScreen(
+                    recipe: recipe,
+                    tab: 0,
+                    servings: servingsBinding(for: recipe),
+                    onSelectTab: { newTab in
+                        withAnimation(AppMotion.smooth) {
+                            currentKey = "\(recipe.id):\(newTab)"
+                        }
+                    }
+                )
+                .tag("\(recipe.id):0")
+
+                RecipeDetailScreen(
+                    recipe: recipe,
+                    tab: 1,
+                    servings: servingsBinding(for: recipe),
+                    onSelectTab: { newTab in
+                        withAnimation(AppMotion.smooth) {
+                            currentKey = "\(recipe.id):\(newTab)"
+                        }
+                    }
+                )
+                .tag("\(recipe.id):1")
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
         .ignoresSafeArea()
         .background(AppTheme.background.ignoresSafeArea())
+    }
+
+    private func servingsBinding(for recipe: Recipe) -> Binding<Int> {
+        Binding(
+            get: { servingsMap[recipe.id] ?? (recipe.servings ?? 2) },
+            set: { servingsMap[recipe.id] = $0 }
+        )
     }
 }
 
