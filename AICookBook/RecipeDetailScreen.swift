@@ -782,6 +782,14 @@ struct RecipeDetailScreen: View {
 //
 // Linear sequence: Dish 1 Ingredients → (swipe) Dish 1 Directions → (swipe) Dish 2 Ingredients → (swipe) Dish 2 Directions...
 // And the reverse mirror going back.
+
+struct RecipeDetailPage: Identifiable, Hashable {
+    let recipe: Recipe
+    let tab: Int   // 0 = Ingredients, 1 = Directions
+
+    var id: String { "\(recipe.id):\(tab)" }
+}
+
 struct RecipeDetailPager: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var currentKey: String
@@ -800,32 +808,29 @@ struct RecipeDetailPager: View {
         return [startRecipe] + environment.recipes
     }
 
+    private var pages: [RecipeDetailPage] {
+        pagerRecipes.flatMap { recipe in
+            [
+                RecipeDetailPage(recipe: recipe, tab: 0),
+                RecipeDetailPage(recipe: recipe, tab: 1)
+            ]
+        }
+    }
+
     var body: some View {
         TabView(selection: $currentKey) {
-            ForEach(pagerRecipes) { recipe in
+            ForEach(pages) { page in
                 RecipeDetailScreen(
-                    recipe: recipe,
-                    tab: 0,
-                    servings: servingsBinding(for: recipe),
+                    recipe: page.recipe,
+                    tab: page.tab,
+                    servings: servingsBinding(for: page.recipe),
                     onSelectTab: { newTab in
                         withAnimation(AppMotion.smooth) {
-                            currentKey = "\(recipe.id):\(newTab)"
+                            currentKey = "\(page.recipe.id):\(newTab)"
                         }
                     }
                 )
-                .tag("\(recipe.id):0")
-
-                RecipeDetailScreen(
-                    recipe: recipe,
-                    tab: 1,
-                    servings: servingsBinding(for: recipe),
-                    onSelectTab: { newTab in
-                        withAnimation(AppMotion.smooth) {
-                            currentKey = "\(recipe.id):\(newTab)"
-                        }
-                    }
-                )
-                .tag("\(recipe.id):1")
+                .tag(page.id)
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))

@@ -102,24 +102,33 @@ struct CraveTabBar: View {
             Haptics.select()
             withAnimation(reduceMotion
                           ? .easeOut(duration: 0.2)
-                          : .spring(response: 0.38, dampingFraction: 0.82)) {   // critically-damped reposition
+                          : .spring(response: 0.4, dampingFraction: 0.82)) {   // critically-damped reposition
                 selected = tab
             }
         } label: {
-            Image(systemName: tab.icon)
-                .font(.system(size: 20, weight: isSelected ? .bold : .medium))
-                .symbolVariant(isSelected ? .fill : .none)
-                .symbolEffect(.bounce, value: isSelected)      // subtle delightful bounce on select
-                .foregroundStyle(isSelected ? AppTheme.accentInk : AppTheme.textSecondary)
-                .frame(width: 46, height: 42)
-                .background {
-                    if isSelected {
-                        Capsule(style: .continuous)
-                            .fill(AppTheme.accentSoft)
-                            .matchedGeometryEffect(id: "tabpill", in: ns)
-                    }
+            HStack(spacing: 7) {
+                Image(systemName: tab.icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .symbolVariant(isSelected ? .fill : .none)
+                    .symbolEffect(.bounce, value: isSelected)      // a little delight on select
+                if isSelected {
+                    Text(tab.title)
+                        .font(AppFont.body(14, weight: .semibold))
+                        .fixedSize()
+                        .transition(.opacity.combined(with: .move(edge: .trailing)))
                 }
-                .contentShape(Capsule())
+            }
+            .foregroundStyle(isSelected ? AppTheme.accentInk : AppTheme.textSecondary)
+            .padding(.horizontal, isSelected ? 15 : 12)
+            .frame(height: 44)
+            .background {
+                if isSelected {
+                    Capsule(style: .continuous)
+                        .fill(AppTheme.accentSoft)
+                        .matchedGeometryEffect(id: "tabpill", in: ns)
+                }
+            }
+            .contentShape(Capsule())
         }
         .buttonStyle(TabPressStyle())
         .accessibilityLabel(tab.title)
