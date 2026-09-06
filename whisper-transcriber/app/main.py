@@ -159,6 +159,9 @@ _CTA = re.compile(r"(follow|link in bio|comment below|save this|tag a|subscribe|
 _SECTION_ING = re.compile(r"^\s*[*_~#\[({«<✨\s]*ingredients?\s*[*_~#\])}»>\s]*[-:–—=]?\s*$", re.I)
 _SECTION_DIR = re.compile(r"^\s*[*_~#\[({«<✨\s]*(directions?|method|steps?|instructions?|process|recipe)\s*[*_~#\])}»>\s]*[-:–—=]?\s*$", re.I)
 _END_SECTIONS = re.compile(r"^\s*(notes?|tips?|subscribe|more recipes|follow|socials?|newsletter)\s*[-:–—=]?\s*$", re.I)
+# ponytail: Heuristic — social media intro lines are chatty sentences, not dish names.
+# A dish name is typically short (< 45 chars) and doesn't read like a full sentence.
+_FLUFF_LINE = re.compile(r"\b(feel like|this is|one of|try this|you.ll love|best thing|game changer|obsessed|can.t stop|here.s|you need|have to|must try|so good|amazing|delicious recipe|comfort food|perfect for|life changing|heaven|hug|craving|vibe|vibes|you won.t|believe)\b", re.I)
 
 
 def _is_latin(line: str) -> bool:
@@ -312,6 +315,9 @@ def _parse_structured_lines(text: str, capture_title: bool) -> tuple[str, list[d
         if capture_title and not title:
             clean_t = re.sub(r"\s+", " ", re.sub(r"[^\w\s'&()\-,.]", "", line)).strip()
             if 3 <= len(clean_t) <= 60:
+                # Skip chatty social media intro sentences — dish names are short & specific
+                if _FLUFF_LINE.search(clean_t) or (len(clean_t) > 40 and clean_t.count(" ") > 6):
+                    continue
                 title = clean_t
                 continue
 
