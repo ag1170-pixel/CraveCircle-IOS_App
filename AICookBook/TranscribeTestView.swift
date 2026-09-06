@@ -15,14 +15,18 @@ struct TranscribeTestView: View {
 
     @State private var pickedItem: PhotosPickerItem?
     @State private var videoURL: URL?
-    @State private var localeID = "en-US"
+    @State private var localeID = AppLanguage.preferred.localeID   // defaults to your selected language
     @State private var running = false
     @State private var result: OnDeviceTranscriber.Output?
     @State private var errorText: String?
 
-    private let locales = [
-        ("English (US)", "en-US"), ("English (India)", "en-IN"),
-        ("Hindi", "hi-IN"), ("Spanish", "es-ES"), ("French", "fr-FR")
+    // Populated at runtime with EVERY language this device can transcribe on-device.
+    @State private var localeOptions: [(name: String, id: String)] = []
+
+    private let fallbackLocales: [(name: String, id: String)] = [
+        ("English (US)", "en-US"), ("Hindi", "hi-IN"), ("Marathi", "mr-IN"),
+        ("Tamil", "ta-IN"), ("Telugu", "te-IN"), ("Bengali", "bn-IN"),
+        ("Spanish", "es-ES"), ("French", "fr-FR")
     ]
 
     var body: some View {
@@ -33,10 +37,16 @@ struct TranscribeTestView: View {
                         Label(videoURL == nil ? "Choose video" : "Video selected ✓", systemImage: "video.fill")
                     }
                 }
-                Section("2 · Language (best guess)") {
+                Section {
                     Picker("Language", selection: $localeID) {
-                        ForEach(locales, id: \.1) { Text($0.0).tag($0.1) }
+                        ForEach(localeOptions.isEmpty ? fallbackLocales : localeOptions, id: \.id) {
+                            Text($0.name).tag($0.id)
+                        }
                     }
+                } header: {
+                    Text("2 · Language")
+                } footer: {
+                    Text("Pick the video's spoken language — the model downloads automatically the first time. Defaults to your preferred language from Settings.")
                 }
                 Section {
                     Button {
@@ -74,6 +84,22 @@ struct TranscribeTestView: View {
                     }
                 }
             }
+            .task { await loadLocales() }
+        }
+    }
+
+    /// Offer every language this device can transcribe on-device, named in the user's language.
+    private func loadLocales() async {
+        let ids = await OnDeviceTranscriber.supportedLocaleIDs()
+        guard !ids.isEmpty else { return }   // keep the fallback list
+        let display = Locale.current
+        let opts = ids.map { id in
+            (name: display.localizedString(forIdentifier: id) ?? id, id: id)
+        }.sorted { $0.name < $1.name }
+        localeOptions = opts
+        if !opts.contains(where: { $0.id == localeID }) {   // keep selection valid
+            localeID = opts.first(where: { $0.id.hasPrefix(AppLanguage.preferred.rawValue) })?.id
+                ?? opts.first?.id ?? localeID
         }
     }
 

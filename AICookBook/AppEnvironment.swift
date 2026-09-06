@@ -283,7 +283,7 @@ final class AppEnvironment: ObservableObject {
         // 1) Transcribe narration. A silent / music-only clip just yields an empty string here —
         //    that's expected, not a failure, so we fall through to on-screen text.
         var transcript = ""
-        if let out = try? await OnDeviceTranscriber.transcribe(url: url, localeID: "en-US") {
+        if let out = try? await OnDeviceTranscriber.transcribe(url: url, localeID: AppLanguage.preferred.localeID) {
             transcript = out.text
         }
 

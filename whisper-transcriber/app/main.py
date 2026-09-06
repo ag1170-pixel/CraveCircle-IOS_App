@@ -441,7 +441,18 @@ def parse_recipe_content(caption: str, transcript: str, video_title: str = "",
     if not title:
         title = cap_title
 
-    # Narration (Whisper transcript) fills missing steps / ingredients.
+    # Header-less caption fallback: MOST creator captions (e.g. Saransh Goila's) list the recipe
+    # under a title with NO "Ingredients:"/"Method:" headers, so the structured parse above finds
+    # nothing. Classify the caption lines by pattern (quantity -> ingredient, cooking-verb -> step)
+    # so a good English caption still wins over a weak/foreign-language audio transcript.
+    if caption.strip() and (not groups or not directions):
+        cap_items, cap_dirs = _extract_from_ocr(caption)
+        if not groups and cap_items:
+            groups = [{"group_name": "Main Ingredients", "items": cap_items}]
+        if not directions and cap_dirs:
+            directions = cap_dirs
+
+    # Narration (Whisper transcript) fills missing steps / ingredients — only if the caption didn't.
     if not directions and transcript.strip():
         for s in re.split(r"(?<=[.!?])\s+", transcript.strip()):
             s_clean = s.strip()

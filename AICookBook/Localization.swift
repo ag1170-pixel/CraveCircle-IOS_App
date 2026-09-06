@@ -52,9 +52,28 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         }
     }
 
+    /// BCP-47 locale for on-device speech transcription (Apple SpeechTranscriber).
+    var localeID: String {
+        switch self {
+        case .english: return "en-US"
+        case .hindi: return "hi-IN"
+        case .marathi: return "mr-IN"
+        case .tamil: return "ta-IN"
+        case .telugu: return "te-IN"
+        case .bengali: return "bn-IN"
+        case .spanish: return "es-ES"
+        case .french: return "fr-FR"
+        }
+    }
+
     static func from(code: String?) -> AppLanguage? {
         guard let code else { return nil }
         return AppLanguage(rawValue: String(code.prefix(2)).lowercased())
+    }
+
+    /// The user's currently-selected preferred language (from settings), or English.
+    static var preferred: AppLanguage {
+        AppLanguage(rawValue: UserDefaults.standard.string(forKey: LanguagePrefs.key) ?? "en") ?? .english
     }
 }
 

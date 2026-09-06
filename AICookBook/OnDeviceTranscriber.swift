@@ -29,8 +29,22 @@ enum OnDeviceTranscriber {
         }
     }
 
+    /// All languages this device can transcribe on-device (BCP-47 ids), sorted.
+    /// Used to offer every supported language, not a hardcoded few.
+    static func supportedLocaleIDs() async -> [String] {
+        let locales = await SpeechTranscriber.supportedLocales
+        return locales.map { $0.identifier(.bcp47) }.sorted()
+    }
+
+    /// True if this device can transcribe the given language on-device.
+    static func isSupported(localeID: String) async -> Bool {
+        let target = Locale(identifier: localeID).identifier(.bcp47)
+        let supported = await SpeechTranscriber.supportedLocales
+        return supported.contains { $0.identifier(.bcp47) == target }
+    }
+
     /// Transcribe an audio OR video file entirely on-device.
-    /// `localeID` e.g. "en-US", "hi-IN" — the best-guess source language.
+    /// `localeID` e.g. "en-US", "hi-IN" — the source language to transcribe in.
     static func transcribe(url: URL, localeID: String) async throws -> Output {
         let start = Date()
         let audioURL = try await audioFile(from: url)
