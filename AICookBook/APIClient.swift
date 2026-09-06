@@ -64,7 +64,7 @@ actor APIClient {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return try decodeSingle(data, decoder: decoder)
-    }a
+    }
 
     private func request<T: Decodable>(url: URL, method: String = "GET", body: Encodable? = nil) async throws -> T {
         let data = try await requestData(url: url, method: method, body: body)
