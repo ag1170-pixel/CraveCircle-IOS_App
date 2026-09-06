@@ -231,22 +231,24 @@ struct MainTabView: View {
     @State private var showingProgressDetail = false
     @State private var tab: AppTab = .home
 
-    @ViewBuilder private var content: some View {
-        switch tab {
-        case .home: HomeScreen(showingImportSheet: $showingImportSheet)
-        case .studio: StudioScreen()
-        case .groceries: GroceryScreen()
-        case .search: NavigationStack { SearchScreen() }
-        case .profile: ProfileScreen()
+    // Swipeable pager: a horizontal swipe moves between tabs with 1:1 finger tracking, and the
+    // floating CraveTabBar taps drive the same selection. Native .page style is interruptible.
+    private var pager: some View {
+        TabView(selection: $tab) {
+            HomeScreen(showingImportSheet: $showingImportSheet).tag(AppTab.home)
+            StudioScreen().tag(AppTab.studio)
+            GroceryScreen().tag(AppTab.groceries)
+            NavigationStack { SearchScreen() }.tag(AppTab.search)
+            ProfileScreen().tag(AppTab.profile)
         }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .ignoresSafeArea(.container, edges: .bottom)
     }
 
     var body: some View {
         ZStack(alignment: .bottom) {
             AppTheme.background.ignoresSafeArea()
-            content
-                .id(tab)
-                .transition(.opacity)
+            pager
             CraveTabBar(selected: $tab)
                 .padding(.bottom, 6)
         }
@@ -254,7 +256,6 @@ struct MainTabView: View {
             ImportToastBanner(onOpenDetails: { showingProgressDetail = true })
                 .padding(.top, 46)
         }
-        .animation(.easeInOut(duration: 0.22), value: tab)
         .sheet(isPresented: $showingImportSheet) {
             ImportSheet(showing: $showingImportSheet)
                 .presentationDetents([.height(470)])
