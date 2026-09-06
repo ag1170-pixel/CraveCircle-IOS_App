@@ -1,0 +1,27 @@
+# Optional: generate the .xcodeproj automatically with XcodeGen.
+#   brew install xcodegen
+#   cd GestureFlashcards && xcodegen generate && open GestureFlashcards.xcodeproj
+# If you'd rather not use XcodeGen, follow the manual steps in README.md.
+
+name: GestureFlashcards
+options:
+  bundleIdPrefix: com.kit
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  GestureFlashcards:
+    type: application
+    platform: iOS
+    sources:
+      - GestureFlashcards
+    info:
+      path: GestureFlashcards/Resources/Generated-Info.plist
+      properties:
+        NSCameraUsageDescription: "Used to detect your hand gestures so you can flip flashcards by swiping."
+        UILaunchScreen: {}
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kit.gestureflashcards
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+        SWIFT_VERSION: "5.0"

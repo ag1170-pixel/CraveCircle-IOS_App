@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UserNotifications
 
 @MainActor
 final class AppEnvironment: ObservableObject {
@@ -344,6 +345,7 @@ final class AppEnvironment: ObservableObject {
         recipes.insert(recipe, at: 0)
         // Do NOT auto-set selectedRecipe here.
         importState = .done(recipeId: recipe.id)
+        notifyImportDone(recipeTitle: recipe.title)
     }
 
     /// True when an extracted recipe actually has ingredients or steps.
@@ -669,6 +671,7 @@ final class AppEnvironment: ObservableObject {
                             // if the ImportProgressScreen sheet is currently active. Let the user
                             // explicitly tap "View" or "Open recipe" to select it.
                             self.importState = .done(recipeId: recipeId)
+                            self.notifyImportDone(recipeTitle: recipe.title)
                         }
                         return
                     }
@@ -693,6 +696,20 @@ final class AppEnvironment: ObservableObject {
     private func fallbackUser(email: String? = nil) -> UserProfile {
         let base = email?.split(separator: "@").first.map(String.init) ?? "chef"
         return UserProfile(id: "local-\(base)", username: "@\(base)", fullName: "Local Profile", avatarUrl: nil)
+    }
+
+    private func notifyImportDone(recipeTitle: String) {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+            if granted {
+                let content = UNMutableNotificationContent()
+                content.title = "Recipe Ready!"
+                content.body = "Your recipe '\(recipeTitle)' has been successfully extracted and is ready to cook."
+                content.sound = .default
+                
+                let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+                UNUserNotificationCenter.current().add(request)
+            }
+        }
     }
 }
 

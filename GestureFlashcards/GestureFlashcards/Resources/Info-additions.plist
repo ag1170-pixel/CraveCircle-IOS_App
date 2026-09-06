@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Add these keys to your target's Info settings.
+  In Xcode 15+: select the target → Info tab → add a row, OR paste into
+  your Info.plist source. The camera key is REQUIRED or the app crashes
+  the moment it asks for the camera.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSCameraUsageDescription</key>
+    <string>Used to detect your hand gestures so you can flip flashcards by swiping.</string>
+</dict>
+</plist>
