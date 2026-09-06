@@ -220,6 +220,8 @@ final class VoiceCommandController: NSObject, ObservableObject {
 
         let now = CACurrentMediaTime()
         let newSegments = Array(segments[lastConsumedIndex...])
+        
+        var localWakeActive = self.wakeActive
 
         for (offset, seg) in newSegments.enumerated() {
             let word = seg.substring.lowercased().trimmingCharacters(in: .punctuationCharacters)
@@ -236,8 +238,8 @@ final class VoiceCommandController: NSObject, ObservableObject {
                 }
             }
 
-            if isWake && !wakeActive {
-                wakeActive = true
+            if isWake && !localWakeActive {
+                localWakeActive = true
                 print("[VoiceCommand] 🌟 WAKE WORD: 'Hey Crave' activated! Staying open for entire cook session.")
                 publish {
                     self.wakeActive = true
@@ -252,27 +254,27 @@ final class VoiceCommandController: NSObject, ObservableObject {
                 let pair = "\(prev) \(word)"
                 if pair == "next step" || pair == "go next" {
                     print("[VoiceCommand] 👉 Executing direct NEXT STEP command")
-                    lastConsumedIndex = globalIndex + 1
+                    DispatchQueue.main.async { self.lastConsumedIndex = globalIndex + 1 }
                     fireCommand(.next)
                     return
                 } else if pair == "go back" || pair == "previous step" || pair == "last step" || pair == "step back" {
                     print("[VoiceCommand] 👈 Executing direct GO BACK command")
-                    lastConsumedIndex = globalIndex + 1
+                    DispatchQueue.main.async { self.lastConsumedIndex = globalIndex + 1 }
                     fireCommand(.previous)
                     return
                 }
             }
 
             // 3. Single command words when wakeActive is true (stays active!)
-            if wakeActive && now - lastFireTime >= cooldown {
+            if localWakeActive && now - lastFireTime >= cooldown {
                 if nextWords.contains(word) {
                     print("[VoiceCommand] 👉 Executing NEXT command (word: '\(word)')")
-                    lastConsumedIndex = globalIndex + 1
+                    DispatchQueue.main.async { self.lastConsumedIndex = globalIndex + 1 }
                     fireCommand(.next)
                     return
                 } else if backWords.contains(word) {
                     print("[VoiceCommand] 👈 Executing BACK command (word: '\(word)')")
-                    lastConsumedIndex = globalIndex + 1
+                    DispatchQueue.main.async { self.lastConsumedIndex = globalIndex + 1 }
                     fireCommand(.previous)
                     return
                 }
