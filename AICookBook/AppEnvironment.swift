@@ -89,6 +89,7 @@ final class AppEnvironment: ObservableObject {
         groceryItems = LocalStore.load([GroceryItem].self, from: "grocery.json") ?? GroceryItem.demo
         if let drafts = LocalStore.load([String].self, from: "studio_drafts.json") { studioDraftIds = Set(drafts) }
         if let follows = LocalStore.load([String].self, from: "followed_creators.json") { followedCreators = Set(follows) }
+        sharedLog = LocalStore.load([SharedRecipeRecord].self, from: "shared_log.json") ?? []
 
         // These were saved to UserDefaults but never read back — fix the round-trip here.
         let defaults = UserDefaults.standard
@@ -245,7 +246,7 @@ final class AppEnvironment: ObservableObject {
 
     // MARK: - Community MVP Logic Stubs
     
-    @Published var sharedLog: [SharedRecipeRecord] = []
+    @Published var sharedLog: [SharedRecipeRecord] = [] { didSet { persist(sharedLog, "shared_log.json") } }
     
     var communityFeed: [Recipe] {
         recipes.filter { isFollowing(creatorHandle: $0.ownerUsername ?? "") }
