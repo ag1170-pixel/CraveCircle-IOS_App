@@ -12,6 +12,16 @@ struct ProfileScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @AppStorage(LanguagePrefs.key) private var langCode = LanguagePrefs.default.rawValue
     @AppStorage("custom_api_url") private var customApiUrl = "http://10.9.229.142:8000"
+    @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
+    
+    private var unreadSharedCount: Int {
+        let lastDate = Date(timeIntervalSince1970: lastOpenedSharedScreen)
+        let myId = environment.currentUser?.id ?? "me"
+        return environment.sharedLog.filter { 
+            ($0.toUserId == myId || $0.toUserId == "me") && $0.createdAt > lastDate 
+        }.count
+    }
+    
     @State private var showLanguagePicker = false
     @State private var showTranscribeTest = false
     @State private var showServerPicker = false
@@ -140,7 +150,8 @@ struct ProfileScreen: View {
                     showNotifications = true
                 }
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
-                SettingRow(icon: "tray.and.arrow.down", title: "Shared with you", detail: nil, tint: .pink) {
+                SettingRow(icon: "tray.and.arrow.down", title: "Shared with you", detail: nil, badgeCount: unreadSharedCount, tint: .pink) {
+                    lastOpenedSharedScreen = Date().timeIntervalSince1970
                     showShared = true
                 }
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
@@ -302,6 +313,7 @@ struct SettingRow: View {
     let icon: String
     let title: String
     var detail: String? = nil
+    var badgeCount: Int? = nil
     var tint: Color = AppTheme.accent
     let action: () -> Void
 
@@ -319,6 +331,14 @@ struct SettingRow: View {
                     .font(AppFont.body(16, weight: .medium))
                     .foregroundStyle(AppTheme.textPrimary)
                 Spacer()
+                if let badgeCount, badgeCount > 0 {
+                    Text("\(badgeCount)")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.red, in: Capsule())
+                }
                 if let detail {
                     Text(detail)
                         .font(AppFont.body(15))

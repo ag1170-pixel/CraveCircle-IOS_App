@@ -280,6 +280,11 @@ struct MainTabView: View {
                 await environment.refreshRecipes()
             }
         }
+        .onChange(of: environment.pendingTabSwitch) { _, requested in
+            guard let requested else { return }
+            withAnimation(.easeOut(duration: 0.25)) { tab = requested }
+            environment.pendingTabSwitch = nil
+        }
     }
 }
 

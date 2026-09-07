@@ -230,6 +230,14 @@ final class AppEnvironment: ObservableObject {
         selectedRecipe = recipe
     }
 
+    /// Set by a pushed screen (e.g. Library, once it's cycled past its own last filter tab) to ask
+    /// the root tab bar to switch main tabs. MainTabView observes this and clears it after acting.
+    @Published var pendingTabSwitch: AppTab?
+
+    func requestTabSwitch(_ tab: AppTab) {
+        pendingTabSwitch = tab
+    }
+
     func dismissRecipeDetail() {
         selectedRecipe = nil
         recipeSwipeContext = nil

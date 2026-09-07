@@ -17,6 +17,16 @@ struct HomeScreen: View {
     @State private var selectedCreator: Creator?
     @State private var navigateToFriends = false
     @State private var navigateToLibrary = false
+    @State private var showShared = false
+    @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
+    
+    private var unreadSharedCount: Int {
+        let lastDate = Date(timeIntervalSince1970: lastOpenedSharedScreen)
+        let myId = environment.currentUser?.id ?? "me"
+        return environment.sharedLog.filter { 
+            ($0.toUserId == myId || $0.toUserId == "me") && $0.createdAt > lastDate 
+        }.count
+    }
 
     private let columns = [
         GridItem(.flexible(), spacing: AppSpacing.md),
@@ -65,6 +75,9 @@ struct HomeScreen: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $showShared) {
+                SharedScreen()
+            }
         }
         .tint(AppTheme.accentInk)
     }
@@ -85,6 +98,11 @@ struct HomeScreen: View {
             HStack(spacing: AppSpacing.xs) {
                 Spacer()
                 iconButton("square.and.arrow.down") { Haptics.tap(); showingImportSheet = true }
+                iconButton("tray.and.arrow.down", badgeCount: unreadSharedCount) {
+                    Haptics.tap()
+                    lastOpenedSharedScreen = Date().timeIntervalSince1970
+                    showShared = true
+                }
                 iconButton("bell") { Haptics.tap(); showNotifications = true }
             }
         }
@@ -94,12 +112,24 @@ struct HomeScreen: View {
         .overlay(alignment: .bottom) { Rectangle().fill(AppTheme.separator).frame(height: 0.5) }
     }
 
-    private func iconButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+    private func iconButton(_ symbol: String, badgeCount: Int? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(AppTheme.textPrimary)
-                .frame(width: 36, height: 36)
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: symbol)
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .frame(width: 36, height: 36)
+                
+                if let count = badgeCount, count > 0 {
+                    Text("\(count)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 2)
+                        .background(Color.red, in: Capsule())
+                        .offset(x: 4, y: -2)
+                }
+            }
         }
         .buttonStyle(PressableStyle())
     }
