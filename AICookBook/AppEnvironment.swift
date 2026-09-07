@@ -68,7 +68,10 @@ final class AppEnvironment: ObservableObject {
         self.tokenStore = tokenStore
         self.authClient = SupabaseAuthClient(config: config, tokenStore: tokenStore)
         self.apiClient = APIClient(config: config, tokenStore: tokenStore)
+        self.supabase = SupabaseData(config: config, tokenStore: tokenStore)
     }
+
+    private let supabase: SupabaseData
 
     /// Load the persisted library (recipes/collections/grocery/flags) from disk, merging any new
     /// bundled sample recipes by id so content updates still appear. Runs once, before autosave arms.
@@ -718,9 +721,9 @@ final class AppEnvironment: ObservableObject {
         let toSend = pendingInteractions
 
         Task {
-            // TODO: POST toSend to /rpc/log_interactions (Supabase). Only clear on success so a
-            // failed/absent send never drops data — until then events stay queued (capped above).
-            let didSend = false
+            // POST to Supabase; only clear the queue on a confirmed success so a failed or
+            // unauthenticated send never drops data — events stay queued (capped above) for later.
+            let didSend = await supabase.logInteractions(toSend)
             if didSend {
                 await MainActor.run {
                     self.pendingInteractions.removeAll { sent in toSend.contains { $0.id == sent.id } }
@@ -729,16 +732,22 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
-    /// Personalized suggestions from the on-device recommender (dwell-weighted). When the Supabase
-    /// scoring RPC exists this can call it and fall back to the local engine offline.
+    /// Personalized suggestions. Prefers the server RPC (cross-user, dwell-weighted) when signed in;
+    /// falls back to the on-device recommender when there's no session, the server is unreachable,
+    /// or the server has nothing yet (e.g. recipes not synced) — so the feed is never empty.
     func fetchSuggestedFeed() async {
         let excluded = Set(recipes.filter { isOwner(of: $0) || isSaved(recipeId: $0.id) }.map { $0.id })
-        suggestedRecipes = RecommendationEngine.suggestions(
+        let local = RecommendationEngine.suggestions(
             from: recipes,
             history: interactionHistory,
             excluding: excluded,
             limit: 8
         )
+        if let remote = await supabase.suggestedRecipes(limit: 8), !remote.isEmpty {
+            suggestedRecipes = remote
+        } else {
+            suggestedRecipes = local
+        }
     }
 
     func cancelImport() {
