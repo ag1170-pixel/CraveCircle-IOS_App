@@ -4,6 +4,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var environment: AppEnvironment
+    @AppStorage("has_onboarded") private var hasOnboarded = false
 
     var body: some View {
         Group {
@@ -16,6 +17,9 @@ struct RootView: View {
                 LoginView()
             case .signedIn:
                 MainTabView()
+                    .fullScreenCover(isPresented: .constant(!hasOnboarded)) {
+                        OnboardingView(hasOnboarded: $hasOnboarded)
+                    }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -261,6 +265,13 @@ struct MainTabView: View {
                 .presentationDetents([.height(470)])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.background)
+        }
+        .onChange(of: environment.pendingImportRequest) { _, requested in
+            // Onboarding asked to import a first reel — open the sheet once, then clear the flag.
+            if requested {
+                showingImportSheet = true
+                environment.pendingImportRequest = false
+            }
         }
         .sheet(isPresented: $showingProgressDetail) {
             ImportProgressScreen(reopenImport: { showingImportSheet = true })

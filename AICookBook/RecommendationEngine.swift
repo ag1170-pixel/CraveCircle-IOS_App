@@ -36,6 +36,7 @@ enum RecommendationEngine {
         from allRecipes: [Recipe],
         history: [AppEnvironment.InteractionEvent],
         excluding excludedIds: Set<String>,
+        preferredCuisines: Set<String> = [],
         limit: Int = 8
     ) -> [Recipe] {
         let candidates = allRecipes.filter { !excludedIds.contains($0.id) }
@@ -60,8 +61,14 @@ enum RecommendationEngine {
             }
         }
 
-        // Cold start / too little signal → a fresh, deterministic-ish sample of un-owned recipes.
+        // Cold start / too little signal → rank by the cuisines picked at onboarding (so the feed
+        // is personal on day one), else a fresh sample.
         guard totalSignal >= 2, !profile.isEmpty else {
+            if !preferredCuisines.isEmpty {
+                let ranked = candidates.map { ($0, cuisineMatchCount($0, preferredCuisines)) }
+                    .sorted { $0.1 > $1.1 }
+                if ranked.first?.1 ?? 0 > 0 { return Array(ranked.prefix(limit).map { $0.0 }) }
+            }
             return Array(candidates.shuffled().prefix(limit))
         }
 
@@ -122,6 +129,43 @@ enum RecommendationEngine {
         case "comment": return "commented on"
         default:        return "viewed"
         }
+    }
+
+    // MARK: - Cuisines (onboarding taste picks → day-one personalization)
+
+    /// The cuisines offered at onboarding, each with signature keywords found in a recipe's title
+    /// or ingredients. Keys are stable ids stored in `preferredCuisines`.
+    static let cuisines: [(id: String, label: String, keywords: [String])] = [
+        ("indian",        "Indian",        ["paneer","masala","curry","tikka","dal","daal","naan","tandoori","ghee","garam","biryani","chutney","samosa"]),
+        ("italian",       "Italian",       ["pasta","rigatoni","spaghetti","parmesan","basil","mozzarella","risotto","pesto","pizza","carbonara","lasagna"]),
+        ("mexican",       "Mexican",       ["taco","burrito","salsa","chipotle","guacamole","tortilla","quesadilla","enchilada","jalapeno"]),
+        ("korean",        "Korean",        ["gochujang","kimchi","bibimbap","bulgogi","tteokbokki","gochugaru"]),
+        ("thai",          "Thai",          ["thai","lemongrass","coconut milk","pad","tom yum","fish sauce","basil"]),
+        ("chinese",       "Chinese",       ["soy","hoisin","szechuan","sichuan","dumpling","fried rice","noodle","wok","ginger scallion"]),
+        ("japanese",      "Japanese",      ["miso","soy","teriyaki","udon","ramen","sushi","dashi","panko","gyoza"]),
+        ("mediterranean", "Mediterranean", ["hummus","feta","olive","falafel","tahini","pita","tzatziki","shakshuka","harissa"]),
+        ("american",      "American",      ["burger","bbq","cheddar","bacon","fries","mac and cheese","buffalo","pancake"]),
+        ("desserts",      "Desserts",      ["sugar","chocolate","vanilla","cake","cookie","caramel","cream","pancake","tiramisu"])
+    ]
+
+    private static func recipeText(_ r: Recipe) -> String {
+        (r.title + " " + r.ingredients.flatMap { $0.items }.joined(separator: " ")).lowercased()
+    }
+
+    private static func cuisineMatchCount(_ r: Recipe, _ ids: Set<String>) -> Int {
+        let text = recipeText(r)
+        return cuisines
+            .filter { ids.contains($0.id) }
+            .reduce(0) { $0 + ($1.keywords.contains { text.contains($0) } ? 1 : 0) }
+    }
+
+    /// A cold-start reason ("Because you love Indian") when a suggestion matches a picked cuisine.
+    static func cuisineReason(for r: Recipe, preferredCuisines ids: Set<String>) -> String? {
+        let text = recipeText(r)
+        for c in cuisines where ids.contains(c.id) {
+            if c.keywords.contains(where: { text.contains($0) }) { return "Because you love \(c.label)" }
+        }
+        return nil
     }
 
     // MARK: - Feature extraction

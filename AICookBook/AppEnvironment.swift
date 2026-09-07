@@ -94,6 +94,7 @@ final class AppEnvironment: ObservableObject {
         if let follows = LocalStore.load([String].self, from: "followed_creators.json") { followedCreators = Set(follows) }
         sharedLog = LocalStore.load([SharedRecipeRecord].self, from: "shared_log.json") ?? []
         if let unsynced = LocalStore.load([String].self, from: "unsynced_recipes.json") { unsyncedRecipeIds = Set(unsynced) }
+        if let cuisines = LocalStore.load([String].self, from: "preferred_cuisines.json") { preferredCuisines = Set(cuisines) }
         pendingInteractions = LocalStore.load([InteractionEvent].self, from: "pending_interactions.json") ?? []
         interactionHistory = LocalStore.load([InteractionEvent].self, from: "interaction_history.json") ?? []
 
@@ -814,6 +815,18 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var suggestedRecipes: [Recipe] = []
     /// recipeId → short "why you're seeing this" reason, when there's a real personalized signal.
     @Published private(set) var suggestionReasons: [String: String] = [:]
+    /// Cuisine ids picked at onboarding — seed the feed so it's personal before any behavior exists.
+    @Published private(set) var preferredCuisines: Set<String> = [] { didSet { persist(Array(preferredCuisines), "preferred_cuisines.json") } }
+
+    /// Set by onboarding when the user chooses to import their first reel; MainTabView opens the
+    /// import sheet in response, then clears it.
+    @Published var pendingImportRequest = false
+
+    /// Finish onboarding: store the taste picks and refresh the feed against them.
+    func completeOnboarding(cuisines: Set<String>) {
+        preferredCuisines = cuisines
+        Task { await fetchSuggestedFeed() }
+    }
 
     private let maxPendingInteractions = 200
     private let maxInteractionHistory = 500
@@ -868,6 +881,7 @@ final class AppEnvironment: ObservableObject {
             from: recipes,
             history: interactionHistory,
             excluding: excluded,
+            preferredCuisines: preferredCuisines,
             limit: 8
         )
         if let remote = await supabase.suggestedRecipes(limit: 8), !remote.isEmpty {
@@ -875,10 +889,12 @@ final class AppEnvironment: ObservableObject {
         } else {
             suggestedRecipes = local
         }
-        // Explain each suggestion from the local interaction history (works for server picks too).
+        // Explain each suggestion: behavior first, else the cuisine picked at onboarding.
         var reasons: [String: String] = [:]
         for r in suggestedRecipes {
             if let why = RecommendationEngine.reason(for: r, history: interactionHistory, allRecipes: recipes) {
+                reasons[r.id] = why
+            } else if let why = RecommendationEngine.cuisineReason(for: r, preferredCuisines: preferredCuisines) {
                 reasons[r.id] = why
             }
         }
