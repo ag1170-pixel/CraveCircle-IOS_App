@@ -96,14 +96,14 @@ struct HomeScreen: View {
             }
             // Leading: mail (shared inbox) top-left. Trailing: import + bell.
             HStack(spacing: AppSpacing.xs) {
-                iconButton("envelope", badgeCount: unreadSharedCount) {
+                iconButton("envelope", label: unreadSharedCount > 0 ? "Shared with you, \(unreadSharedCount) new" : "Shared with you", badgeCount: unreadSharedCount) {
                     Haptics.tap()
                     lastOpenedSharedScreen = Date().timeIntervalSince1970
                     showShared = true
                 }
                 Spacer()
-                iconButton("square.and.arrow.down") { Haptics.tap(); showingImportSheet = true }
-                iconButton("bell") { Haptics.tap(); showNotifications = true }
+                iconButton("square.and.arrow.down", label: "Import a recipe") { Haptics.tap(); showingImportSheet = true }
+                iconButton("bell", label: "Notifications") { Haptics.tap(); showNotifications = true }
             }
         }
         .padding(.horizontal, AppSpacing.md)
@@ -112,7 +112,7 @@ struct HomeScreen: View {
         .overlay(alignment: .bottom) { Rectangle().fill(AppTheme.separator).frame(height: 0.5) }
     }
 
-    private func iconButton(_ symbol: String, badgeCount: Int? = nil, action: @escaping () -> Void) -> some View {
+    private func iconButton(_ symbol: String, label: String, badgeCount: Int? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: symbol)
@@ -132,6 +132,7 @@ struct HomeScreen: View {
             }
         }
         .buttonStyle(PressableStyle())
+        .accessibilityLabel(label)
     }
 
     // MARK: Following
