@@ -53,9 +53,9 @@ discoverable and complete.
 | # | Task | Owner | Notes |
 |---|------|-------|-------|
 | 3.1 | Move import backend off the personal laptop (managed host or resilient fallback) | Claude + Aditya | Homelab laptop sleeps/reboots — not production. |
-| 3.2 | Graceful offline/error messaging on every network path (homelab asleep, no signal) | Claude + Antigravity | Some empty states done; audit the rest. |
+| 3.2 | ✅ Import resilience — polling timeout, friendly network errors, 20s request timeouts | Claude | Done (`32bca0c`). Stuck/hung imports fail fast with cook-friendly copy + on-device fallback. |
 | 3.3 | Authoritative nutrition (USDA FDC) computed server-side when ingredients are known | Claude | Replaces on-device estimate where possible. |
-| 3.4 | Grocery: aisle grouping + cross-recipe dedupe | Claude (logic) + Antigravity (UI) | |
+| 3.4 | ✅ Grocery: aisle grouping + cross-recipe dedupe | Claude | Done (`1a4e4ab`). Delivery-app integration plan in GROCERY_DELIVERY_PLAN.md (deferred). |
 | 3.5 | Real-device validation: flashcard gestures, voice, HEIC thumbnails, on-device transcription | Aditya | Simulator can't cover these. |
 | 3.6 | Run Periphery; add basic unit tests (scaler, nutrition, recommender scoring) | Claude | Dead-code sweep + safety net. |
 
