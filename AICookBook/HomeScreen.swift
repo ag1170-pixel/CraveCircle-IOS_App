@@ -222,7 +222,13 @@ struct HomeScreen: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: AppSpacing.md) {
                     ForEach(environment.suggestedRecipes) { recipe in
-                        FreshCard(recipe: recipe) { environment.selectRecipe(recipe, in: environment.suggestedRecipes) }
+                        VStack(alignment: .leading, spacing: 6) {
+                            FreshCard(recipe: recipe) { environment.selectRecipe(recipe, in: environment.suggestedRecipes) }
+                            if let why = environment.suggestionReasons[recipe.id] {
+                                SuggestionReasonChip(text: why)
+                                    .frame(maxWidth: 200, alignment: .leading)
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, AppSpacing.md)

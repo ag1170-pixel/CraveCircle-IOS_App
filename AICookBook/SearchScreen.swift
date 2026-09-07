@@ -36,7 +36,7 @@ struct SearchScreen: View {
 
                 if showDiscovery {
                     if !environment.suggestedRecipes.isEmpty {
-                        gridSection("Suggested for You", environment.suggestedRecipes)
+                        suggestedSection
                     }
                     trendingSection
                     gridSection("Discover", results)
@@ -162,6 +162,25 @@ struct SearchScreen: View {
         }
     }
 
+    // Suggested grid with a "why you're seeing this" chip under each card.
+    private var suggestedSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Text("Suggested for You")
+                .font(AppFont.display(22, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+            LazyVGrid(columns: columns, spacing: AppSpacing.sm) {
+                ForEach(environment.suggestedRecipes) { recipe in
+                    VStack(alignment: .leading, spacing: 6) {
+                        LibraryCard(recipe: recipe) { environment.selectRecipe(recipe, in: environment.suggestedRecipes) }
+                        if let why = environment.suggestionReasons[recipe.id] {
+                            SuggestionReasonChip(text: why)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private func gridSection(_ title: String, _ recipes: [Recipe]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             Text(title)
@@ -186,6 +205,21 @@ struct SearchScreen: View {
                 .font(AppFont.body(14)).foregroundStyle(AppTheme.textSecondary)
         }
         .frame(maxWidth: .infinity).padding(.vertical, AppSpacing.xl)
+    }
+}
+
+// MARK: - "Why you're seeing this" chip
+
+struct SuggestionReasonChip: View {
+    let text: String
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "sparkles").font(.system(size: 9, weight: .semibold))
+            Text(text).font(AppFont.body(11, weight: .medium)).lineLimit(1)
+        }
+        .foregroundStyle(AppTheme.accentInk)
+        .padding(.horizontal, 8).padding(.vertical, 4)
+        .background(AppTheme.accent.opacity(0.12), in: Capsule())
     }
 }
 

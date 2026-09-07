@@ -786,6 +786,8 @@ final class AppEnvironment: ObservableObject {
     // suggestions personalize immediately and keep working with no server. Capped to stay light.
     @Published private(set) var interactionHistory: [InteractionEvent] = [] { didSet { persist(interactionHistory, "interaction_history.json") } }
     @Published private(set) var suggestedRecipes: [Recipe] = []
+    /// recipeId → short "why you're seeing this" reason, when there's a real personalized signal.
+    @Published private(set) var suggestionReasons: [String: String] = [:]
 
     private let maxPendingInteractions = 200
     private let maxInteractionHistory = 500
@@ -844,6 +846,14 @@ final class AppEnvironment: ObservableObject {
         } else {
             suggestedRecipes = local
         }
+        // Explain each suggestion from the local interaction history (works for server picks too).
+        var reasons: [String: String] = [:]
+        for r in suggestedRecipes {
+            if let why = RecommendationEngine.reason(for: r, history: interactionHistory, allRecipes: recipes) {
+                reasons[r.id] = why
+            }
+        }
+        suggestionReasons = reasons
     }
 
     func cancelImport() {
