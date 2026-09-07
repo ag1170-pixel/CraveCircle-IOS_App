@@ -34,10 +34,9 @@ struct SharedScreen: View {
                                 .padding(.top, 40)
                         } else {
                             ForEach(records) { record in
-                                if let recipe = environment.recipes.first(where: { $0.id == record.recipeId }) {
-                                    SharedRecordRow(record: record, recipe: recipe)
-                                    Divider().overlay(AppTheme.separator).padding(.leading, 72)
-                                }
+                                let recipe = environment.recipes.first(where: { $0.id == record.recipeId })
+                                SharedRecordRow(record: record, recipe: recipe)
+                                Divider().overlay(AppTheme.separator).padding(.leading, 72)
                             }
                         }
                     }
@@ -53,21 +52,36 @@ struct SharedScreen: View {
 
 private struct SharedRecordRow: View {
     let record: SharedRecipeRecord
-    let recipe: Recipe
+    let recipe: Recipe?
     @EnvironmentObject private var environment: AppEnvironment
     
     var body: some View {
         Button {
             Haptics.tap()
-            environment.selectRecipe(recipe)
+            if let recipe {
+                environment.selectRecipe(recipe)
+            } else {
+                environment.openRecipe(id: record.recipeId)
+            }
         } label: {
             HStack(spacing: AppSpacing.md) {
-                cover(recipe)
-                    .frame(width: 60, height: 60)
-                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
+                if let recipe {
+                    cover(recipe)
+                        .frame(width: 60, height: 60)
+                        .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
+                } else {
+                    RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous)
+                        .fill(AppTheme.surface)
+                        .overlay(
+                            Image(systemName: "doc.text")
+                                .font(.system(size: 22, weight: .medium))
+                                .foregroundStyle(AppTheme.textTertiary)
+                        )
+                        .frame(width: 60, height: 60)
+                }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(recipe.title)
+                    Text(recipe?.title ?? "Shared Recipe")
                         .font(AppFont.body(15, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
@@ -77,6 +91,11 @@ private struct SharedRecordRow: View {
                         .foregroundStyle(AppTheme.textSecondary)
                 }
                 Spacer()
+                if recipe == nil {
+                    Text("View")
+                        .font(AppFont.body(13, weight: .semibold))
+                        .foregroundStyle(AppTheme.accentInk)
+                }
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(AppTheme.textTertiary)
