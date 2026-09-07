@@ -81,6 +81,7 @@ actor APIClient {
         let token = tokenStore.readAccessToken()
         var request = URLRequest(url: url)
         request.httpMethod = method
+        request.timeoutInterval = 20
         if let token, !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
@@ -133,6 +134,7 @@ actor APIClient {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(config.supabaseAnonKey, forHTTPHeaderField: "apikey")
         request.httpBody = try JSONSerialization.data(withJSONObject: ["refresh_token": refreshToken])

@@ -422,8 +422,23 @@ final class AppEnvironment: ObservableObject {
             importState = .polling(jobId: response.jobId, status: response.status ?? .queued)
             beginPolling(jobId: response.jobId)
         } catch {
-            importState = .failed(message: error.localizedDescription)
+            importState = .failed(message: friendlyImportError(error))
         }
+    }
+
+    /// Turn raw network errors into something a cook understands — and always point at the on-device
+    /// path (pick a video), which needs no server, as the fallback.
+    private func friendlyImportError(_ error: Error) -> String {
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet:
+                return "You're offline. Reconnect, or import a video from your phone instead — that works without a connection."
+            case .timedOut, .cannotConnectToHost, .cannotFindHost, .networkConnectionLost, .dnsLookupFailed:
+                return "Can't reach the recipe server right now. Try again, or import a video from your phone instead."
+            default: break
+            }
+        }
+        return "That import didn't work. Try another link, or import a video from your phone instead."
     }
 
     /// On-device import: video → transcribe (Neural Engine) → structure (Foundation Models) → recipe.
@@ -914,7 +929,16 @@ final class AppEnvironment: ObservableObject {
         importTask?.cancel()
         importTask = Task { [weak self] in
             guard let self else { return }
+            var attempts = 0
+            let maxAttempts = 40   // ~2 min at 3s — a stuck job fails instead of spinning forever
             while !Task.isCancelled {
+                if attempts >= maxAttempts {
+                    await MainActor.run {
+                        self.importState = .failed(message: "This import is taking too long. Try again, or import a video from your phone instead.")
+                    }
+                    return
+                }
+                attempts += 1
                 do {
                     let job = try await self.apiClient.fetchImportJob(jobId: jobId)
                     await MainActor.run {
@@ -962,7 +986,7 @@ final class AppEnvironment: ObservableObject {
                     }
                 } catch {
                     await MainActor.run {
-                        self.importState = .failed(message: error.localizedDescription)
+                        self.importState = .failed(message: self.friendlyImportError(error))
                     }
                     return
                 }
