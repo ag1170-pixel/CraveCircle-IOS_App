@@ -652,6 +652,8 @@ final class AppEnvironment: ObservableObject {
     // MARK: - Share Recipe With Friend
     func shareRecipeWithFriend(recipeId: String, friend: FriendItem) {
         guard let recipe = recipes.first(where: { $0.id == recipeId }) else { return }
+        // Record the share (local log + cloud delivery to the recipient's inbox), then notify.
+        recordShare(recipeId: recipeId, friend: friend)
         let notif = CircleNotificationItem(title: "Recipe Shared", message: "Shared '\(recipe.title)' with \(friend.name)", timeAgo: "Just now", symbol: "paperplane.fill", isRead: false, recipeId: recipeId)
         circleNotifications.insert(notif, at: 0)
     }

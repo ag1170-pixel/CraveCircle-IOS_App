@@ -7,12 +7,21 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2A303018B560A693360B19EA /* LogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0D5D4D23ACE2F87DB8CF62 /* LogicTests.swift */; };
+		7906A88F190D4EF8293C4F71 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C04660930E4E2FD0277B90E7 /* Foundation.framework */; };
 		8D85F166A34A1ADC07865CDE /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C04660930E4E2FD0277B90E7 /* Foundation.framework */; };
 		B8807DE5533E0FC8A709E9F5 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F474FCE780F18081789464D /* ShareViewController.swift */; };
 		BB76E0991DD9258D3CFB1041 /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = E2D3D86C2EDBB6A4ED35F07C /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		7A3CB1EC279FD876CD6015C1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 27945DA92F9F211200B8F8B8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 27945DB02F9F211200B8F8B8;
+			remoteInfo = AICookBook;
+		};
 		960ED6233EB3AA490401D36D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 27945DA92F9F211200B8F8B8 /* Project object */;
@@ -37,10 +46,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0D0D5D4D23ACE2F87DB8CF62 /* LogicTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LogicTests.swift; sourceTree = "<group>"; };
 		0F474FCE780F18081789464D /* ShareViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		27945DB12F9F211200B8F8B8 /* AICookBook.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AICookBook.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		31BFCFFA7F646DD91D98B8B4 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		648742CD310234B2E3B7E7A9 /* ShareExtension.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
+		73A2F48234E0160F8976A3AE /* AICookBookTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AICookBookTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C04660930E4E2FD0277B90E7 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		E2D3D86C2EDBB6A4ED35F07C /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -48,6 +59,8 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		27945DB32F9F211200B8F8B8 /* AICookBook */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = AICookBook;
 			sourceTree = "<group>";
 		};
@@ -69,6 +82,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E2DD8BF8F18954FC7E6FDE50 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7906A88F190D4EF8293C4F71 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -87,6 +108,7 @@
 				27945DB22F9F211200B8F8B8 /* Products */,
 				54FCA3D9A3E4EA1DBF1BFA5A /* Frameworks */,
 				854802F5958545CFB368EE42 /* ShareExtension */,
+				B16461FCBDE3CD33AF28D7A3 /* AICookBookTests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -95,6 +117,7 @@
 			children = (
 				27945DB12F9F211200B8F8B8 /* AICookBook.app */,
 				E2D3D86C2EDBB6A4ED35F07C /* ShareExtension.appex */,
+				73A2F48234E0160F8976A3AE /* AICookBookTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -115,6 +138,15 @@
 				648742CD310234B2E3B7E7A9 /* ShareExtension.entitlements */,
 			);
 			path = ShareExtension;
+			sourceTree = "<group>";
+		};
+		B16461FCBDE3CD33AF28D7A3 /* AICookBookTests */ = {
+			isa = PBXGroup;
+			children = (
+				0D0D5D4D23ACE2F87DB8CF62 /* LogicTests.swift */,
+			);
+			name = AICookBookTests;
+			path = AICookBookTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -141,6 +173,24 @@
 			productName = AICookBook;
 			productReference = 27945DB12F9F211200B8F8B8 /* AICookBook.app */;
 			productType = "com.apple.product-type.application";
+		};
+		408C4BCA2D3B49978F51C030 /* AICookBookTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 93F3B5B35EB73AEA8AA804F8 /* Build configuration list for PBXNativeTarget "AICookBookTests" */;
+			buildPhases = (
+				54BCB97ACC3CC89D59B28C37 /* Sources */,
+				E2DD8BF8F18954FC7E6FDE50 /* Frameworks */,
+				3A07B69B49757BC55691A1C7 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6F73FB42073302D5A00C39E9 /* PBXTargetDependency */,
+			);
+			name = AICookBookTests;
+			productName = AICookBookTests;
+			productReference = 73A2F48234E0160F8976A3AE /* AICookBookTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		D36DFA50D3924484ACF1F5FF /* ShareExtension */ = {
 			isa = PBXNativeTarget;
@@ -190,12 +240,20 @@
 			targets = (
 				27945DB02F9F211200B8F8B8 /* AICookBook */,
 				D36DFA50D3924484ACF1F5FF /* ShareExtension */,
+				408C4BCA2D3B49978F51C030 /* AICookBookTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		27945DAF2F9F211200B8F8B8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3A07B69B49757BC55691A1C7 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -227,9 +285,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		54BCB97ACC3CC89D59B28C37 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2A303018B560A693360B19EA /* LogicTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		6F73FB42073302D5A00C39E9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = AICookBook;
+			target = 27945DB02F9F211200B8F8B8 /* AICookBook */;
+			targetProxy = 7A3CB1EC279FD876CD6015C1 /* PBXContainerItemProxy */;
+		};
 		B272035CBE6B5EF4C08C1194 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = ShareExtension;
@@ -495,6 +567,41 @@
 			};
 			name = Release;
 		};
+		3782E3B7792984DCDEB1C613 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				PRODUCT_BUNDLE_IDENTIFIER = com.anassyed.AICookBook.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AICookBook.app/AICookBook";
+			};
+			name = Debug;
+		};
+		E363235A8D728432D1B327D0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGNING_ALLOWED = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				PRODUCT_BUNDLE_IDENTIFIER = com.anassyed.AICookBook.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AICookBook.app/AICookBook";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -512,6 +619,15 @@
 			buildConfigurations = (
 				27945DBD2F9F211300B8F8B8 /* Debug */,
 				27945DBE2F9F211300B8F8B8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		93F3B5B35EB73AEA8AA804F8 /* Build configuration list for PBXNativeTarget "AICookBookTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E363235A8D728432D1B327D0 /* Release */,
+				3782E3B7792984DCDEB1C613 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
