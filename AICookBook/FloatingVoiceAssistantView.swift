@@ -10,6 +10,7 @@ import SwiftUI
 
 struct FloatingVoiceAssistantView: View {
     @ObservedObject var voice: VoiceCommandController
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var isWinking = false
     @State private var isBobbing = false
@@ -130,6 +131,7 @@ struct FloatingVoiceAssistantView: View {
     }
 
     private func startAnimations() {
+        guard !reduceMotion else { return }
         withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
             isBobbing = true
         }

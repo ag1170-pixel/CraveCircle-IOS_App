@@ -146,6 +146,7 @@ struct GroceryScreen: View {
                     .opacity(newItem.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
             }
             .buttonStyle(PressableStyle())
+            .accessibilityLabel("Add item")
             .disabled(newItem.trimmingCharacters(in: .whitespaces).isEmpty)
         }
     }

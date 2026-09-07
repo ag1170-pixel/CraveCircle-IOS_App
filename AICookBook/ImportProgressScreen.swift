@@ -59,6 +59,7 @@ struct ImportProgressScreen: View {
                         .foregroundStyle(AppTheme.textTertiary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss")
             }
             .padding(.top, AppSpacing.lg)
             .padding(.horizontal, AppSpacing.lg)

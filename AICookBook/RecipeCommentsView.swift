@@ -64,6 +64,7 @@ struct RecipeCommentsSection: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityLabel("Post comment")
             }
             .padding(.bottom, 4)
 
@@ -152,6 +153,7 @@ struct CommentRow: View {
                         .padding(.trailing, 8)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(comment.isLiked ? "Unlike comment" : "Like comment")
                 }
             }
         }

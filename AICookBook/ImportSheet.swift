@@ -90,6 +90,7 @@ struct ImportSheet: View {
                             .foregroundStyle(AppTheme.textTertiary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Clear text")
                 } else {
                     Button("Paste") { paste() }
                         .font(AppFont.body(15, weight: .semibold))

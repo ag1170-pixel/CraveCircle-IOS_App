@@ -79,6 +79,7 @@ struct SearchScreen: View {
                 Button { query = ""; Haptics.tap() } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(AppTheme.textTertiary)
                 }.buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
             }
         }
         .padding(.horizontal, AppSpacing.md)

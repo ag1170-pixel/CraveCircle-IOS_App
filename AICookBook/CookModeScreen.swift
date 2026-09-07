@@ -102,6 +102,7 @@ struct CookModeScreen: View {
                         .background(AppTheme.surface, in: Circle())
                 }
                 .buttonStyle(PressableStyle())
+                .accessibilityLabel("Exit Cook Mode")
             }
             .fullScreenCover(isPresented: $showFlashcards) {
                 FlashcardCookScreen(recipe: recipe)

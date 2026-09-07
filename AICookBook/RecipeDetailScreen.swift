@@ -223,6 +223,7 @@ struct RecipeDetailScreen: View {
                         .offset(y: heartBurstY)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                         .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
 
                 AppTheme.heroScrim
@@ -391,6 +392,7 @@ struct RecipeDetailScreen: View {
 
     private func triggerHeartBurst() {
         Haptics.success()
+        guard !reduceMotion else { return }
         showHeartBurst = true
         heartBurstScale = 0.2
         heartBurstOpacity = 0.95
@@ -412,7 +414,7 @@ struct RecipeDetailScreen: View {
 
     private var topControls: some View {
         HStack {
-            GlassIconButton(systemImage: "chevron.left") { environment.dismissRecipeDetail() }
+            GlassIconButton(systemImage: "chevron.left", label: "Back") { environment.dismissRecipeDetail() }
             Spacer()
             HStack(spacing: 10) {
                 // Instagram-style Like Button
@@ -434,8 +436,9 @@ struct RecipeDetailScreen: View {
                         .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
                 }
                 .buttonStyle(PressableStyle())
+                .accessibilityLabel(isLiked ? "Unlike recipe" : "Like recipe")
 
-                GlassIconButton(systemImage: "square.and.arrow.up") {
+                GlassIconButton(systemImage: "square.and.arrow.up", label: "Share recipe") {
                     Haptics.tap()
                     showShareSheet = true
                 }
@@ -500,6 +503,7 @@ struct RecipeDetailScreen: View {
                         .overlay(Circle().stroke(.white.opacity(0.25), lineWidth: 0.8))
                         .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
                 }
+                .accessibilityLabel("More options")
             }
         }
     }
@@ -714,6 +718,7 @@ struct RecipeDetailScreen: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(servings <= 1)
+                .accessibilityLabel("Decrease servings")
 
                 VStack(spacing: 0) {
                     Text("\(servings) Servings")
@@ -741,6 +746,7 @@ struct RecipeDetailScreen: View {
                         .background(AppTheme.accentSoft, in: Circle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Increase servings")
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)

@@ -112,6 +112,7 @@ struct FlashcardCookScreen: View {
                     .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 1))
             }
             .buttonStyle(PressableStyle())
+            .accessibilityLabel("Exit Flashcards")
 
             Spacer()
             VStack(alignment: .trailing, spacing: 8) {

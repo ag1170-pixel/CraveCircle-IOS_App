@@ -250,7 +250,9 @@ struct FriendRequestRow: View {
                         Image(systemName: "xmark").font(.system(size: 13, weight: .bold)).foregroundStyle(AppTheme.textSecondary)
                             .frame(width: 32, height: 32).background(AppTheme.background, in: Circle())
                             .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 1))
-                    }.buttonStyle(PressableStyle())
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityLabel("Decline request")
                 }
             } else {
                 HStack(spacing: 8) {
@@ -263,6 +265,7 @@ struct FriendRequestRow: View {
                             .background(AppTheme.background, in: Circle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Cancel request")
                 }
             }
         }

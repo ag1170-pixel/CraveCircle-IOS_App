@@ -79,6 +79,7 @@ struct RecipeEditScreen: View {
                                     Image(systemName: "minus.circle.fill").foregroundStyle(AppTheme.destructive)
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel("Remove ingredient")
                             }
                         }
                         Button { draft.ingredients[i].items.append("") } label: {
@@ -109,6 +110,7 @@ struct RecipeEditScreen: View {
                                 Image(systemName: "minus.circle.fill").foregroundStyle(AppTheme.destructive)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Remove step")
                             .padding(.top, 6)
                         }
                     }

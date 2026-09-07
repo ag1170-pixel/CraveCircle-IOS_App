@@ -89,6 +89,7 @@ struct PressableStyle: ButtonStyle {
 struct GlassIconButton: View {
     let systemImage: String
     var size: CGFloat = 38
+    var label: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -104,6 +105,7 @@ struct GlassIconButton: View {
                 .overlay(Circle().stroke(.white.opacity(0.14), lineWidth: 0.5))
         }
         .buttonStyle(PressableStyle())
+        .accessibilityLabel(label ?? systemImage)
     }
 }
 
