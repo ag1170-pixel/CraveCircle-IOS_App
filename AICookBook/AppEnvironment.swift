@@ -230,6 +230,18 @@ final class AppEnvironment: ObservableObject {
         selectedRecipe = recipe
     }
 
+    /// Open a recipe by id — the target of a `cravecircle://recipe/<id>` deep link (Copy link / Share).
+    /// Uses the local copy if present; otherwise pulls it from the cloud (RLS applies, so a
+    /// followers-only recipe the viewer can't see simply won't open).
+    func openRecipe(id: String) {
+        if let local = recipes.first(where: { $0.id == id }) { selectRecipe(local); return }
+        Task {
+            guard let remote = await supabase.fetchRecipe(id: id) else { return }
+            if !recipes.contains(where: { $0.id == id }) { recipes.insert(remote, at: 0) }
+            selectRecipe(remote)
+        }
+    }
+
     /// Set by a pushed screen (e.g. Library, once it's cycled past its own last filter tab) to ask
     /// the root tab bar to switch main tabs. MainTabView observes this and clears it after acting.
     @Published var pendingTabSwitch: AppTab?

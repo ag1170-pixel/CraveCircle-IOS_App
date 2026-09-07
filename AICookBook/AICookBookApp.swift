@@ -27,7 +27,13 @@ struct AICookBookApp: App {
                 // Dark-first design, full light + dark parity — follow the system appearance.
                 .onOpenURL { url in
                     guard url.scheme == "cravecircle" else { return }
-                    Task { await environment.importFromSharedURL() }
+                    // cravecircle://recipe/<id> opens a shared recipe in-app; anything else is an import.
+                    if url.host == "recipe" {
+                        let id = url.lastPathComponent
+                        if !id.isEmpty, id != "/" { environment.openRecipe(id: id) }
+                    } else {
+                        Task { await environment.importFromSharedURL() }
+                    }
                 }
                 .onChange(of: scenePhase) { _, phase in
                     // Also check on foreground, in case the app was cold-launched by the share.

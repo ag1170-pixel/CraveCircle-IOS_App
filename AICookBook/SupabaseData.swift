@@ -77,6 +77,16 @@ struct SupabaseData {
         return try? SupabaseRecipeDecoder.decode(data)
     }
 
+    /// Fetch a single recipe by id (for deep links). Returns nil if it doesn't exist or RLS hides
+    /// it (e.g. a followers-only recipe the viewer can't see).
+    func fetchRecipe(id: String) async -> Recipe? {
+        guard let enc = id.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let req = request(path: "rest/v1/recipes?select=*&id=eq.\(enc)&limit=1", method: "GET") else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return (try? SupabaseRecipeDecoder.decode(data))?.first
+    }
+
     /// Upsert the user's own recipes (insert or merge by id). Requires a session — RLS only lets a
     /// user write rows where owner_id = auth.uid(). `ownerId` is forced onto every row for safety.
     func upsertRecipes(_ recipes: [Recipe], ownerId: String) async -> Bool {

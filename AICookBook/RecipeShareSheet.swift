@@ -126,7 +126,8 @@ struct RecipeShareSheet: View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
             Text("Share Outside App").sectionLabelStyle()
             VStack(spacing: 0) {
-                let shareText = "\(recipe.title) on CraveCircle\nhttps://www.cravecircle.cc/recipe/\(recipe.id)"
+                // App-only: a cravecircle:// deep link opens the recipe in-app for anyone who has CraveCircle.
+                let shareText = "\(recipe.title) on CraveCircle\ncravecircle://recipe/\(recipe.id)"
                 ShareLink(item: shareText, preview: SharePreview(recipe.title, image: Image(recipe.thumbnailUrl ?? "chickenRecipe"))) {
                     HStack(spacing: AppSpacing.sm) {
                         Image(systemName: "square.and.arrow.up")
@@ -150,7 +151,7 @@ struct RecipeShareSheet: View {
 
                 Button {
                     Haptics.tap()
-                    UIPasteboard.general.string = "https://www.cravecircle.cc/recipe/\(recipe.id)"
+                    UIPasteboard.general.string = "cravecircle://recipe/\(recipe.id)"
                     withAnimation { showCopiedAlert = true }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         withAnimation { showCopiedAlert = false }
