@@ -93,6 +93,7 @@ final class AppEnvironment: ObservableObject {
         if let drafts = LocalStore.load([String].self, from: "studio_drafts.json") { studioDraftIds = Set(drafts) }
         if let follows = LocalStore.load([String].self, from: "followed_creators.json") { followedCreators = Set(follows) }
         sharedLog = LocalStore.load([SharedRecipeRecord].self, from: "shared_log.json") ?? []
+        if let unsynced = LocalStore.load([String].self, from: "unsynced_recipes.json") { unsyncedRecipeIds = Set(unsynced) }
         pendingInteractions = LocalStore.load([InteractionEvent].self, from: "pending_interactions.json") ?? []
         interactionHistory = LocalStore.load([InteractionEvent].self, from: "interaction_history.json") ?? []
 
@@ -180,6 +181,8 @@ final class AppEnvironment: ObservableObject {
             recipes = Recipe.placeholderRecipes
             errorMessage = "Could not load recipes from backend. Showing preview data."
         }
+        // Layer newly published cloud recipes on top + push any local edits.
+        await syncRecipes()
     }
 
     /// Infinite scroll: append the next page of recipes as the user nears the end of the list.
@@ -234,9 +237,45 @@ final class AppEnvironment: ObservableObject {
 
     /// Save edits to a recipe the user owns (updates the list + open detail).
     func updateRecipe(_ updated: Recipe) {
+        // Upsert: edits update in place; a brand-new recipe (e.g. Studio "New") is inserted.
         if let i = recipes.firstIndex(where: { $0.id == updated.id }) { recipes[i] = updated }
+        else { recipes.insert(updated, at: 0) }
         if selectedRecipe?.id == updated.id { selectedRecipe = updated }
-        // TODO: PATCH /recipes/{id} once the backend is reachable.
+        markRecipeDirty(updated.id)
+        Task { await syncRecipes() }
+    }
+
+    // MARK: - Recipe cloud sync (offline-first)
+    // Client-side "sync_status": ids of the user's own recipes changed locally but not yet pushed.
+    // Persisted so an edit made offline still syncs after a restart. (Pattern from the DB study.)
+    @Published private(set) var unsyncedRecipeIds: Set<String> = [] { didSet { persist(Array(unsyncedRecipeIds), "unsynced_recipes.json") } }
+
+    func markRecipeDirty(_ id: String) { unsyncedRecipeIds.insert(id) }
+
+    /// Two-way sync with Supabase. PULL is additive — it brings in newly published recipes
+    /// (creator/developer content) so the library shows updates, without clobbering local unsynced
+    /// edits or removing local-only recipes. PUSH sends the user's own dirty recipes up (needs auth).
+    func syncRecipes() async {
+        // PULL — merge remote recipes in (add new, refresh existing that aren't locally dirty).
+        if let remote = await supabase.fetchRecipes() {
+            var added = 0
+            for r in remote where !unsyncedRecipeIds.contains(r.id) {
+                if let i = recipes.firstIndex(where: { $0.id == r.id }) {
+                    recipes[i] = r
+                } else {
+                    recipes.append(r)
+                    added += 1
+                }
+            }
+            if added > 0 { hasMoreRecipes = true }   // new content available to scroll
+        }
+        // PUSH — send my own changed recipes up; clear the dirty flag only on success.
+        if supabase.hasSession, let uid = currentUser?.id {
+            let dirty = recipes.filter { unsyncedRecipeIds.contains($0.id) && $0.ownerId == uid }
+            if !dirty.isEmpty, await supabase.upsertRecipes(dirty, ownerId: uid) {
+                unsyncedRecipeIds.subtract(dirty.map { $0.id })
+            }
+        }
     }
 
     /// True when the signed-in user owns this recipe (edit/delete are owner-only).
@@ -383,6 +422,8 @@ final class AppEnvironment: ObservableObject {
         }
 
         recipes.insert(recipe, at: 0)
+        markRecipeDirty(recipe.id)
+        Task { await syncRecipes() }
         // Do NOT auto-set selectedRecipe here.
         importState = .done(recipeId: recipe.id)
         notifyImportDone(recipeTitle: recipe.title)

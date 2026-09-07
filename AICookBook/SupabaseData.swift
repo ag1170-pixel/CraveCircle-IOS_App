@@ -21,11 +21,11 @@ struct SupabaseData {
         return t != "dev-preview-token"   // the DEBUG dev-bypass placeholder is not a real JWT
     }
 
-    private func request(path: String) -> URLRequest? {
-        guard !config.supabaseAnonKey.isEmpty else { return nil }
-        let url = config.supabaseURL.appending(path: path)
+    private func request(path: String, method: String = "POST") -> URLRequest? {
+        guard !config.supabaseAnonKey.isEmpty,
+              let url = URL(string: config.supabaseURL.absoluteString + "/" + path) else { return nil }
         var req = URLRequest(url: url)
-        req.httpMethod = "POST"
+        req.httpMethod = method
         req.setValue(config.supabaseAnonKey, forHTTPHeaderField: "apikey")
         let bearer = tokenStore.readAccessToken() ?? config.supabaseAnonKey
         req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
@@ -63,6 +63,39 @@ struct SupabaseData {
         guard let (data, resp) = try? await URLSession.shared.data(for: req),
               let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
         return try? SupabaseRecipeDecoder.decode(data)
+    }
+
+    // MARK: - Recipe sync
+
+    /// Pull recipes the current viewer is allowed to see. Works signed-out too — RLS still returns
+    /// every `visibility = 'everyone'` recipe, which is how newly published creator/developer recipes
+    /// show up in the app. Returns nil on failure so the caller keeps its local library untouched.
+    func fetchRecipes(limit: Int = 200) async -> [Recipe]? {
+        guard let req = request(path: "rest/v1/recipes?select=*&order=updated_at.desc&limit=\(limit)", method: "GET") else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return try? SupabaseRecipeDecoder.decode(data)
+    }
+
+    /// Upsert the user's own recipes (insert or merge by id). Requires a session — RLS only lets a
+    /// user write rows where owner_id = auth.uid(). `ownerId` is forced onto every row for safety.
+    func upsertRecipes(_ recipes: [Recipe], ownerId: String) async -> Bool {
+        guard hasSession, !recipes.isEmpty,
+              var req = request(path: "rest/v1/recipes?on_conflict=id") else { return false }
+        req.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
+        let enc = JSONEncoder()
+        enc.keyEncodingStrategy = .convertToSnakeCase
+        guard let encoded = try? enc.encode(recipes),
+              var rows = (try? JSONSerialization.jsonObject(with: encoded)) as? [[String: Any]] else { return false }
+        for i in rows.indices {
+            rows[i]["owner_id"] = ownerId
+            rows[i].removeValue(forKey: "reel_url")   // computed on the client; not a column
+        }
+        guard let body = try? JSONSerialization.data(withJSONObject: rows) else { return false }
+        req.httpBody = body
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
     }
 }
 
