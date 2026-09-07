@@ -45,8 +45,8 @@ discoverable and complete.
 | # | Task | Owner | Notes |
 |---|------|-------|-------|
 | 2.1 | **Onboarding**: import first reel + pick 2–3 cuisines so the feed is personal on day one | Antigravity (flow) + Claude (seed logic) | Kills the "full of recipes I didn't add" feeling. |
-| 2.2 | **Ingredient / diet / time search + filters** (not just title/creator substring) | Claude (query) + Antigravity (filter UI) | Trending chips already imply this. |
-| 2.3 | **"Why you're seeing this"** reason chip on each suggestion (e.g. "Because you cooked Paneer Tikka") | Claude (reason from engine) + Antigravity (chip) | Builds trust; engine already has the signal. |
+| 2.2 | ✅ **Ingredient / diet / time search + filters** | Claude | Done (`f195ebe`). Ingredient-aware search + veg/non-veg/vegan, time, high-protein chips. |
+| 2.3 | ✅ **"Why you're seeing this"** reason chip on suggestions (Home + Search) | Claude | Done (`5237671`). Honest per-recipe reason from the engine; no chip when signal is thin. |
 | 2.4 | **Cook-nudge habit loop**: "You saved this 3 days ago — cook it tonight?" local notification | Claude | Uses existing telemetry + `UNUserNotificationCenter`. |
 
 ## P3 — Hardening & production-readiness
