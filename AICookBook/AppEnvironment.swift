@@ -144,11 +144,14 @@ final class AppEnvironment: ObservableObject {
     func signIn(email: String, password: String) async {
         do {
             _ = try await authClient.signIn(email: email, password: password)
-            do {
-                currentUser = try await apiClient.fetchProfile()
-            } catch {
-                currentUser = fallbackUser(email: email)
+            // Prefer the real Supabase profile (id = auth uid) so cloud ownership/RLS writes line up.
+            if let profile = await supabase.fetchMyProfile() {
+                currentUser = profile
+            } else {
+                do { currentUser = try await apiClient.fetchProfile() }
+                catch { currentUser = fallbackUser(email: email) }
             }
+            resetPersonalizationIfUserChanged()
             appState = .signedIn
             await refreshRecipes()
         } catch {
@@ -174,13 +177,14 @@ final class AppEnvironment: ObservableObject {
 
     func refreshRecipes() async {
         do {
-            recipes = try await apiClient.fetchRecipes(limit: 20, offset: 0)
-            if recipes.isEmpty {
-                recipes = Recipe.placeholderRecipes
-            }
+            let fetched = try await apiClient.fetchRecipes(limit: 20, offset: 0)
+            if !fetched.isEmpty { recipes = fetched }
+            else if recipes.isEmpty { recipes = Recipe.placeholderRecipes }
         } catch {
-            recipes = Recipe.placeholderRecipes
-            errorMessage = "Could not load recipes from backend. Showing preview data."
+            // The homelab feed is OPTIONAL (unreachable off-Tailscale / on cellular). Keep the local
+            // library; seed samples only if we have nothing. Cloud recipes layer on via syncRecipes.
+            // No modal error — this is an expected, recoverable miss, not something the user must act on.
+            if recipes.isEmpty { recipes = Recipe.placeholderRecipes }
         }
         // Layer newly published cloud recipes on top + push any local edits.
         await syncRecipes()
@@ -230,6 +234,20 @@ final class AppEnvironment: ObservableObject {
         recipeSwipeContext = context
         selectedRecipe = recipe
         refreshAuthoritativeNutrition(for: recipe)
+    }
+
+    /// When a different account signs in on this device, start its on-device behavioral history
+    /// fresh — interaction history is device-local, so without this a new user inherits the previous
+    /// user's views and sees wrong "Because you viewed…" reasons. Their real behavior rebuilds it.
+    private func resetPersonalizationIfUserChanged() {
+        let key = "last_signed_in_user_id"
+        let id = currentUser?.id ?? ""
+        guard UserDefaults.standard.string(forKey: key) != id else { return }
+        interactionHistory = []
+        pendingInteractions = []
+        suggestionReasons = [:]
+        nutritionAttempted = []
+        UserDefaults.standard.set(id, forKey: key)
     }
 
     private var nutritionAttempted = Set<String>()

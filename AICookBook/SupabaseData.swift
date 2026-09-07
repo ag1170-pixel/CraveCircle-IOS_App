@@ -65,6 +65,29 @@ struct SupabaseData {
         return try? SupabaseRecipeDecoder.decode(data)
     }
 
+    // MARK: - Current user
+
+    /// The signed-in user's Supabase auth id (the JWT `sub` claim), or nil when not really signed in.
+    func currentUserId() -> String? {
+        guard let t = tokenStore.readAccessToken(), !t.isEmpty, t != "dev-preview-token" else { return nil }
+        let parts = t.split(separator: ".")
+        guard parts.count == 3 else { return nil }
+        var p = String(parts[1]).replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        while p.count % 4 != 0 { p += "=" }
+        guard let d = Data(base64Encoded: p),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
+        return j["sub"] as? String
+    }
+
+    /// The signed-in user's own profile row (id = auth uid), so ownership + RLS writes line up.
+    func fetchMyProfile() async -> UserProfile? {
+        guard let uid = currentUserId(),
+              let req = request(path: "rest/v1/profiles?select=*&id=eq.\(uid)&limit=1", method: "GET") else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return (try? Self.decoder().decode([UserProfile].self, from: data))?.first
+    }
+
     // MARK: - Recipe sync
 
     /// Pull recipes the current viewer is allowed to see. Works signed-out too — RLS still returns
