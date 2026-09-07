@@ -1,0 +1,119 @@
+//
+//  RecommendationEngine.swift
+//  CraveCircle (AICookBook)
+//
+//  On-device, content-based recommender. It reads the user's own interaction history
+//  (views weighted by dwell time, plus likes / saves / grocery-adds / cooks) and ranks
+//  candidate recipes by how similar they are to what the user actually engages with —
+//  so "Suggested for You" reflects what they spend time on, not a random shuffle.
+//
+//  This runs entirely on-device (private, zero-latency, no server needed). When the Supabase
+//  scoring RPC lands it can replace or blend with this; the interface stays the same.
+//
+
+import Foundation
+
+enum RecommendationEngine {
+
+    /// How strongly each kind of interaction signals real interest. Dwell (a `view`) is scored
+    /// separately from its duration; explicit intent (cooking, shopping) outweighs a glance.
+    private static func baseWeight(for eventType: String) -> Double {
+        switch eventType {
+        case "cook":    return 6      // started cooking — strongest signal
+        case "grocery": return 5      // added ingredients to shop — high intent
+        case "save":    return 4
+        case "like":    return 4
+        case "comment": return 2
+        case "view":    return 1      // a glance; dwell time adds the rest (see below)
+        default:        return 1
+        }
+    }
+
+    /// Ranked suggestions. `history` is the user's own events; `excluding` are recipes to keep
+    /// out of the feed (owned, already saved). Falls back to a fresh, un-owned sample when there
+    /// isn't enough signal yet (cold start), so a brand-new user still sees something sensible.
+    static func suggestions(
+        from allRecipes: [Recipe],
+        history: [AppEnvironment.InteractionEvent],
+        excluding excludedIds: Set<String>,
+        limit: Int = 8
+    ) -> [Recipe] {
+        let candidates = allRecipes.filter { !excludedIds.contains($0.id) }
+        guard !candidates.isEmpty else { return [] }
+
+        let byId = Dictionary(allRecipes.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+
+        // Build the taste profile: a weighted bag of tokens from every recipe the user engaged with.
+        var profile: [String: Double] = [:]
+        var totalSignal = 0.0
+        for event in history {
+            guard let recipe = byId[event.recipeId] else { continue }
+            var weight = baseWeight(for: event.eventType)
+            if event.eventType == "view", let secs = event.durationSeconds {
+                // Longer dwell = stronger interest, capped so one long view can't dominate.
+                weight += min(Double(secs) / 10.0, 4.0)
+            }
+            guard weight > 0 else { continue }
+            totalSignal += weight
+            for token in tokens(for: recipe) {
+                profile[token, default: 0] += weight
+            }
+        }
+
+        // Cold start / too little signal → a fresh, deterministic-ish sample of un-owned recipes.
+        guard totalSignal >= 2, !profile.isEmpty else {
+            return Array(candidates.shuffled().prefix(limit))
+        }
+
+        // Score each candidate by cosine-style similarity to the profile, normalized by the
+        // candidate's own token count so long ingredient lists don't win automatically.
+        let scored = candidates.map { recipe -> (Recipe, Double) in
+            let toks = tokens(for: recipe)
+            guard !toks.isEmpty else { return (recipe, 0) }
+            let dot = toks.reduce(0.0) { $0 + (profile[$1] ?? 0) }
+            return (recipe, dot / Double(toks.count).squareRoot())
+        }
+
+        let ranked = scored.sorted { $0.1 > $1.1 }
+        // If nothing matched the profile at all, don't return an arbitrary order — sample instead.
+        if ranked.first?.1 ?? 0 <= 0 {
+            return Array(candidates.shuffled().prefix(limit))
+        }
+        return ranked.prefix(limit).map { $0.0 }
+    }
+
+    // MARK: - Feature extraction
+
+    /// Tokens that describe a recipe: words from its title and ingredient names, plus the creator
+    /// handle as a strong single token (following a creator's taste is a real signal).
+    private static func tokens(for recipe: Recipe) -> Set<String> {
+        var out = Set<String>()
+        out.formUnion(words(recipe.title))
+        for group in recipe.ingredients {
+            for item in group.items { out.formUnion(words(item)) }
+        }
+        if let handle = recipe.ownerUsername, !handle.isEmpty {
+            out.insert("@" + handle.replacingOccurrences(of: "@", with: "").lowercased())
+        }
+        return out
+    }
+
+    private static let stopwords: Set<String> = [
+        "the", "and", "for", "with", "you", "your", "this", "that", "from", "into", "add", "cup",
+        "cups", "tbsp", "tsp", "tablespoon", "teaspoon", "gram", "grams", "ounce", "ounces", "pinch",
+        "fresh", "chopped", "sliced", "diced", "large", "small", "medium", "cut", "some", "taste",
+        "min", "mins", "minute", "minutes", "recipe", "easy", "quick", "best", "make", "made"
+    ]
+
+    private static func words(_ text: String) -> Set<String> {
+        let cleaned = text.lowercased().unicodeScalars.map { scalar -> Character in
+            CharacterSet.alphanumerics.contains(scalar) ? Character(scalar) : " "
+        }
+        return Set(
+            String(cleaned)
+                .split(separator: " ")
+                .map(String.init)
+                .filter { $0.count >= 3 && !stopwords.contains($0) && Int($0) == nil }
+        )
+    }
+}

@@ -46,12 +46,15 @@ struct SearchScreen: View {
                 searchField
 
                 if query.trimmingCharacters(in: .whitespaces).isEmpty {
+                    if !environment.suggestedRecipes.isEmpty {
+                        gridSection("Suggested for You", environment.suggestedRecipes)
+                    }
                     trendingSection
-                    gridSection("Discover")
+                    gridSection("Discover", results)
                 } else if results.isEmpty {
                     noResults
                 } else {
-                    gridSection("Results")
+                    gridSection("Results", results)
                 }
             }
             .padding(.horizontal, AppSpacing.md)
@@ -62,7 +65,10 @@ struct SearchScreen: View {
         .scrollIndicators(.hidden)
         .navigationTitle("Search")
         .navigationBarTitleDisplayMode(.large)
-        .task { if environment.recipes.isEmpty { await environment.refreshRecipes() } }
+        .task {
+            if environment.recipes.isEmpty { await environment.refreshRecipes() }
+            await environment.fetchSuggestedFeed()
+        }
         .tint(AppTheme.accentInk)
     }
 
@@ -94,14 +100,15 @@ struct SearchScreen: View {
         }
     }
 
-    private func gridSection(_ title: String) -> some View {
+    private func gridSection(_ title: String, _ recipes: [Recipe]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             Text(title)
                 .font(AppFont.display(22, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
             LazyVGrid(columns: columns, spacing: AppSpacing.sm) {
-                ForEach(results) { recipe in
-                    LibraryCard(recipe: recipe) { environment.selectRecipe(recipe) }
+                ForEach(recipes) { recipe in
+                    // Swipe within this section's list (e.g. suggestions), not the whole library.
+                    LibraryCard(recipe: recipe) { environment.selectRecipe(recipe, in: recipes) }
                 }
             }
         }

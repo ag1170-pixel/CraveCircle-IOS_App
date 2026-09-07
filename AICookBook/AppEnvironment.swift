@@ -90,6 +90,8 @@ final class AppEnvironment: ObservableObject {
         if let drafts = LocalStore.load([String].self, from: "studio_drafts.json") { studioDraftIds = Set(drafts) }
         if let follows = LocalStore.load([String].self, from: "followed_creators.json") { followedCreators = Set(follows) }
         sharedLog = LocalStore.load([SharedRecipeRecord].self, from: "shared_log.json") ?? []
+        pendingInteractions = LocalStore.load([InteractionEvent].self, from: "pending_interactions.json") ?? []
+        interactionHistory = LocalStore.load([InteractionEvent].self, from: "interaction_history.json") ?? []
 
         // These were saved to UserDefaults but never read back — fix the round-trip here.
         let defaults = UserDefaults.standard
@@ -677,9 +679,18 @@ final class AppEnvironment: ObservableObject {
         let timestamp: Date
     }
     
-    @Published private(set) var pendingInteractions: [InteractionEvent] = []
+    // Network queue — events waiting to be sent to the backend. Persisted so a batch that hasn't
+    // reached the size threshold isn't lost when the app is killed. Capped so it can't grow forever
+    // while the backend RPC doesn't exist yet.
+    @Published private(set) var pendingInteractions: [InteractionEvent] = [] { didSet { persist(pendingInteractions, "pending_interactions.json") } }
+    // Durable local record used by the on-device recommender. Independent of the network flush, so
+    // suggestions personalize immediately and keep working with no server. Capped to stay light.
+    @Published private(set) var interactionHistory: [InteractionEvent] = [] { didSet { persist(interactionHistory, "interaction_history.json") } }
     @Published private(set) var suggestedRecipes: [Recipe] = []
-    
+
+    private let maxPendingInteractions = 200
+    private let maxInteractionHistory = 500
+
     func logInteraction(recipeId: String, eventType: String, durationSeconds: Int? = nil) {
         let event = InteractionEvent(
             id: UUID().uuidString,
@@ -689,28 +700,45 @@ final class AppEnvironment: ObservableObject {
             timestamp: Date()
         )
         pendingInteractions.append(event)
-        
+        if pendingInteractions.count > maxPendingInteractions {
+            pendingInteractions.removeFirst(pendingInteractions.count - maxPendingInteractions)
+        }
+        interactionHistory.append(event)
+        if interactionHistory.count > maxInteractionHistory {
+            interactionHistory.removeFirst(interactionHistory.count - maxInteractionHistory)
+        }
+
         if pendingInteractions.count >= 10 {
             flushTelemetry()
         }
     }
-    
+
     func flushTelemetry() {
         guard !pendingInteractions.isEmpty else { return }
         let toSend = pendingInteractions
-        pendingInteractions.removeAll()
-        
+
         Task {
-            // TODO: POST /rpc/log_interactions to Supabase
-            // print("Flushed \(toSend.count) telemetry events to backend.")
+            // TODO: POST toSend to /rpc/log_interactions (Supabase). Only clear on success so a
+            // failed/absent send never drops data — until then events stay queued (capped above).
+            let didSend = false
+            if didSend {
+                await MainActor.run {
+                    self.pendingInteractions.removeAll { sent in toSend.contains { $0.id == sent.id } }
+                }
+            }
         }
     }
-    
+
+    /// Personalized suggestions from the on-device recommender (dwell-weighted). When the Supabase
+    /// scoring RPC exists this can call it and fall back to the local engine offline.
     func fetchSuggestedFeed() async {
-        // Stub for Supabase RPC call that returns scored recipes
-        // For now, simulate by returning a randomized subset of un-owned recipes
-        let pool = recipes.filter { !isOwner(of: $0) && !isSaved(recipeId: $0.id) }
-        suggestedRecipes = Array(pool.shuffled().prefix(6))
+        let excluded = Set(recipes.filter { isOwner(of: $0) || isSaved(recipeId: $0.id) }.map { $0.id })
+        suggestedRecipes = RecommendationEngine.suggestions(
+            from: recipes,
+            history: interactionHistory,
+            excluding: excluded,
+            limit: 8
+        )
     }
 
     func cancelImport() {
