@@ -98,12 +98,12 @@ struct HomeScreen: View {
             HStack(spacing: AppSpacing.xs) {
                 Spacer()
                 iconButton("square.and.arrow.down") { Haptics.tap(); showingImportSheet = true }
+                iconButton("bell") { Haptics.tap(); showNotifications = true }
                 iconButton("envelope", badgeCount: unreadSharedCount) {
                     Haptics.tap()
                     lastOpenedSharedScreen = Date().timeIntervalSince1970
                     showShared = true
                 }
-                iconButton("bell") { Haptics.tap(); showNotifications = true }
             }
         }
         .padding(.horizontal, AppSpacing.md)
