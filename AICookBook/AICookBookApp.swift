@@ -6,6 +6,17 @@
 //
 
 import SwiftUI
+import UserNotifications
+
+/// Presents local notifications (Recipe Ready, cook-nudge, "shared with you") as banners even while
+/// the app is in the foreground — otherwise iOS silently suppresses them and the user misses the info.
+final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = NotificationPresenter()
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [.banner, .list, .sound]
+    }
+}
 
 @main
 struct AICookBookApp: App {
@@ -18,6 +29,7 @@ struct AICookBookApp: App {
         // which uses URLSession.shared → URLCache.shared.
         URLCache.shared = URLCache(memoryCapacity: 16 * 1024 * 1024,   // 16 MB in RAM
                                    diskCapacity: 96 * 1024 * 1024)      // 96 MB on disk, LRU-evicted
+        UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
     }
 
     var body: some Scene {

@@ -534,11 +534,37 @@ final class AppEnvironment: ObservableObject {
     func toggleSaveRecipe(id: String) {
         if savedRecipeIds.contains(id) {
             savedRecipeIds.remove(id)
+            cancelCookNudge(recipeId: id)   // no longer saved → drop the reminder
         } else {
             savedRecipeIds.insert(id)
             logInteraction(recipeId: id, eventType: "save")
+            if let title = recipes.first(where: { $0.id == id })?.title {
+                scheduleCookNudge(recipeId: id, title: title)
+            }
         }
         UserDefaults.standard.set(Array(savedRecipeIds), forKey: "saved_recipe_ids")
+    }
+
+    // MARK: - Cook-nudge (gentle "you saved this — cook it?" reminder)
+
+    /// Remind the user, a couple of days after they save a recipe, to actually cook it — the habit
+    /// loop the app was missing. One reminder per saved recipe; cancelled if they cook it or unsave.
+    private func scheduleCookNudge(recipeId: String, title: String) {
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "Still craving this?"
+            content.body = "You saved '\(title)' a couple of days ago — cook it tonight?"
+            content.sound = .default
+            content.userInfo = ["recipeId": recipeId]
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2 * 24 * 60 * 60, repeats: false)
+            center.add(UNNotificationRequest(identifier: "cook-nudge-\(recipeId)", content: content, trigger: trigger))
+        }
+    }
+
+    private func cancelCookNudge(recipeId: String) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["cook-nudge-\(recipeId)"])
     }
     
     func isSaved(recipeId: String) -> Bool {
@@ -808,6 +834,9 @@ final class AppEnvironment: ObservableObject {
         if interactionHistory.count > maxInteractionHistory {
             interactionHistory.removeFirst(interactionHistory.count - maxInteractionHistory)
         }
+
+        // They cooked it — no need to nudge them to.
+        if eventType == "cook" { cancelCookNudge(recipeId: recipeId) }
 
         if pendingInteractions.count >= 10 {
             flushTelemetry()
