@@ -20,7 +20,7 @@ in the vault: `State-of-the-App-Gaps.md`.
 |---|------|-------|-------|
 | 1.1 | ✅ `log_interactions` + `get_suggested_recipes` RPCs; `flushTelemetry`/`fetchSuggestedFeed` wired | Claude | Done (`465828e`). Cross-user recs live once signed in. |
 | 1.2 | ✅ Followers-only via RLS + shares delivery + follow sync | Claude | Done (`cab7c92`). RLS enforces; shares deliver to Received; follow re-syncs to unlock. Activates on real sign-in. |
-| 1.3 | ~~Public recipe web page~~ — **OUT OF SCOPE (app-only, no website).** "Share outside the app" = native `ShareLink` (Messages/WhatsApp/AirDrop) carrying a `cravecircle://recipe/<id>` deep link that opens the recipe **if the recipient has the app**. No web fallback by decision. | Claude (deep-link route) | Register the route in `AICookBookApp.onOpenURL`, mirroring `cravecircle://import`. |
+| 1.3 | ✅ Deep-link recipe route — `cravecircle://recipe/<id>` opens recipes in-app; Share/Copy emit it (was dead web URLs). App-only, no web page. | Claude | Done (`79bd31b`). Opens local copy or pulls from Supabase (RLS-gated). |
 | 1.4 | ✅ Recipe cloud sync (offline-first) + showcase newly-published recipes | Claude | Done (`eb8aa44`). Seeded `@cravecircle` welcome recipe; new content pulls in. |
 
 ## P1.5 — "Shared with you" inbox (where a reel shared with me shows up)
