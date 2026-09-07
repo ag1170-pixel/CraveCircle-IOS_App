@@ -98,7 +98,7 @@ struct HomeScreen: View {
             HStack(spacing: AppSpacing.xs) {
                 Spacer()
                 iconButton("square.and.arrow.down") { Haptics.tap(); showingImportSheet = true }
-                iconButton("tray.and.arrow.down", badgeCount: unreadSharedCount) {
+                iconButton("envelope", badgeCount: unreadSharedCount) {
                     Haptics.tap()
                     lastOpenedSharedScreen = Date().timeIntervalSince1970
                     showShared = true
