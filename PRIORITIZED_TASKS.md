@@ -18,9 +18,28 @@ in the vault: `State-of-the-App-Gaps.md`.
 ## P1 — Make the social promise real (needs P0)
 | # | Task | Owner | Notes |
 |---|------|-------|-------|
-| 1.1 | `log_interactions` + `get_suggested_recipes` RPCs; point `flushTelemetry`/`fetchSuggestedFeed` at them | Claude | Turns per-device recs into cross-user ("people like you cooked…"). Hooks already left in `AppEnvironment`. |
-| 1.2 | Followers-only enforcement via RLS; deliver cross-user shares → **Received tab works** | Claude | Phase 2 of `COMMUNITY_PLAN.md`. |
+| 1.1 | ✅ `log_interactions` + `get_suggested_recipes` RPCs; `flushTelemetry`/`fetchSuggestedFeed` wired | Claude | Done (`465828e`). Cross-user recs live once signed in. |
+| 1.2 | ✅ Followers-only via RLS + shares delivery + follow sync | Claude | Done (`cab7c92`). RLS enforces; shares deliver to Received; follow re-syncs to unlock. Activates on real sign-in. |
 | 1.3 | **Public recipe web page** `cravecircle.cc/r/<id>` (Open Graph preview + install nudge) so "share outside the app" resolves | Antigravity (web) + Claude (data/RLS) | Fixes the broken share link. |
+| 1.4 | ✅ Recipe cloud sync (offline-first) + showcase newly-published recipes | Claude | Done (`eb8aa44`). Seeded `@cravecircle` welcome recipe; new content pulls in. |
+
+## P1.5 — "Shared with you" inbox (where a reel shared with me shows up)
+**Plan / status.** The full round-trip is: someone shares a recipe → a `shares` row (from→to) →
+the recipient's app pulls it (RLS-scoped) → it appears in their inbox with a notification.
+| # | Task | Owner | Status |
+|---|------|-------|--------|
+| A | `shares` table + RLS (only sender/recipient can read) | Claude | ✅ Done |
+| B | Deliver on share (`recordShare` → cloud) + pull (`syncShares`) into `sharedLog` | Claude | ✅ Done (`cab7c92`) |
+| C | **Entry point:** Profile → **"Shared with you"** row → `SharedScreen` (Received / Sent tabs) | Claude | ✅ Done — SharedScreen had NO entry point before; now reachable |
+| D | Notification on a newly received share ("Recipe shared with you") → also in Circle activity | Claude | ✅ Done |
+| E | **Badge/count** on the Profile row + a bell badge when unseen shares exist | Antigravity (UI) + Claude (unseen count) | ⏳ TODO — makes new shares noticeable |
+| F | Received row for a recipe I don't have locally (esp. followers-only) — store title/thumb on the share or fetch-on-tap so it still renders + offers follow-to-unlock | Claude | ⏳ TODO — today a share only renders if the recipe is already in my library |
+| G | Surface the inbox from a second place (a tray icon in Home top bar, or a tab) so it's discoverable, not only in Profile | Antigravity (UI) | ⏳ TODO |
+| H | Real friend graph: friends must be real Supabase users for delivery (today `FriendItem` ids are local UUIDs; resolves by @handle, best-effort) | Claude | ⏳ TODO — depends on real auth + a users directory |
+
+**Where the user sees it (today):** Profile → "Shared with you" → **Received** tab. Plus a
+"Recipe shared with you" entry in Circle activity/notifications. Items E–H make it more
+discoverable and complete.
 
 ## P2 — Retention & discovery (high user value)
 | # | Task | Owner | Notes |
