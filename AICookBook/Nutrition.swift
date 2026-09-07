@@ -81,7 +81,8 @@ enum NutritionEstimator {
     ]
 
     /// Extract a gram amount + a lowercased ingredient name from a line like "300 ml buttermilk".
-    private static func parse(_ line: String) -> (grams: Double, name: String) {
+    /// Shared with USDANutrition so both sources scale by the same grams.
+    static func parse(_ line: String) -> (grams: Double, name: String) {
         let lower = line.lowercased()
 
         // 1) leading quantity — decimal, "1/2", or a unicode fraction

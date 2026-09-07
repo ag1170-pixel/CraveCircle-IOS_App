@@ -229,6 +229,27 @@ final class AppEnvironment: ObservableObject {
     func selectRecipe(_ recipe: Recipe, in context: [Recipe]? = nil) {
         recipeSwipeContext = context
         selectedRecipe = recipe
+        refreshAuthoritativeNutrition(for: recipe)
+    }
+
+    private var nutritionAttempted = Set<String>()
+
+    /// Upgrade a recipe's nutrition to authoritative USDA values once, in the background. Keeps the
+    /// on-device estimate if USDA can't resolve enough ingredients (or the network/key is down).
+    /// Stored to the library, so it shows the next time the recipe is opened.
+    func refreshAuthoritativeNutrition(for recipe: Recipe) {
+        guard recipe.nutrition == nil || recipe.nutrition?.estimated == true,
+              !nutritionAttempted.contains(recipe.id) else { return }
+        nutritionAttempted.insert(recipe.id)
+        Task {
+            guard let usda = await USDANutrition.compute(for: recipe, apiKey: config.usdaApiKey) else { return }
+            await MainActor.run {
+                if let i = self.recipes.firstIndex(where: { $0.id == recipe.id }) {
+                    self.recipes[i].nutrition = usda
+                }
+                if self.selectedRecipe?.id == recipe.id { self.selectedRecipe?.nutrition = usda }
+            }
+        }
     }
 
     /// Open a recipe by id — the target of a `cravecircle://recipe/<id>` deep link (Copy link / Share).
