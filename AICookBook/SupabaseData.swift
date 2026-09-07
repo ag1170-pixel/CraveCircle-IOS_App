@@ -97,6 +97,74 @@ struct SupabaseData {
               let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
         return true
     }
+
+    // MARK: - Social graph: profiles, follows, shares
+
+    /// Resolve a @handle to its profile id so we can address follows/shares by the real user.
+    func resolveProfileId(username: String) async -> String? {
+        let handle = username.hasPrefix("@") ? String(username.dropFirst()) : username
+        guard !handle.isEmpty,
+              let enc = handle.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let req = request(path: "rest/v1/profiles?select=id&username=eq.\(enc)&limit=1", method: "GET") else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let rows = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { return nil }
+        return rows.first?["id"] as? String
+    }
+
+    /// Deliver a share: inserts a row the recipient can read (RLS: from_user_id must be me).
+    func recordShare(recipeId: String, toUserId: String, channel: String) async -> Bool {
+        guard hasSession, var req = request(path: "rest/v1/shares") else { return false }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        let row: [String: Any] = ["recipe_id": recipeId, "to_user_id": toUserId, "channel": channel]
+        guard let body = try? JSONSerialization.data(withJSONObject: row) else { return false }
+        req.httpBody = body
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
+    /// Pull every share involving me (RLS returns only rows where I'm sender or recipient).
+    func fetchShares() async -> [SharedRecipeRecord]? {
+        guard hasSession,
+              let req = request(path: "rest/v1/shares?select=*&order=created_at.desc&limit=200", method: "GET") else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return try? Self.decoder().decode([SharedRecipeRecord].self, from: data)
+    }
+
+    /// Follow / unfollow a creator by profile id (RLS: follower_id must be me).
+    func setFollow(creatorId: String, following: Bool) async -> Bool {
+        guard hasSession else { return false }
+        if following {
+            guard var req = request(path: "rest/v1/follows") else { return false }
+            req.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
+            guard let body = try? JSONSerialization.data(withJSONObject: ["creator_id": creatorId]) else { return false }
+            req.httpBody = body
+            guard let (_, resp) = try? await URLSession.shared.data(for: req),
+                  let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+            return true
+        } else {
+            guard let req = request(path: "rest/v1/follows?creator_id=eq.\(creatorId)", method: "DELETE") else { return false }
+            guard let (_, resp) = try? await URLSession.shared.data(for: req),
+                  let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+            return true
+        }
+    }
+
+    /// Decoder that maps snake_case columns and parses Postgres ISO-8601 timestamps (with fractional seconds).
+    static func decoder() -> JSONDecoder {
+        let d = JSONDecoder()
+        d.keyDecodingStrategy = .convertFromSnakeCase
+        let iso = ISO8601DateFormatter(); iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let isoPlain = ISO8601DateFormatter(); isoPlain.formatOptions = [.withInternetDateTime]
+        d.dateDecodingStrategy = .custom { dec in
+            let s = try dec.singleValueContainer().decode(String.self)
+            if let date = iso.date(from: s) ?? isoPlain.date(from: s) { return date }
+            return Date()
+        }
+        return d
+    }
 }
 
 /// Decodes the snake_case recipe rows the RPC returns into the app's `Recipe` model.

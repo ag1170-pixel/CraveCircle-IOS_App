@@ -18,6 +18,7 @@ struct ProfileScreen: View {
     @State private var showNotifications = false
     @State private var showAccountSheet = false
     @State private var showFeedbackForm = false
+    @State private var showShared = false
     @State private var activeSafariURL: IdentifiableURL? = nil
 
     private var language: AppLanguage {
@@ -50,6 +51,9 @@ struct ProfileScreen: View {
         }
         .sheet(isPresented: $showTranscribeTest) {
             TranscribeTestView()
+        }
+        .sheet(isPresented: $showShared) {
+            SharedScreen()
         }
         .sheet(isPresented: $showNotifications) {
             CircleNotificationsSheet()
@@ -134,6 +138,10 @@ struct ProfileScreen: View {
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
                 SettingRow(icon: "bell.badge", title: "Notifications", detail: "On", tint: .orange) {
                     showNotifications = true
+                }
+                Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                SettingRow(icon: "tray.and.arrow.down", title: "Shared with you", detail: nil, tint: .pink) {
+                    showShared = true
                 }
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
                 SettingRow(icon: "person.crop.circle", title: "Account", detail: environment.currentUser?.username, tint: .blue) {

@@ -276,6 +276,8 @@ final class AppEnvironment: ObservableObject {
                 unsyncedRecipeIds.subtract(dirty.map { $0.id })
             }
         }
+        // Pull shares (Sent + Received) so the "Shared with you" inbox stays current.
+        await syncShares()
     }
 
     /// True when the signed-in user owns this recipe (edit/delete are owner-only).
@@ -320,6 +322,34 @@ final class AppEnvironment: ObservableObject {
             channel: "in-app"
         )
         sharedLog.insert(record, at: 0)
+        // Deliver to the recipient in the cloud so it lands in their "Shared with you" inbox.
+        // Best-effort: needs both to be real users (resolves the friend's @handle to a profile id).
+        Task {
+            if let toId = await supabase.resolveProfileId(username: friend.username) {
+                _ = await supabase.recordShare(recipeId: recipeId, toUserId: toId, channel: "in-app")
+            }
+        }
+    }
+
+    /// Pull shares involving me (RLS-scoped) into the log and notify for anything newly received,
+    /// so a reel someone shared with me surfaces in the "Shared with you" inbox + Circle activity.
+    func syncShares() async {
+        guard let remote = await supabase.fetchShares() else { return }
+        let existingIds = Set(sharedLog.map { $0.id })
+        let myId = currentUser?.id
+        let newlyReceived = remote.filter { !existingIds.contains($0.id) && $0.toUserId == myId }
+        var merged = sharedLog
+        for rec in remote where !existingIds.contains(rec.id) { merged.append(rec) }
+        sharedLog = merged.sorted { $0.createdAt > $1.createdAt }
+        for rec in newlyReceived {
+            let title = recipes.first(where: { $0.id == rec.recipeId })?.title ?? "a recipe"
+            circleNotifications.insert(
+                CircleNotificationItem(title: "Recipe shared with you",
+                                       message: "Someone shared '\(title)' with you",
+                                       timeAgo: "Just now", symbol: "tray.and.arrow.down.fill",
+                                       isRead: false, recipeId: rec.recipeId),
+                at: 0)
+        }
     }
 
     func enrollInStudio() {
@@ -464,10 +494,15 @@ final class AppEnvironment: ObservableObject {
 
     // MARK: - Follow Actions
     func toggleFollow(creatorHandle: String) {
-        if followedCreators.contains(creatorHandle) {
-            followedCreators.remove(creatorHandle)
-        } else {
-            followedCreators.insert(creatorHandle)
+        let willFollow = !followedCreators.contains(creatorHandle)
+        if willFollow { followedCreators.insert(creatorHandle) } else { followedCreators.remove(creatorHandle) }
+        // Mirror to the cloud follow graph, then re-sync so a creator's followers-only recipes
+        // (RLS-gated) appear right after you follow.
+        Task {
+            if let cid = await supabase.resolveProfileId(username: creatorHandle) {
+                _ = await supabase.setFollow(creatorId: cid, following: willFollow)
+            }
+            await syncRecipes()
         }
     }
     
