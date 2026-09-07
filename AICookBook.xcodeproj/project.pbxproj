@@ -432,8 +432,8 @@
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "CraveCircle uses the camera for hands-free Flashcard cooking — wave your hand to move through recipe steps without touching your phone.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "CraveCircle transcribes cooking-video audio on your device to turn reels into recipes.";
-				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZheHV2b3RuenVmd3hjdnNrdGtlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxODUyNjgsImV4cCI6MjA5Mjc2MTI2OH0.tPFP1jW276X6uG5fQeCsOsiK-h64YQ8S4LpDvwtaaoU";
-				INFOPLIST_KEY_SUPABASE_URL = "https://vaxuvotnzufwxcvsktke.supabase.co";
+				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjeXd2YWlmeXJrcWR2a2V6ZXdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NDY2NTYsImV4cCI6MjEwNDMyMjY1Nn0.ox2X1rv81Vjkb5yl1uWzWmESE0dTQUK1xC-PfAJLU2w";
+				INFOPLIST_KEY_SUPABASE_URL = "https://wcywvaifyrkqdvkezewm.supabase.co";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -472,8 +472,8 @@
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "CraveCircle uses the camera for hands-free Flashcard cooking — wave your hand to move through recipe steps without touching your phone.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "CraveCircle transcribes cooking-video audio on your device to turn reels into recipes.";
-				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZheHV2b3RuenVmd3hjdnNrdGtlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxODUyNjgsImV4cCI6MjA5Mjc2MTI2OH0.tPFP1jW276X6uG5fQeCsOsiK-h64YQ8S4LpDvwtaaoU";
-				INFOPLIST_KEY_SUPABASE_URL = "https://vaxuvotnzufwxcvsktke.supabase.co";
+				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjeXd2YWlmeXJrcWR2a2V6ZXdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NDY2NTYsImV4cCI6MjEwNDMyMjY1Nn0.ox2X1rv81Vjkb5yl1uWzWmESE0dTQUK1xC-PfAJLU2w";
+				INFOPLIST_KEY_SUPABASE_URL = "https://wcywvaifyrkqdvkezewm.supabase.co";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

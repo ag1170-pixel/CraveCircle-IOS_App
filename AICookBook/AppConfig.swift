@@ -18,12 +18,12 @@ struct AppConfig {
         // Relay on Mac forwards 10.9.229.142:8009 -> homelab 100.70.151.71:8009 so iPhone needs no Tailscale.
         let defaultHost = "http://10.9.229.142:8009"
         let apiBaseRaw = (customAPI != nil && !customAPI!.isEmpty) ? customAPI! : ((dict["API_BASE_URL"] as? String) ?? env["API_BASE_URL"] ?? defaultHost)
-        let supabaseURLRaw = (dict["SUPABASE_URL"] as? String) ?? env["SUPABASE_URL"] ?? "https://vaxuvotnzufwxcvsktke.supabase.co"
+        let supabaseURLRaw = (dict["SUPABASE_URL"] as? String) ?? env["SUPABASE_URL"] ?? defaultSupabaseURL
         let anonRaw = ((dict["SUPABASE_ANON_KEY"] as? String) ?? env["SUPABASE_ANON_KEY"] ?? defaultAnonKey)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         let apiURL = URL(string: apiBaseRaw) ?? URL(string: defaultHost)!
-        let supabaseURL = URL(string: supabaseURLRaw) ?? URL(string: "https://vaxuvotnzufwxcvsktke.supabase.co")!
+        let supabaseURL = URL(string: supabaseURLRaw) ?? URL(string: defaultSupabaseURL)!
         let serviceRoleDetected = jwtRole(from: anonRaw) == "service_role"
         let safeAnonKey = serviceRoleDetected ? "" : anonRaw
 
@@ -35,9 +35,11 @@ struct AppConfig {
         )
     }
 
-    // Safe fallback for local development when Info.plist mapping is missing.
-    // This is the public anon key, never the service role key.
-    private static let defaultAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZheHV2b3RuenVmd3hjdnNrdGtlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxODUyNjgsImV4cCI6MjA5Mjc2MTI2OH0.tPFP1jW276X6uG5fQeCsOsiK-h64YQ8S4LpDvwtaaoU"
+    // CraveCircle cloud Supabase project (ap-south-1). The anon key is public by design —
+    // it only grants what Row-Level Security allows — so it's safe to ship in the client.
+    // The service_role key is never placed here.
+    private static let defaultSupabaseURL = "https://wcywvaifyrkqdvkezewm.supabase.co"
+    private static let defaultAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjeXd2YWlmeXJrcWR2a2V6ZXdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NDY2NTYsImV4cCI6MjEwNDMyMjY1Nn0.ox2X1rv81Vjkb5yl1uWzWmESE0dTQUK1xC-PfAJLU2w"
 
     private static func jwtRole(from token: String) -> String? {
         let parts = token.split(separator: ".")
