@@ -94,16 +94,16 @@ struct HomeScreen: View {
                     .italic()
                     .foregroundStyle(AppTheme.textPrimary)
             }
-            // Trailing actions
+            // Leading: mail (shared inbox) top-left. Trailing: import + bell.
             HStack(spacing: AppSpacing.xs) {
-                Spacer()
-                iconButton("square.and.arrow.down") { Haptics.tap(); showingImportSheet = true }
-                iconButton("bell") { Haptics.tap(); showNotifications = true }
                 iconButton("envelope", badgeCount: unreadSharedCount) {
                     Haptics.tap()
                     lastOpenedSharedScreen = Date().timeIntervalSince1970
                     showShared = true
                 }
+                Spacer()
+                iconButton("square.and.arrow.down") { Haptics.tap(); showingImportSheet = true }
+                iconButton("bell") { Haptics.tap(); showNotifications = true }
             }
         }
         .padding(.horizontal, AppSpacing.md)
