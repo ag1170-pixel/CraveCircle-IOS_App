@@ -192,7 +192,7 @@ struct HomeScreen: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: AppSpacing.md) {
                     ForEach(environment.suggestedRecipes) { recipe in
-                        FreshCard(recipe: recipe) { environment.selectRecipe(recipe) }
+                        FreshCard(recipe: recipe) { environment.selectRecipe(recipe, in: environment.suggestedRecipes) }
                     }
                 }
                 .padding(.horizontal, AppSpacing.md)
