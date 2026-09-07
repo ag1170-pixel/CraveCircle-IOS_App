@@ -19,8 +19,19 @@ enum USDANutrition {
     private struct Macro { let kcal, carbs, protein, fat: Double }
 
     // Per-ingredient results cached across recipes so common items ("onion", "olive oil") don't
-    // re-hit the API. `nil` caches a confirmed miss so we don't retry it every time.
+    // re-hit the API. `nil` caches a confirmed miss so we don't retry it every time. Guarded by a
+    // lock because compute() runs on concurrent background tasks (an unguarded Dictionary can crash).
     private static var cache: [String: Macro?] = [:]
+    private static let cacheLock = NSLock()
+
+    private static func cached(_ q: String) -> Macro?? {
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        return cache[q]
+    }
+    private static func store(_ q: String, _ m: Macro?) {
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        cache[q] = m
+    }
 
     /// Compute authoritative per-serving nutrition, or nil if too little could be resolved.
     static func compute(for recipe: Recipe, apiKey: String) async -> RecipeNutrition? {
@@ -52,9 +63,9 @@ enum USDANutrition {
     }
 
     private static func macros(for query: String, apiKey: String) async -> Macro? {
-        if let cached = cache[query] { return cached }
+        if let hit = cached(query) { return hit }   // hit may be a cached miss (nil)
         let macro = await fetch(query, apiKey: apiKey)
-        cache[query] = macro   // caches a miss (nil) too
+        store(query, macro)
         return macro
     }
 

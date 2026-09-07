@@ -318,15 +318,18 @@ final class AppEnvironment: ObservableObject {
     func syncRecipes() async {
         // PULL — merge remote recipes in (add new, refresh existing that aren't locally dirty).
         if let remote = await supabase.fetchRecipes() {
-            var added = 0
+            // Build the merged list locally, then assign ONCE — a per-iteration mutation would fire
+            // the recipes didSet (persist) on every remote recipe.
+            var merged = recipes
+            var added = 0, changed = false
             for r in remote where !unsyncedRecipeIds.contains(r.id) {
-                if let i = recipes.firstIndex(where: { $0.id == r.id }) {
-                    recipes[i] = r
+                if let i = merged.firstIndex(where: { $0.id == r.id }) {
+                    if merged[i] != r { merged[i] = r; changed = true }
                 } else {
-                    recipes.append(r)
-                    added += 1
+                    merged.append(r); added += 1; changed = true
                 }
             }
+            if changed { recipes = merged }          // single assignment → one persist
             if added > 0 { hasMoreRecipes = true }   // new content available to scroll
         }
         // PUSH — send my own changed recipes up; clear the dirty flag only on success.

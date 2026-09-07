@@ -20,14 +20,23 @@ enum LocalStore {
 
     private static func url(_ name: String) -> URL { folder.appendingPathComponent(name) }
 
+    private static let ioQueue = DispatchQueue(label: "com.cravecircle.localstore.io", qos: .utility)
+
     static func save<T: Encodable>(_ value: T, to name: String) {
-        do {
-            let data = try JSONEncoder().encode(value)
-            try data.write(to: url(name), options: .atomic)
-        } catch {
-            #if DEBUG
-            print("[LocalStore] save \(name) failed: \(error)")
-            #endif
+        // Encode + write off the main thread so @Published didSet persistence NEVER blocks the UI.
+        // AppEnvironment is @MainActor, so without this every state change stalls the main thread on
+        // a synchronous disk write — the cause of the freeze. `value` is a value type (arrays/structs),
+        // so capturing it snapshots via copy-on-write; the serial queue keeps writes ordered.
+        let target = url(name)
+        ioQueue.async {
+            do {
+                let data = try JSONEncoder().encode(value)
+                try data.write(to: target, options: .atomic)
+            } catch {
+                #if DEBUG
+                print("[LocalStore] save \(name) failed: \(error)")
+                #endif
+            }
         }
     }
 
