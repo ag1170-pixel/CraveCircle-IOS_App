@@ -96,16 +96,29 @@ struct GroceryScreen: View {
     // MARK: List
 
     private var list: some View {
-        VStack(spacing: 0) {
-            ForEach(environment.groceryItems) { item in
-                GroceryRow(item: item) { toggle(item) }
-                if item.id != environment.groceryItems.last?.id {
-                    Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.leading, 44)
+        VStack(spacing: AppSpacing.md) {
+            ForEach(GrocerySort.grouped(environment.groceryItems), id: \.aisle) { section in
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 6) {
+                        Image(systemName: section.aisle.icon).font(.system(size: 12, weight: .semibold))
+                        Text(section.aisle.label).font(AppFont.body(12, weight: .bold)).textCase(.uppercase)
+                        Spacer()
+                        Text("\(section.items.count)").font(AppFont.body(12, weight: .semibold))
+                    }
+                    .foregroundStyle(AppTheme.textTertiary)
+                    .padding(.horizontal, AppSpacing.md).padding(.vertical, 10)
+
+                    ForEach(section.items) { item in
+                        GroceryRow(item: item) { toggle(item) }
+                        if item.id != section.items.last?.id {
+                            Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.leading, 44)
+                        }
+                    }
                 }
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
             }
         }
-        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
     }
 
     // MARK: Add row

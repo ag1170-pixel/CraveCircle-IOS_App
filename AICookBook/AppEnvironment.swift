@@ -710,13 +710,17 @@ final class AppEnvironment: ObservableObject {
         let baseServings = recipe.servings ?? 2
         let targetServings = servings ?? baseServings
 
+        // Existing core names so we don't add "olive oil" three times across recipes.
+        var seen = Set(groceryItems.map { GrocerySort.coreName($0.ingredientName) })
         for group in recipe.ingredients {
             for item in group.items {
                 let trimmed = item.trimmingCharacters(in: .whitespaces)
                 guard !trimmed.isEmpty else { continue }
+                let core = GrocerySort.coreName(trimmed)
+                if !core.isEmpty, seen.contains(core) { continue }   // de-dupe
+                if !core.isEmpty { seen.insert(core) }
                 let scaledText = IngredientScaler.scale(text: trimmed, from: baseServings, to: targetServings)
-                let newItem = GroceryItem(id: UUID().uuidString, ingredientName: scaledText, checked: false)
-                groceryItems.append(newItem)
+                groceryItems.append(GroceryItem(id: UUID().uuidString, ingredientName: scaledText, checked: false))
                 added += 1
             }
         }
