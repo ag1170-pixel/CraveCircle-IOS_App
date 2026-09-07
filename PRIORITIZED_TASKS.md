@@ -44,10 +44,10 @@ discoverable and complete.
 ## P2 — Retention & discovery (high user value)
 | # | Task | Owner | Notes |
 |---|------|-------|-------|
-| 2.1 | **Onboarding**: import first reel + pick 2–3 cuisines so the feed is personal on day one | Antigravity (flow) + Claude (seed logic) | Kills the "full of recipes I didn't add" feeling. |
+| 2.1 | ✅ **Onboarding**: welcome → pick cuisines → import first reel | Claude | Done (`de31f6b`). Cuisine picks seed the cold-start feed; reason chip reads 'Because you love Indian'. |
 | 2.2 | ✅ **Ingredient / diet / time search + filters** | Claude | Done (`f195ebe`). Ingredient-aware search + veg/non-veg/vegan, time, high-protein chips. |
 | 2.3 | ✅ **"Why you're seeing this"** reason chip on suggestions (Home + Search) | Claude | Done (`5237671`). Honest per-recipe reason from the engine; no chip when signal is thin. |
-| 2.4 | **Cook-nudge habit loop**: "You saved this 3 days ago — cook it tonight?" local notification | Claude | Uses existing telemetry + `UNUserNotificationCenter`. |
+| 2.4 | ✅ **Cook-nudge habit loop** + foreground notification presentation | Claude | Done (`611dc84`). Save → 2-day reminder; cancelled on cook/unsave. |
 
 ## P3 — Hardening & production-readiness
 | # | Task | Owner | Notes |
