@@ -32,14 +32,12 @@ the recipient's app pulls it (RLS-scoped) → it appears in their inbox with a n
 | B | Deliver on share (`recordShare` → cloud) + pull (`syncShares`) into `sharedLog` | Claude | ✅ Done (`cab7c92`) |
 | C | **Entry point:** Profile → **"Shared with you"** row → `SharedScreen` (Received / Sent tabs) | Claude | ✅ Done — SharedScreen had NO entry point before; now reachable |
 | D | Notification on a newly received share ("Recipe shared with you") → also in Circle activity | Claude | ✅ Done |
-| E | **Badge/count** on the Profile row + a bell badge when unseen shares exist | Antigravity (UI) + Claude (unseen count) | ⏳ TODO — makes new shares noticeable |
+| E | **Badge/count** on the Profile row + a bell badge when unseen shares exist | Antigravity (UI) + Claude (unseen count) | ✅ Done — `unreadSharedCount` implemented via `lastOpenedSharedScreen` timestamp |
 | F | Received row for a recipe I don't have locally (esp. followers-only) — store title/thumb on the share or fetch-on-tap so it still renders + offers follow-to-unlock | Claude | ⏳ TODO — today a share only renders if the recipe is already in my library |
-| G | Surface the inbox from a second place (a tray icon in Home top bar, or a tab) so it's discoverable, not only in Profile | Antigravity (UI) | ⏳ TODO |
+| G | Surface the inbox from a second place (a tray icon in Home top bar, or a tab) so it's discoverable, not only in Profile | Antigravity (UI) | ✅ Done — Envelope icon added to `HomeScreen` top bar |
 | H | Real friend graph: friends must be real Supabase users for delivery (today `FriendItem` ids are local UUIDs; resolves by @handle, best-effort) | Claude | ⏳ TODO — depends on real auth + a users directory |
 
-**Where the user sees it (today):** Profile → "Shared with you" → **Received** tab. Plus a
-"Recipe shared with you" entry in Circle activity/notifications. Items E–H make it more
-discoverable and complete.
+**Where the user sees it (today):** Profile → "Shared with you" → **Received** tab, OR the Mail icon in the Home screen top bar. Plus a "Recipe shared with you" entry in Circle activity/notifications.
 
 ## P2 — Retention & discovery (high user value)
 | # | Task | Owner | Notes |
@@ -65,3 +63,6 @@ discoverable and complete.
 - ✅ On-device dwell-weighted recommender (Home + Search "Suggested for You")
 - ✅ Library/Search/Home swipe scoped to the on-screen list
 - ✅ Photo buffering fix, Clear cache, dead-code removal, image optimization
+
+- ✅ Zoom-style Safari Redirect hosted on homelab for deep-link URL sharing
+- ✅ Guest Mode Architecture: Unique temporary IDs, Profile Zeroing, 10-recipe Paywall limits, and Account data migration on login
