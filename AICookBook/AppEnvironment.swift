@@ -27,25 +27,31 @@ final class AppEnvironment: ObservableObject {
 
     // Social & Follows
     @Published private(set) var followedCreators: Set<String> = [] { didSet { persist(Array(followedCreators), "followed_creators.json") } }
-    @Published private(set) var savedRecipeIds: Set<String> = ["recipe-spicy-paneer-wrap", "recipe-butter-chicken"]
+    @Published private(set) var savedRecipeIds: Set<String> = []
     
     // Friends & Circle
-    @Published private(set) var circleFriends: [FriendItem] = FriendItem.samples
-    @Published private(set) var incomingRequests: [FriendRequestItem] = FriendRequestItem.incomingSamples
-    @Published private(set) var outgoingRequests: [FriendRequestItem] = FriendRequestItem.outgoingSamples
+    @Published private(set) var circleFriends: [FriendItem] = []
     
-    // Collections
-    @Published private(set) var ownedCollections: [CollectionItem] = CollectionItem.ownedSamples { didSet { persist(ownedCollections, "owned_collections.json") } }
-    @Published private(set) var sharedCollections: [CollectionItem] = CollectionItem.sharedSamples { didSet { persist(sharedCollections, "shared_collections.json") } }
+    // MARK: - Circle / Requests
+    
+    @Published private(set) var incomingRequests: [FriendRequestItem] = []
+    @Published private(set) var outgoingRequests: [FriendRequestItem] = []
+
+    // MARK: - Collections
+    
+    @Published private(set) var ownedCollections: [CollectionItem] = [] { didSet { persist(ownedCollections, "owned_collections.json") } }
+    @Published private(set) var sharedCollections: [CollectionItem] = [] { didSet { persist(sharedCollections, "shared_collections.json") } }
+    
+    // MARK: - Notifications
+    
+    @Published private(set) var circleNotifications: [CircleNotificationItem] = []
 
     // Studio Drafts & Published
-    @Published private(set) var studioDraftIds: Set<String> = ["recipe-hot-honey-chicken", "recipe-spicy-paneer-wrap"] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
+    @Published private(set) var studioDraftIds: Set<String> = [] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
     
-    // Notifications & Activity
-    @Published private(set) var circleNotifications: [CircleNotificationItem] = CircleNotificationItem.samples
 
     // Recipe Comments
-    @Published private(set) var recipeComments: [String: [RecipeComment]] = RecipeComment.defaultSamples
+    @Published private(set) var recipeComments: [String: [RecipeComment]] = [:]
 
     let config: AppConfig
     private let tokenStore: TokenStore
@@ -76,20 +82,10 @@ final class AppEnvironment: ObservableObject {
     /// Load the persisted library (recipes/collections/grocery/flags) from disk, merging any new
     /// bundled sample recipes by id so content updates still appear. Runs once, before autosave arms.
     private func hydrateLocal() {
-        let saved = LocalStore.load([Recipe].self, from: "recipes.json") ?? []
-        var merged = saved
-        for (i, r) in merged.enumerated() {
-            if let fresh = Recipe.placeholderRecipes.first(where: { $0.id == r.id }) {
-                merged[i] = fresh
-            }
-        }
-        let savedIds = Set(merged.map(\.id))
-        for sample in Recipe.placeholderRecipes where !savedIds.contains(sample.id) { merged.append(sample) }
-        recipes = merged
-
-        ownedCollections = LocalStore.load([CollectionItem].self, from: "owned_collections.json") ?? CollectionItem.ownedSamples
-        sharedCollections = LocalStore.load([CollectionItem].self, from: "shared_collections.json") ?? CollectionItem.sharedSamples
-        groceryItems = LocalStore.load([GroceryItem].self, from: "grocery.json") ?? GroceryItem.demo
+        recipes = LocalStore.load([Recipe].self, from: "recipes.json") ?? []
+        ownedCollections = LocalStore.load([CollectionItem].self, from: "owned_collections.json") ?? []
+        sharedCollections = LocalStore.load([CollectionItem].self, from: "shared_collections.json") ?? []
+        groceryItems = LocalStore.load([GroceryItem].self, from: "grocery.json") ?? []
         if let drafts = LocalStore.load([String].self, from: "studio_drafts.json") { studioDraftIds = Set(drafts) }
         if let follows = LocalStore.load([String].self, from: "followed_creators.json") { followedCreators = Set(follows) }
         sharedLog = LocalStore.load([SharedRecipeRecord].self, from: "shared_log.json") ?? []
@@ -181,12 +177,9 @@ final class AppEnvironment: ObservableObject {
         do {
             let fetched = try await apiClient.fetchRecipes(limit: 20, offset: 0)
             if !fetched.isEmpty { recipes = fetched }
-            else if recipes.isEmpty { recipes = Recipe.placeholderRecipes }
         } catch {
             // The homelab feed is OPTIONAL (unreachable off-Tailscale / on cellular). Keep the local
-            // library; seed samples only if we have nothing. Cloud recipes layer on via syncRecipes.
-            // No modal error — this is an expected, recoverable miss, not something the user must act on.
-            if recipes.isEmpty { recipes = Recipe.placeholderRecipes }
+            // library. No modal error — this is an expected, recoverable miss.
         }
         // Layer newly published cloud recipes on top + push any local edits.
         await syncRecipes()
