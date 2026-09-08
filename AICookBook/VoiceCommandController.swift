@@ -78,12 +78,11 @@ final class VoiceCommandController: NSObject, ObservableObject {
     }
 
     private func checkMicAndBegin() {
-        let session = AVAudioSession.sharedInstance()
-        let perm = session.recordPermission
+        let perm = AVAudioApplication.shared.recordPermission
         print("[VoiceCommand] Mic recordPermission: \(perm.rawValue)")
         switch perm {
         case .undetermined:
-            session.requestRecordPermission { [weak self] granted in
+            AVAudioApplication.requestRecordPermission { [weak self] granted in
                 DispatchQueue.main.async {
                     print("[VoiceCommand] Mic requestRecordPermission granted: \(granted)")
                     if granted {
@@ -126,7 +125,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playAndRecord, mode: .voiceChat,
-                                    options: [.duckOthers, .defaultToSpeaker, .allowBluetooth])
+                                    options: [.duckOthers, .defaultToSpeaker, .allowBluetoothA2DP])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             publish {

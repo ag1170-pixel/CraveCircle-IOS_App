@@ -16,7 +16,6 @@ struct SafariView: UIViewControllerRepresentable {
         config.entersReaderIfAvailable = false
         config.barCollapsingEnabled = true
         let vc = SFSafariViewController(url: url, configuration: config)
-        vc.preferredControlTintColor = UIColor(AppTheme.accent)
         return vc
     }
 

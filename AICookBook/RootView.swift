@@ -762,9 +762,8 @@ struct RecipeDetailView: View {
                 // Square image, edge‑to‑edge, with overlays
                 Image("chickenRecipe")
                     .resizable()
-                    .scaledToFill()
-                    .frame(width: UIScreen.main.bounds.width)   // full screen width
-                    .frame(height: UIScreen.main.bounds.width)  // square height
+                    .aspectRatio(1, contentMode: .fill)
+                    .frame(maxWidth: .infinity)
                     .clipped()
                     .overlay(alignment: .topLeading) {
                         Button {
@@ -863,7 +862,7 @@ struct RecipeDetailView: View {
                             .foregroundStyle(AppTheme.textPrimary)
                         }
                         .transition(.opacity)
-                        .onChange(of: Int(servingsMultiplier)) { newVal in
+                        .onChange(of: Int(servingsMultiplier)) { _, newVal in
                             let step = newVal / 3
                             if step != lastHapticStep {
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -963,7 +962,7 @@ struct RecipeDetailView: View {
                     formatted = String(format: "%.1f", scaled)
                 }
                 let rest = String(item[restRange])
-                return Text(formatted).fontWeight(.semibold) + Text(" ") + Text(rest)
+                return Text("\(Text(formatted).fontWeight(.semibold)) \(rest)")
             }
         }
         return Text(item)

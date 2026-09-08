@@ -735,8 +735,7 @@ final class AppEnvironment: ObservableObject {
     /// Remind the user, a couple of days after they save a recipe, to actually cook it — the habit
     /// loop the app was missing. One reminder per saved recipe; cancelled if they cook it or unsave.
     private func scheduleCookNudge(recipeId: String, title: String) {
-        let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
             guard granted else { return }
             let content = UNMutableNotificationContent()
             content.title = "Still craving this?"
@@ -744,7 +743,7 @@ final class AppEnvironment: ObservableObject {
             content.sound = .default
             content.userInfo = ["recipeId": recipeId]
             let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2 * 24 * 60 * 60, repeats: false)
-            center.add(UNNotificationRequest(identifier: "cook-nudge-\(recipeId)", content: content, trigger: trigger))
+            UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "cook-nudge-\(recipeId)", content: content, trigger: trigger))
         }
     }
 

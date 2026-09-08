@@ -440,7 +440,7 @@ struct LeadingEdgeBackModifier: ViewModifier {
                                 if pop {
                                     Haptics.tap()
                                     withAnimation(.easeOut(duration: 0.18)) {
-                                        offset = UIScreen.main.bounds.width
+                                        offset = 1000 // Push offscreen
                                     }
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                                         onBack()

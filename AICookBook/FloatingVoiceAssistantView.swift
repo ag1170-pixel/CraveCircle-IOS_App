@@ -96,7 +96,7 @@ struct FloatingVoiceAssistantView: View {
         .onDisappear {
             winkTimer?.invalidate()
         }
-        .onChange(of: voice.wakeActive) { active in
+        .onChange(of: voice.wakeActive) { _, active in
             if active {
                 // Happy wink when wake word is recognized!
                 triggerWink(duration: 0.8)
