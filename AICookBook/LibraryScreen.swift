@@ -36,8 +36,8 @@ struct LibraryScreen: View {
                 LimeSegmentedControl(
                     segments: [
                         "All \(environment.recipes.count)",
-                        "Liked \(environment.likedRecipeIds.count)",
-                        "Saved \(environment.savedRecipeIds.count)",
+                        "Liked \(environment.likedRecipes.count)",
+                        "Saved \(environment.recipes.filter { environment.isSaved(recipeId: $0.id) }.count)",
                         "Created \(environment.ownedRecipes.count)"
                     ],
                     selection: $filter
