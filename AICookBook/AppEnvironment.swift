@@ -178,9 +178,11 @@ final class AppEnvironment: ObservableObject {
         do {
             let fetched = try await apiClient.fetchRecipes(limit: 20, offset: 0)
             if !fetched.isEmpty { recipes = fetched }
+            else if recipes.isEmpty { recipes = Recipe.placeholderRecipes }
         } catch {
             // The homelab feed is OPTIONAL (unreachable off-Tailscale / on cellular). Keep the local
-            // library. No modal error — this is an expected, recoverable miss.
+            // library. If empty, seed samples so the global feed isn't a ghost town.
+            if recipes.isEmpty { recipes = Recipe.placeholderRecipes }
         }
         // Layer newly published cloud recipes on top + push any local edits.
         await syncRecipes()
@@ -532,6 +534,11 @@ final class AppEnvironment: ObservableObject {
     // MARK: - Owner-aware recipe collections (single source of truth for "your" recipes)
     /// Recipes the signed-in user created or imported.
     var ownedRecipes: [Recipe] { recipes.filter { isOwner(of: $0) } }
+    
+    /// Recipes in the user's personal library (owned + saved + liked).
+    var myLibraryRecipes: [Recipe] {
+        recipes.filter { isOwner(of: $0) || isSaved(recipeId: $0.id) || likedRecipeIds.contains($0.id) }
+    }
     /// The user's own recipes still in Studio draft.
     var myDrafts: [Recipe] { ownedRecipes.filter { isDraft(recipeId: $0.id) } }
     /// The user's own recipes that are published.

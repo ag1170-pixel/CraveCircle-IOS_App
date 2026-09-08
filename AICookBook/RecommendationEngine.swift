@@ -82,9 +82,10 @@ enum RecommendationEngine {
         }
 
         let ranked = scored.sorted { $0.1 > $1.1 }
-        // If nothing matched the profile at all, don't return an arbitrary order — sample instead.
+        // If nothing matched the profile at all (i.e. zero interaction and no preferences),
+        // return empty instead of a random sample, hiding the section until they build history.
         if ranked.first?.1 ?? 0 <= 0 {
-            return Array(candidates.shuffled().prefix(limit))
+            return []
         }
         return ranked.prefix(limit).map { $0.0 }
     }
