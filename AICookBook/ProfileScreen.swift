@@ -369,7 +369,21 @@ struct AccountSheet: View {
                 }
                 .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+                
                 Spacer()
+                
+                NavigationLink {
+                    DeleteAccountScreen()
+                } label: {
+                    Text("Delete Account")
+                        .font(AppFont.body(15, weight: .bold))
+                        .foregroundStyle(AppTheme.destructive)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(AppTheme.surface, in: Capsule())
+                        .overlay(Capsule().stroke(AppTheme.destructive.opacity(0.3), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
             }
             .padding(AppSpacing.lg)
             .background(AppTheme.background.ignoresSafeArea())
@@ -692,3 +706,114 @@ struct IdentifiableURL: Identifiable {
     let url: URL
 }
 
+
+// MARK: - Delete Account Flow
+
+struct DeleteAccountScreen: View {
+    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(\.dismiss) private var dismiss
+    @State private var step = 0 // 0: choice, 1: reason
+    @State private var feedbackText = ""
+    @State private var isDeleting = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.lg) {
+            if step == 0 {
+                Text("Delete Account")
+                    .font(AppFont.display(24, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                
+                Text("Do you want to deactivate your account temporarily, or delete it permanently?")
+                    .font(AppFont.body(16))
+                    .foregroundStyle(AppTheme.textSecondary)
+                
+                VStack(spacing: AppSpacing.md) {
+                    Button {
+                        Haptics.success()
+                        environment.signOut()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Deactivate Temporarily")
+                                .font(AppFont.body(16, weight: .bold))
+                                .foregroundStyle(AppTheme.textPrimary)
+                            Text("Your account will be hidden, but you can recover it anytime by logging back in.")
+                                .font(AppFont.body(14))
+                                .foregroundStyle(AppTheme.textSecondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card))
+                        .overlay(RoundedRectangle(cornerRadius: AppRadius.card).stroke(AppTheme.hairline, lineWidth: 1))
+                    }
+                    .buttonStyle(PressableStyle())
+                    
+                    Button {
+                        Haptics.tap()
+                        withAnimation { step = 1 }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Delete Permanently")
+                                .font(AppFont.body(16, weight: .bold))
+                                .foregroundStyle(AppTheme.destructive)
+                            Text("All your recipes, friends, and data will be permanently erased.")
+                                .font(AppFont.body(14))
+                                .foregroundStyle(AppTheme.textSecondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card))
+                        .overlay(RoundedRectangle(cornerRadius: AppRadius.card).stroke(AppTheme.destructive.opacity(0.3), lineWidth: 1))
+                    }
+                    .buttonStyle(PressableStyle())
+                }
+            } else {
+                Text("Why are you leaving?")
+                    .font(AppFont.display(24, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                
+                Text("We're sorry to see you go. Please let us know what issues you faced so we can learn and improve.")
+                    .font(AppFont.body(16))
+                    .foregroundStyle(AppTheme.textSecondary)
+                
+                TextEditor(text: $feedbackText)
+                    .font(AppFont.body(16))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .padding(8)
+                    .frame(height: 120)
+                    .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.sm))
+                    .overlay(RoundedRectangle(cornerRadius: AppRadius.sm).stroke(AppTheme.hairline, lineWidth: 1))
+                
+                Spacer()
+                
+                Button {
+                    Task {
+                        isDeleting = true
+                        Haptics.success()
+                        // Simulate sending feedback and deleting data
+                        try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        environment.signOut()
+                    }
+                } label: {
+                    HStack {
+                        if isDeleting { ProgressView().tint(.white) }
+                        Text("Confirm Deletion")
+                    }
+                    .font(AppFont.body(16, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(AppTheme.destructive, in: Capsule())
+                    .opacity(isDeleting ? 0.6 : 1.0)
+                }
+                .buttonStyle(PressableStyle())
+                .disabled(isDeleting)
+            }
+            Spacer()
+        }
+        .padding(AppSpacing.lg)
+        .background(AppTheme.background.ignoresSafeArea())
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
