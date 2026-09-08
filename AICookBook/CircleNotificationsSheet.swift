@@ -22,10 +22,14 @@ struct CircleNotificationsSheet: View {
                             ForEach(Array(environment.circleNotifications.enumerated()), id: \.element.id) { index, item in
                                 Button {
                                     Haptics.tap()
-                                    if let recipeId = item.recipeId,
-                                       let recipe = environment.recipes.first(where: { $0.id == recipeId }) {
+                                    environment.markNotificationRead(item.id)   // every tap responds
+                                    if let recipeId = item.recipeId, !recipeId.isEmpty {
                                         dismiss()
-                                        environment.selectRecipe(recipe)
+                                        if let recipe = environment.recipes.first(where: { $0.id == recipeId }) {
+                                            environment.selectRecipe(recipe)
+                                        } else {
+                                            environment.openRecipe(id: recipeId)   // fetch from cloud if not local
+                                        }
                                     }
                                 } label: {
                                     HStack(spacing: AppSpacing.sm) {

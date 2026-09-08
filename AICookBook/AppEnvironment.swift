@@ -425,6 +425,13 @@ final class AppEnvironment: ObservableObject {
         return ok
     }
 
+    /// Mark a Circle notification read (clears its unread dot) — gives every tap visible feedback.
+    func markNotificationRead(_ id: UUID) {
+        if let i = circleNotifications.firstIndex(where: { $0.id == id }), !circleNotifications[i].isRead {
+            circleNotifications[i].isRead = true
+        }
+    }
+
     /// Pull shares involving me (RLS-scoped) into the log and notify for anything newly received,
     /// so a reel someone shared with me surfaces in the "Shared with you" inbox + Circle activity.
     func syncShares() async {
