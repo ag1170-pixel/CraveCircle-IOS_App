@@ -30,6 +30,7 @@ struct ProfileScreen: View {
     @State private var showFeedbackForm = false
     @State private var showShared = false
     @State private var cacheCleared = false
+    @State private var showContactOptions = false
     @State private var activeSafariURL: IdentifiableURL? = nil
 
     private var language: AppLanguage {
@@ -236,6 +237,15 @@ struct ProfileScreen: View {
                 }
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
                 SettingRow(
+                    icon: "envelope.fill",
+                    title: "Contact Developer",
+                    detail: "Aditya",
+                    tint: .pink
+                ) {
+                    showContactOptions = true
+                }
+                Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                SettingRow(
                     icon: "questionmark.circle.fill",
                     title: "Help & Support",
                     tint: .teal
@@ -292,6 +302,26 @@ struct ProfileScreen: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.background)
+        }
+        .confirmationDialog("Contact Developer", isPresented: $showContactOptions, titleVisibility: .visible) {
+            Button("Email: adityagupta2646@gmail.com") {
+                if let url = URL(string: "mailto:adityagupta2646@gmail.com") {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("Call: 8218836531") {
+                if let url = URL(string: "tel://8218836531") {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("Message: 8218836531") {
+                if let url = URL(string: "sms://8218836531") {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("How would you like to get in touch with Aditya?")
         }
     }
 }
