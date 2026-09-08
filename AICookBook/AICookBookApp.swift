@@ -38,9 +38,15 @@ struct AICookBookApp: App {
                 .environmentObject(environment)
                 // Dark-first design, full light + dark parity — follow the system appearance.
                 .onOpenURL { url in
-                    guard url.scheme == "cravecircle" else { return }
-                    // cravecircle://recipe/<id> opens a shared recipe in-app; anything else is an import.
-                    if url.host == "recipe" {
+                    // Support both the legacy cravecircle:// custom scheme and standard https Universal Links.
+                    let isCustomScheme = url.scheme == "cravecircle"
+                    let isUniversalLink = (url.scheme == "https" || url.scheme == "http") && url.host == "cravecircle.cc"
+                    guard isCustomScheme || isUniversalLink else { return }
+                    
+                    let pathComponents = url.pathComponents.filter { $0 != "/" }
+                    
+                    // Format: cravecircle://recipe/<id> OR https://cravecircle.cc/recipe/<id>
+                    if (isCustomScheme && url.host == "recipe") || (isUniversalLink && pathComponents.first == "recipe") {
                         let id = url.lastPathComponent
                         if !id.isEmpty, id != "/" { environment.openRecipe(id: id) }
                     } else {

@@ -906,7 +906,7 @@ struct RecipeDetailView: View {
         Directions:
         \(recipe.directions.map { "\($0.stepIndex). \($0.text)" }.joined(separator: "\n"))
 
-        Open in CraveCircle: cravecircle://recipe/\(recipe.id)
+        Open in CraveCircle: https://cravecircle.cc/recipe/\(recipe.id)
         """
     }
     
