@@ -69,28 +69,25 @@ enum AppTab: CaseIterable, Hashable {
 
 struct CraveTabBar: View {
     @Binding var selected: AppTab
-    @Namespace private var ns
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: 4) {
+        // Full-width bar flush to the bottom (Instagram-style): five evenly-spaced icons, a thin
+        // top divider, and a material background that extends under the home indicator.
+        HStack(spacing: 0) {
             ForEach(AppTab.allCases, id: \.self) { tab in
                 tabButton(tab)
             }
         }
-        .padding(6)
-        .background {
-            Capsule(style: .continuous)
-                .fill(.regularMaterial)                     // adaptive translucent glass, content scrolls under
-                .overlay(                                   // bright top edge = light catching the material
-                    Capsule(style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.04)],
-                                           startPoint: .top, endPoint: .bottom),
-                            lineWidth: 0.75)
-                )
-                .shadow(color: .black.opacity(0.16), radius: 20, y: 10)   // big surface → deeper shadow
-                .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 8)
+        .background(alignment: .top) {
+            Rectangle()
+                .fill(.regularMaterial)
+                .overlay(alignment: .top) {
+                    Rectangle().fill(AppTheme.separator).frame(height: 0.5)
+                }
+                .ignoresSafeArea(edges: .bottom)
         }
     }
 
@@ -100,35 +97,18 @@ struct CraveTabBar: View {
         Button {
             guard !isSelected else { return }
             Haptics.select()
-            withAnimation(reduceMotion
-                          ? .easeOut(duration: 0.2)
-                          : .spring(response: 0.4, dampingFraction: 0.82)) {   // critically-damped reposition
+            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.35, dampingFraction: 0.8)) {
                 selected = tab
             }
         } label: {
-            HStack(spacing: 7) {
-                Image(systemName: tab.icon)
-                    .font(.system(size: 17, weight: .semibold))
-                    .symbolVariant(isSelected ? .fill : .none)
-                    .symbolEffect(.bounce, value: isSelected)      // a little delight on select
-                if isSelected {
-                    Text(tab.title)
-                        .font(AppFont.body(14, weight: .semibold))
-                        .fixedSize()
-                        .transition(.opacity.combined(with: .move(edge: .trailing)))
-                }
-            }
-            .foregroundStyle(isSelected ? AppTheme.accentInk : AppTheme.textSecondary)
-            .padding(.horizontal, isSelected ? 15 : 12)
-            .frame(height: 44)
-            .background {
-                if isSelected {
-                    Capsule(style: .continuous)
-                        .fill(AppTheme.accentSoft)
-                        .matchedGeometryEffect(id: "tabpill", in: ns)
-                }
-            }
-            .contentShape(Capsule())
+            Image(systemName: tab.icon)
+                .font(.system(size: 23, weight: .regular))
+                .symbolVariant(isSelected ? .fill : .none)
+                .symbolEffect(.bounce, value: isSelected)      // a little delight on select
+                .foregroundStyle(isSelected ? AppTheme.textPrimary : AppTheme.textSecondary)
+                .frame(maxWidth: .infinity)                     // even spread across the full width
+                .frame(height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(TabPressStyle())
         .accessibilityLabel(tab.title)

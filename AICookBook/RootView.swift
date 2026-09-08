@@ -254,7 +254,6 @@ struct MainTabView: View {
             AppTheme.background.ignoresSafeArea()
             pager
             CraveTabBar(selected: $tab)
-                .padding(.bottom, 6)
         }
         .overlay(alignment: .top) {
             ImportToastBanner(onOpenDetails: { showingProgressDetail = true })
