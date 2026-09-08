@@ -29,7 +29,6 @@ struct ProfileScreen: View {
     @State private var showAccountSheet = false
     @State private var showFeedbackForm = false
     @State private var showShared = false
-    @State private var showAdminRequests = false
     @State private var cacheCleared = false
     @State private var activeSafariURL: IdentifiableURL? = nil
 
@@ -66,9 +65,6 @@ struct ProfileScreen: View {
         }
         .sheet(isPresented: $showShared) {
             SharedScreen()
-        }
-        .sheet(isPresented: $showAdminRequests) {
-            NavigationStack { AdminRequestsScreen() }
         }
         .sheet(isPresented: $showNotifications) {
             CircleNotificationsSheet()
@@ -171,9 +167,29 @@ struct ProfileScreen: View {
                 SettingRow(icon: "waveform", title: "On-device transcription", detail: "Beta", tint: AppTheme.accent) { showTranscribeTest = true }
                 if environment.isAdmin {
                     Divider().overlay(AppTheme.separator).padding(.leading, 56)
-                    SettingRow(icon: "checkmark.shield.fill", title: "Creator Requests", detail: nil, tint: .green) {
-                        showAdminRequests = true
+                    // NavigationLink push → native back button + left-edge swipe-back.
+                    NavigationLink {
+                        AdminRequestsScreen()
+                    } label: {
+                        HStack(spacing: AppSpacing.sm) {
+                            Image(systemName: "checkmark.shield.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 30, height: 30)
+                                .background(Color.green, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            Text("Creator Requests")
+                                .font(AppFont.body(16, weight: .medium))
+                                .foregroundStyle(AppTheme.textPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(AppTheme.textTertiary)
+                        }
+                        .padding(.horizontal, AppSpacing.md)
+                        .padding(.vertical, 13)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
