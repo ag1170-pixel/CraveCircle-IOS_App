@@ -445,13 +445,16 @@ final class AppEnvironment: ObservableObject {
         currentUser = user
     }
 
-    // MARK: - Creator enrollment (request → admin approval)
+// MARK: - Creator enrollment (request → admin approval)
 
     /// nil = never requested; else "pending" / "approved" / "rejected".
     @Published private(set) var myCreatorRequestStatus: String?
     /// The admin approval queue.
     @Published private(set) var pendingCreatorRequests: [CreatorRequest] = []
 
+    // MARK: - Auth / Role State
+
+    var isGuest: Bool { tokenStore.readAccessToken() == nil }
     var isAdmin: Bool { currentUser?.role == .admin }
     var hasPendingCreatorRequest: Bool { myCreatorRequestStatus == "pending" }
     /// True when a real Supabase session exists (so the request flow can run); false under the
@@ -493,8 +496,17 @@ final class AppEnvironment: ObservableObject {
     }
 
     func continueAsGuest() {
-        currentUser = nil // Guest has no profile
-        appState = .signedIn // Or a specific guest state, but signedIn with nil user handles most things
+        let defaults = UserDefaults.standard
+        let guestId: String
+        if let existing = defaults.string(forKey: "guest_id") {
+            guestId = existing
+        } else {
+            guestId = "guest\(Int.random(in: 1000...9999))"
+            defaults.set(guestId, forKey: "guest_id")
+        }
+        
+        currentUser = UserProfile(id: guestId, username: "@\(guestId)", fullName: "Guest User", avatarUrl: nil, role: .user)
+        appState = .signedIn
     }
 
     func deleteOwnedRecipe(id: String) {
@@ -706,7 +718,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     // MARK: - Liked / Heart Actions
-    @Published private(set) var likedRecipeIds: Set<String> = ["recipe_butter_chicken", "recipe_hot_honey_chicken"]
+    @Published private(set) var likedRecipeIds: Set<String> = []
 
     var likedRecipes: [Recipe] {
         recipes.filter { likedRecipeIds.contains($0.id) }
