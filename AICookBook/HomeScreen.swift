@@ -327,20 +327,54 @@ struct CreatorChip: View {
 
 // MARK: - Fresh card (horizontal)
 
-/// Heart/like button overlaid on a recipe card's photo (bottom-right) so you can like from the
-/// grid without opening the recipe. A real Button so it receives its own taps; the card body uses
-/// an onTapGesture, so tapping the heart likes and tapping elsewhere opens the recipe.
-struct RecipeLikeButton: View {
+/// Full-cover overlay for a recipe card: a like heart pinned bottom-right (like straight from the
+/// grid) PLUS the same Instagram heart-burst the recipe page shows — a big heart that pops and
+/// floats up, centred over the card photo, when you like. Applied as `.overlay { … }` on the cover.
+struct CardLikeOverlay: View {
     let recipeId: String
     @EnvironmentObject private var environment: AppEnvironment
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var showBurst = false
+    @State private var burstScale: CGFloat = 0.2
+    @State private var burstOpacity: Double = 0
+    @State private var burstY: CGFloat = 0
 
     var body: some View {
+        ZStack {
+            if showBurst {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 54, weight: .bold))
+                    .foregroundStyle(
+                        LinearGradient(colors: [Color(hex: "FF2D55"), Color(hex: "FF375F"), Color(hex: "FF7A00")],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
+                    .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+                    .scaleEffect(burstScale)
+                    .opacity(burstOpacity)
+                    .offset(y: burstY)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    heartButton
+                }
+            }
+        }
+    }
+
+    private var heartButton: some View {
         let liked = environment.isLiked(recipeId: recipeId)
-        Button {
+        return Button {
+            let wasLiked = liked
             Haptics.select()
             withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) {
                 environment.toggleLikeRecipe(id: recipeId)
             }
+            if !wasLiked { triggerBurst() }   // burst only when liking (matches the recipe page)
         } label: {
             Image(systemName: liked ? "heart.fill" : "heart")
                 .font(.system(size: 14, weight: .semibold))
@@ -353,6 +387,16 @@ struct RecipeLikeButton: View {
         .buttonStyle(.plain)
         .padding(8)
         .accessibilityLabel(liked ? "Unlike recipe" : "Like recipe")
+    }
+
+    private func triggerBurst() {
+        guard !reduceMotion else { return }
+        showBurst = true; burstScale = 0.2; burstOpacity = 0.95; burstY = 0
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) { burstScale = 1.15 }
+        withAnimation(.easeInOut(duration: 0.45).delay(0.3)) {
+            burstScale = 1.3; burstOpacity = 0; burstY = -22
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { showBurst = false }
     }
 }
 
@@ -376,7 +420,7 @@ struct FreshCard: View {
                             .padding(8)
                     }
                 }
-                .overlay(alignment: .bottomTrailing) { RecipeLikeButton(recipeId: recipe.id) }
+                .overlay { CardLikeOverlay(recipeId: recipe.id) }
             Text(recipe.title)
                 .font(AppFont.body(15, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
@@ -441,7 +485,7 @@ struct LibraryCard: View {
                             .padding(8)
                     }
                 }
-                .overlay(alignment: .bottomTrailing) { RecipeLikeButton(recipeId: recipe.id) }
+                .overlay { CardLikeOverlay(recipeId: recipe.id) }
             Text(recipe.title)
                 .font(AppFont.body(16, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
