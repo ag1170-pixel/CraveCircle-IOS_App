@@ -18,8 +18,8 @@ struct AppConfig {
         let env = ProcessInfo.processInfo.environment
 
         let customAPI = UserDefaults.standard.string(forKey: "custom_api_url")?.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Relay on Mac forwards 10.9.229.142:8009 -> homelab 100.70.151.71:8009 so iPhone needs no Tailscale.
-        let defaultHost = "http://10.9.229.142:8009"
+        // Public Cloudflare tunnel to go-api backend so users don't need Tailscale.
+        let defaultHost = "https://api.cravecircle.cc"
         let apiBaseRaw = (customAPI != nil && !customAPI!.isEmpty) ? customAPI! : ((dict["API_BASE_URL"] as? String) ?? env["API_BASE_URL"] ?? defaultHost)
         let supabaseURLRaw = (dict["SUPABASE_URL"] as? String) ?? env["SUPABASE_URL"] ?? defaultSupabaseURL
         let anonRaw = ((dict["SUPABASE_ANON_KEY"] as? String) ?? env["SUPABASE_ANON_KEY"] ?? defaultAnonKey)
