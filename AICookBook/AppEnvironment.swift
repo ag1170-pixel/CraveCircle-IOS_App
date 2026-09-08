@@ -124,6 +124,14 @@ final class AppEnvironment: ObservableObject {
             return
         }
 
+        // Prefer the real Supabase profile (id = auth uid, correct role) so admin/creator persists
+        // across launches; fall back to the homelab profile, then a generic user.
+        if let profile = await supabase.fetchMyProfile() {
+            currentUser = profile
+            appState = .signedIn
+            await refreshRecipes()
+            return
+        }
         do {
             currentUser = try await apiClient.fetchProfile()
             appState = .signedIn
@@ -153,6 +161,7 @@ final class AppEnvironment: ObservableObject {
             }
             resetPersonalizationIfUserChanged()
             appState = .signedIn
+            if !hydrated { hydrateLocal() }   // restore library + re-enable persistence after a prior sign-out
             await refreshRecipes()
         } catch {
             appState = .signedOut
