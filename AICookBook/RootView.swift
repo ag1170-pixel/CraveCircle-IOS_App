@@ -303,14 +303,6 @@ struct MainTabView: View {
             RecipeDetailPager(start: recipe)
                 .environmentObject(environment)
         }
-        .sheet(isPresented: $environment.showGuestLoginWall) {
-            GuestWallView(
-                title: "Login Required",
-                message: "You've viewed 10 recipes! Please log in or sign up to continue full access."
-            )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
         .task {
             if environment.recipes.isEmpty {
                 await environment.refreshRecipes()

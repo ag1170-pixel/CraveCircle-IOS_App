@@ -335,6 +335,7 @@ struct ProfileScreen: View {
 struct AccountSheet: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss
+    @State private var showDeleteAccount = false
 
     var body: some View {
         NavigationStack {
@@ -454,6 +455,7 @@ struct SettingRow: View {
 struct LanguagePickerSheet: View {
     @Binding var selection: String
     @Environment(\.dismiss) private var dismiss
+    @State private var showDeleteAccount = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -516,6 +518,7 @@ struct LanguagePickerSheet: View {
 struct KitchenServerSheet: View {
     @Binding var serverUrl: String
     @Environment(\.dismiss) private var dismiss
+    @State private var showDeleteAccount = false
     @State private var inputUrl: String = ""
     @State private var pingStatus: String? = nil
     @State private var isChecking: Bool = false
@@ -712,6 +715,7 @@ struct IdentifiableURL: Identifiable {
 struct DeleteAccountScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss
+    @State private var showDeleteAccount = false
     @State private var step = 0 // 0: choice, 1: reason
     @State private var feedbackText = ""
     @State private var isDeleting = false
@@ -815,5 +819,100 @@ struct DeleteAccountScreen: View {
         .padding(AppSpacing.lg)
         .background(AppTheme.background.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+
+// MARK: - Delete Account Sheet
+
+struct DeleteAccountSheet: View {
+    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(\.dismiss) private var dismiss
+    @State private var deleteMode: Int = 0 // 0 = Temporary, 1 = Permanent
+    @State private var reason: String = ""
+    @State private var isDeleting = false
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                    Text("We're sorry to see you go.")
+                        .font(AppFont.display(24, weight: .bold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                    
+                    LimeSegmentedControl(segments: ["Temporary Disable", "Permanent Delete"], selection: $deleteMode)
+                    
+                    if deleteMode == 0 {
+                        Text("Your account will be hidden from the community. You can reactivate it anytime by logging back in.")
+                            .font(AppFont.body(15))
+                            .foregroundStyle(AppTheme.textSecondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                            Text("Why are you deleting your account?")
+                                .font(AppFont.body(16, weight: .semibold))
+                                .foregroundStyle(AppTheme.textPrimary)
+                            
+                            Text("Please tell us about any issues you faced so we can learn and improve.")
+                                .font(AppFont.body(14))
+                                .foregroundStyle(AppTheme.textSecondary)
+                            
+                            TextEditor(text: $reason)
+                                .font(AppFont.body(15))
+                                .frame(minHeight: 120)
+                                .padding(8)
+                                .background(AppTheme.surface)
+                                .clipShape(RoundedRectangle(cornerRadius: AppRadius.card))
+                                .overlay(RoundedRectangle(cornerRadius: AppRadius.card).stroke(AppTheme.hairline, lineWidth: 1))
+                        }
+                    }
+                    
+                    Spacer(minLength: 40)
+                    
+                    Button(role: .destructive) {
+                        deleteAccount()
+                    } label: {
+                        HStack {
+                            if isDeleting { ProgressView().tint(.white).padding(.trailing, 4) }
+                            Text(deleteMode == 0 ? "Disable Account" : "Delete Permanently")
+                                .font(AppFont.body(16, weight: .bold))
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 15)
+                        .background(AppTheme.destructive, in: Capsule())
+                    }
+                    .buttonStyle(PressableStyle())
+                    .disabled(isDeleting || (deleteMode == 1 && reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                    
+                    if deleteMode == 1 && reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("Please provide a reason to permanently delete your account.")
+                            .font(AppFont.body(12))
+                            .foregroundStyle(AppTheme.textTertiary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                }
+                .padding(AppSpacing.lg)
+            }
+            .background(AppTheme.background.ignoresSafeArea())
+            .navigationTitle("Delete Account")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .font(AppFont.body(16, weight: .semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                }
+            }
+        }
+    }
+    
+    private func deleteAccount() {
+        isDeleting = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            Haptics.success()
+            isDeleting = false
+            dismiss()
+            environment.signOut()
+        }
     }
 }

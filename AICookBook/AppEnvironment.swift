@@ -13,7 +13,6 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var appState: AppState = .loading
     @Published private(set) var currentUser: UserProfile?
     @Published private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
-    @Published var showGuestLoginWall = false
     @Published private(set) var selectedRecipe: Recipe?
     @Published private(set) var importState: ImportFlowState = .idle
     @Published private(set) var groceryItems: [GroceryItem] = [] { didSet { persist(groceryItems, "grocery.json") } }
@@ -28,31 +27,25 @@ final class AppEnvironment: ObservableObject {
 
     // Social & Follows
     @Published private(set) var followedCreators: Set<String> = [] { didSet { persist(Array(followedCreators), "followed_creators.json") } }
-    @Published private(set) var savedRecipeIds: Set<String> = []
+    @Published private(set) var savedRecipeIds: Set<String> = ["recipe-spicy-paneer-wrap", "recipe-butter-chicken"]
     
     // Friends & Circle
-    @Published private(set) var circleFriends: [FriendItem] = []
+    @Published private(set) var circleFriends: [FriendItem] = FriendItem.samples
+    @Published private(set) var incomingRequests: [FriendRequestItem] = FriendRequestItem.incomingSamples
+    @Published private(set) var outgoingRequests: [FriendRequestItem] = FriendRequestItem.outgoingSamples
     
-    // MARK: - Circle / Requests
-    
-    @Published private(set) var incomingRequests: [FriendRequestItem] = []
-    @Published private(set) var outgoingRequests: [FriendRequestItem] = []
-
-    // MARK: - Collections
-    
-    @Published private(set) var ownedCollections: [CollectionItem] = [] { didSet { persist(ownedCollections, "owned_collections.json") } }
-    @Published private(set) var sharedCollections: [CollectionItem] = [] { didSet { persist(sharedCollections, "shared_collections.json") } }
-    
-    // MARK: - Notifications
-    
-    @Published private(set) var circleNotifications: [CircleNotificationItem] = []
+    // Collections
+    @Published private(set) var ownedCollections: [CollectionItem] = CollectionItem.ownedSamples { didSet { persist(ownedCollections, "owned_collections.json") } }
+    @Published private(set) var sharedCollections: [CollectionItem] = CollectionItem.sharedSamples { didSet { persist(sharedCollections, "shared_collections.json") } }
 
     // Studio Drafts & Published
-    @Published private(set) var studioDraftIds: Set<String> = [] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
+    @Published private(set) var studioDraftIds: Set<String> = ["recipe-hot-honey-chicken", "recipe-spicy-paneer-wrap"] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
     
+    // Notifications & Activity
+    @Published private(set) var circleNotifications: [CircleNotificationItem] = CircleNotificationItem.samples
 
     // Recipe Comments
-    @Published private(set) var recipeComments: [String: [RecipeComment]] = [:]
+    @Published private(set) var recipeComments: [String: [RecipeComment]] = RecipeComment.defaultSamples
 
     let config: AppConfig
     private let tokenStore: TokenStore
@@ -83,10 +76,20 @@ final class AppEnvironment: ObservableObject {
     /// Load the persisted library (recipes/collections/grocery/flags) from disk, merging any new
     /// bundled sample recipes by id so content updates still appear. Runs once, before autosave arms.
     private func hydrateLocal() {
-        recipes = LocalStore.load([Recipe].self, from: "recipes.json") ?? []
-        ownedCollections = LocalStore.load([CollectionItem].self, from: "owned_collections.json") ?? []
-        sharedCollections = LocalStore.load([CollectionItem].self, from: "shared_collections.json") ?? []
-        groceryItems = LocalStore.load([GroceryItem].self, from: "grocery.json") ?? []
+        let saved = LocalStore.load([Recipe].self, from: "recipes.json") ?? []
+        var merged = saved
+        for (i, r) in merged.enumerated() {
+            if let fresh = Recipe.placeholderRecipes.first(where: { $0.id == r.id }) {
+                merged[i] = fresh
+            }
+        }
+        let savedIds = Set(merged.map(\.id))
+        for sample in Recipe.placeholderRecipes where !savedIds.contains(sample.id) { merged.append(sample) }
+        recipes = merged
+
+        ownedCollections = LocalStore.load([CollectionItem].self, from: "owned_collections.json") ?? CollectionItem.ownedSamples
+        sharedCollections = LocalStore.load([CollectionItem].self, from: "shared_collections.json") ?? CollectionItem.sharedSamples
+        groceryItems = LocalStore.load([GroceryItem].self, from: "grocery.json") ?? GroceryItem.demo
         if let drafts = LocalStore.load([String].self, from: "studio_drafts.json") { studioDraftIds = Set(drafts) }
         if let follows = LocalStore.load([String].self, from: "followed_creators.json") { followedCreators = Set(follows) }
         sharedLog = LocalStore.load([SharedRecipeRecord].self, from: "shared_log.json") ?? []
@@ -181,7 +184,8 @@ final class AppEnvironment: ObservableObject {
             else if recipes.isEmpty { recipes = Recipe.placeholderRecipes }
         } catch {
             // The homelab feed is OPTIONAL (unreachable off-Tailscale / on cellular). Keep the local
-            // library. If empty, seed samples so the global feed isn't a ghost town.
+            // library; seed samples only if we have nothing. Cloud recipes layer on via syncRecipes.
+            // No modal error — this is an expected, recoverable miss, not something the user must act on.
             if recipes.isEmpty { recipes = Recipe.placeholderRecipes }
         }
         // Layer newly published cloud recipes on top + push any local edits.
@@ -229,16 +233,6 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var recipeSwipeContext: [Recipe]?
 
     func selectRecipe(_ recipe: Recipe, in context: [Recipe]? = nil) {
-        if isGuest {
-            let defaults = UserDefaults.standard
-            let count = defaults.integer(forKey: "guest_recipe_view_count")
-            if count >= 10 {
-                showGuestLoginWall = true
-                return
-            }
-            defaults.set(count + 1, forKey: "guest_recipe_view_count")
-        }
-
         recipeSwipeContext = context
         selectedRecipe = recipe
         refreshAuthoritativeNutrition(for: recipe)
@@ -458,16 +452,13 @@ final class AppEnvironment: ObservableObject {
         currentUser = user
     }
 
-// MARK: - Creator enrollment (request → admin approval)
+    // MARK: - Creator enrollment (request → admin approval)
 
     /// nil = never requested; else "pending" / "approved" / "rejected".
     @Published private(set) var myCreatorRequestStatus: String?
     /// The admin approval queue.
     @Published private(set) var pendingCreatorRequests: [CreatorRequest] = []
 
-    // MARK: - Auth / Role State
-
-    var isGuest: Bool { tokenStore.readAccessToken() == nil }
     var isAdmin: Bool { currentUser?.role == .admin }
     var hasPendingCreatorRequest: Bool { myCreatorRequestStatus == "pending" }
     /// True when a real Supabase session exists (so the request flow can run); false under the
@@ -509,17 +500,8 @@ final class AppEnvironment: ObservableObject {
     }
 
     func continueAsGuest() {
-        let defaults = UserDefaults.standard
-        let guestId: String
-        if let existing = defaults.string(forKey: "guest_id") {
-            guestId = existing
-        } else {
-            guestId = "guest\(Int.random(in: 1000...9999))"
-            defaults.set(guestId, forKey: "guest_id")
-        }
-        
-        currentUser = UserProfile(id: guestId, username: "@\(guestId)", fullName: "Guest User", avatarUrl: nil, role: .user)
-        appState = .signedIn
+        currentUser = nil // Guest has no profile
+        appState = .signedIn // Or a specific guest state, but signedIn with nil user handles most things
     }
 
     func deleteOwnedRecipe(id: String) {
@@ -534,11 +516,6 @@ final class AppEnvironment: ObservableObject {
     // MARK: - Owner-aware recipe collections (single source of truth for "your" recipes)
     /// Recipes the signed-in user created or imported.
     var ownedRecipes: [Recipe] { recipes.filter { isOwner(of: $0) } }
-    
-    /// Recipes in the user's personal library (owned + saved + liked).
-    var myLibraryRecipes: [Recipe] {
-        recipes.filter { isOwner(of: $0) || isSaved(recipeId: $0.id) || likedRecipeIds.contains($0.id) }
-    }
     /// The user's own recipes still in Studio draft.
     var myDrafts: [Recipe] { ownedRecipes.filter { isDraft(recipeId: $0.id) } }
     /// The user's own recipes that are published.
@@ -736,7 +713,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     // MARK: - Liked / Heart Actions
-    @Published private(set) var likedRecipeIds: Set<String> = []
+    @Published private(set) var likedRecipeIds: Set<String> = ["recipe_butter_chicken", "recipe_hot_honey_chicken"]
 
     var likedRecipes: [Recipe] {
         recipes.filter { likedRecipeIds.contains($0.id) }

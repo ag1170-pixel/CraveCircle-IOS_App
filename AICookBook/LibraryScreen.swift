@@ -16,6 +16,7 @@ struct LibraryScreen: View {
         GridItem(.flexible(), spacing: AppSpacing.sm),
         GridItem(.flexible(), spacing: AppSpacing.sm)
     ]
+
     private var filteredRecipes: [Recipe] {
         switch filter {
         case 1: // Liked
@@ -25,7 +26,7 @@ struct LibraryScreen: View {
         case 3: // Created
             return environment.ownedRecipes
         default: // All
-            return environment.myLibraryRecipes
+            return environment.recipes
         }
     }
 
@@ -34,9 +35,9 @@ struct LibraryScreen: View {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 LimeSegmentedControl(
                     segments: [
-                        "All \(environment.myLibraryRecipes.count)",
-                        "Liked \(environment.likedRecipes.count)",
-                        "Saved \(environment.recipes.filter { environment.isSaved(recipeId: $0.id) }.count)",
+                        "All \(environment.recipes.count)",
+                        "Liked \(environment.likedRecipeIds.count)",
+                        "Saved \(environment.savedRecipeIds.count)",
                         "Created \(environment.ownedRecipes.count)"
                     ],
                     selection: $filter

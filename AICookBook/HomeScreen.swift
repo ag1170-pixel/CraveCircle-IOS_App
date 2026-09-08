@@ -169,7 +169,8 @@ struct HomeScreen: View {
     }
 
     private var libraryGridRecipes: [Recipe] {
-        Array(environment.myLibraryRecipes.prefix(6))
+        let personal = environment.recipes.filter { environment.canDelete($0) || environment.isSaved(recipeId: $0.id) }
+        return personal.isEmpty ? Array(environment.recipes.prefix(6)) : personal
     }
 
     // MARK: Fresh in your Circle
@@ -246,17 +247,12 @@ struct HomeScreen: View {
             }
             .padding(.horizontal, AppSpacing.md)
 
-            if libraryGridRecipes.isEmpty {
-                EmptyRecipesState { showingImportSheet = true }
-                    .padding(.horizontal, AppSpacing.md)
-            } else {
-                LazyVGrid(columns: columns, spacing: AppSpacing.lg) {
-                    ForEach(libraryGridRecipes) { recipe in
-                        LibraryCard(recipe: recipe) { environment.selectRecipe(recipe) }
-                    }
+            LazyVGrid(columns: columns, spacing: AppSpacing.lg) {
+                ForEach(libraryGridRecipes) { recipe in
+                    LibraryCard(recipe: recipe) { environment.selectRecipe(recipe) }
                 }
-                .padding(.horizontal, AppSpacing.md)
             }
+            .padding(.horizontal, AppSpacing.md)
         }
     }
 }

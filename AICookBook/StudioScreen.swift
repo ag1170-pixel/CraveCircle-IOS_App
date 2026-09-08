@@ -33,7 +33,7 @@ struct StudioScreen: View {
 
     var body: some View {
         NavigationStack {
-            if environment.isGuest {
+            if environment.currentUser == nil {
                 GuestWallView(
                     title: "Creator Studio",
                     message: "Log in to open your Creator Studio and publish recipes to your Circle."
