@@ -327,40 +327,67 @@ struct CreatorChip: View {
 
 // MARK: - Fresh card (horizontal)
 
+/// Heart/like button overlaid on a recipe card's photo (bottom-right) so you can like from the
+/// grid without opening the recipe. A real Button so it receives its own taps; the card body uses
+/// an onTapGesture, so tapping the heart likes and tapping elsewhere opens the recipe.
+struct RecipeLikeButton: View {
+    let recipeId: String
+    @EnvironmentObject private var environment: AppEnvironment
+
+    var body: some View {
+        let liked = environment.isLiked(recipeId: recipeId)
+        Button {
+            Haptics.select()
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) {
+                environment.toggleLikeRecipe(id: recipeId)
+            }
+        } label: {
+            Image(systemName: liked ? "heart.fill" : "heart")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(liked ? Color.red : .white)
+                .padding(7)
+                .background(.black.opacity(0.32), in: Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.25), lineWidth: 0.5))
+                .scaleEffect(liked ? 1.08 : 1)
+        }
+        .buttonStyle(.plain)
+        .padding(8)
+        .accessibilityLabel(liked ? "Unlike recipe" : "Like recipe")
+    }
+}
+
 struct FreshCard: View {
     let recipe: Recipe
     let onTap: () -> Void
     @EnvironmentObject private var environment: AppEnvironment
 
     var body: some View {
-        Button {
-            Haptics.tap(); onTap()
-        } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                cover(recipe)
-                    .frame(width: 168, height: 130)
-                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.tile, style: .continuous))
-                    .overlay(alignment: .topTrailing) {
-                        if recipe.visibility == .followers {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(AppTheme.accentInk)
-                                .padding(6)
-                                .background(AppTheme.accentSoft.opacity(0.9), in: Circle())
-                                .padding(8)
-                        }
+        VStack(alignment: .leading, spacing: 8) {
+            cover(recipe)
+                .frame(width: 168, height: 130)
+                .clipShape(RoundedRectangle(cornerRadius: AppRadius.tile, style: .continuous))
+                .overlay(alignment: .topTrailing) {
+                    if recipe.visibility == .followers {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(AppTheme.accentInk)
+                            .padding(6)
+                            .background(AppTheme.accentSoft.opacity(0.9), in: Circle())
+                            .padding(8)
                     }
-                Text(recipe.title)
-                    .font(AppFont.body(15, weight: .bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                CreatorLine(handle: recipe.ownerUsername)
-                MetaLine(recipe: recipe)
-            }
-            .frame(width: 168, alignment: .leading)
+                }
+                .overlay(alignment: .bottomTrailing) { RecipeLikeButton(recipeId: recipe.id) }
+            Text(recipe.title)
+                .font(AppFont.body(15, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+            CreatorLine(handle: recipe.ownerUsername)
+            MetaLine(recipe: recipe)
         }
-        .buttonStyle(PressableStyle())
+        .frame(width: 168, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture { Haptics.tap(); onTap() }
         .contextMenu {
             let saved = environment.isSaved(recipeId: recipe.id)
             Button {
@@ -387,50 +414,48 @@ struct LibraryCard: View {
     @EnvironmentObject private var environment: AppEnvironment
 
     var body: some View {
-        Button {
-            Haptics.tap(); onTap()
-        } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                cover(recipe)
-                    .aspectRatio(1.1, contentMode: .fill)
-                    .frame(maxWidth: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-                    .overlay(alignment: .bottomLeading) {
-                        Circle()
-                            .fill(AppTheme.accentSoft)
-                            .frame(width: 34, height: 34)
-                            .overlay(
-                                Text(recipe.ownerUsername?.replacingOccurrences(of: "@", with: "").prefix(2).uppercased() ?? "CC")
-                                    .font(AppFont.serif(12, weight: .bold))
-                                    .foregroundStyle(AppTheme.accentInk)
-                            )
-                            .overlay(Circle().stroke(.white, lineWidth: 2))
-                            .padding(10)
-                    }
-                    .overlay(alignment: .topTrailing) {
-                        if recipe.visibility == .followers {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 11, weight: .bold))
+        VStack(alignment: .leading, spacing: 8) {
+            cover(recipe)
+                .aspectRatio(1.1, contentMode: .fill)
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+                .overlay(alignment: .bottomLeading) {
+                    Circle()
+                        .fill(AppTheme.accentSoft)
+                        .frame(width: 34, height: 34)
+                        .overlay(
+                            Text(recipe.ownerUsername?.replacingOccurrences(of: "@", with: "").prefix(2).uppercased() ?? "CC")
+                                .font(AppFont.serif(12, weight: .bold))
                                 .foregroundStyle(AppTheme.accentInk)
-                                .padding(6)
-                                .background(AppTheme.accentSoft.opacity(0.9), in: Circle())
-                                .padding(8)
-                        }
-                    }
-                Text(recipe.title)
-                    .font(AppFont.body(16, weight: .bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                CreatorLine(handle: recipe.ownerUsername)
-                if let s = recipe.servings {
-                    Text("\(s) servings")
-                        .font(AppFont.body(12))
-                        .foregroundStyle(AppTheme.textTertiary)
+                        )
+                        .overlay(Circle().stroke(.white, lineWidth: 2))
+                        .padding(10)
                 }
+                .overlay(alignment: .topTrailing) {
+                    if recipe.visibility == .followers {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(AppTheme.accentInk)
+                            .padding(6)
+                            .background(AppTheme.accentSoft.opacity(0.9), in: Circle())
+                            .padding(8)
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) { RecipeLikeButton(recipeId: recipe.id) }
+            Text(recipe.title)
+                .font(AppFont.body(16, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+            CreatorLine(handle: recipe.ownerUsername)
+            if let s = recipe.servings {
+                Text("\(s) servings")
+                    .font(AppFont.body(12))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
         }
-        .buttonStyle(PressableStyle())
+        .contentShape(Rectangle())
+        .onTapGesture { Haptics.tap(); onTap() }
         .contextMenu {
             let saved = environment.isSaved(recipeId: recipe.id)
             Button {

@@ -31,6 +31,10 @@ struct SearchScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                Text("Search")
+                    .font(AppFont.display(32, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .padding(.top, AppSpacing.sm)
                 searchField
                 filterBar
 
@@ -52,8 +56,7 @@ struct SearchScreen: View {
         }
         .background(AppTheme.background.ignoresSafeArea())
         .scrollIndicators(.hidden)
-        .navigationTitle("Search")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarHidden(true)
         .task {
             if environment.recipes.isEmpty { await environment.refreshRecipes() }
             await environment.fetchSuggestedFeed()
