@@ -13,6 +13,7 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var appState: AppState = .loading
     @Published private(set) var currentUser: UserProfile?
     @Published private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
+    @Published var showGuestLoginWall = false
     @Published private(set) var selectedRecipe: Recipe?
     @Published private(set) var importState: ImportFlowState = .idle
     @Published private(set) var groceryItems: [GroceryItem] = [] { didSet { persist(groceryItems, "grocery.json") } }
@@ -226,6 +227,16 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var recipeSwipeContext: [Recipe]?
 
     func selectRecipe(_ recipe: Recipe, in context: [Recipe]? = nil) {
+        if isGuest {
+            let defaults = UserDefaults.standard
+            let count = defaults.integer(forKey: "guest_recipe_view_count")
+            if count >= 10 {
+                showGuestLoginWall = true
+                return
+            }
+            defaults.set(count + 1, forKey: "guest_recipe_view_count")
+        }
+
         recipeSwipeContext = context
         selectedRecipe = recipe
         refreshAuthoritativeNutrition(for: recipe)

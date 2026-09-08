@@ -884,6 +884,20 @@ struct RecipeDetailPager: View {
         .onAppear {
             if !resolved { index = recipes.firstIndex { $0.id == startId } ?? 0; resolved = true }
         }
+        .onChange(of: index) { _, _ in
+            if environment.isGuest {
+                let defaults = UserDefaults.standard
+                let count = defaults.integer(forKey: "guest_recipe_view_count")
+                if count >= 10 {
+                    environment.dismissRecipeDetail()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        environment.showGuestLoginWall = true
+                    }
+                    return
+                }
+                defaults.set(count + 1, forKey: "guest_recipe_view_count")
+            }
+        }
     }
 }
 
