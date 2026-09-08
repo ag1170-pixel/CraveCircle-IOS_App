@@ -28,6 +28,7 @@ import uuid
 from typing import Optional
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Header, BackgroundTasks
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from .transcriber import transcribe, detect_speech, MODEL_NAME, DEVICE, _model
@@ -756,3 +757,45 @@ async def add_recipe_to_grocery(recipe_id: str) -> list[dict]:
                 })
     return GROCERY_LIST
 
+
+
+@app.get("/recipe/{recipe_id}", response_class=HTMLResponse)
+async def recipe_landing_page(recipe_id: str):
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>CraveCircle Shared Recipe</title>
+        <meta property="og:title" content="View this recipe on CraveCircle">
+        <meta property="og:description" content="Tap to open the recipe in the CraveCircle app.">
+        <style>
+            body {{ background: #1C1C1E; color: white; font-family: -apple-system, sans-serif; text-align: center; padding-top: 80px; margin: 0; }}
+            .container {{ padding: 20px; }}
+            .title {{ font-size: 24px; font-weight: bold; margin-bottom: 10px; }}
+            .subtitle {{ color: #AEAEB2; font-size: 16px; margin-bottom: 40px; }}
+            .btn {{ display: inline-block; background: #FF5A5F; color: white; text-decoration: none; padding: 16px 32px; border-radius: 30px; font-weight: bold; font-size: 18px; }}
+            .hint {{ color: #8E8E93; font-size: 14px; margin-top: 24px; }}
+        </style>
+        <script>
+            window.onload = function() {{
+                var appLink = "cravecircle:/" + window.location.pathname;
+                document.getElementById('openBtn').href = appLink;
+                setTimeout(function() {{
+                    window.location.href = appLink;
+                }}, 500);
+            }};
+        </script>
+    </head>
+    <body>
+        <div class="container">
+            <div class="title">CraveCircle</div>
+            <div class="subtitle">You've been invited to view a recipe!</div>
+            <a href="#" id="openBtn" class="btn">Open in App</a>
+            <div class="hint">If you have CraveCircle installed, tap the button above or accept the prompt to jump right in.</div>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
