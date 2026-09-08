@@ -19,7 +19,7 @@ struct AppConfig {
 
         let customAPI = UserDefaults.standard.string(forKey: "custom_api_url")?.trimmingCharacters(in: .whitespacesAndNewlines)
         // Public Cloudflare tunnel to go-api backend so users don't need Tailscale.
-        let defaultHost = "https://api.cravecircle.cc"
+        let defaultHost = "https://tip-karaoke-accomplished-specifies.trycloudflare.com"
         let apiBaseRaw = (customAPI != nil && !customAPI!.isEmpty) ? customAPI! : ((dict["API_BASE_URL"] as? String) ?? env["API_BASE_URL"] ?? defaultHost)
         let supabaseURLRaw = (dict["SUPABASE_URL"] as? String) ?? env["SUPABASE_URL"] ?? defaultSupabaseURL
         let anonRaw = ((dict["SUPABASE_ANON_KEY"] as? String) ?? env["SUPABASE_ANON_KEY"] ?? defaultAnonKey)
