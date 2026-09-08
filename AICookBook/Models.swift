@@ -83,6 +83,19 @@ enum RecipeVisibility: String, Codable {
     case followers
 }
 
+/// A user's request to become a creator — submitted with their social handle for verification,
+/// then approved/rejected by an admin.
+struct CreatorRequest: Codable, Identifiable, Hashable {
+    let id: String
+    let userId: String
+    var socialPlatform: String
+    var socialHandle: String
+    var socialUrl: String?
+    var note: String?
+    var status: String            // pending / approved / rejected
+    let createdAt: Date
+}
+
 struct SharedRecipeRecord: Codable, Identifiable, Hashable {
     let id: String
     let recipeId: String

@@ -421,6 +421,53 @@ final class AppEnvironment: ObservableObject {
         currentUser = user
     }
 
+    // MARK: - Creator enrollment (request → admin approval)
+
+    /// nil = never requested; else "pending" / "approved" / "rejected".
+    @Published private(set) var myCreatorRequestStatus: String?
+    /// The admin approval queue.
+    @Published private(set) var pendingCreatorRequests: [CreatorRequest] = []
+
+    var isAdmin: Bool { currentUser?.role == .admin }
+    var hasPendingCreatorRequest: Bool { myCreatorRequestStatus == "pending" }
+    /// True when a real Supabase session exists (so the request flow can run); false under the
+    /// DEBUG dev-bypass, where we fall back to instant enroll for local testing.
+    var hasRealSession: Bool { supabase.hasSession }
+
+    /// Submit a creator request with the user's social handle (verified by an admin before enrollment).
+    func submitCreatorRequest(platform: String, handle: String, url: String?, note: String?) async -> Bool {
+        let ok = await supabase.submitCreatorRequest(platform: platform, handle: handle, url: url, note: note)
+        if ok { myCreatorRequestStatus = "pending" }
+        return ok
+    }
+
+    /// Refresh whether the signed-in user has a pending/decided request (drives the Studio state).
+    func loadMyCreatorRequestStatus() async {
+        guard let reqs = await supabase.fetchMyCreatorRequests() else { return }
+        let mine = reqs.filter { $0.userId == currentUser?.id }
+        myCreatorRequestStatus = (mine.first { $0.status == "pending" } ?? mine.first)?.status
+        // If approved, make sure our role reflects it.
+        if mine.contains(where: { $0.status == "approved" }) { await refreshMyRole() }
+    }
+
+    /// Admin: load the pending queue.
+    func loadPendingCreatorRequests() async {
+        guard isAdmin, let reqs = await supabase.fetchPendingCreatorRequests() else { return }
+        pendingCreatorRequests = reqs
+    }
+
+    /// Admin: approve/reject a request; approval promotes the requester to creator server-side.
+    func decideCreatorRequest(_ request: CreatorRequest, approve: Bool) async {
+        if await supabase.decideCreatorRequest(id: request.id, approve: approve) {
+            pendingCreatorRequests.removeAll { $0.id == request.id }
+        }
+    }
+
+    /// Re-fetch the signed-in user's Supabase profile (e.g. after an approval flips role → creator).
+    func refreshMyRole() async {
+        if let profile = await supabase.fetchMyProfile() { currentUser = profile }
+    }
+
     func deleteOwnedRecipe(id: String) {
         guard let recipe = recipes.first(where: { $0.id == id }), canDelete(recipe) else { return }
         recipes.removeAll { $0.id == id }

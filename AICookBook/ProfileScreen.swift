@@ -29,6 +29,8 @@ struct ProfileScreen: View {
     @State private var showAccountSheet = false
     @State private var showFeedbackForm = false
     @State private var showShared = false
+    @State private var showAdminRequests = false
+    @State private var cacheCleared = false
     @State private var activeSafariURL: IdentifiableURL? = nil
 
     private var language: AppLanguage {
@@ -64,6 +66,9 @@ struct ProfileScreen: View {
         }
         .sheet(isPresented: $showShared) {
             SharedScreen()
+        }
+        .sheet(isPresented: $showAdminRequests) {
+            NavigationStack { AdminRequestsScreen() }
         }
         .sheet(isPresented: $showNotifications) {
             CircleNotificationsSheet()
@@ -164,10 +169,11 @@ struct ProfileScreen: View {
                 }
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
                 SettingRow(icon: "waveform", title: "On-device transcription", detail: "Beta", tint: AppTheme.accent) { showTranscribeTest = true }
-                Divider().overlay(AppTheme.separator).padding(.leading, 56)
-                SettingRow(icon: "trash.fill", title: "Clear cache", detail: "Free up space", tint: .gray) {
-                    URLCache.shared.removeAllCachedResponses()
-                    Haptics.success()
+                if environment.isAdmin {
+                    Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                    SettingRow(icon: "checkmark.shield.fill", title: "Creator Requests", detail: nil, tint: .green) {
+                        showAdminRequests = true
+                    }
                 }
             }
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
@@ -177,6 +183,29 @@ struct ProfileScreen: View {
                 .font(AppFont.body(12))
                 .foregroundStyle(AppTheme.textTertiary)
                 .padding(.horizontal, AppSpacing.xs)
+
+            // Standalone Clear cache button (frees the bounded image cache; confirms so it's visible).
+            Button {
+                URLCache.shared.removeAllCachedResponses()
+                Haptics.success()
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { cacheCleared = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                    withAnimation { cacheCleared = false }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: cacheCleared ? "checkmark.circle.fill" : "trash")
+                    Text(cacheCleared ? "Cache cleared" : "Clear cache")
+                }
+                .font(AppFont.body(15, weight: .semibold))
+                .foregroundStyle(cacheCleared ? AppTheme.accent : AppTheme.textPrimary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(AppTheme.surface, in: Capsule())
+                .overlay(Capsule().stroke(cacheCleared ? AppTheme.accent.opacity(0.5) : AppTheme.hairline, lineWidth: 1))
+            }
+            .buttonStyle(PressableStyle())
+            .padding(.top, AppSpacing.xs)
 
             Text("Legal & Support").sectionLabelStyle()
                 .padding(.top, AppSpacing.sm)

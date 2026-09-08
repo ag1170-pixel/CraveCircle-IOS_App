@@ -88,6 +88,50 @@ struct SupabaseData {
         return (try? Self.decoder().decode([UserProfile].self, from: data))?.first
     }
 
+    // MARK: - Creator requests
+
+    /// Submit a request to become a creator (RLS: user_id must be me).
+    func submitCreatorRequest(platform: String, handle: String, url: String?, note: String?) async -> Bool {
+        guard hasSession, let uid = currentUserId(), var req = request(path: "rest/v1/creator_requests") else { return false }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        var row: [String: Any] = ["user_id": uid, "social_platform": platform, "social_handle": handle]
+        if let url, !url.isEmpty { row["social_url"] = url }
+        if let note, !note.isEmpty { row["note"] = note }
+        guard let body = try? JSONSerialization.data(withJSONObject: row) else { return false }
+        req.httpBody = body
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
+    /// My own requests (RLS returns mine; an admin would get all, so callers filter as needed).
+    func fetchMyCreatorRequests() async -> [CreatorRequest]? {
+        guard hasSession,
+              let req = request(path: "rest/v1/creator_requests?select=*&order=created_at.desc", method: "GET") else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return try? Self.decoder().decode([CreatorRequest].self, from: data)
+    }
+
+    /// Pending requests for the admin queue (RLS: only an admin actually sees others' rows).
+    func fetchPendingCreatorRequests() async -> [CreatorRequest]? {
+        guard hasSession,
+              let req = request(path: "rest/v1/creator_requests?select=*&status=eq.pending&order=created_at.asc", method: "GET") else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return try? Self.decoder().decode([CreatorRequest].self, from: data)
+    }
+
+    /// Admin decision — approve promotes the requester to creator (RLS + is_admin() enforced server-side).
+    func decideCreatorRequest(id: String, approve: Bool) async -> Bool {
+        guard hasSession, var req = request(path: "rest/v1/rpc/decide_creator_request") else { return false }
+        guard let body = try? JSONSerialization.data(withJSONObject: ["p_request_id": id, "p_approve": approve]) else { return false }
+        req.httpBody = body
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
     // MARK: - Recipe sync
 
     /// Pull recipes the current viewer is allowed to see. Works signed-out too — RLS still returns

@@ -14,6 +14,7 @@ struct StudioScreen: View {
     @State private var tab = 0   // 0 = Drafts, 1 = Published
     @State private var editingRecipe: Recipe?
     @State private var showNewRecipe = false
+    @State private var showCreatorRequest = false
 
     private let columns = [
         GridItem(.flexible(), spacing: AppSpacing.md),
@@ -70,8 +71,14 @@ struct StudioScreen: View {
             .fullScreenCover(isPresented: $showNewRecipe) {
                 newRecipeEditor
             }
+            .sheet(isPresented: $showCreatorRequest) {
+                CreatorRequestSheet()
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
             .task {
                 if environment.recipes.isEmpty { await environment.refreshRecipes() }
+                if !environment.canPublish { await environment.loadMyCreatorRequestStatus() }
             }
         }
         .tint(AppTheme.accentInk)
@@ -230,13 +237,25 @@ struct StudioScreen: View {
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
 
-            PillButton(title: "Enroll as Creator", systemImage: "sparkles", kind: .filled) {
-                Haptics.success()
-                withAnimation(AppMotion.snappy) {
-                    environment.enrollInStudio()
+            if environment.hasPendingCreatorRequest {
+                PillButton(title: "Request under review", systemImage: "clock", kind: .filled) { }
+                    .disabled(true)
+                    .padding(.top, AppSpacing.xs)
+                Text("An admin is verifying your social profile. You'll be able to publish once approved.")
+                    .font(AppFont.body(12))
+                    .foregroundStyle(AppTheme.textTertiary)
+                    .multilineTextAlignment(.center)
+            } else {
+                PillButton(title: "Become a Creator", systemImage: "sparkles", kind: .filled) {
+                    Haptics.tap()
+                    if environment.hasRealSession {
+                        showCreatorRequest = true          // request → admin approval
+                    } else {
+                        withAnimation(AppMotion.snappy) { environment.enrollInStudio() }  // dev/no-auth fallback
+                    }
                 }
+                .padding(.top, AppSpacing.xs)
             }
-            .padding(.top, AppSpacing.xs)
         }
         .padding(AppSpacing.lg)
         .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card * 1.5, style: .continuous))
