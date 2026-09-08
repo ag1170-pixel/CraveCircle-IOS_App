@@ -86,7 +86,7 @@ extension Recipe {
         ),
         Recipe(
             id: "recipe-spicy-paneer-wrap",
-            ownerId: "preview-user",
+            ownerId: "creator-aditya",
             title: "Spicy Paneer Tikka Wrap",
             description: "High-protein char-grilled paneer cubes tossed in smoky tandoori masala with crunchy mint yogurt slaw in warm flaky rotis.",
             prepTime: "15 min",

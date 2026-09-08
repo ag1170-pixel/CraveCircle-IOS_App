@@ -19,7 +19,7 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
 }
 
 @main
-struct AICookBookApp: App {
+struct CraveCircleApp: App {
     @StateObject private var environment = AppEnvironment()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -42,6 +42,7 @@ struct AICookBookApp: App {
                     let isCustomScheme = url.scheme == "cravecircle"
                     let isUniversalLink = (url.scheme == "https" || url.scheme == "http") && url.host == "cravecircle.cc"
                     guard isCustomScheme || isUniversalLink else { return }
+                    if isCustomScheme && url.host == "auth-callback" { return }
                     
                     let pathComponents = url.pathComponents.filter { $0 != "/" }
                     

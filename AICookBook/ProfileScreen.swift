@@ -47,7 +47,7 @@ struct ProfileScreen: View {
                 }
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.top, AppSpacing.lg)
-                .padding(.bottom, 120)
+                .padding(.bottom, AppSpacing.xl)
             }
             .background(AppTheme.background.ignoresSafeArea())
             .scrollIndicators(.hidden)

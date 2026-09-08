@@ -20,7 +20,7 @@ struct CommunityFeedScreen: View {
                     }
                 }
                 .padding(AppSpacing.md)
-                .padding(.bottom, 120)
+                .padding(.bottom, AppSpacing.xl)
             }
             .background(AppTheme.background.ignoresSafeArea())
             .navigationTitle("Community Feed")

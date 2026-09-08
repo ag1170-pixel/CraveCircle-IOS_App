@@ -56,7 +56,7 @@ struct StudioScreen: View {
                 }
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.top, AppSpacing.xs)
-                .padding(.bottom, 120)
+                .padding(.bottom, AppSpacing.xl)
             }
             .background(AppTheme.background.ignoresSafeArea())
             .scrollIndicators(.hidden)
@@ -290,7 +290,7 @@ struct StudioScreen: View {
     private var newRecipeEditor: some View {
         var blank = Recipe(
             id: "draft-\(UUID().uuidString.prefix(8))",
-            ownerId: environment.currentUser?.id ?? "preview-user",
+            ownerId: environment.currentUser?.id ?? "local-chef",
             title: "New Culinary Creation",
             description: "Describe your dish, inspiration, and flavors.",
             prepTime: "15 min",

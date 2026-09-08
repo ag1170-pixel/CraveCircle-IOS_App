@@ -42,11 +42,11 @@ struct AppConfig {
         )
     }
 
-    // CraveCircle cloud Supabase project (ap-south-1). The anon key is public by design —
-    // it only grants what Row-Level Security allows — so it's safe to ship in the client.
-    // The service_role key is never placed here.
-    private static let defaultSupabaseURL = "https://wcywvaifyrkqdvkezewm.supabase.co"
-    private static let defaultAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjeXd2YWlmeXJrcWR2a2V6ZXdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NDY2NTYsImV4cCI6MjEwNDMyMjY1Nn0.ox2X1rv81Vjkb5yl1uWzWmESE0dTQUK1xC-PfAJLU2w"
+    // Homelab self-hosted Supabase (Tailscale Serve). Schema `cravecircle` — not GGSApple `public`.
+    // Anon key is public by design (RLS-gated). Never ship service_role.
+    // Kong HTTP on the Tailscale IP. iOS Simulator Safari/URLSession cannot resolve MagicDNS (*.ts.net).
+    private static let defaultSupabaseURL = "http://100.70.151.71:54321"
+    private static let defaultAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg0MzIzMjk1LCJleHAiOjIwOTk2ODMyOTV9.rfoxjE7PA4mov-tN7nebaT_BbdN5fLiiDCJDrE_kJeM"
 
     private static func jwtRole(from token: String) -> String? {
         let parts = token.split(separator: ".")

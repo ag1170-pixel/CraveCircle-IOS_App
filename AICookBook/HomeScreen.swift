@@ -45,7 +45,7 @@ struct HomeScreen: View {
                     librarySection
                 }
                 .padding(.top, AppSpacing.sm)
-                .padding(.bottom, 120)
+                .padding(.bottom, AppSpacing.xl)
             }
             .background(AppTheme.background.ignoresSafeArea())
             .scrollIndicators(.hidden)

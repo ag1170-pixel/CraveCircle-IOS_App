@@ -11,7 +11,6 @@ import SwiftUI
 
 struct OnboardingView: View {
     @EnvironmentObject private var environment: AppEnvironment
-    @Binding var hasOnboarded: Bool
 
     @State private var step = 0
     @State private var selected: Set<String> = []
@@ -162,7 +161,6 @@ struct OnboardingView: View {
         Haptics.success()
         environment.completeOnboarding(cuisines: selected)
         if thenImport { environment.pendingImportRequest = true }
-        withAnimation(.easeOut(duration: 0.25)) { hasOnboarded = true }
     }
 
     private func primaryButton(_ title: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {

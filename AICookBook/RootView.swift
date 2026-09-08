@@ -4,7 +4,6 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var environment: AppEnvironment
-    @AppStorage("has_onboarded") private var hasOnboarded = false
 
     var body: some View {
         Group {
@@ -12,16 +11,12 @@ struct RootView: View {
                 ProgressView("Loading CraveCircle...")
                     .tint(AppTheme.textPrimary)
                     .foregroundStyle(AppTheme.textPrimary)
-            } else if !hasOnboarded {
-                OnboardingView(hasOnboarded: $hasOnboarded)
+            } else if environment.appState == .signedOut {
+                LoginView()
+            } else if environment.needsOnboarding {
+                OnboardingView()
             } else {
-                switch environment.appState {
-                case .loading: EmptyView()
-                case .signedOut:
-                    LoginView()
-                case .signedIn:
-                    MainTabView()
-                }
+                MainTabView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -63,7 +58,6 @@ struct LoginView: View {
             }
         }
         .background(AppTheme.background.ignoresSafeArea())
-        .ignoresSafeArea(edges: .top)
         .scrollDismissesKeyboard(.interactively)
         .scrollIndicators(.hidden)
     }
@@ -71,27 +65,20 @@ struct LoginView: View {
     // MARK: Hero
 
     private var hero: some View {
-        ZStack(alignment: .bottomLeading) {
-            Image("chickenRecipe")
-                .resizable().scaledToFill()
-                .frame(height: 360)
-                .clipped()
-            LinearGradient(
-                colors: [.black.opacity(0.25), .black.opacity(0.1), AppTheme.background],
-                startPoint: .top, endPoint: .bottom
-            )
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(spacing: AppSpacing.md) {
+            ChefHatLogo(size: 132)
+            VStack(spacing: 8) {
                 Text("CraveCircle")
                     .font(AppFont.serif(42, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppTheme.textPrimary)
                 Text("Your living cookbook.")
                     .font(AppFont.body(17, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(AppTheme.textSecondary)
             }
-            .padding(.horizontal, AppSpacing.lg)
-            .padding(.bottom, AppSpacing.md)
         }
-        .frame(height: 360)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 56)
+        .padding(.bottom, AppSpacing.lg)
     }
 
     // MARK: Form
@@ -118,11 +105,8 @@ struct LoginView: View {
 
             submitButton.padding(.top, AppSpacing.xxs)
 
-            Text("Email sign-in only. We never post to your socials.")
-                .font(AppFont.body(12))
-                .foregroundStyle(AppTheme.textTertiary)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, AppSpacing.xs)
+            googleButton
+                .padding(.top, AppSpacing.sm)
 
             Button {
                 Haptics.tap()
@@ -137,7 +121,8 @@ struct LoginView: View {
                     .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
             }
             .buttonStyle(PressableStyle())
-            .padding(.top, AppSpacing.sm)
+            .padding(.top, AppSpacing.xs)
+            .disabled(loading)
         }
         .padding(AppSpacing.lg)
     }
@@ -161,6 +146,34 @@ struct LoginView: View {
         }
         .buttonStyle(PressableStyle())
         .disabled(!canSubmit || loading)
+    }
+
+    private var googleButton: some View {
+        Button {
+            loading = true
+            inlineMessage = nil
+            Task {
+                await environment.signInWithGoogle()
+                loading = false
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Text("G")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .frame(width: 22, height: 22)
+                    .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 1))
+                Text("Continue with Google")
+                    .font(AppFont.body(15, weight: .semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(AppTheme.surface, in: Capsule())
+            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+        }
+        .buttonStyle(PressableStyle())
+        .disabled(loading)
     }
 
     // MARK: Field builder
@@ -252,27 +265,42 @@ struct MainTabView: View {
     @State private var showingProgressDetail = false
     @State private var tab: AppTab = .home
 
-    // Swipeable pager: a horizontal swipe moves between tabs with 1:1 finger tracking, and the
-    // floating CraveTabBar taps drive the same selection. Native .page style is interruptible.
-    private var pager: some View {
-        TabView(selection: $tab) {
-            HomeScreen(showingImportSheet: $showingImportSheet).tag(AppTab.home)
-            StudioScreen().tag(AppTab.studio)
-            GroceryScreen().tag(AppTab.groceries)
-            NavigationStack { SearchScreen() }.tag(AppTab.search)
-            ProfileScreen().tag(AppTab.profile)
-        }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .ignoresSafeArea(.container, edges: .bottom)
-    }
-
     var body: some View {
-        ZStack(alignment: .bottom) {
-            AppTheme.background.ignoresSafeArea()
-            pager
-            CraveTabBar(selected: $tab)
-                .padding(.bottom, 6)
+        // Instagram's iOS 26 bar is the system UITabBar: one floating Liquid Glass
+        // platter, five equal icons, selection capsule drawn by UIKit, shrinks on scroll.
+        TabView(selection: $tab) {
+            Tab(value: AppTab.home) {
+                HomeScreen(showingImportSheet: $showingImportSheet)
+            } label: {
+                Image(systemName: AppTab.home.icon)
+                    .accessibilityLabel(AppTab.home.title)
+            }
+            Tab(value: AppTab.studio) {
+                StudioScreen()
+            } label: {
+                Image(systemName: AppTab.studio.icon)
+                    .accessibilityLabel(AppTab.studio.title)
+            }
+            Tab(value: AppTab.groceries) {
+                GroceryScreen()
+            } label: {
+                Image(systemName: AppTab.groceries.icon)
+                    .accessibilityLabel(AppTab.groceries.title)
+            }
+            Tab(value: AppTab.search) {
+                NavigationStack { SearchScreen() }
+            } label: {
+                Image(systemName: AppTab.search.icon)
+                    .accessibilityLabel(AppTab.search.title)
+            }
+            Tab(value: AppTab.profile) {
+                ProfileScreen()
+            } label: {
+                Image(systemName: AppTab.profile.icon)
+                    .accessibilityLabel(AppTab.profile.title)
+            }
         }
+        .tabBarMinimizeBehavior(.onScrollDown)
         .overlay(alignment: .top) {
             ImportToastBanner(onOpenDetails: { showingProgressDetail = true })
                 .padding(.top, 46)

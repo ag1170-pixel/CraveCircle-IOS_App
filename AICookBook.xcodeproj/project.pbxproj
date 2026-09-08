@@ -326,7 +326,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = gowtham.CraveCircle.ShareExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.anassyed.cravecircle.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -353,7 +353,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = gowtham.CraveCircle.ShareExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.anassyed.cravecircle.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -501,8 +501,8 @@
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "CraveCircle uses the camera for hands-free Flashcard cooking — wave your hand to move through recipe steps without touching your phone.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "CraveCircle transcribes cooking-video audio on your device to turn reels into recipes.";
-				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjeXd2YWlmeXJrcWR2a2V6ZXdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NDY2NTYsImV4cCI6MjEwNDMyMjY1Nn0.ox2X1rv81Vjkb5yl1uWzWmESE0dTQUK1xC-PfAJLU2w";
-				INFOPLIST_KEY_SUPABASE_URL = "https://wcywvaifyrkqdvkezewm.supabase.co";
+				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg0MzIzMjk1LCJleHAiOjIwOTk2ODMyOTV9.rfoxjE7PA4mov-tN7nebaT_BbdN5fLiiDCJDrE_kJeM";
+				INFOPLIST_KEY_SUPABASE_URL = "http://100.70.151.71:54321";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -513,7 +513,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = gowtham.CraveCircle;
+				PRODUCT_BUNDLE_IDENTIFIER = com.anassyed.cravecircle;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -541,8 +541,8 @@
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "CraveCircle uses the camera for hands-free Flashcard cooking — wave your hand to move through recipe steps without touching your phone.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "CraveCircle transcribes cooking-video audio on your device to turn reels into recipes.";
-				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjeXd2YWlmeXJrcWR2a2V6ZXdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NDY2NTYsImV4cCI6MjEwNDMyMjY1Nn0.ox2X1rv81Vjkb5yl1uWzWmESE0dTQUK1xC-PfAJLU2w";
-				INFOPLIST_KEY_SUPABASE_URL = "https://wcywvaifyrkqdvkezewm.supabase.co";
+				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg0MzIzMjk1LCJleHAiOjIwOTk2ODMyOTV9.rfoxjE7PA4mov-tN7nebaT_BbdN5fLiiDCJDrE_kJeM";
+				INFOPLIST_KEY_SUPABASE_URL = "http://100.70.151.71:54321";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -553,7 +553,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = gowtham.CraveCircle;
+				PRODUCT_BUNDLE_IDENTIFIER = com.anassyed.cravecircle;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -572,7 +572,7 @@
 				CODE_SIGNING_ALLOWED = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
-				PRODUCT_BUNDLE_IDENTIFIER = gowtham.CraveCircle.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.anassyed.cravecircle.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -589,7 +589,7 @@
 				CODE_SIGNING_ALLOWED = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
-				PRODUCT_BUNDLE_IDENTIFIER = gowtham.CraveCircle.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.anassyed.cravecircle.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = NO;

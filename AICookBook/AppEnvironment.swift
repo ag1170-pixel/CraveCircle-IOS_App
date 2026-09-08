@@ -14,6 +14,7 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var appState: AppState = .loading
     @Published private(set) var currentUser: UserProfile?
     @AppStorage("guest_user_id") private var guestUserId: String = ""
+    @AppStorage("onboarded_user_ids") private var onboardedUserIdsRaw: String = ""
     @Published private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
     @Published private(set) var selectedRecipe: Recipe?
     @Published private(set) var importState: ImportFlowState = .idle
@@ -147,24 +148,39 @@ final class AppEnvironment: ObservableObject {
     func signIn(email: String, password: String) async {
         do {
             _ = try await authClient.signIn(email: email, password: password)
-            // Prefer the real Supabase profile (id = auth uid) so cloud ownership/RLS writes line up.
-            if let profile = await supabase.fetchMyProfile() {
-                currentUser = profile
-            } else {
-                do { currentUser = try await apiClient.fetchProfile() }
-                catch { currentUser = fallbackUser(email: email) }
-            }
-            if let user = currentUser {
-                migrateGuestData(to: user.id)
-            }
-            resetPersonalizationIfUserChanged()
-            appState = .signedIn
-            if !hydrated { hydrateLocal() }   // restore library + re-enable persistence after a prior sign-out
-            await refreshRecipes()
+            await finishAuthenticatedSession(email: email)
         } catch {
             appState = .signedOut
             errorMessage = error.localizedDescription
         }
+    }
+
+    func signInWithGoogle() async {
+        do {
+            _ = try await authClient.signInWithGoogle()
+            await finishAuthenticatedSession(email: nil)
+        } catch GoogleAuthError.canceled {
+            appState = .signedOut
+        } catch {
+            appState = .signedOut
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func finishAuthenticatedSession(email: String?) async {
+        if let profile = await supabase.fetchMyProfile() {
+            currentUser = profile
+        } else {
+            do { currentUser = try await apiClient.fetchProfile() }
+            catch { currentUser = fallbackUser(email: email) }
+        }
+        if let user = currentUser {
+            migrateGuestData(to: user.id)
+        }
+        resetPersonalizationIfUserChanged()
+        appState = .signedIn
+        if !hydrated { hydrateLocal() }
+        await refreshRecipes()
     }
 
     func signUp(email: String, password: String) async throws {
@@ -482,6 +498,23 @@ final class AppEnvironment: ObservableObject {
 
     var isAdmin: Bool { currentUser?.role == .admin }
     var isGuest: Bool { currentUser?.id.hasPrefix("guest_") == true || currentUser == nil }
+
+    /// Cuisine onboarding is per signed-in account. Guests skip. Returning ids are stored on-device.
+    var needsOnboarding: Bool {
+        guard appState == .signedIn, let id = currentUser?.id, !isGuest else { return false }
+        return !onboardedUserIds.contains(id)
+    }
+
+    private var onboardedUserIds: Set<String> {
+        Set(onboardedUserIdsRaw.split(separator: ",").map(String.init).filter { !$0.isEmpty })
+    }
+
+    func markOnboarded() {
+        guard let id = currentUser?.id, !isGuest else { return }
+        var ids = onboardedUserIds
+        ids.insert(id)
+        onboardedUserIdsRaw = ids.sorted().joined(separator: ",")
+    }
     var hasPendingCreatorRequest: Bool { myCreatorRequestStatus == "pending" }
     /// True when a real Supabase session exists (so the request flow can run); false under the
     /// DEBUG dev-bypass, where we fall back to instant enroll for local testing.
@@ -1014,6 +1047,7 @@ final class AppEnvironment: ObservableObject {
     /// Finish onboarding: store the taste picks and refresh the feed against them.
     func completeOnboarding(cuisines: Set<String>) {
         preferredCuisines = cuisines
+        markOnboarded()
         Task { await fetchSuggestedFeed() }
     }
 

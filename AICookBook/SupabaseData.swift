@@ -30,6 +30,9 @@ struct SupabaseData {
         let bearer = tokenStore.readAccessToken() ?? config.supabaseAnonKey
         req.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Homelab PostgREST is multi-schema; CraveCircle tables live in `cravecircle`.
+        req.setValue("cravecircle", forHTTPHeaderField: "Accept-Profile")
+        req.setValue("cravecircle", forHTTPHeaderField: "Content-Profile")
         req.timeoutInterval = 15
         return req
     }

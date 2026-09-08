@@ -32,7 +32,7 @@ struct GroceryScreen: View {
                 }
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.top, AppSpacing.xs)
-                .padding(.bottom, 120)
+                .padding(.bottom, AppSpacing.xl)
             }
             .background(AppTheme.background.ignoresSafeArea())
             .scrollIndicators(.hidden)

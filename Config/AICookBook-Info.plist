@@ -10,13 +10,27 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>gowtham.CraveCircle</string>
+			<string>com.anassyed.cravecircle</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>cravecircle</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.anassyed.cravecircle.google</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.752209970913-4lptajjg9djnasfhs5qhjg060bhe4s9l</string>
+			</array>
+		</dict>
 	</array>
+	<key>GIDClientID</key>
+	<string>752209970913-4lptajjg9djnasfhs5qhjg060bhe4s9l.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>752209970913-64mcc8ueqap9bn8mtv67a1jbeu8ftas2.apps.googleusercontent.com</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
