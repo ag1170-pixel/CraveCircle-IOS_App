@@ -1,3 +1,4 @@
+import SwiftUI
 import Foundation
 import Combine
 import UserNotifications
@@ -12,6 +13,7 @@ final class AppEnvironment: ObservableObject {
 
     @Published private(set) var appState: AppState = .loading
     @Published private(set) var currentUser: UserProfile?
+    @AppStorage("guest_user_id") private var guestUserId: String = ""
     @Published private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
     @Published private(set) var selectedRecipe: Recipe?
     @Published private(set) var importState: ImportFlowState = .idle
@@ -27,12 +29,12 @@ final class AppEnvironment: ObservableObject {
 
     // Social & Follows
     @Published private(set) var followedCreators: Set<String> = [] { didSet { persist(Array(followedCreators), "followed_creators.json") } }
-    @Published private(set) var savedRecipeIds: Set<String> = ["recipe-spicy-paneer-wrap", "recipe-butter-chicken"]
+    @Published private(set) var savedRecipeIds: Set<String> = []
     
     // Friends & Circle
-    @Published private(set) var circleFriends: [FriendItem] = FriendItem.samples
-    @Published private(set) var incomingRequests: [FriendRequestItem] = FriendRequestItem.incomingSamples
-    @Published private(set) var outgoingRequests: [FriendRequestItem] = FriendRequestItem.outgoingSamples
+    @Published private(set) var circleFriends: [FriendItem] = []
+    @Published private(set) var incomingRequests: [FriendRequestItem] = []
+    @Published private(set) var outgoingRequests: [FriendRequestItem] = []
     
     // Collections
     @Published private(set) var ownedCollections: [CollectionItem] = CollectionItem.ownedSamples { didSet { persist(ownedCollections, "owned_collections.json") } }
@@ -87,9 +89,9 @@ final class AppEnvironment: ObservableObject {
         for sample in Recipe.placeholderRecipes where !savedIds.contains(sample.id) { merged.append(sample) }
         recipes = merged
 
-        ownedCollections = LocalStore.load([CollectionItem].self, from: "owned_collections.json") ?? CollectionItem.ownedSamples
-        sharedCollections = LocalStore.load([CollectionItem].self, from: "shared_collections.json") ?? CollectionItem.sharedSamples
-        groceryItems = LocalStore.load([GroceryItem].self, from: "grocery.json") ?? GroceryItem.demo
+        ownedCollections = LocalStore.load([CollectionItem].self, from: "owned_collections.json") ?? []
+        sharedCollections = LocalStore.load([CollectionItem].self, from: "shared_collections.json") ?? []
+        groceryItems = LocalStore.load([GroceryItem].self, from: "grocery.json") ?? []
         if let drafts = LocalStore.load([String].self, from: "studio_drafts.json") { studioDraftIds = Set(drafts) }
         if let follows = LocalStore.load([String].self, from: "followed_creators.json") { followedCreators = Set(follows) }
         sharedLog = LocalStore.load([SharedRecipeRecord].self, from: "shared_log.json") ?? []
@@ -151,6 +153,9 @@ final class AppEnvironment: ObservableObject {
             } else {
                 do { currentUser = try await apiClient.fetchProfile() }
                 catch { currentUser = fallbackUser(email: email) }
+            }
+            if let user = currentUser {
+                migrateGuestData(to: user.id)
             }
             resetPersonalizationIfUserChanged()
             appState = .signedIn
@@ -230,9 +235,25 @@ final class AppEnvironment: ObservableObject {
     /// The recipe list the detail pager should swipe through. Set alongside `selectedRecipe`
     /// whenever the caller has a narrower context (e.g. Library's Liked/Saved/Created tabs) so a
     /// left/right swipe stays inside what's actually on screen, not the full unfiltered library.
+    
+    @AppStorage("guest_recipes_viewed") private var guestRecipesViewed = 0
+    @Published var showGuestPaywall = false
+
+    func canViewRecipe() -> Bool {
+        if isGuest {
+            if guestRecipesViewed >= 10 {
+                showGuestPaywall = true
+                return false
+            }
+            guestRecipesViewed += 1
+        }
+        return true
+    }
+
     @Published private(set) var recipeSwipeContext: [Recipe]?
 
     func selectRecipe(_ recipe: Recipe, in context: [Recipe]? = nil) {
+        guard canViewRecipe() else { return }
         recipeSwipeContext = context
         selectedRecipe = recipe
         refreshAuthoritativeNutrition(for: recipe)
@@ -460,6 +481,7 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var pendingCreatorRequests: [CreatorRequest] = []
 
     var isAdmin: Bool { currentUser?.role == .admin }
+    var isGuest: Bool { currentUser?.id.hasPrefix("guest_") == true || currentUser == nil }
     var hasPendingCreatorRequest: Bool { myCreatorRequestStatus == "pending" }
     /// True when a real Supabase session exists (so the request flow can run); false under the
     /// DEBUG dev-bypass, where we fall back to instant enroll for local testing.
@@ -500,8 +522,25 @@ final class AppEnvironment: ObservableObject {
     }
 
     func continueAsGuest() {
-        currentUser = nil // Guest has no profile
-        appState = .signedIn // Or a specific guest state, but signedIn with nil user handles most things
+        if guestUserId.isEmpty {
+            guestUserId = "guest_\(Int.random(in: 1000...9999))"
+        }
+        currentUser = UserProfile(id: guestUserId, username: "Guest", fullName: "Guest User", avatarUrl: nil, role: .user)
+        appState = .signedIn
+    }
+    
+    func migrateGuestData(to newUserId: String) {
+        // Find any recipes created by the guest and update their ownerId
+        let oldGuestId = guestUserId
+        guard !oldGuestId.isEmpty else { return }
+        
+        for i in recipes.indices {
+            if recipes[i].ownerId == oldGuestId {
+                recipes[i].ownerId = newUserId
+            }
+        }
+        
+        guestUserId = "" // Clear the guest id now that they are signed in
     }
 
     func deleteOwnedRecipe(id: String) {
@@ -520,6 +559,11 @@ final class AppEnvironment: ObservableObject {
     var myDrafts: [Recipe] { ownedRecipes.filter { isDraft(recipeId: $0.id) } }
     /// The user's own recipes that are published.
     var myPublished: [Recipe] { ownedRecipes.filter { !isDraft(recipeId: $0.id) } }
+
+    var myLibraryRecipes: [Recipe] {
+        recipes.filter { canDelete($0) || isSaved(recipeId: $0.id) }
+    }
+
 
     // Shared with the Share Extension (same literal strings live in ShareViewController).
     static let appGroupID = "group.com.anassyed.AICookBook"
@@ -713,7 +757,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     // MARK: - Liked / Heart Actions
-    @Published private(set) var likedRecipeIds: Set<String> = ["recipe_butter_chicken", "recipe_hot_honey_chicken"]
+    @Published private(set) var likedRecipeIds: Set<String> = []
 
     var likedRecipes: [Recipe] {
         recipes.filter { likedRecipeIds.contains($0.id) }

@@ -109,7 +109,7 @@ struct SharedRecipeRecord: Codable, Identifiable, Hashable {
 
 struct Recipe: Codable, Identifiable, Hashable {
     let id: String
-    let ownerId: String
+    var ownerId: String
     var title: String
     var description: String?
     var prepTime: String?

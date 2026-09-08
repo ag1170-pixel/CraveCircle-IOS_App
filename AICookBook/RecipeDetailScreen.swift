@@ -870,6 +870,12 @@ struct RecipeDetailPager: View {
             if recipes.indices.contains(safe) {
                 RecipeDetailScreen(recipe: recipes[safe], tab: $segment, onSwitchRecipe: { dir in
                     // Swipe OUTSIDE the Ingredients/Directions region → previous / next recipe.
+                    if (dir > 0 && index < recipes.count - 1) || (dir < 0 && index > 0) {
+                        guard environment.canViewRecipe() else {
+                            environment.dismissRecipeDetail()
+                            return
+                        }
+                    }
                     withAnimation(swipeAnim) {
                         if dir > 0, index < recipes.count - 1 { index += 1; segment = 0 }
                         else if dir < 0, index > 0 { index -= 1; segment = 0 }

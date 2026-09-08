@@ -110,7 +110,7 @@ struct ProfileScreen: View {
 
     private var stats: some View {
         HStack(spacing: AppSpacing.xs) {
-            NavigationLink { LibraryScreen() } label: { statTile("\(environment.recipes.count)", "Recipes") }
+            NavigationLink { LibraryScreen() } label: { statTile("\(environment.myLibraryRecipes.count)", "Recipes") }
             NavigationLink { LibraryScreen() } label: { statTile("\(environment.likedRecipes.count)", "Liked") }
             NavigationLink { FriendsScreen() } label: { statTile("\(environment.circleFriends.count)", "Friends") }
             NavigationLink { CollectionsScreen() } label: { statTile("\(environment.ownedCollections.count + environment.sharedCollections.count)", "Collections") }

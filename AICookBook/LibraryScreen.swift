@@ -26,7 +26,7 @@ struct LibraryScreen: View {
         case 3: // Created
             return environment.ownedRecipes
         default: // All
-            return environment.recipes
+            return environment.myLibraryRecipes
         }
     }
 
