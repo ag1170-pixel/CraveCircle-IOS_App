@@ -108,8 +108,8 @@ struct HomeScreen: View {
         }
         .padding(.horizontal, AppSpacing.md)
         .padding(.vertical, AppSpacing.sm)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .bottom) { Rectangle().fill(AppTheme.separator).frame(height: 0.5) }
+        // Match the app background so the brand sits on the app's own color, not a lighter panel.
+        .background(AppTheme.background)
     }
 
     private func iconButton(_ symbol: String, label: String, badgeCount: Int? = nil, action: @escaping () -> Void) -> some View {
