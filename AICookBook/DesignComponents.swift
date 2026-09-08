@@ -465,3 +465,42 @@ extension View {
     }
 }
 
+
+struct GuestWallView: View {
+    @EnvironmentObject private var environment: AppEnvironment
+    let title: String
+    let message: String
+    
+    var body: some View {
+        VStack(spacing: AppSpacing.lg) {
+            Image(systemName: "lock.shield")
+                .font(.system(size: 60))
+                .foregroundStyle(AppTheme.textTertiary)
+            
+            Text(title)
+                .font(AppFont.display(24, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+            
+            Text(message)
+                .font(AppFont.body(16))
+                .foregroundStyle(AppTheme.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, AppSpacing.lg)
+            
+            Button {
+                Haptics.tap()
+                environment.signOut() // Goes back to login
+            } label: {
+                Text("Log In or Sign Up")
+                    .font(AppFont.body(16, weight: .bold))
+                    .foregroundStyle(AppTheme.onAccent)
+                    .padding(.horizontal, AppSpacing.xl)
+                    .padding(.vertical, 14)
+                    .background(AppTheme.accent, in: Capsule())
+            }
+            .buttonStyle(PressableStyle())
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.background.ignoresSafeArea())
+    }
+}

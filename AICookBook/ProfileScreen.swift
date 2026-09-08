@@ -160,12 +160,16 @@ struct ProfileScreen: View {
                 SettingRow(icon: "person.crop.circle", title: "Account", detail: environment.currentUser?.username, tint: .blue) {
                     showAccountSheet = true
                 }
-                Divider().overlay(AppTheme.separator).padding(.leading, 56)
-                SettingRow(icon: "server.rack", title: "Kitchen Server", detail: customApiUrl.replacingOccurrences(of: "http://", with: ""), tint: .indigo) {
-                    showServerPicker = true
+                
+                if environment.isAdmin {
+                    Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                    SettingRow(icon: "server.rack", title: "Kitchen Server", detail: customApiUrl.replacingOccurrences(of: "http://", with: ""), tint: .indigo) {
+                        showServerPicker = true
+                    }
+                    Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                    SettingRow(icon: "waveform", title: "On-device transcription", detail: "Beta", tint: AppTheme.accent) { showTranscribeTest = true }
                 }
-                Divider().overlay(AppTheme.separator).padding(.leading, 56)
-                SettingRow(icon: "waveform", title: "On-device transcription", detail: "Beta", tint: AppTheme.accent) { showTranscribeTest = true }
+                
                 if environment.isAdmin {
                     Divider().overlay(AppTheme.separator).padding(.leading, 56)
                     // NavigationLink push → native back button + left-edge swipe-back.

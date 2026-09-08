@@ -113,14 +113,7 @@ final class AppEnvironment: ObservableObject {
         hydrateLocal()   // load the persisted library (recipes/collections/grocery) before anything else
 
         guard tokenStore.readAccessToken() != nil else {
-            #if DEBUG
-            // Dev preview: backend auth is down (deleted Supabase), so open the app signed-in with
-            // the local library (hydrated above) instead of the login wall. DEBUG only.
-            currentUser = UserProfile(id: "preview-user", username: "@aicookbook", fullName: "You", avatarUrl: nil, role: .admin)
-            appState = .signedIn
-            #else
             appState = .signedOut
-            #endif
             return
         }
 
@@ -504,6 +497,11 @@ final class AppEnvironment: ObservableObject {
     /// Re-fetch the signed-in user's Supabase profile (e.g. after an approval flips role → creator).
     func refreshMyRole() async {
         if let profile = await supabase.fetchMyProfile() { currentUser = profile }
+    }
+
+    func continueAsGuest() {
+        currentUser = nil // Guest has no profile
+        appState = .signedIn // Or a specific guest state, but signedIn with nil user handles most things
     }
 
     func deleteOwnedRecipe(id: String) {

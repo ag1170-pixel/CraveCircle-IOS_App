@@ -33,6 +33,12 @@ struct StudioScreen: View {
 
     var body: some View {
         NavigationStack {
+            if environment.currentUser == nil {
+                GuestWallView(
+                    title: "Creator Studio",
+                    message: "Log in to open your Creator Studio and publish recipes to your Circle."
+                )
+            } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.xl) {
                     header
@@ -79,8 +85,9 @@ struct StudioScreen: View {
             .task {
                 if environment.recipes.isEmpty { await environment.refreshRecipes() }
                 if !environment.canPublish { await environment.loadMyCreatorRequestStatus() }
-            }
-        }
+            } // Close task
+            } // Close else
+        } // Close NavigationStack
         .tint(AppTheme.accentInk)
     }
 

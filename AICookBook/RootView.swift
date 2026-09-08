@@ -8,18 +8,20 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            switch environment.appState {
-            case .loading:
-                ProgressView("Loading AICookbook...")
+            if environment.appState == .loading {
+                ProgressView("Loading CraveCircle...")
                     .tint(AppTheme.textPrimary)
                     .foregroundStyle(AppTheme.textPrimary)
-            case .signedOut:
-                LoginView()
-            case .signedIn:
-                MainTabView()
-                    .fullScreenCover(isPresented: .constant(!hasOnboarded)) {
-                        OnboardingView(hasOnboarded: $hasOnboarded)
-                    }
+            } else if !hasOnboarded {
+                OnboardingView(hasOnboarded: $hasOnboarded)
+            } else {
+                switch environment.appState {
+                case .loading: EmptyView()
+                case .signedOut:
+                    LoginView()
+                case .signedIn:
+                    MainTabView()
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -121,6 +123,21 @@ struct LoginView: View {
                 .foregroundStyle(AppTheme.textTertiary)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, AppSpacing.xs)
+
+            Button {
+                Haptics.tap()
+                environment.continueAsGuest()
+            } label: {
+                Text("Continue as Guest")
+                    .font(AppFont.body(15, weight: .semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.clear, in: Capsule())
+                    .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            }
+            .buttonStyle(PressableStyle())
+            .padding(.top, AppSpacing.sm)
         }
         .padding(AppSpacing.lg)
     }
