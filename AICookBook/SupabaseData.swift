@@ -190,10 +190,12 @@ struct SupabaseData {
     }
 
     /// Deliver a share: inserts a row the recipient can read (RLS: from_user_id must be me).
-    func recordShare(recipeId: String, toUserId: String, channel: String) async -> Bool {
+    func recordShare(recipeId: String, toUserId: String, channel: String, title: String?, thumbnail: String?) async -> Bool {
         guard hasSession, var req = request(path: "rest/v1/shares") else { return false }
         req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
-        let row: [String: Any] = ["recipe_id": recipeId, "to_user_id": toUserId, "channel": channel]
+        var row: [String: Any] = ["recipe_id": recipeId, "to_user_id": toUserId, "channel": channel]
+        if let title { row["recipe_title"] = title }
+        if let thumbnail { row["recipe_thumbnail"] = thumbnail }
         guard let body = try? JSONSerialization.data(withJSONObject: row) else { return false }
         req.httpBody = body
         guard let (_, resp) = try? await URLSession.shared.data(for: req),

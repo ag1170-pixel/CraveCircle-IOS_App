@@ -69,19 +69,23 @@ private struct SharedRecordRow: View {
                     cover(recipe)
                         .frame(width: 60, height: 60)
                         .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
+                } else if let thumb = record.recipeThumbnail, UIImage(named: thumb) != nil {
+                    Image(thumb).resizable().scaledToFill()
+                        .frame(width: 60, height: 60)
+                        .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
                 } else {
                     RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous)
                         .fill(AppTheme.surface)
                         .overlay(
-                            Image(systemName: "doc.text")
+                            Image(systemName: "fork.knife")
                                 .font(.system(size: 22, weight: .medium))
                                 .foregroundStyle(AppTheme.textTertiary)
                         )
                         .frame(width: 60, height: 60)
                 }
-                
+
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(recipe?.title ?? "Shared Recipe")
+                    Text(recipe?.title ?? record.recipeTitle ?? "Shared Recipe")
                         .font(AppFont.body(15, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)

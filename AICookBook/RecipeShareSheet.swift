@@ -14,12 +14,15 @@ struct RecipeShareSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var sentFriendIds: Set<UUID> = []
     @State private var showCopiedAlert = false
+    @State private var usernameToShare = ""
+    @State private var usernameShareStatus: String?   // nil / sending / sent / notfound
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.lg) {
                     recipePreviewCard
+                    usernameShareSection
                     circleFriendsSection
                     quickActionsSection
                     collectionsSection
@@ -37,6 +40,63 @@ struct RecipeShareSheet: View {
                         .font(AppFont.body(16, weight: .semibold))
                         .foregroundStyle(AppTheme.accentInk)
                 }
+            }
+        }
+    }
+
+    // MARK: - Send to a CraveCircle user (by @username — any user, no creator role needed)
+
+    private var usernameShareSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            Text("Send to a CraveCircle User").sectionLabelStyle()
+            HStack(spacing: AppSpacing.xs) {
+                HStack(spacing: 4) {
+                    Text("@").foregroundStyle(AppTheme.textTertiary)
+                    TextField("username", text: $usernameToShare)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .onChange(of: usernameToShare) { _, _ in usernameShareStatus = nil }
+                }
+                .font(AppFont.body(16))
+                .padding(.horizontal, AppSpacing.md)
+                .frame(height: 46)
+                .background(AppTheme.surface, in: Capsule())
+                .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+
+                Button { sendToUsername() } label: {
+                    Group {
+                        if usernameShareStatus == "sending" { ProgressView().tint(AppTheme.onAccent) }
+                        else { Image(systemName: usernameShareStatus == "sent" ? "checkmark" : "paperplane.fill") }
+                    }
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(AppTheme.onAccent)
+                    .frame(width: 46, height: 46)
+                    .background(AppTheme.accent, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(usernameToShare.trimmingCharacters(in: .whitespaces).isEmpty || usernameShareStatus == "sending")
+                .accessibilityLabel("Send to user")
+            }
+            if usernameShareStatus == "sent" {
+                Text("Sent — they'll see it in their Shared inbox.")
+                    .font(AppFont.body(12)).foregroundStyle(AppTheme.accent)
+            } else if usernameShareStatus == "notfound" {
+                Text("No CraveCircle user with that username (they need an account).")
+                    .font(AppFont.body(12)).foregroundStyle(AppTheme.destructive)
+            }
+        }
+    }
+
+    private func sendToUsername() {
+        let handle = usernameToShare.trimmingCharacters(in: .whitespaces)
+        guard !handle.isEmpty else { return }
+        usernameShareStatus = "sending"
+        Task {
+            let ok = await environment.shareRecipeToUsername(recipeId: recipe.id, username: handle)
+            await MainActor.run {
+                usernameShareStatus = ok ? "sent" : "notfound"
+                if ok { Haptics.success(); usernameToShare = "" }
             }
         }
     }

@@ -385,22 +385,44 @@ final class AppEnvironment: ObservableObject {
     }
     
     func recordShare(recipeId: String, friend: FriendItem) {
+        let recipe = recipes.first(where: { $0.id == recipeId })
         let record = SharedRecipeRecord(
             id: UUID().uuidString,
             recipeId: recipeId,
             fromUserId: currentUser?.id ?? "me",
             toUserId: friend.id.uuidString,
             createdAt: Date(),
-            channel: "in-app"
+            channel: "in-app",
+            recipeTitle: recipe?.title,
+            recipeThumbnail: recipe?.thumbnailUrl
         )
         sharedLog.insert(record, at: 0)
         // Deliver to the recipient in the cloud so it lands in their "Shared with you" inbox.
         // Best-effort: needs both to be real users (resolves the friend's @handle to a profile id).
         Task {
             if let toId = await supabase.resolveProfileId(username: friend.username) {
-                _ = await supabase.recordShare(recipeId: recipeId, toUserId: toId, channel: "in-app")
+                _ = await supabase.recordShare(recipeId: recipeId, toUserId: toId, channel: "in-app",
+                                               title: recipe?.title, thumbnail: recipe?.thumbnailUrl)
             }
         }
+    }
+
+    /// Share a recipe with any CraveCircle user by their @username — no creator role required.
+    /// Delivers to their cloud "Shared with you" inbox. Returns false if the username can't be found.
+    func shareRecipeToUsername(recipeId: String, username: String) async -> Bool {
+        let handle = username.hasPrefix("@") ? String(username.dropFirst()) : username
+        guard !handle.isEmpty, let toId = await supabase.resolveProfileId(username: handle) else { return false }
+        let recipe = recipes.first(where: { $0.id == recipeId })
+        let ok = await supabase.recordShare(recipeId: recipeId, toUserId: toId, channel: "in-app",
+                                            title: recipe?.title, thumbnail: recipe?.thumbnailUrl)
+        if ok {
+            sharedLog.insert(SharedRecipeRecord(
+                id: UUID().uuidString, recipeId: recipeId,
+                fromUserId: currentUser?.id ?? "me", toUserId: toId,
+                createdAt: Date(), channel: "in-app",
+                recipeTitle: recipe?.title, recipeThumbnail: recipe?.thumbnailUrl), at: 0)
+        }
+        return ok
     }
 
     /// Pull shares involving me (RLS-scoped) into the log and notify for anything newly received,

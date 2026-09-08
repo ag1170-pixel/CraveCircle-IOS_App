@@ -103,6 +103,8 @@ struct SharedRecipeRecord: Codable, Identifiable, Hashable {
     let toUserId: String
     let createdAt: Date
     let channel: String?
+    var recipeTitle: String?        // carried on the share so the recipient always sees the recipe
+    var recipeThumbnail: String?
 }
 
 struct Recipe: Codable, Identifiable, Hashable {
