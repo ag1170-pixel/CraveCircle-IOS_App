@@ -69,26 +69,33 @@ enum AppTab: CaseIterable, Hashable {
 
 struct CraveTabBar: View {
     @Binding var selected: AppTab
+    @Namespace private var ns
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        // Full-width bar flush to the bottom (Instagram-style): five evenly-spaced icons, a thin
-        // top divider, and a material background that extends under the home indicator.
+        // The floating glass pill (shape kept), stretched WIDE like Instagram: icons evenly spread
+        // across the full width with a small margin from the screen edges.
         HStack(spacing: 0) {
             ForEach(AppTab.allCases, id: \.self) { tab in
                 tabButton(tab)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 8)
-        .background(alignment: .top) {
-            Rectangle()
-                .fill(.regularMaterial)
-                .overlay(alignment: .top) {
-                    Rectangle().fill(AppTheme.separator).frame(height: 0.5)
-                }
-                .ignoresSafeArea(edges: .bottom)
+        .padding(6)
+        .background {
+            Capsule(style: .continuous)
+                .fill(.regularMaterial)                     // adaptive translucent glass
+                .overlay(                                   // bright top edge = light catching the material
+                    Capsule(style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.04)],
+                                           startPoint: .top, endPoint: .bottom),
+                            lineWidth: 0.75)
+                )
+                .shadow(color: .black.opacity(0.16), radius: 20, y: 10)
+                .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
         }
+        .padding(.horizontal, AppSpacing.md)                // small margin → wide, near edge-to-edge
     }
 
     @ViewBuilder
@@ -97,17 +104,27 @@ struct CraveTabBar: View {
         Button {
             guard !isSelected else { return }
             Haptics.select()
-            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.35, dampingFraction: 0.8)) {
+            withAnimation(reduceMotion
+                          ? .easeOut(duration: 0.2)
+                          : .spring(response: 0.4, dampingFraction: 0.82)) {
                 selected = tab
             }
         } label: {
             Image(systemName: tab.icon)
-                .font(.system(size: 23, weight: .regular))
+                .font(.system(size: 18, weight: .semibold))
                 .symbolVariant(isSelected ? .fill : .none)
                 .symbolEffect(.bounce, value: isSelected)      // a little delight on select
-                .foregroundStyle(isSelected ? AppTheme.textPrimary : AppTheme.textSecondary)
-                .frame(maxWidth: .infinity)                     // even spread across the full width
-                .frame(height: 44)
+                .foregroundStyle(isSelected ? AppTheme.accentInk : AppTheme.textSecondary)
+                .frame(maxWidth: .infinity)                     // even spread across the wide pill
+                .frame(height: 40)
+                .background {
+                    if isSelected {
+                        Capsule(style: .continuous)
+                            .fill(AppTheme.accentSoft)
+                            .matchedGeometryEffect(id: "tabpill", in: ns)
+                            .padding(.horizontal, 10)           // rounded highlight around the icon
+                    }
+                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(TabPressStyle())
