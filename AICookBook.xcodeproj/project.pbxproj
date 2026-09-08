@@ -59,8 +59,6 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		27945DB32F9F211200B8F8B8 /* AICookBook */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = AICookBook;
 			sourceTree = "<group>";
 		};
@@ -145,7 +143,6 @@
 			children = (
 				0D0D5D4D23ACE2F87DB8CF62 /* LogicTests.swift */,
 			);
-			name = AICookBookTests;
 			path = AICookBookTests;
 			sourceTree = "<group>";
 		};
@@ -318,7 +315,7 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = AGCD6X7P8Z;
+				DEVELOPMENT_TEAM = 4NTTDLCVY9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CraveCircle;
@@ -329,7 +326,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.anassyed.AICookBook.ShareExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = gowtham.CraveCircle.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -345,7 +342,7 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = AGCD6X7P8Z;
+				DEVELOPMENT_TEAM = 4NTTDLCVY9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CraveCircle;
@@ -356,7 +353,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.anassyed.AICookBook.ShareExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = gowtham.CraveCircle.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -495,7 +492,7 @@
 				CODE_SIGN_ENTITLEMENTS = Config/AICookBook.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = AGCD6X7P8Z;
+				DEVELOPMENT_TEAM = 4NTTDLCVY9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/AICookBook-Info.plist";
@@ -516,7 +513,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.anassyed.AICookBook;
+				PRODUCT_BUNDLE_IDENTIFIER = gowtham.CraveCircle;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -535,7 +532,7 @@
 				CODE_SIGN_ENTITLEMENTS = Config/AICookBook.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = AGCD6X7P8Z;
+				DEVELOPMENT_TEAM = 4NTTDLCVY9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/AICookBook-Info.plist";
@@ -556,7 +553,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.anassyed.AICookBook;
+				PRODUCT_BUNDLE_IDENTIFIER = gowtham.CraveCircle;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -575,7 +572,7 @@
 				CODE_SIGNING_ALLOWED = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
-				PRODUCT_BUNDLE_IDENTIFIER = com.anassyed.AICookBook.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = gowtham.CraveCircle.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -592,7 +589,7 @@
 				CODE_SIGNING_ALLOWED = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
-				PRODUCT_BUNDLE_IDENTIFIER = com.anassyed.AICookBook.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = gowtham.CraveCircle.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = NO;

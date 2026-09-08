@@ -10,7 +10,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.anassyed.AICookBook</string>
+			<string>gowtham.CraveCircle</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>cravecircle</string>
