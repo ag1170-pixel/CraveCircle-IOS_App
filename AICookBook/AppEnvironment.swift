@@ -686,7 +686,7 @@ final class AppEnvironment: ObservableObject {
             try FileManager.default.moveItem(at: tempFileUrl, to: localMp4)
             
             // 3) Hand off to the fast on-device pipeline (Apple Neural Engine + Vision)
-            await importFromVideo(localMp4, caption: reel.caption, title: reel.title)
+            await importFromVideo(localMp4, caption: reel.caption, title: reel.title, thumbnailUrl: reel.thumbnail)
             
             // Clean up
             try? FileManager.default.removeItem(at: localMp4)
@@ -714,7 +714,7 @@ final class AppEnvironment: ObservableObject {
 
     /// On-device import: video → transcribe (Neural Engine) → structure (Foundation Models) → recipe.
     /// No backend, no auth, no download. Drives the same import-progress UI.
-    func importFromVideo(_ url: URL, caption: String? = nil, title: String? = nil) async {
+    func importFromVideo(_ url: URL, caption: String? = nil, title: String? = nil, thumbnailUrl: String? = nil) async {
         importState = .submitting
         guard await OnDeviceTranscriber.ensureAuthorized() else {
             importState = .failed(message: "Enable Speech Recognition in Settings to import on device.")
@@ -759,6 +759,8 @@ final class AppEnvironment: ObservableObject {
 
         // 5) Give it a real cover: grab a representative frame from the video and store it locally,
         //    so the imported recipe looks like a real recipe instead of the generic fallback.
+        //    (We avoid using the external Instagram thumbnail URL because those CDN links expire 
+        //    and block hotlinking, causing them to fail to load).
         if let thumb = await VideoThumbnail.frame(from: url),
            let file = LocalStore.saveData(thumb.data, to: "thumb-\(recipe.id).\(thumb.ext)") {
             recipe.thumbnailUrl = file.absoluteString
