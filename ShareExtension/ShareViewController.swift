@@ -85,11 +85,14 @@ final class ShareViewController: UIViewController {
             link = "\(hostAppURL)?url=\(encoded)"
         }
         guard let url = URL(string: link) else { return }
-        var responder: UIResponder? = self
+        // Walk the responder chain to UIApplication and call openURL: on IT specifically. Calling
+        // perform(openURL:) on an arbitrary responder is flaky on iOS 18/26 — casting to
+        // UIApplication first is the reliable form for an extension opening its host app.
         let selector = sel_registerName("openURL:")
+        var responder: UIResponder? = self
         while let r = responder {
-            if r.responds(to: selector) {
-                _ = r.perform(selector, with: url)
+            if let app = r as? UIApplication, app.responds(to: selector) {
+                app.perform(selector, with: url)
                 return
             }
             responder = r.next
