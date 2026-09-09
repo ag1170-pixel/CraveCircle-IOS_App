@@ -1345,6 +1345,729 @@ extension Recipe {
             ownerUsername: "@Kristy.Graver",
             sourceLanguage: "en",
             nutrition: nil
+        ),
+        Recipe(
+            id: "recipe-hyderabadi-dum-biryani",
+            ownerId: "creator-sanjeev",
+            title: "Royal Hyderabadi Dum Biryani",
+            description: "Fragrant aged basmati rice layered with tender spiced marinated chicken, saffron-infused milk, caramelized fried onions (birista), and fresh mint, sealed and slow-cooked on dum.",
+            prepTime: "40 min",
+            cookTime: "45 min",
+            servings: 6,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Chicken Dum Marinade",
+                    items: [
+                        "800g bone-in chicken thighs & drumsticks",
+                        "1 cup thick Greek yogurt (hung curd)",
+                        "2 tbsp ginger-garlic paste",
+                        "1 tbsp Kashmiri red chili powder",
+                        "1 tsp turmeric powder",
+                        "1.5 tsp shahi biryani masala",
+                        "1 tsp toasted cumin powder",
+                        "2 tbsp fresh lemon juice",
+                        "0.5 cup chopped fresh mint leaves",
+                        "0.5 cup chopped fresh cilantro",
+                        "1.5 tsp kosher salt",
+                        "2 tbsp mustard oil or ghee"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Aromatic Basmati Rice",
+                    items: [
+                        "2.5 cups aged long-grain basmati rice (washed & soaked 30 mins)",
+                        "6 cups water",
+                        "2 black cardamoms",
+                        "4 green cardamoms",
+                        "1-inch cinnamon stick",
+                        "1 star anise",
+                        "3 whole cloves",
+                        "2 dried bay leaves",
+                        "1 tbsp salt",
+                        "1 tbsp ghee"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Dum Layering & Garnish",
+                    items: [
+                        "1 cup crispy fried onions (birista)",
+                        "0.25 cup warm whole milk",
+                        "1 generous pinch saffron strands",
+                        "2 tbsp melted desi ghee",
+                        "1 tsp kewra water or rose water",
+                        "0.25 cup roasted cashew nuts",
+                        "2 hard-boiled eggs (halved)"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "In a heavy-bottomed pot or handi, combine chicken with yogurt, ginger-garlic paste, chili powder, turmeric, biryani masala, cumin, lemon juice, mint, cilantro, salt, and mustard oil. Marinate for at least 1 hour (or overnight in the fridge)."),
+                DirectionStep(stepIndex: 2, text: "Infuse saffron strands in warm milk for 15 minutes until rich golden yellow."),
+                DirectionStep(stepIndex: 3, text: "Bring 6 cups of water to a rolling boil with whole spices, salt, and ghee. Add soaked basmati rice and boil on high heat until 70% cooked (about 5–6 minutes; grains should snap when pressed). Drain immediately."),
+                DirectionStep(stepIndex: 4, text: "Over the marinated chicken layer in the handi, spread half the drained rice. Top with half the fried onions, chopped mint, cilantro, and roasted cashews."),
+                DirectionStep(stepIndex: 5, text: "Spread remaining rice on top. Drizzle saffron milk, melted desi ghee, and kewra water evenly over the surface. Finish with remaining birista, mint, and boiled egg halves."),
+                DirectionStep(stepIndex: 6, text: "Cover tightly with aluminum foil and seal with the pot lid. Cook on medium-high heat for 10 minutes, then place the handi over a heavy flat tawa on low heat for 30 minutes on dum. Rest for 10 minutes, then gently fluff layers from the bottom and serve hot with chilled burani raita.")
+            ],
+            thumbnailUrl: "recipe_biryani",
+            ownerUsername: "@Sanjeev.Kapoor",
+            sourceLanguage: "hi",
+            nutrition: RecipeNutrition(
+                calories: 640,
+                carbsG: 68,
+                proteinG: 38,
+                fatG: 22,
+                estimated: false
+            )
+        ),
+        Recipe(
+            id: "recipe-dal-makhani",
+            ownerId: "creator-sanjeev",
+            title: "Creamy Restaurant Dal Makhani",
+            description: "Traditional slow-cooked black urad lentils and kidney beans simmered overnight with butter, ripe tomatoes, ginger, and finished with fresh cream and kasuri methi.",
+            prepTime: "20 min",
+            cookTime: "1 hr 30 min",
+            servings: 5,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Lentil Base",
+                    items: [
+                        "1 cup whole black urad dal (soaked overnight)",
+                        "0.25 cup rajma (red kidney beans, soaked overnight)",
+                        "5 cups water",
+                        "1 tsp salt",
+                        "1 black cardamom pod"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Makhani Gravy & Tempering",
+                    items: [
+                        "4 tbsp salted white butter (makhan)",
+                        "2 tbsp neutral cooking oil",
+                        "1.5 cups fresh tomato puree",
+                        "1.5 tbsp ginger-garlic paste",
+                        "1.5 tbsp degi mirch (Kashmiri chili powder)",
+                        "0.5 tsp garam masala",
+                        "0.5 cup heavy whipping cream",
+                        "1 tbsp crushed kasuri methi (dry fenugreek leaves)",
+                        "1 tbsp butter for finishing"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Rinse soaked black lentils and rajma thoroughly. Pressure cook with 5 cups water, salt, and black cardamom for 18–20 minutes (or 5–6 whistles) until exceptionally soft."),
+                DirectionStep(stepIndex: 2, text: "Using the back of a ladle or potato masher, gently mash a portion of the cooked lentils to release natural starch and create body."),
+                DirectionStep(stepIndex: 3, text: "Heat 2 tbsp butter and 2 tbsp oil in a heavy pot. Add ginger-garlic paste and sauté on medium heat for 2 minutes until aromatic."),
+                DirectionStep(stepIndex: 4, text: "Add Kashmiri chili powder followed immediately by fresh tomato puree. Cook on medium-low heat for 12–15 minutes until oil separates from the edges."),
+                DirectionStep(stepIndex: 5, text: "Pour in boiled lentils along with their cooking liquor. Add 1 cup warm water, mix well, and simmer on the lowest heat for 45–60 minutes, stirring frequently to prevent sticking."),
+                DirectionStep(stepIndex: 6, text: "Stir in remaining butter, fresh heavy cream, crushed kasuri methi, and garam masala. Simmer for another 5 minutes until velvety, rich, and dark brown. Serve hot with garlic butter naan.")
+            ],
+            thumbnailUrl: "recipe_dal_makhani",
+            ownerUsername: "@Sanjeev.Kapoor",
+            sourceLanguage: "hi",
+            nutrition: RecipeNutrition(
+                calories: 380,
+                carbsG: 42,
+                proteinG: 16,
+                fatG: 18,
+                estimated: false
+            )
+        ),
+        Recipe(
+            id: "recipe-crispy-masala-dosa",
+            ownerId: "creator-priya",
+            title: "Crispy South Indian Masala Dosa",
+            description: "Golden paper-thin fermented rice and lentil crepe smeared with roasted red chutney, stuffed with spiced potato masala, and paired with piping hot drumstick sambar and fresh coconut chutney.",
+            prepTime: "30 min",
+            cookTime: "25 min",
+            servings: 4,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Fermented Dosa Batter",
+                    items: [
+                        "3 cups idli/dosa parboiled rice",
+                        "1 cup whole white urad dal",
+                        "1 tsp fenugreek seeds (methi)",
+                        "2 tbsp chana dal",
+                        "1.5 tsp salt",
+                        "Water as needed for grinding & fermentation",
+                        "Ghee or oil for roasting"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Spiced Potato Masala Filling",
+                    items: [
+                        "4 large yellow potatoes (boiled, peeled & roughly mashed)",
+                        "1 large onion (thinly sliced)",
+                        "2 green chilies (chopped)",
+                        "1 tsp grated fresh ginger",
+                        "1 tsp mustard seeds",
+                        "1 tsp urad dal",
+                        "1 sprig fresh curry leaves",
+                        "0.5 tsp turmeric powder",
+                        "1 pinch asafoetida (hing)",
+                        "2 tbsp chopped fresh cilantro",
+                        "1 tbsp coconut oil"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Serving Accompaniments",
+                    items: [
+                        "1 cup fresh coconut chutney",
+                        "1.5 cups hot vegetable sambar",
+                        "3 tbsp spicy red chili-garlic chutney"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Heat coconut oil in a pan. Splutter mustard seeds, urad dal, curry leaves, and green chilies. Add sliced onions and ginger; sauté until soft and translucent."),
+                DirectionStep(stepIndex: 2, text: "Add turmeric, hing, and salt. Stir in mashed potatoes with 3 tbsp water to maintain moisture. Simmer for 3 minutes, finish with chopped cilantro, and set aside."),
+                DirectionStep(stepIndex: 3, text: "Heat a seasoned cast-iron or non-stick tawa over medium-high heat. Splash cold water and wipe down with a paper towel."),
+                DirectionStep(stepIndex: 4, text: "Pour a large ladleful of fermented dosa batter into the center. Using circular spiral motions from the center outward, spread thinly into a round crepe."),
+                DirectionStep(stepIndex: 5, text: "Drizzle 1 tsp ghee around the edges and over the surface. Cook on medium heat until the base turns deep golden and crisp."),
+                DirectionStep(stepIndex: 6, text: "Spread 1 tsp red chutney over the center, spoon in warm potato masala, fold both sides neatly into a cylinder, and slide onto a banana leaf. Serve immediately with sambar and coconut chutney.")
+            ],
+            thumbnailUrl: "recipe_masala_dosa",
+            ownerUsername: "@priyacooks",
+            sourceLanguage: "ta",
+            nutrition: RecipeNutrition(
+                calories: 340,
+                carbsG: 58,
+                proteinG: 9,
+                fatG: 9,
+                estimated: false
+            )
+        ),
+        Recipe(
+            id: "recipe-punjabi-palak-paneer",
+            ownerId: "creator-aditya",
+            title: "Dhaba Style Palak Paneer",
+            description: "Fresh tender paneer cubes nestled in a vibrant nutrient-rich spinach gravy lightly spiced with cumin, garlic, and green chilies, finished with a touch of dairy cream.",
+            prepTime: "20 min",
+            cookTime: "20 min",
+            servings: 4,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Spinach Blanch & Puree",
+                    items: [
+                        "500g fresh baby spinach leaves (palak)",
+                        "4 cups boiling water",
+                        "1 bowl ice water bath (for shock blanching)",
+                        "2 green chilies",
+                        "1-inch ginger piece"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Paneer & Tadka Gravy",
+                    items: [
+                        "250g fresh paneer (cut into 1-inch cubes)",
+                        "2 tbsp desi ghee",
+                        "1 tbsp butter",
+                        "1 tsp cumin seeds (jeera)",
+                        "1 medium red onion (finely chopped)",
+                        "1 tbsp minced garlic",
+                        "1 medium tomato (finely chopped)",
+                        "1 tsp coriander powder",
+                        "0.5 tsp garam masala",
+                        "1 tsp salt",
+                        "2 tbsp fresh heavy cream",
+                        "1 pinch kasuri methi"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Plunge cleaned spinach into boiling water for 90 seconds. Transfer immediately to an ice water bath to preserve the vivid emerald green hue."),
+                DirectionStep(stepIndex: 2, text: "Drain cooled spinach and blend in a mixer jar with green chilies and ginger to a smooth, velvety puree."),
+                DirectionStep(stepIndex: 3, text: "In a pan, melt 1 tbsp ghee and lightly sear paneer cubes for 1 minute until golden at the edges; soak in warm salted water to keep ultra-soft."),
+                DirectionStep(stepIndex: 4, text: "Heat remaining ghee and butter in a kadai. Add cumin seeds and minced garlic; sauté until golden and fragrant."),
+                DirectionStep(stepIndex: 5, text: "Add chopped onions and sauté until golden brown. Stir in chopped tomatoes, coriander powder, and salt; cook until soft and oil leaves the sides."),
+                DirectionStep(stepIndex: 6, text: "Pour in spinach puree and simmer gently for 4–5 minutes on low heat. Stir in paneer cubes, garam masala, and crushed kasuri methi. Swirl in heavy cream and serve with warm rotis or naan.")
+            ],
+            thumbnailUrl: "recipe_palak_paneer",
+            ownerUsername: "@Aditya.Gupta",
+            sourceLanguage: "hi",
+            nutrition: RecipeNutrition(
+                calories: 320,
+                carbsG: 12,
+                proteinG: 18,
+                fatG: 23,
+                estimated: false
+            )
+        ),
+        Recipe(
+            id: "recipe-amritsari-chole-bhature",
+            ownerId: "creator-deveats",
+            title: "Amritsari Chole with Fluffy Bhature",
+            description: "Dark, tangy, tea-infused Amritsari chickpea curry cooked with roasted anardana spices, accompanied by giant balloon-puffed golden bhature, pickled red onions, and fried green chilies.",
+            prepTime: "25 min",
+            cookTime: "40 min",
+            servings: 4,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Tea-Spiced Chole",
+                    items: [
+                        "1.5 cups dried kabuli chickpeas (soaked 8 hours)",
+                        "2 black tea bags (for authentic dark color)",
+                        "1 black cardamom",
+                        "1-inch cinnamon stick",
+                        "1 bay leaf",
+                        "1 tsp baking soda",
+                        "1.5 tsp salt",
+                        "4 cups water"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Chole Masala & Gravy",
+                    items: [
+                        "3 tbsp ghee or mustard oil",
+                        "1.5 tbsp dried pomegranate seed powder (anardana)",
+                        "1 tbsp coriander powder",
+                        "1 tsp roasted cumin powder",
+                        "1 tsp amchur (dry mango powder)",
+                        "1 tsp red chili powder",
+                        "1 tbsp ginger juliennes",
+                        "2 green chilies (slit)",
+                        "1 medium tomato (finely pureed)"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Balloon Bhature Dough",
+                    items: [
+                        "2 cups all-purpose flour (maida)",
+                        "0.25 cup fine semolina (sooji)",
+                        "0.25 cup thick yogurt",
+                        "0.5 tsp baking powder",
+                        "0.25 tsp baking soda",
+                        "1 tsp sugar",
+                        "0.5 tsp salt",
+                        "Warm water for kneading",
+                        "Oil for deep frying"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Combine flour, semolina, baking powder, baking soda, sugar, salt, and yogurt. Knead with warm water into a soft elastic dough. Smear with oil and rest covered with a damp cloth for 2 hours."),
+                DirectionStep(stepIndex: 2, text: "Pressure cook chickpeas with tea bags, baking soda, whole spices, salt, and water for 6–7 whistles until melt-in-mouth tender. Discard tea bags."),
+                DirectionStep(stepIndex: 3, text: "In a pan, heat ghee. Add tomato puree, anardana, coriander powder, cumin, amchur, and chili powder. Cook until fragrant and ghee separates."),
+                DirectionStep(stepIndex: 4, text: "Add boiled chickpeas with cooking water. Mash a few chickpeas to thicken gravy and simmer for 15 minutes. Finish with ginger juliennes and slit green chilies."),
+                DirectionStep(stepIndex: 5, text: "Heat deep frying oil in a kadai until smoking hot. Roll out portions of dough into smooth oval disks."),
+                DirectionStep(stepIndex: 6, text: "Gently slide bhatura into hot oil; press lightly with a slotted spoon so it puffs into a full golden balloon. Flip for 15 seconds, drain, and serve immediately with hot chole and pickled onions.")
+            ],
+            thumbnailUrl: "recipe_chole_bhature",
+            ownerUsername: "@deveats",
+            sourceLanguage: "hi",
+            nutrition: RecipeNutrition(
+                calories: 580,
+                carbsG: 78,
+                proteinG: 19,
+                fatG: 22,
+                estimated: false
+            )
+        ),
+        Recipe(
+            id: "recipe-kashmiri-rogan-josh",
+            ownerId: "creator-sanjeev",
+            title: "Royal Kashmiri Rogan Josh",
+            description: "Slow-braised tender lamb pieces steeped in an intensely aromatic crimson gravy flavored with Kashmiri red chilies, mawal (cockscomb flower/ratanjot), fennel powder, and dry ginger.",
+            prepTime: "25 min",
+            cookTime: "1 hr 15 min",
+            servings: 5,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Lamb & Whole Spices",
+                    items: [
+                        "800g bone-in tender lamb curry cut pieces",
+                        "4 tbsp mustard oil (heated to smoking & cooled slightly)",
+                        "2 black cardamoms",
+                        "4 green cardamoms",
+                        "4 whole cloves",
+                        "1-inch cinnamon stick",
+                        "2 bay leaves",
+                        "1 tsp cumin seeds",
+                        "1 pinch asafoetida (hing)"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Kashmiri Aromatic Gravy",
+                    items: [
+                        "1 cup thick yogurt (whisked smooth)",
+                        "2 tbsp Kashmiri dry red chili powder (soaked in 3 tbsp warm water)",
+                        "1.5 tbsp fennel seed powder (saunf)",
+                        "1 tbsp dry ginger powder (sonth)",
+                        "1 tsp shahi jeera",
+                        "0.5 tsp ground nutmeg & mace (jaiphal-javitri)",
+                        "1.5 tsp salt",
+                        "2 cups warm water"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Heat mustard oil in a heavy-bottomed dutch oven until smoking point, then reduce flame to let it cool slightly."),
+                DirectionStep(stepIndex: 2, text: "Add hing, cumin seeds, bay leaves, cinnamon, black cardamoms, green cardamoms, and cloves. Allow whole spices to sizzle for 30 seconds."),
+                DirectionStep(stepIndex: 3, text: "Add lamb pieces and sear on high heat for 8–10 minutes until meat is lightly browned on all sides."),
+                DirectionStep(stepIndex: 4, text: "Lower heat and pour in soaked Kashmiri red chili paste. Sauté continuously for 3 minutes until oil turns deep vibrant ruby red."),
+                DirectionStep(stepIndex: 5, text: "Turn heat to lowest setting and gradually stir in whisked yogurt, whisking constantly to prevent curdling. Add fennel powder, dry ginger powder, and salt."),
+                DirectionStep(stepIndex: 6, text: "Pour in 2 cups warm water, cover with a tight lid, and simmer on gentle low heat for 55–60 minutes until lamb is fork-tender and rich rogan (spiced oil) floats on top. Sprinkle nutmeg-mace powder and serve with steamed basmati rice.")
+            ],
+            thumbnailUrl: "recipe_rogan_josh",
+            ownerUsername: "@Sanjeev.Kapoor",
+            sourceLanguage: "hi",
+            nutrition: RecipeNutrition(
+                calories: 520,
+                carbsG: 8,
+                proteinG: 42,
+                fatG: 36,
+                estimated: false
+            )
+        ),
+        Recipe(
+            id: "recipe-delhi-samosa-chaat",
+            ownerId: "creator-deveats",
+            title: "Crispy Delhi Street Samosa Chaat",
+            description: "Crushed golden spiced potato samosas loaded with warm tangy chickpea curry, chilled whipped yogurt, sweet tamarind-jaggery chutney, spicy mint chutney, crunchy nylon sev, and pomegranate.",
+            prepTime: "20 min",
+            cookTime: "15 min",
+            servings: 4,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Crispy Samosa Base",
+                    items: [
+                        "4 large fresh golden potato-pea samosas (warm & crispy)",
+                        "1.5 cups warm spiced chickpea curry (ragda or chole)"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Chutneys & Sauces",
+                    items: [
+                        "0.75 cup thick sweet yogurt (whisked with 1 tsp sugar)",
+                        "0.5 cup tangy tamarind-date chutney (saunth)",
+                        "0.5 cup spicy mint-coriander green chutney"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Chaat Toppings & Spices",
+                    items: [
+                        "0.5 cup crispy nylon sev",
+                        "0.25 cup ruby fresh pomegranate arils",
+                        "1 small red onion (finely diced)",
+                        "1 tbsp chopped fresh cilantro",
+                        "1 tsp chaat masala",
+                        "0.5 tsp roasted cumin powder",
+                        "0.5 tsp black salt (kala namak)"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Place 1 fresh warm samosa in each serving bowl and gently break open into 3–4 large bite-sized chunks."),
+                DirectionStep(stepIndex: 2, text: "Ladle generous spoonfuls of hot spiced chickpea curry directly over the crushed samosas."),
+                DirectionStep(stepIndex: 3, text: "Drizzle liberally with chilled sweetened yogurt, covering the samosa chunks evenly."),
+                DirectionStep(stepIndex: 4, text: "Drizzle glossy tamarind-date chutney and vibrant mint-coriander green chutney in decorative swirls."),
+                DirectionStep(stepIndex: 5, text: "Dust lightly with chaat masala, roasted cumin powder, and black salt."),
+                DirectionStep(stepIndex: 6, text: "Scatter finely diced red onions, crispy nylon sev, fresh cilantro, and sweet pomegranate arils on top. Serve immediately while crunchy and warm.")
+            ],
+            thumbnailUrl: "recipe_samosa_chaat",
+            ownerUsername: "@deveats",
+            sourceLanguage: "hi",
+            nutrition: RecipeNutrition(
+                calories: 410,
+                carbsG: 62,
+                proteinG: 11,
+                fatG: 15,
+                estimated: false
+            )
+        ),
+        Recipe(
+            id: "recipe-mumbai-pav-bhaji",
+            ownerId: "creator-aditya",
+            title: "Buttery Mumbai Chowpatty Pav Bhaji",
+            description: "Spicy mashed vegetable medley slow-simmered on a giant tawa with Mumbai pav bhaji masala and lavish golden butter, served with toasted fluffy pav rolls, red onion salad, and lemon.",
+            prepTime: "25 min",
+            cookTime: "30 min",
+            servings: 4,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Steamed Vegetable Medley",
+                    items: [
+                        "3 medium russet potatoes (peeled & cubed)",
+                        "1.5 cups cauliflower florets",
+                        "1 cup green peas (fresh or frozen)",
+                        "0.5 cup red beetroot (steamed for natural deep red color)",
+                        "1 cup water",
+                        "1 tsp salt"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Tawa Masala & Tempering",
+                    items: [
+                        "5 tbsp salted Amul butter",
+                        "1 tbsp vegetable oil",
+                        "1 large red onion (finely chopped)",
+                        "1.5 tbsp ginger-garlic paste",
+                        "1 large green bell pepper (finely diced)",
+                        "3 ripe red tomatoes (finely chopped)",
+                        "2 tbsp authentic Mumbai pav bhaji masala",
+                        "1 tbsp Kashmiri red chili powder",
+                        "1 tsp kasuri methi",
+                        "0.25 cup chopped fresh cilantro",
+                        "1 lemon (cut into wedges)"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Butter-Toasted Pav",
+                    items: [
+                        "8 fresh soft ladi pav rolls",
+                        "3 tbsp salted butter",
+                        "0.5 tsp pav bhaji masala (for dusting pav)"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Pressure cook potatoes, cauliflower, peas, and beetroot with 1 cup water and salt for 3 whistles until soft. Mash completely using a potato masher into a coarse puree."),
+                DirectionStep(stepIndex: 2, text: "In a wide skillet or flat tawa, melt 3 tbsp butter with 1 tbsp oil. Add chopped onions and sauté for 3 minutes until translucent."),
+                DirectionStep(stepIndex: 3, text: "Add ginger-garlic paste and finely diced bell peppers. Sauté on medium heat for 3 minutes until peppers are tender."),
+                DirectionStep(stepIndex: 4, text: "Add tomatoes, pav bhaji masala, Kashmiri chili powder, and salt. Cook until tomatoes breakdown and butter glistens at the edges."),
+                DirectionStep(stepIndex: 5, text: "Pour in mashed vegetables with 0.75 cup water. Mash vigorously on the tawa for 10 minutes while simmering until glossy and thick. Finish with crushed kasuri methi and fresh cilantro."),
+                DirectionStep(stepIndex: 6, text: "Slit pav rolls horizontally. Melt butter on the hot tawa, sprinkle a pinch of pav bhaji masala and cilantro, and toast pav until golden and crisp. Serve piping hot bhaji topped with an extra slab of butter and lemon wedges.")
+            ],
+            thumbnailUrl: "recipe_pav_bhaji",
+            ownerUsername: "@Aditya.Gupta",
+            sourceLanguage: "hi",
+            nutrition: RecipeNutrition(
+                calories: 460,
+                carbsG: 64,
+                proteinG: 12,
+                fatG: 19,
+                estimated: false
+            )
+        ),
+        Recipe(
+            id: "recipe-shahi-gulab-jamun",
+            ownerId: "creator-priya",
+            title: "Royal Cardamom Rose Gulab Jamun",
+            description: "Soft melt-in-the-mouth fried dumplings crafted from fresh mawa and chenna, soaked deep in fragrant saffron, green cardamom, and rose water sugar syrup, topped with silver vark and pistachios.",
+            prepTime: "25 min",
+            cookTime: "20 min",
+            servings: 6,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Jamun Dough",
+                    items: [
+                        "1 cup soft khoya/mawa (crumbled)",
+                        "0.25 cup fresh paneer/chenna (finely grated)",
+                        "3 tbsp all-purpose flour (maida)",
+                        "1 tbsp fine semolina (sooji)",
+                        "0.25 tsp baking powder",
+                        "1 tbsp milk (if needed for binding)",
+                        "Ghee or neutral oil for deep frying"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Aromatic Rose Saffron Syrup",
+                    items: [
+                        "2 cups granulated sugar",
+                        "2 cups water",
+                        "5 green cardamom pods (lightly crushed)",
+                        "1 generous pinch saffron strands (kesar)",
+                        "1 tsp rose water",
+                        "1 tsp lemon juice (prevents crystallization)"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Royal Garnish",
+                    items: [
+                        "2 tbsp slivered emerald pistachios",
+                        "1 tbsp dried edible rose petals",
+                        "Edible silver foil (chandi vark, optional)"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "In a saucepan, bring sugar, water, and crushed cardamom to a gentle boil for 6–8 minutes until a light sticky half-string syrup forms. Turn off heat, stir in saffron, rose water, and lemon juice; keep warm."),
+                DirectionStep(stepIndex: 2, text: "In a wide plate, knead khoya and grated paneer thoroughly with the heel of your palm for 5 minutes until completely smooth with zero lumps."),
+                DirectionStep(stepIndex: 3, text: "Add all-purpose flour, semolina, and baking powder. Gently bring together into a soft, pliable, crack-free dough without over-kneading."),
+                DirectionStep(stepIndex: 4, text: "Divide dough into smooth, seamless bite-sized balls (about 18–20 pieces). Ensure surfaces are completely smooth to prevent cracking during frying."),
+                DirectionStep(stepIndex: 5, text: "Heat ghee in a deep kadai over low heat (140°C / 285°F). Slide jamuns in and fry on gentle low heat, gently swirling oil without touching the balls, for 10–12 minutes until evenly deep golden brown."),
+                DirectionStep(stepIndex: 6, text: "Drain hot fried jamuns and transfer directly into warm sugar syrup. Allow them to soak for at least 2 hours to expand and absorb sweetness. Garnish with slivered pistachios and silver vark before serving warm.")
+            ],
+            thumbnailUrl: "recipe_gulab_jamun",
+            ownerUsername: "@priyacooks",
+            sourceLanguage: "hi",
+            nutrition: RecipeNutrition(
+                calories: 310,
+                carbsG: 52,
+                proteinG: 6,
+                fatG: 10,
+                estimated: false
+            )
+        ),
+        Recipe(
+            id: "recipe-kerala-meen-curry",
+            ownerId: "creator-priya",
+            title: "Kerala Clay-Pot Fish Curry (Meen Chatti)",
+            description: "Tangy fiery coastal Kerala fish curry simmered with kingfish steaks, smoky Malabar tamarind (Kudampuli), red shallots, and freshly pressed coconut milk in an authentic clay pot.",
+            prepTime: "20 min",
+            cookTime: "25 min",
+            servings: 4,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Fish & Tamarind Prep",
+                    items: [
+                        "500g fresh Kingfish (Surmai) or Seer fish steaks",
+                        "3 pieces Kudampuli (Malabar tamarind, soaked in 0.5 cup warm water)",
+                        "0.5 tsp turmeric powder",
+                        "1 tsp salt"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Coconut Curry Base & Aromatics",
+                    items: [
+                        "3 tbsp pure virgin coconut oil",
+                        "1 tsp brown mustard seeds",
+                        "0.5 tsp fenugreek seeds (methi)",
+                        "1 cup peeled shallots (sambhar onions, sliced)",
+                        "2 tbsp ginger juliennes",
+                        "8 garlic cloves (slivered)",
+                        "3 green chilies (slit lengthwise)",
+                        "2 sprigs fresh green curry leaves",
+                        "2 tbsp Kashmiri chili powder",
+                        "1 tbsp coriander powder",
+                        "1 cup thin coconut milk",
+                        "0.5 cup thick coconut cream"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Tear soaked Kudampuli into small pieces and keep with its soaking water. Rub fish steaks with turmeric and half the salt; rest for 10 minutes."),
+                DirectionStep(stepIndex: 2, text: "Heat coconut oil in an earthenware clay pot (meen chatti) over medium heat. Crackle mustard seeds and fenugreek seeds."),
+                DirectionStep(stepIndex: 3, text: "Add sliced shallots, ginger, garlic, green chilies, and curry leaves. Sauté patiently until shallots turn soft and light golden."),
+                DirectionStep(stepIndex: 4, text: "Lower heat; add Kashmiri chili powder and coriander powder diluted in 2 tbsp water to prevent burning. Sauté for 2 minutes until aromatic and oil separates."),
+                DirectionStep(stepIndex: 5, text: "Pour in thin coconut milk and soaked Kudampuli with its water. Bring to a vigorous boil, then slide in the fish steaks in a single layer."),
+                DirectionStep(stepIndex: 6, text: "Cover and simmer on low heat for 12–15 minutes until fish is cooked through and gravy thickens. Pour thick coconut cream on top, swirl the pot gently by the handles (do not stir with spoon), rest for 20 minutes, and serve with steaming hot Kerala matta rice.")
+            ],
+            thumbnailUrl: "recipe_kerala_fish_curry",
+            ownerUsername: "@priyacooks",
+            sourceLanguage: "ml",
+            nutrition: RecipeNutrition(
+                calories: 390,
+                carbsG: 11,
+                proteinG: 34,
+                fatG: 24,
+                estimated: false
+            )
+        ),
+        Recipe(
+            id: "recipe-paneer-butter-masala",
+            ownerId: "creator-sanjeev",
+            title: "Restaurant Paneer Butter Masala",
+            description: "Melt-in-your-mouth paneer cubes simmered in a silky, mildly sweet and tangy tomato-cashew makhani gravy with butter, heavy cream, and aromatic kasuri methi.",
+            prepTime: "20 min",
+            cookTime: "25 min",
+            servings: 4,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Paneer & Makhani Gravy Base",
+                    items: [
+                        "300g fresh paneer (cut into 1-inch cubes)",
+                        "5 ripe plum tomatoes (roughly chopped)",
+                        "18 whole raw cashew nuts (soaked in warm water 20 mins)",
+                        "1-inch ginger piece",
+                        "4 garlic cloves",
+                        "2 green cardamoms",
+                        "1 bay leaf",
+                        "1-inch cinnamon stick"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Buttery Tempering & Spices",
+                    items: [
+                        "3 tbsp unsalted butter",
+                        "1 tbsp neutral oil",
+                        "1 tsp cumin seeds",
+                        "1.5 tbsp Kashmiri red chili powder",
+                        "1 tsp coriander powder",
+                        "0.5 tsp garam masala",
+                        "1 tsp sugar or honey",
+                        "1 tsp salt",
+                        "0.25 cup fresh heavy cream",
+                        "1 tbsp crushed kasuri methi (roasted fenugreek leaves)"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "In a saucepan, boil tomatoes, soaked cashews, ginger, garlic, cardamoms, bay leaf, and cinnamon with 1 cup water for 12 minutes until tomatoes are mushy. Remove whole spices, cool, and blend to an ultra-silky puree. Strain through a sieve."),
+                DirectionStep(stepIndex: 2, text: "Heat 2 tbsp butter and 1 tbsp oil in a pan. Add cumin seeds and allow them to crackle."),
+                DirectionStep(stepIndex: 3, text: "Lower heat, stir in Kashmiri chili powder, and immediately pour in the strained tomato-cashew puree to preserve the bright crimson hue."),
+                DirectionStep(stepIndex: 4, text: "Simmer gravy for 10 minutes on medium-low heat until oil begins to separate at the edges. Add coriander powder, garam masala, sugar, and salt."),
+                DirectionStep(stepIndex: 5, text: "Gently fold in fresh paneer cubes and simmer for 4 minutes so the paneer absorbs the gravy without turning rubbery."),
+                DirectionStep(stepIndex: 6, text: "Finish with remaining butter, heavy cream, and crushed kasuri methi. Swirl gently and serve immediately with hot garlic butter naan or jeera rice.")
+            ],
+            thumbnailUrl: "recipe_paneer_butter_masala",
+            ownerUsername: "@Sanjeev.Kapoor",
+            sourceLanguage: "hi",
+            nutrition: RecipeNutrition(
+                calories: 430,
+                carbsG: 22,
+                proteinG: 16,
+                fatG: 32,
+                estimated: false
+            )
+        ),
+        Recipe(
+            id: "recipe-chicken-chettinad",
+            ownerId: "creator-aditya",
+            title: "Fiery South Indian Chicken Chettinad",
+            description: "Authentic Tamil Nadu specialty cooked with bone-in chicken in a freshly stone-ground dark roasted Chettinad masala of black peppercorns, star anise, fennel, and toasted coconut.",
+            prepTime: "25 min",
+            cookTime: "35 min",
+            servings: 4,
+            ingredients: [
+                IngredientGroup(
+                    groupName: "Freshly Roasted Chettinad Masala",
+                    items: [
+                        "2 tbsp coriander seeds",
+                        "1 tbsp whole black peppercorns",
+                        "1 tbsp fennel seeds (saunf)",
+                        "1 tsp cumin seeds",
+                        "1 star anise",
+                        "1 piece mace (javitri)",
+                        "1 stone flower (kalpasi, optional)",
+                        "4 dried red chilies",
+                        "0.25 cup freshly grated coconut"
+                    ]
+                ),
+                IngredientGroup(
+                    groupName: "Chicken & Curry Base",
+                    items: [
+                        "750g bone-in chicken curry cuts",
+                        "3 tbsp cold-pressed sesame (gingelly) oil",
+                        "1 cup red shallots (finely chopped)",
+                        "1.5 tbsp ginger-garlic paste",
+                        "2 sprigs fresh curry leaves",
+                        "2 ripe tomatoes (chopped)",
+                        "0.5 tsp turmeric powder",
+                        "1.5 tsp salt",
+                        "1.5 cups water",
+                        "2 tbsp chopped fresh cilantro"
+                    ]
+                )
+            ],
+            directions: [
+                DirectionStep(stepIndex: 1, text: "Dry roast coriander seeds, peppercorns, fennel, cumin, star anise, mace, kalpasi, and dried red chilies in a skillet on low heat until deeply fragrant. Add grated coconut and roast until golden brown. Cool and grind with 0.25 cup water into a thick spice paste."),
+                DirectionStep(stepIndex: 2, text: "Heat gingelly oil in a heavy kadai. Add curry leaves and chopped shallots; sauté until golden and caramelized."),
+                DirectionStep(stepIndex: 3, text: "Add ginger-garlic paste and sauté for 2 minutes. Stir in chopped tomatoes and cook until soft and pulpy."),
+                DirectionStep(stepIndex: 4, text: "Add chicken pieces, turmeric powder, and salt. Sear chicken on high heat for 6–7 minutes until meat changes color."),
+                DirectionStep(stepIndex: 5, text: "Add the ground Chettinad spice paste and coat the chicken thoroughly. Pour in 1.5 cups water, bring to a boil, cover, and simmer for 20 minutes until chicken is tender."),
+                DirectionStep(stepIndex: 6, text: "Remove lid and simmer on medium-high heat for 5 minutes until gravy is thick, dark brown, and oil glistens on the surface. Garnish with fresh curry leaves and cilantro, and serve with layered Malabar parottas.")
+            ],
+            thumbnailUrl: "recipe_chicken_chettinad",
+            ownerUsername: "@Aditya.Gupta",
+            sourceLanguage: "ta",
+            nutrition: RecipeNutrition(
+                calories: 490,
+                carbsG: 14,
+                proteinG: 41,
+                fatG: 30,
+                estimated: false
+            )
         )
 
     ]
