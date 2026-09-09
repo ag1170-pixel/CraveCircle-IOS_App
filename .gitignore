@@ -27,3 +27,6 @@ whisper-transcriber/.tmp/
 **/cookies/
 *.env
 .env.*
+
+# Per-developer signing (machine-specific team id)
+Config/Local.xcconfig

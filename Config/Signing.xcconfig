@@ -1,0 +1,5 @@
+// Per-developer code-signing config (committed).
+// The actual DEVELOPMENT_TEAM is machine-specific and lives in Config/Local.xcconfig,
+// which is gitignored. Copy Config/Local.xcconfig.example -> Config/Local.xcconfig and
+// set your own team, so signing never clashes between developers' Macs.
+#include? "Local.xcconfig"
