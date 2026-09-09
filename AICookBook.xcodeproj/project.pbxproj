@@ -496,7 +496,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/AICookBook-Info.plist";
-				INFOPLIST_KEY_API_BASE_URL = "http://100.70.151.71:8009";
+				INFOPLIST_KEY_API_BASE_URL = "https://import.cravecircle.cc";
 				INFOPLIST_KEY_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "CraveCircle uses the camera for hands-free Flashcard cooking — wave your hand to move through recipe steps without touching your phone.";
@@ -536,7 +536,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/AICookBook-Info.plist";
-				INFOPLIST_KEY_API_BASE_URL = "http://100.70.151.71:8009";
+				INFOPLIST_KEY_API_BASE_URL = "https://import.cravecircle.cc";
 				INFOPLIST_KEY_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "CraveCircle uses the camera for hands-free Flashcard cooking — wave your hand to move through recipe steps without touching your phone.";

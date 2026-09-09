@@ -33,21 +33,10 @@
 	<string>752209970913-64mcc8ueqap9bn8mtv67a1jbeu8ftas2.apps.googleusercontent.com</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
+		<!-- Backend is now public HTTPS (db/import.cravecircle.cc via Cloudflare). No cleartext
+		     HTTP exceptions needed — full ATS, App-Store-clean. -->
 		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>100.70.151.71</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-			</dict>
-			<key>10.9.229.142</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-			</dict>
-		</dict>
+		<false/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>CraveCircle connects to your CraveCircle server to import recipes from cooking videos.</string>

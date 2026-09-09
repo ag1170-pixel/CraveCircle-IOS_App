@@ -19,7 +19,7 @@ struct AppConfig {
 
         let customAPI = UserDefaults.standard.string(forKey: "custom_api_url")?.trimmingCharacters(in: .whitespacesAndNewlines)
         // Public Cloudflare tunnel to go-api backend so users don't need Tailscale.
-        let defaultHost = "http://100.70.151.71:8009"
+        let defaultHost = "https://import.cravecircle.cc"
         let apiBaseRaw = (customAPI != nil && !customAPI!.isEmpty) ? customAPI! : ((dict["API_BASE_URL"] as? String) ?? env["API_BASE_URL"] ?? defaultHost)
         let supabaseURLRaw = (dict["SUPABASE_URL"] as? String) ?? env["SUPABASE_URL"] ?? defaultSupabaseURL
         let anonRaw = ((dict["SUPABASE_ANON_KEY"] as? String) ?? env["SUPABASE_ANON_KEY"] ?? defaultAnonKey)
@@ -42,10 +42,12 @@ struct AppConfig {
         )
     }
 
-    // Homelab self-hosted Supabase (Tailscale Serve). Schema `cravecircle` — not GGSApple `public`.
+    // Homelab self-hosted Supabase, schema `cravecircle` (not GGSApple `public`), reached over public
+    // HTTPS via the Cloudflare named tunnel `crave_circle_backend` → the isolated `cravecircle-gateway`
+    // (a cravecircle-only PostgREST + shared GoTrue). No Tailscale required, and only the cravecircle
+    // schema is exposed — the other schemas on the shared instance stay private.
     // Anon key is public by design (RLS-gated). Never ship service_role.
-    // Kong HTTP on the Tailscale IP. iOS Simulator Safari/URLSession cannot resolve MagicDNS (*.ts.net).
-    private static let defaultSupabaseURL = "http://100.70.151.71:54321"
+    private static let defaultSupabaseURL = "https://db.cravecircle.cc"
     private static let defaultAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg0MzIzMjk1LCJleHAiOjIwOTk2ODMyOTV9.rfoxjE7PA4mov-tN7nebaT_BbdN5fLiiDCJDrE_kJeM"
 
     private static func jwtRole(from token: String) -> String? {
