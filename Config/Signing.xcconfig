@@ -1,5 +1,9 @@
 // Per-developer code-signing config (committed).
-// The actual DEVELOPMENT_TEAM is machine-specific and lives in Config/Local.xcconfig,
-// which is gitignored. Copy Config/Local.xcconfig.example -> Config/Local.xcconfig and
-// set your own team, so signing never clashes between developers' Macs.
+// DEVELOPMENT_TEAM and (for free personal teams) CRAVE_BUNDLE_ID are machine-specific
+// and live in Config/Local.xcconfig (gitignored). Copy Config/Local.xcconfig.example
+// -> Config/Local.xcconfig and set your own, so signing never clashes between Macs.
+
+// Default bundle id (a paid team that owns com.anassyed.* can use this as-is).
+CRAVE_BUNDLE_ID = com.anassyed.cravecircle
+
 #include? "Local.xcconfig"

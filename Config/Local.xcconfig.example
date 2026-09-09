@@ -1,4 +1,10 @@
-// Copy this file to Config/Local.xcconfig (gitignored) and set your Apple Developer Team ID.
-// Find it in Xcode → Settings → Accounts → (your team) → Team ID, or the Apple Developer portal.
-// Aditya's team: AGCD6X7P8Z   ·   Gowtham's team: 4NTTDLCVY9
+// Copy this file to Config/Local.xcconfig (gitignored) and set your own values.
+//
+// DEVELOPMENT_TEAM: Xcode -> Settings -> Accounts -> (your team) -> Team ID.
+//   Aditya's personal team: AGCD6X7P8Z   ·   Gowtham's team: 4NTTDLCVY9
+//
+// CRAVE_BUNDLE_ID: only needed on a FREE personal team, which can't register
+//   com.anassyed.cravecircle. Use a unique id you own, e.g. com.<you>.cravecircle.
+//   (A paid team that owns com.anassyed.* can omit this and use the default.)
 DEVELOPMENT_TEAM = YOUR_TEAM_ID_HERE
+CRAVE_BUNDLE_ID = com.yourname.cravecircle
