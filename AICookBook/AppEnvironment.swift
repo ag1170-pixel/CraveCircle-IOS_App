@@ -17,6 +17,7 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var avatarImageData: Data? { didSet { persist(avatarImageData, "avatar.json") } }
     @AppStorage("guest_user_id") private var guestUserId: String = ""
     @AppStorage("onboarded_user_ids") private var onboardedUserIdsRaw: String = ""
+    @AppStorage("deleted_recipe_ids") private var deletedRecipeIdsRaw: String = ""
     @Published private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
     @Published private(set) var selectedRecipe: Recipe?
     @Published private(set) var importState: ImportFlowState = .idle
@@ -82,7 +83,8 @@ final class AppEnvironment: ObservableObject {
     /// bundled sample recipes by id so content updates still appear. Runs once, before autosave arms.
     private func hydrateLocal() {
         let saved = LocalStore.load([Recipe].self, from: "recipes.json") ?? []
-        var merged = saved
+        let localDeleted = deletedRecipeIds
+        var merged = saved.filter { !localDeleted.contains($0.id) }
         for (i, r) in merged.enumerated() {
             if let fresh = Recipe.placeholderRecipes.first(where: { $0.id == r.id }) {
                 merged[i] = fresh
@@ -235,8 +237,9 @@ final class AppEnvironment: ObservableObject {
                 // MERGE, don't replace: keep every recipe already in the library (imports, on-device,
                 // saved) and add any new ones from the feed. Replacing here was wiping freshly
                 // imported reels out of the library on the next refresh/foreground.
+                let localDeleted = deletedRecipeIds
                 var merged = recipes
-                for r in fetched where !merged.contains(where: { $0.id == r.id }) {
+                for r in fetched where !merged.contains(where: { $0.id == r.id }) && !localDeleted.contains(r.id) {
                     merged.insert(r, at: 0)
                 }
                 recipes = merged
@@ -399,9 +402,10 @@ final class AppEnvironment: ObservableObject {
         if let remote = await supabase.fetchRecipes() {
             // Build the merged list locally, then assign ONCE — a per-iteration mutation would fire
             // the recipes didSet (persist) on every remote recipe.
+            let localDeleted = deletedRecipeIds
             var merged = recipes
             var added = 0, changed = false
-            for r in remote where !unsyncedRecipeIds.contains(r.id) {
+            for r in remote where !unsyncedRecipeIds.contains(r.id) && !localDeleted.contains(r.id) {
                 if let i = merged.firstIndex(where: { $0.id == r.id }) {
                     if merged[i] != r { merged[i] = r; changed = true }
                 } else {
@@ -548,6 +552,11 @@ final class AppEnvironment: ObservableObject {
     private var onboardedUserIds: Set<String> {
         Set(onboardedUserIdsRaw.split(separator: ",").map(String.init).filter { !$0.isEmpty })
     }
+    
+    private var deletedRecipeIds: Set<String> {
+        get { Set(deletedRecipeIdsRaw.split(separator: ",").map(String.init).filter { !$0.isEmpty }) }
+        set { deletedRecipeIdsRaw = newValue.joined(separator: ",") }
+    }
 
     func markOnboarded() {
         guard let id = currentUser?.id, !isGuest else { return }
@@ -622,6 +631,11 @@ final class AppEnvironment: ObservableObject {
         savedRecipeIds.remove(id)
         likedRecipeIds.remove(id)
         studioDraftIds.remove(id)
+        
+        var deletedSet = deletedRecipeIds
+        deletedSet.insert(id)
+        deletedRecipeIds = deletedSet
+        
         if selectedRecipe?.id == id { selectedRecipe = nil }
         
         let ownerId = currentUser?.id ?? "me"
