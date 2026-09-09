@@ -1139,7 +1139,13 @@ final class AppEnvironment: ObservableObject {
         importTask = Task { [weak self] in
             guard let self else { return }
             var attempts = 0
-            let maxAttempts = 40   // ~2 min at 3s — a stuck job fails instead of spinning forever
+            var consecutiveErrors = 0
+            // ~6 min at 3s. Hindi / long reels transcribe slowly (60s chunks, CPU whisper), so the
+            // old 2-min cap quit while the server was still working. A truly stuck job still fails.
+            let maxAttempts = 120
+            // Don't kill the whole import on one flaky poll — network blips are common over a 6-min
+            // job. Only give up after several poll requests fail in a row.
+            let maxConsecutiveErrors = 6
             while !Task.isCancelled {
                 if attempts >= maxAttempts {
                     await MainActor.run {
@@ -1150,6 +1156,7 @@ final class AppEnvironment: ObservableObject {
                 attempts += 1
                 do {
                     let job = try await self.apiClient.fetchImportJob(jobId: jobId)
+                    consecutiveErrors = 0
                     await MainActor.run {
                         self.importState = .polling(jobId: jobId, status: job.status)
                     }
@@ -1194,10 +1201,14 @@ final class AppEnvironment: ObservableObject {
                         return
                     }
                 } catch {
-                    await MainActor.run {
-                        self.importState = .failed(message: self.friendlyImportError(error))
+                    consecutiveErrors += 1
+                    // Tolerate transient blips; only fail after several in a row.
+                    if consecutiveErrors >= maxConsecutiveErrors {
+                        await MainActor.run {
+                            self.importState = .failed(message: self.friendlyImportError(error))
+                        }
+                        return
                     }
-                    return
                 }
 
                 try? await Task.sleep(for: .seconds(3))
