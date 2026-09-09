@@ -201,8 +201,18 @@ final class AppEnvironment: ObservableObject {
     func refreshRecipes() async {
         do {
             let fetched = try await apiClient.fetchRecipes(limit: 20, offset: 0)
-            if !fetched.isEmpty { recipes = fetched }
-            else if recipes.isEmpty { recipes = Recipe.placeholderRecipes }
+            if !fetched.isEmpty {
+                // MERGE, don't replace: keep every recipe already in the library (imports, on-device,
+                // saved) and add any new ones from the feed. Replacing here was wiping freshly
+                // imported reels out of the library on the next refresh/foreground.
+                var merged = recipes
+                for r in fetched where !merged.contains(where: { $0.id == r.id }) {
+                    merged.insert(r, at: 0)
+                }
+                recipes = merged
+            } else if recipes.isEmpty {
+                recipes = Recipe.placeholderRecipes
+            }
         } catch {
             // The homelab feed is OPTIONAL (unreachable off-Tailscale / on cellular). Keep the local
             // library; seed samples only if we have nothing. Cloud recipes layer on via syncRecipes.

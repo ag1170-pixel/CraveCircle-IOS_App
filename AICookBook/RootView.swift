@@ -503,14 +503,20 @@ struct ImportToastBanner: View {
 
     @ViewBuilder private var actionButton: some View {
         if isDone {
-            Button("View") {
+            Button {
                 handleTap()
+            } label: {
+                HStack(spacing: 5) {
+                    Text("View Recipe")
+                        .font(AppFont.body(13, weight: .bold))
+                    Image(systemName: "arrow.forward")
+                        .font(.system(size: 11, weight: .bold))
+                }
+                .foregroundStyle(AppTheme.onAccent)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(AppTheme.accent, in: Capsule())
             }
-            .font(AppFont.body(13, weight: .bold))
-            .foregroundStyle(AppTheme.onAccent)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(AppTheme.accent, in: Capsule())
             .buttonStyle(.plain)
         } else if isError {
             Button {
@@ -538,6 +544,8 @@ struct ImportToastBanner: View {
         case .done(let recipeId):
             if let rec = environment.recipes.first(where: { $0.id == recipeId }) {
                 environment.selectRecipe(rec)
+            } else {
+                environment.openRecipe(id: recipeId)   // fetch + open if it isn't in the local list yet
             }
             environment.cancelImport()
         case .failed:

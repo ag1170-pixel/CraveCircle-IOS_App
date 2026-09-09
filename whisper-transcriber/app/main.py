@@ -724,7 +724,9 @@ async def get_import_job(job_id: str) -> dict:
 
 @app.get("/recipes")
 async def list_recipes(limit: int = 20, offset: int = 0) -> list[dict]:
-    all_recs = list(RECIPES.values())
+    # Newest first, so a freshly imported reel is always in the first page the app fetches
+    # (old oldest-first slicing hid new imports once there were >limit recipes).
+    all_recs = list(RECIPES.values())[::-1]
     return all_recs[offset : offset + limit]
 
 

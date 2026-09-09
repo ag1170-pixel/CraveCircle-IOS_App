@@ -126,10 +126,12 @@ struct ImportProgressScreen: View {
                 dismiss() // This dismisses the progress sheet
                 environment.cancelImport() // clear banner
                 if case .done(let recipeId) = state {
-                    if let rec = environment.recipes.first(where: { $0.id == recipeId }) {
-                        // Give the sheet time to dismiss before triggering fullScreenCover
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    // Give the sheet time to dismiss before triggering the fullScreenCover.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        if let rec = environment.recipes.first(where: { $0.id == recipeId }) {
                             environment.selectRecipe(rec)
+                        } else {
+                            environment.openRecipe(id: recipeId)   // fetch + open if not in the list yet
                         }
                     }
                 }
