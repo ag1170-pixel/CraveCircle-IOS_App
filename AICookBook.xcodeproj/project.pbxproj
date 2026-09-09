@@ -315,7 +315,7 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4NTTDLCVY9;
+				DEVELOPMENT_TEAM = AGCD6X7P8Z;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CraveCircle;
@@ -342,7 +342,7 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4NTTDLCVY9;
+				DEVELOPMENT_TEAM = AGCD6X7P8Z;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CraveCircle;
@@ -492,7 +492,7 @@
 				CODE_SIGN_ENTITLEMENTS = Config/AICookBook.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4NTTDLCVY9;
+				DEVELOPMENT_TEAM = AGCD6X7P8Z;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/AICookBook-Info.plist";
@@ -532,7 +532,7 @@
 				CODE_SIGN_ENTITLEMENTS = Config/AICookBook.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4NTTDLCVY9;
+				DEVELOPMENT_TEAM = AGCD6X7P8Z;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/AICookBook-Info.plist";
