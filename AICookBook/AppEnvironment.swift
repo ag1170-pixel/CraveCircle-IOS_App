@@ -13,6 +13,8 @@ final class AppEnvironment: ObservableObject {
 
     @Published private(set) var appState: AppState = .loading
     @Published private(set) var currentUser: UserProfile?
+    /// The user's chosen profile photo, stored on-device (persisted). Shown as their avatar.
+    @Published private(set) var avatarImageData: Data? { didSet { persist(avatarImageData, "avatar.json") } }
     @AppStorage("guest_user_id") private var guestUserId: String = ""
     @AppStorage("onboarded_user_ids") private var onboardedUserIdsRaw: String = ""
     @Published private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
@@ -98,6 +100,7 @@ final class AppEnvironment: ObservableObject {
         sharedLog = LocalStore.load([SharedRecipeRecord].self, from: "shared_log.json") ?? []
         if let unsynced = LocalStore.load([String].self, from: "unsynced_recipes.json") { unsyncedRecipeIds = Set(unsynced) }
         if let cuisines = LocalStore.load([String].self, from: "preferred_cuisines.json") { preferredCuisines = Set(cuisines) }
+        avatarImageData = LocalStore.load(Data.self, from: "avatar.json")
         pendingInteractions = LocalStore.load([InteractionEvent].self, from: "pending_interactions.json") ?? []
         interactionHistory = LocalStore.load([InteractionEvent].self, from: "interaction_history.json") ?? []
 
@@ -185,6 +188,33 @@ final class AppEnvironment: ObservableObject {
 
     func signUp(email: String, password: String) async throws {
         try await authClient.signUp(email: email, password: password)
+    }
+
+    /// Set the user's profile photo (stored on-device). Downscaled JPEG keeps it small.
+    func setAvatar(_ data: Data) {
+        avatarImageData = data
+    }
+
+    /// Edit display name / username. Updates locally right away and pushes to the profile row so it
+    /// persists and is visible to others. Empty fields are ignored.
+    func updateProfile(fullName: String?, username: String?) async {
+        let name = fullName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var handle = username?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let h = handle, h.hasPrefix("@") { handle = String(h.dropFirst()) }   // store without '@'
+        if let cur = currentUser {
+            currentUser = UserProfile(
+                id: cur.id,
+                username: (handle?.isEmpty == false) ? handle : cur.username,
+                fullName: (name?.isEmpty == false) ? name : cur.fullName,
+                avatarUrl: cur.avatarUrl,
+                role: cur.role
+            )
+        }
+        _ = await supabase.updateMyProfile(
+            fullName: (name?.isEmpty == false) ? name : nil,
+            username: (handle?.isEmpty == false) ? handle : nil,
+            avatarUrl: nil
+        )
     }
 
     func signOut() {

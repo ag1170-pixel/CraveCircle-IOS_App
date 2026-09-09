@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 struct ProfileScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
@@ -30,6 +31,7 @@ struct ProfileScreen: View {
     @State private var showFeedbackForm = false
     @State private var showShared = false
     @State private var cacheCleared = false
+    @State private var showEditProfile = false
     @State private var showContactOptions = false
     @State private var activeSafariURL: IdentifiableURL? = nil
 
@@ -55,6 +57,12 @@ struct ProfileScreen: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .tint(AppTheme.accentInk)
+        .sheet(isPresented: $showEditProfile) {
+            EditProfileSheet()
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(AppTheme.background)
+        }
         .sheet(isPresented: $showLanguagePicker) {
             LanguagePickerSheet(selection: $langCode)
                 .presentationDetents([.medium, .large])
@@ -92,18 +100,66 @@ struct ProfileScreen: View {
 
     private var identity: some View {
         VStack(spacing: AppSpacing.sm) {
-            CreatorAvatarView(handle: environment.currentUser?.username, size: 88, showBorder: true)
-                .overlay(Circle().stroke(AppTheme.accent, lineWidth: 2).padding(-4))
+            Button {
+                showEditProfile = true
+            } label: {
+                avatarView
+            }
+            .buttonStyle(.plain)
+
             VStack(spacing: 2) {
                 Text(environment.currentUser?.fullName ?? "Your Profile")
                     .font(AppFont.display(24, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
-                Text(environment.currentUser?.username ?? "@cravecircle")
+                Text(displayHandle)
                     .font(AppFont.body(15, weight: .medium))
                     .foregroundStyle(AppTheme.textSecondary)
             }
+
+            Button {
+                showEditProfile = true
+            } label: {
+                Text("Edit Profile")
+                    .font(AppFont.body(14, weight: .semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.surface, in: Capsule())
+                    .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            }
+            .buttonStyle(PressableStyle())
+            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// The user's chosen photo, or the initials avatar, with a camera badge showing it's editable.
+    private var avatarView: some View {
+        Group {
+            if let data = environment.avatarImageData, let ui = UIImage(data: data) {
+                Image(uiImage: ui)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 88, height: 88)
+                    .clipShape(Circle())
+            } else {
+                CreatorAvatarView(handle: environment.currentUser?.username, size: 88, showBorder: true)
+            }
+        }
+        .overlay(Circle().stroke(AppTheme.accent, lineWidth: 2).padding(-4))
+        .overlay(alignment: .bottomTrailing) {
+            Image(systemName: "camera.fill")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(AppTheme.onAccent)
+                .frame(width: 28, height: 28)
+                .background(AppTheme.accent, in: Circle())
+                .overlay(Circle().stroke(AppTheme.background, lineWidth: 2))
+        }
+    }
+
+    private var displayHandle: String {
+        guard let u = environment.currentUser?.username, !u.isEmpty else { return "@cravecircle" }
+        return u.hasPrefix("@") ? u : "@\(u)"
     }
 
     // MARK: Stats
@@ -914,5 +970,135 @@ struct DeleteAccountSheet: View {
             dismiss()
             environment.signOut()
         }
+    }
+}
+
+// MARK: - Edit Profile
+
+/// Change your profile photo (Apple PhotosPicker), display name and username. The photo is stored
+/// on-device; name/username are pushed to the profile row so they persist and others can see them.
+struct EditProfileSheet: View {
+    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var fullName = ""
+    @State private var username = ""
+    @State private var pickerItem: PhotosPickerItem?
+    @State private var newAvatar: Data?
+    @State private var saving = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: AppSpacing.lg) {
+                    PhotosPicker(selection: $pickerItem, matching: .images, photoLibrary: .shared()) {
+                        avatarPreview
+                    }
+                    .buttonStyle(.plain)
+
+                    Text("Tap the photo to change it")
+                        .font(AppFont.body(12))
+                        .foregroundStyle(AppTheme.textTertiary)
+
+                    field(title: "Name", text: $fullName, placeholder: "Your name")
+                    field(title: "Username", text: $username, placeholder: "yourname", prefix: "@")
+                }
+                .padding(AppSpacing.lg)
+            }
+            .background(AppTheme.background.ignoresSafeArea())
+            .navigationTitle("Edit Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        if saving { ProgressView() } else { Text("Save").fontWeight(.bold) }
+                    }
+                    .disabled(saving)
+                }
+            }
+            .onAppear {
+                fullName = environment.currentUser?.fullName ?? ""
+                let u = environment.currentUser?.username ?? ""
+                username = u.hasPrefix("@") ? String(u.dropFirst()) : u
+            }
+            .onChange(of: pickerItem) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let downsized = Self.downscaledJPEG(data) {
+                        newAvatar = downsized
+                    }
+                }
+            }
+        }
+    }
+
+    private var avatarPreview: some View {
+        Group {
+            if let data = newAvatar ?? environment.avatarImageData, let ui = UIImage(data: data) {
+                Image(uiImage: ui).resizable().scaledToFill()
+                    .frame(width: 108, height: 108).clipShape(Circle())
+            } else {
+                CreatorAvatarView(handle: environment.currentUser?.username, size: 108, showBorder: true)
+            }
+        }
+        .overlay(Circle().stroke(AppTheme.accent, lineWidth: 2).padding(-4))
+        .overlay(alignment: .bottomTrailing) {
+            Image(systemName: "camera.fill")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(AppTheme.onAccent)
+                .frame(width: 34, height: 34)
+                .background(AppTheme.accent, in: Circle())
+                .overlay(Circle().stroke(AppTheme.background, lineWidth: 2))
+        }
+        .padding(.top, AppSpacing.sm)
+    }
+
+    @ViewBuilder
+    private func field(title: String, text: Binding<String>, placeholder: String, prefix: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(AppFont.body(13, weight: .semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+            HStack(spacing: 4) {
+                if let prefix {
+                    Text(prefix).foregroundStyle(AppTheme.textTertiary)
+                }
+                TextField(placeholder, text: text)
+                    .textInputAutocapitalization(prefix == nil ? .words : .never)
+                    .autocorrectionDisabled(prefix != nil)
+            }
+            .font(AppFont.body(16))
+            .foregroundStyle(AppTheme.textPrimary)
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.vertical, 14)
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func save() async {
+        saving = true
+        if let newAvatar { environment.setAvatar(newAvatar) }
+        await environment.updateProfile(fullName: fullName, username: username)
+        saving = false
+        dismiss()
+    }
+
+    /// Downscale to <=512px and JPEG-compress so the on-device avatar stays small.
+    static func downscaledJPEG(_ data: Data, maxDimension: CGFloat = 512) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let size = image.size
+        let scale = min(1, maxDimension / max(size.width, size.height))
+        let target = CGSize(width: size.width * scale, height: size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: target)
+        let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: target)) }
+        return resized.jpegData(compressionQuality: 0.8)
     }
 }

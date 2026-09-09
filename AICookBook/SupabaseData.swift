@@ -91,6 +91,23 @@ struct SupabaseData {
         return (try? Self.decoder().decode([UserProfile].self, from: data))?.first
     }
 
+    /// Update the signed-in user's own profile (RLS profiles_update_own allows id = auth.uid()).
+    /// Only non-nil fields are sent. Returns true on success.
+    func updateMyProfile(fullName: String?, username: String?, avatarUrl: String?) async -> Bool {
+        guard let uid = currentUserId(),
+              var req = request(path: "rest/v1/profiles?id=eq.\(uid)", method: "PATCH") else { return false }
+        var body: [String: Any] = [:]
+        if let fullName { body["full_name"] = fullName }
+        if let username { body["username"] = username }
+        if let avatarUrl { body["avatar_url"] = avatarUrl }
+        guard !body.isEmpty else { return true }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
     // MARK: - Creator requests
 
     /// Submit a request to become a creator (RLS: user_id must be me).
