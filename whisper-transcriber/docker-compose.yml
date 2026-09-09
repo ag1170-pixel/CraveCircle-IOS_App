@@ -7,7 +7,7 @@ services:
     container_name: cravecircle-whisper
     restart: unless-stopped
     environment:
-      WHISPER_MODEL: medium
+      WHISPER_MODEL: small
       WHISPER_DEVICE: cpu
       WHISPER_COMPUTE_TYPE: int8
       WHISPER_BEAM_SIZE: "5"
