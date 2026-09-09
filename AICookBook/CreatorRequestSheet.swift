@@ -103,6 +103,10 @@ struct CreatorRequestSheet: View {
                     withAnimation { done = true }
                 }
             }
+            
+            // Also store it in the admin sqlite database for easy list viewing
+            let content = "Platform: \(platform)\nHandle/Email: \(safeHandle)\nLink: \(safeUrl)"
+            try? await environment.submitFeedback(type: "creator_request", content: content, email: safeHandle, handle: environment.currentUser?.username)
         }
     }
     

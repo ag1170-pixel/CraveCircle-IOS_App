@@ -56,6 +56,16 @@ actor APIClient {
         return try await request(path: "reels/download", method: "POST", body: payload)
     }
 
+    func submitFeedback(type: String, content: String, email: String? = nil, handle: String? = nil) async throws {
+        let payload: [String: String] = [
+            "type": type,
+            "content": content,
+            "email": email ?? "",
+            "user_handle": handle ?? ""
+        ]
+        let _: [String: String] = try await request(path: "feedback", method: "POST", body: payload)
+    }
+
     func submitImport(url: String, targetLanguage: String) async throws -> ImportSubmitResponse {
         // target_language: the user's preferred recipe language — the pipeline transcribes
         // the reel, detects the source language, and translates into this before storing.

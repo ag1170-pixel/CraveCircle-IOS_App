@@ -247,13 +247,30 @@ struct FeedbackFormView: View {
     private func submitFeedback() {
         isSubmitting = true
         Haptics.success()
-        // Here we would actually save to the DB, which will later be fetched to Obsidian
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            withAnimation(.spring()) {
-                showThankYou = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                dismiss()
+        
+        let content = """
+        Disappointment: \(disappointmentSelection ?? -1)
+        Commonality: \(fansCommonality)
+        Improvements: \(improvements)
+        Additional: \(additionalFeedback)
+        """
+        
+        Task {
+            do {
+                try await environment.submitFeedback(type: "survey", content: content, handle: environment.currentUser?.username)
+                await MainActor.run {
+                    withAnimation(.spring()) {
+                        showThankYou = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                        dismiss()
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isSubmitting = false
+                    print("Error submitting feedback: \(error)")
+                }
             }
         }
     }

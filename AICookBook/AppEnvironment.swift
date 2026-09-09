@@ -1304,6 +1304,12 @@ final class AppEnvironment: ObservableObject {
             }
         }
     }
+
+    // MARK: - Feedback / Admin
+    
+    func submitFeedback(type: String, content: String, email: String? = nil, handle: String? = nil) async throws {
+        try await apiClient.submitFeedback(type: type, content: content, email: email, handle: handle)
+    }
 }
 
 enum ImportFlowState: Equatable {

@@ -38,10 +38,32 @@ from .translate import translate_recipe
 app = FastAPI(title="CraveCircle Local Backend & Transcriber", version="2.0")
 API_KEY = os.getenv("WHISPER_API_KEY", "")
 
-# In-memory stores for dev & preview
-JOBS: dict[str, dict] = {}
+import sqlite3
+
+# Basic in-memory scaffolding for recipes (Preview only)
 RECIPES: dict[str, dict] = {}
+JOBS: dict[str, dict] = {}
 GROCERY_LIST: list[dict] = []
+
+DB_PATH = os.environ.get("DB_PATH", "/tmp/cravecircle_admin.db")
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL,
+            user_handle TEXT,
+            content TEXT,
+            email TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
 
 COOKIES_BROWSER = os.getenv("COOKIES_BROWSER")
 # Netscape cookies.txt inside the container (mounted). Lets us authenticate Instagram /
@@ -697,7 +719,37 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
         JOBS[job_id]["error_message"] = str(e)
 
 
-# MARK: - REST API Endpoints
+# MARK: - Feedback & Admin Endpoints
+
+class FeedbackSubmit(BaseModel):
+    type: str
+    user_handle: Optional[str] = None
+    content: str
+    email: Optional[str] = None
+
+@app.post("/feedback")
+def submit_feedback(req: FeedbackSubmit):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO feedback (type, user_handle, content, email) VALUES (?, ?, ?, ?)",
+        (req.type, req.user_handle, req.content, req.email)
+    )
+    conn.commit()
+    conn.close()
+    return {"status": "ok"}
+
+@app.get("/admin/feedback")
+def get_all_feedback():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT * FROM feedback ORDER BY created_at DESC")
+    rows = c.fetchall()
+    conn.close()
+    return [dict(ix) for ix in rows]
+
+# MARK: - Grocery / Profile Endpoints
 
 MEDIA_CACHE_DIR = "/tmp/cravecircle_media"
 os.makedirs(MEDIA_CACHE_DIR, exist_ok=True)
