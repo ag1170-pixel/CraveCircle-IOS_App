@@ -624,9 +624,12 @@ final class AppEnvironment: ObservableObject {
         studioDraftIds.remove(id)
         if selectedRecipe?.id == id { selectedRecipe = nil }
         
+        let ownerId = currentUser?.id ?? "me"
         Task {
+            // Tell the real Supabase backend to delete it
+            _ = await supabase.deleteRecipe(id: id, ownerId: ownerId)
+            // Also notify the local python server if we're in dev mode
             try? await apiClient.deleteRecipe(id: id)
-            // if we had a real Supabase backend hooked up for delete, we would call it here too.
         }
     }
 

@@ -194,6 +194,17 @@ struct SupabaseData {
               let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
         return true
     }
+    
+    /// Delete a recipe from the cloud. Requires a session — RLS only lets a user delete rows where owner_id = auth.uid().
+    func deleteRecipe(id: String, ownerId: String) async -> Bool {
+        guard hasSession,
+              let req = request(path: "rest/v1/recipes?id=eq.\(id)&owner_id=eq.\(ownerId)", method: "DELETE") else { return false }
+        do {
+            let (_, response) = try await URLSession.shared.data(for: req)
+            if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) { return true }
+        } catch {}
+        return false
+    }
 
     // MARK: - Social graph: profiles, follows, shares
 
