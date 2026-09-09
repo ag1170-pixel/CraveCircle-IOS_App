@@ -258,7 +258,11 @@ GRANT SELECT ON cravecircle.profiles TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON cravecircle.profiles TO authenticated;
 GRANT SELECT ON cravecircle.recipes TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON cravecircle.recipes TO authenticated;
-GRANT SELECT, INSERT, DELETE ON cravecircle.follows TO authenticated;
+-- anon needs SELECT on follows because recipes_select's RLS policy references it (planner checks
+-- table privileges even though follows' own RLS still returns zero rows to anon). Without this,
+-- anon/guest reads of cravecircle.recipes fail with "permission denied for table follows".
+GRANT SELECT ON cravecircle.follows TO anon, authenticated;
+GRANT INSERT, DELETE ON cravecircle.follows TO authenticated;
 GRANT SELECT, INSERT ON cravecircle.shares TO authenticated;
 GRANT SELECT, INSERT ON cravecircle.user_interactions TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON cravecircle.creator_requests TO authenticated;
