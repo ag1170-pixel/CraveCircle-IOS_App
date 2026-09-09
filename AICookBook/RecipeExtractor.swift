@@ -103,50 +103,138 @@ enum RecipeExtractor {
 
     private static func heuristic(transcript: String, caption: String?, onScreenText: String?,
                                  ownerId: String, sourceLanguage: String?) -> Recipe {
-        let text = [caption, onScreenText, transcript].compactMap { $0 }.joined(separator: "\n")
-
-        // Ingredients: lines that carry a quantity + unit (works well on OCR'd overlays).
-        let ingredientItems = ingredientLines(from: text)
-        let ingredients = ingredientItems.isEmpty
-            ? []
-            : [IngredientGroup(groupName: "Main Ingredients", items: ingredientItems)]
-
-        // Steps: sentence-ish fragments, minus the lines we already took as ingredients.
-        let ingredientSet = Set(ingredientItems.map { $0.lowercased() })
-        let sentences = text
-            .split(whereSeparator: { ".!?\n".contains($0) })
+        // Structure comes from the caption / on-screen text (they're line-based lists). The spoken
+        // transcript is only mined for extra cooking steps, never dumped verbatim.
+        let structured = [caption, onScreenText].compactMap { $0 }.joined(separator: "\n")
+        let lines = structured
+            .split(whereSeparator: { "\n".contains($0) })
             .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { $0.count > 8 && !ingredientSet.contains($0.lowercased()) }
-        let steps = sentences.prefix(14).enumerated()
+            .filter { !$0.isEmpty }
+
+        var groups: [IngredientGroup] = []
+        var currentGroupName: String? = nil
+        var currentItems: [String] = []
+        var stepLines: [String] = []
+        var titleCandidate: String?
+
+        func flush() {
+            if !currentItems.isEmpty {
+                groups.append(IngredientGroup(groupName: currentGroupName, items: currentItems))
+                currentItems = []
+            }
+        }
+
+        for line in lines {
+            if isHashtagOrJunk(line) { continue }
+            if titleCandidate == nil, line.count >= 3, !looksLikeIngredient(line), !looksLikeStep(line),
+               !isSectionHeader(line) {
+                titleCandidate = String(line.prefix(48))     // first real non-list line = title
+            }
+            if isSectionHeader(line) {
+                flush()
+                // Ingredient-section headers ("For Fried Noodles", "Sauce") group the items under them;
+                // step-section headers ("Method", "Steps") just get dropped (steps detected by verb).
+                currentGroupName = isStepSectionHeader(line) ? nil : cleanedHeader(line)
+                continue
+            }
+            if looksLikeIngredient(line) {
+                currentItems.append(line)
+            } else if looksLikeStep(line) {
+                stepLines.append(line)
+            }
+            // else: skip filler / non-recipe noise entirely.
+        }
+        flush()
+
+        // If the caption gave few steps, mine the spoken transcript for genuine cooking sentences.
+        if stepLines.count < 2, !transcript.isEmpty {
+            let spoken = transcript
+                .split(whereSeparator: { ".!?\n".contains($0) })
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { $0.count > 12 && looksLikeStep($0) && !isHashtagOrJunk($0) }
+            stepLines.append(contentsOf: spoken)
+        }
+
+        // De-dupe steps, cap length.
+        var seenSteps = Set<String>()
+        let steps = stepLines
+            .filter { seenSteps.insert($0.lowercased()).inserted }
+            .prefix(20).enumerated()
             .map { DirectionStep(stepIndex: $0.offset + 1, text: String($0.element)) }
-
-        let title = text.split(separator: "\n")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .first(where: { $0.count >= 3 })
-            .map { String($0.prefix(48)) } ?? "Imported Recipe"
 
         return Recipe(
             id: UUID().uuidString, ownerId: ownerId,
-            title: title, servings: 2,
-            ingredients: ingredients, directions: Array(steps),
+            title: titleCandidate ?? "Imported Recipe", servings: 2,
+            ingredients: groups, directions: Array(steps),
             ownerUsername: "@you", sourceLanguage: sourceLanguage
         )
     }
 
-    /// Lines that look like an ingredient (quantity + unit), de-duplicated. For OCR/caption text.
-    private static func ingredientLines(from text: String) -> [String] {
-        let pattern = #"(?i)\b(\d+([.,/]\d+)?|½|¼|¾|⅓|⅔)\s*(g|kg|mg|ml|l|oz|lb|lbs|cup|cups|tbsp|tbs|tablespoons?|tsp|teaspoons?|cloves?|slices?|cans?|pinch|sticks?|eggs?)\b"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
-        var out: [String] = []
-        var seen = Set<String>()
-        for raw in text.split(whereSeparator: { "\n".contains($0) }) {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            guard line.count >= 3, line.count <= 70 else { continue }
-            let range = NSRange(line.startIndex..., in: line)
-            guard regex.firstMatch(in: line, options: [], range: range) != nil else { continue }
-            let key = line.lowercased()
-            if !seen.contains(key) { seen.insert(key); out.append(line) }
-        }
-        return out
+    // MARK: Line classification (keeps ingredients / steps / noise apart)
+
+    private static let cookingVerbs: Set<String> = [
+        "heat","add","cook","fry","stir","mix","pour","chop","dice","boil","saute","sauté","simmer",
+        "cover","garnish","serve","blend","whisk","knead","marinate","bake","roast","grill","toss",
+        "drain","season","sprinkle","combine","transfer","remove","cut","slice","grind","soak","fold",
+        "spread","layer","flip","cool","rest","set","prepare","make","keep","put","take","boil","fry",
+        "deep","shallow","temper","garnish","refrigerate","chill","strain","beat","crush","peel","wash",
+        "melt","preheat","bring","reduce","coat","dip","assemble","top","squeeze","brush","drizzle"]
+
+    /// A hashtag line, a mostly-hashtag line, or obvious non-recipe filler (promo/CTA/emoji-only).
+    private static func isHashtagOrJunk(_ line: String) -> Bool {
+        let l = line.lowercased()
+        if line.hasPrefix("#") || line.filter({ $0 == "#" }).count >= 2 { return true }
+        let junk = ["follow", "like and", "subscribe", "comment", "link in bio", "reelinstagram",
+                    "fyp", "explore", "viral", "trending", "share this", "save this", "dm ", "click"]
+        if junk.contains(where: { l.contains($0) }) && !looksLikeStep(line) { return true }
+        // Lines with no letters (emoji/symbols only).
+        if line.range(of: #"[A-Za-zऀ-ॿ]"#, options: .regularExpression) == nil { return true }
+        return false
+    }
+
+    /// "Ingredients:", "For the sauce", "Method", "Steps", "For Fried Noodles" — a section label,
+    /// not an ingredient or a step. Short, no trailing quantity, often starts with "For" or ends ":".
+    private static func isSectionHeader(_ line: String) -> Bool {
+        let l = line.lowercased()
+        if l.hasSuffix(":") && line.count <= 40 { return true }
+        if l.hasPrefix("for ") && line.count <= 40 && !looksLikeIngredient(line) { return true }
+        let headers = ["ingredients", "method", "steps", "directions", "instructions", "recipe",
+                       "for garnish", "for serving", "to serve", "notes"]
+        return headers.contains(where: { l == $0 || l.hasPrefix($0) }) && line.count <= 40
+    }
+
+    private static func isStepSectionHeader(_ line: String) -> Bool {
+        let l = line.lowercased()
+        return ["method", "steps", "directions", "instructions"].contains(where: { l.hasPrefix($0) })
+    }
+
+    private static func cleanedHeader(_ line: String) -> String {
+        line.replacingOccurrences(of: ":", with: "").trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Ingredient line: carries a quantity/unit, OR is a "name - amount" list entry, OR a bare
+    /// pantry line ("few", "to taste", "for frying"). Bounded length; not a cooking instruction.
+    private static func looksLikeIngredient(_ line: String) -> Bool {
+        guard line.count >= 2, line.count <= 80 else { return false }
+        if looksLikeStep(line) { return false }
+        let qty = #"(?i)(\b\d+([.,/]\d+)?\b|½|¼|¾|⅓|⅔)\s*(g|gm|gms|gram|grams|kg|mg|ml|l|litre|oz|lb|lbs|cup|cups|tbsp|tbs|tablespoons?|tsp|teaspoons?|clove|cloves|slice|slices|can|cans|pinch|stick|sticks|egg|eggs|packet|packets|piece|pieces|inch|handful)\b"#
+        if line.range(of: qty, options: .regularExpression) != nil { return true }
+        // "Onion - 1/2 (finely chopped)", "Coriander leaves - few", "Hakka noodles - 1 small packet"
+        if line.range(of: #"\s[-–—]\s"#, options: .regularExpression) != nil { return true }
+        let pantry = ["to taste", "for frying", "for garnish", "as required", "as needed"]
+        if pantry.contains(where: { line.lowercased().contains($0) }) { return true }
+        return false
+    }
+
+    /// Step line: an imperative cooking instruction (starts with / contains a cooking verb).
+    private static func looksLikeStep(_ line: String) -> Bool {
+        let words = line.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        guard let first = words.first else { return false }
+        if cookingVerbs.contains(first) { return true }             // imperative opener
+        // A cooking verb early in a longer instruction sentence.
+        if words.count >= 4 && words.prefix(3).contains(where: { cookingVerbs.contains($0) }) { return true }
+        return false
     }
 }
