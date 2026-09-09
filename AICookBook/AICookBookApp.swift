@@ -51,18 +51,24 @@ struct CraveCircleApp: App {
                         let id = url.lastPathComponent
                         if !id.isEmpty, id != "/" { environment.openRecipe(id: id) }
                     } else {
-                        // Share Extension deep link: cravecircle://import?url=<encoded link>.
-                        // Pass the carried link directly (no App Group needed); nil falls back to the
-                        // App-Group hand-off for paid-team builds.
+                        // Share Extension: the reel is imported server-side by the extension, so pull
+                        // the new recipe into the library. (A ?url= — older hand-off path — still imports.)
                         let shared = URLComponents(url: url, resolvingAgainstBaseURL: false)?
                             .queryItems?.first(where: { $0.name == "url" })?.value
-                        Task { await environment.importFromSharedURL(shared) }
+                        Task {
+                            await environment.importFromSharedURL(shared)
+                            await environment.refreshRecipes()
+                        }
                     }
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    // Also check on foreground, in case the app was cold-launched by the share.
+                    // On foreground, pull any reel the Share Extension imported server-side while we
+                    // were away (this is how a shared reel shows up when the extension can't open us).
                     if phase == .active {
-                        Task { await environment.importFromSharedURL() }
+                        Task {
+                            await environment.importFromSharedURL()
+                            await environment.refreshRecipes()
+                        }
                     }
                 }
                 .onAppear {

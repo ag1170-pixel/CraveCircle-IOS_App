@@ -16,6 +16,9 @@ final class ShareViewController: UIViewController {
     private let appGroupID = "group.com.anassyed.AICookBook"
     private let pendingKey = "pending_import_url"
     private let hostAppURL = "cravecircle://import"
+    // The reel-import backend (same as AppConfig.defaultHost). The extension imports DIRECTLY here so
+    // sharing works with no App Group and no fragile openURL hand-off (free teams + App Store alike).
+    private let backendURL = "https://import.cravecircle.cc"
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
@@ -59,20 +62,29 @@ final class ShareViewController: UIViewController {
     }
 
     private func deliver(_ urlString: String?) {
-        // Primary hand-off: embed the link in the deep link (works WITHOUT an App Group, which
-        // free personal teams can't use). Also stash in the App Group when one is available
-        // (paid team) as a redundant fallback.
-        if let urlString, let defaults = UserDefaults(suiteName: appGroupID) {
-            defaults.set(urlString, forKey: pendingKey)
+        guard let urlString, !urlString.isEmpty else { return finish() }
+        // Import the reel DIRECTLY on the backend from the extension — reliable on any signing team
+        // (no App Group needed, no openURL hand-off needed). The recipe is created server-side and
+        // appears in the app on next open/refresh. Then best-effort nudge the app to the foreground.
+        postImport(urlString) { [weak self] in
+            self?.openHostApp(with: nil)   // just bring the app forward to refresh (no ?url= → no dup)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self?.finish() }
         }
-        DispatchQueue.main.async { [weak self] in
-            self?.openHostApp(with: urlString)
-            // Give the system a beat to switch to the host app before tearing down the extension —
-            // calling completeRequest immediately can cancel the pending openURL on iOS 18/26.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                self?.finish()
-            }
+    }
+
+    /// POST the reel URL to the import backend so the recipe is built server-side.
+    private func postImport(_ urlString: String, completion: @escaping () -> Void) {
+        guard let endpoint = URL(string: "\(backendURL)/reels/import") else {
+            DispatchQueue.main.async(execute: completion); return
         }
+        var req = URLRequest(url: endpoint)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["url": urlString, "target_language": "en"])
+        req.timeoutInterval = 20
+        URLSession.shared.dataTask(with: req) { _, _, _ in
+            DispatchQueue.main.async(execute: completion)
+        }.resume()
     }
 
     /// Extensions can't call UIApplication.shared.open, so walk the responder chain to openURL:.
