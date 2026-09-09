@@ -264,7 +264,6 @@ struct MainTabView: View {
     @State private var showingImportSheet = false
     @State private var showingProgressDetail = false
     @State private var tab: AppTab = .home
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         // Instagram's iOS 26 bar is the system UITabBar: one floating Liquid Glass
@@ -305,11 +304,6 @@ struct MainTabView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
-        // Swipe between tabs on top of the system glass bar: swipe left → next feature
-        // (Home→Studio→Grocery→Search→Profile), right → previous. Runs simultaneously with
-        // scrolls; only a decisive, clearly-horizontal swipe flips the tab, so vertical scrolls
-        // and the card rails are left alone.
-        .simultaneousGesture(tabSwipe())
         .overlay(alignment: .top) {
             ImportToastBanner(onOpenDetails: { showingProgressDetail = true })
                 .padding(.top, 46)
@@ -359,24 +353,6 @@ struct MainTabView: View {
             withAnimation(.easeOut(duration: 0.25)) { tab = requested }
             environment.pendingTabSwitch = nil
         }
-    }
-
-    /// Horizontal swipe to change tabs, layered over the system glass bar. Requires a decisive,
-    /// clearly-horizontal drag so it doesn't trigger on vertical scrolls or the horizontal card
-    /// rails inside Home/Studio/Search. Swipe left → next tab, right → previous (Instagram-style).
-    private func tabSwipe() -> some Gesture {
-        DragGesture(minimumDistance: 30)
-            .onEnded { value in
-                let dx = value.translation.width
-                let dy = value.translation.height
-                guard abs(dx) > 90, abs(dx) > abs(dy) * 2.5 else { return }
-                let order = AppTab.allCases
-                guard let i = order.firstIndex(of: tab) else { return }
-                let next = dx < 0 ? i + 1 : i - 1     // swipe left → next, right → previous
-                guard order.indices.contains(next) else { return }
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { tab = order[next] }
-                Haptics.select()
-            }
     }
 }
 
