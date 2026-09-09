@@ -268,29 +268,42 @@ struct MainTabView: View {
     var body: some View {
         // Instagram's iOS 26 bar is the system UITabBar: one floating Liquid Glass
         // platter, five equal icons, selection capsule drawn by UIKit, shrinks on scroll.
-        // Full-screen paged pager (Instagram-style): swipe anywhere left/right to move between
-        // tabs, or tap the floating bar to jump. .page is UIPageViewController-backed, so it
-        // coordinates with the horizontal rails inside Home/Studio/Search (the rail scrolls first,
-        // then the page turns) instead of fighting them like a manual gesture would.
+        // Instagram's iOS 26 bar is the system UITabBar: one floating Liquid Glass
+        // platter (the "glass bubble"), five equal icons, selection capsule drawn by UIKit,
+        // shrinks on scroll. This is Gowtham's original bar, restored verbatim.
         TabView(selection: $tab) {
-            HomeScreen(showingImportSheet: $showingImportSheet)
-                .tag(AppTab.home)
-            StudioScreen()
-                .tag(AppTab.studio)
-            GroceryScreen()
-                .tag(AppTab.groceries)
-            NavigationStack { SearchScreen() }
-                .tag(AppTab.search)
-            ProfileScreen()
-                .tag(AppTab.profile)
+            Tab(value: AppTab.home) {
+                HomeScreen(showingImportSheet: $showingImportSheet)
+            } label: {
+                Image(systemName: AppTab.home.icon)
+                    .accessibilityLabel(AppTab.home.title)
+            }
+            Tab(value: AppTab.studio) {
+                StudioScreen()
+            } label: {
+                Image(systemName: AppTab.studio.icon)
+                    .accessibilityLabel(AppTab.studio.title)
+            }
+            Tab(value: AppTab.groceries) {
+                GroceryScreen()
+            } label: {
+                Image(systemName: AppTab.groceries.icon)
+                    .accessibilityLabel(AppTab.groceries.title)
+            }
+            Tab(value: AppTab.search) {
+                NavigationStack { SearchScreen() }
+            } label: {
+                Image(systemName: AppTab.search.icon)
+                    .accessibilityLabel(AppTab.search.title)
+            }
+            Tab(value: AppTab.profile) {
+                ProfileScreen()
+            } label: {
+                Image(systemName: AppTab.profile.icon)
+                    .accessibilityLabel(AppTab.profile.title)
+            }
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .safeAreaInset(edge: .bottom) {
-            // Floating glass bar; via safeAreaInset it reserves space so page content
-            // insets above it instead of hiding behind it.
-            CraveTabBar(selected: $tab)
-                .padding(.bottom, 6)
-        }
+        .tabBarMinimizeBehavior(.onScrollDown)
         .overlay(alignment: .top) {
             ImportToastBanner(onOpenDetails: { showingProgressDetail = true })
                 .padding(.top, 46)
