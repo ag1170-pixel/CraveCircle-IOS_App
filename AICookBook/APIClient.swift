@@ -49,15 +49,6 @@ actor APIClient {
         let author: String?
         let thumbnail: String?
         let downloadUrl: String
-
-        enum CodingKeys: String, CodingKey {
-            case mediaId = "media_id"
-            case title
-            case caption
-            case author
-            case thumbnail
-            case downloadUrl = "download_url"
-        }
     }
     
     func downloadReel(url: String) async throws -> ReelDownloadResult {

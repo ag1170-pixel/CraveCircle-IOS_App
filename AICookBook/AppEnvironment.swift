@@ -694,6 +694,7 @@ final class AppEnvironment: ObservableObject {
             try? FileManager.default.removeItem(at: localMp4)
             
         } catch {
+            print("❌ startImport error: \(error)")
             importState = .failed(message: friendlyImportError(error))
         }
     }
