@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FeedbackFormView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var environment: AppEnvironment
     
     @State private var currentPage = 0
     @State private var disappointmentSelection: Int? = nil
