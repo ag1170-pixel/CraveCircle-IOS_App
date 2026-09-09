@@ -264,56 +264,33 @@ struct MainTabView: View {
     @State private var showingImportSheet = false
     @State private var showingProgressDetail = false
     @State private var tab: AppTab = .home
-    @State private var contentWidth: CGFloat = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         // Instagram's iOS 26 bar is the system UITabBar: one floating Liquid Glass
         // platter, five equal icons, selection capsule drawn by UIKit, shrinks on scroll.
+        // Full-screen paged pager (Instagram-style): swipe anywhere left/right to move between
+        // tabs, or tap the floating bar to jump. .page is UIPageViewController-backed, so it
+        // coordinates with the horizontal rails inside Home/Studio/Search (the rail scrolls first,
+        // then the page turns) instead of fighting them like a manual gesture would.
         TabView(selection: $tab) {
-            Tab(value: AppTab.home) {
-                HomeScreen(showingImportSheet: $showingImportSheet)
-            } label: {
-                Image(systemName: AppTab.home.icon)
-                    .accessibilityLabel(AppTab.home.title)
-            }
-            Tab(value: AppTab.studio) {
-                StudioScreen()
-            } label: {
-                Image(systemName: AppTab.studio.icon)
-                    .accessibilityLabel(AppTab.studio.title)
-            }
-            Tab(value: AppTab.groceries) {
-                GroceryScreen()
-            } label: {
-                Image(systemName: AppTab.groceries.icon)
-                    .accessibilityLabel(AppTab.groceries.title)
-            }
-            Tab(value: AppTab.search) {
-                NavigationStack { SearchScreen() }
-            } label: {
-                Image(systemName: AppTab.search.icon)
-                    .accessibilityLabel(AppTab.search.title)
-            }
-            Tab(value: AppTab.profile) {
-                ProfileScreen()
-            } label: {
-                Image(systemName: AppTab.profile.icon)
-                    .accessibilityLabel(AppTab.profile.title)
-            }
+            HomeScreen(showingImportSheet: $showingImportSheet)
+                .tag(AppTab.home)
+            StudioScreen()
+                .tag(AppTab.studio)
+            GroceryScreen()
+                .tag(AppTab.groceries)
+            NavigationStack { SearchScreen() }
+                .tag(AppTab.search)
+            ProfileScreen()
+                .tag(AppTab.profile)
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear { contentWidth = geo.size.width }
-                    .onChange(of: geo.size.width) { _, w in contentWidth = w }
-            }
-        )
-        // Edge-swipe to move between main tabs (Home ⇄ Studio ⇄ Grocery ⇄ Search ⇄ Profile).
-        // Starts from a screen edge only, so it never fights the centered horizontal rails on
-        // Home/Studio/Search. Runs simultaneously with scrolls — vertical/rail drags are ignored.
-        .simultaneousGesture(tabEdgeSwipe())
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .safeAreaInset(edge: .bottom) {
+            // Floating glass bar; via safeAreaInset it reserves space so page content
+            // insets above it instead of hiding behind it.
+            CraveTabBar(selected: $tab)
+                .padding(.bottom, 6)
+        }
         .overlay(alignment: .top) {
             ImportToastBanner(onOpenDetails: { showingProgressDetail = true })
                 .padding(.top, 46)
@@ -363,36 +340,6 @@ struct MainTabView: View {
             withAnimation(.easeOut(duration: 0.25)) { tab = requested }
             environment.pendingTabSwitch = nil
         }
-    }
-
-    /// Horizontal edge-swipe navigation between the main tabs. Only fires when the drag begins
-    /// within `edge` points of the left/right screen edge, so it can't be triggered by the
-    /// centered horizontal rails on Home/Studio/Search. Right edge → next tab, left edge → previous.
-    private func tabEdgeSwipe() -> some Gesture {
-        DragGesture(minimumDistance: 24)
-            .onEnded { value in
-                guard contentWidth > 0 else { return }
-                let dx = value.translation.width
-                let dy = value.translation.height
-                // Must be a clearly horizontal swipe, not a scroll.
-                guard abs(dx) > 70, abs(dx) > abs(dy) * 2 else { return }
-
-                let edge: CGFloat = 44
-                let startX = value.startLocation.x
-                let order = AppTab.allCases
-                guard let i = order.firstIndex(of: tab) else { return }
-
-                var target: Int?
-                if startX >= contentWidth - edge, dx < 0 {
-                    target = i + 1                     // swipe in from the RIGHT edge → next feature
-                } else if startX <= edge, dx > 0 {
-                    target = i - 1                     // swipe in from the LEFT edge → previous feature
-                }
-                guard let t = target, order.indices.contains(t) else { return }
-
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) { tab = order[t] }
-                Haptics.select()
-            }
     }
 }
 
