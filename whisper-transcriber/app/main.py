@@ -32,6 +32,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from .transcriber import transcribe, detect_speech, MODEL_NAME, DEVICE, _model
+from .translate import translate_recipe
 
 app = FastAPI(title="CraveCircle Local Backend & Transcriber", version="2.0")
 API_KEY = os.getenv("WHISPER_API_KEY", "")
@@ -532,16 +533,17 @@ def assemble_recipe(caption: str, transcript: str, ocr_text: str, has_speech: bo
     ocr_items, ocr_dirs = _extract_from_ocr(ocr_text) if ocr_text.strip() else ([], [])
     ocr_groups = [{"group_name": "Main Ingredients", "items": ocr_items}] if ocr_items else []
 
-    # STEPS — audio wins only when there's real narration with cooking instructions and it's
-    # at least as complete as the caption; otherwise caption, then OCR.
-    if has_speech and audio_is_cooking and len(aud_dirs) >= max(2, len(cap_dirs)):
+    # STEPS — AUDIO FIRST (product spec): whenever there's genuine cooking narration, use the
+    # spoken steps. Fall back to caption, then on-screen text, then any audio we have. Always
+    # yields steps if any source produced them.
+    if has_speech and audio_is_cooking and len(aud_dirs) >= 2:
         directions = aud_dirs
     elif cap_dirs:
         directions = cap_dirs
     elif ocr_dirs:
         directions = ocr_dirs
     else:
-        directions = aud_dirs or []
+        directions = aud_dirs or cap_dirs or ocr_dirs or []
 
     # INGREDIENTS — written quantities win.
     if cap_groups and _has_qty(cap_groups):
@@ -648,6 +650,11 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
                     "Try a reel where the creator narrates or lists the recipe."
                 )
 
+            # 5) MULTILINGUAL: translate the assembled recipe into the user's chosen language.
+            # Best-effort — if it can't translate, the original recipe is kept (import never fails).
+            JOBS[job_id]["status"] = "translating"
+            parsed = translate_recipe(parsed, target_language)
+
             recipe_id = f"recipe-{uuid.uuid4().hex[:8]}"
             recipe_obj = {
                 "id": recipe_id,
@@ -661,7 +668,7 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
                 "directions": parsed["directions"],
                 "thumbnail_url": thumbnail,
                 "owner_username": f"@{author}" if not author.startswith("@") else author,
-                "source_language": source_lang,
+                "source_language": parsed.get("source_language") or source_lang,
                 "source_url": url,
                 "nutrition": parsed["nutrition"]
             }
