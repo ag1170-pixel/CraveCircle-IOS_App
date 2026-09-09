@@ -14,16 +14,16 @@ private enum ImportStage: Int, CaseIterable {
 
     var title: String {
         switch self {
-        case .fetch: return "Fetching reel"
-        case .transcribe: return "Transcribing audio"
-        case .extract: return "Extracting recipe"
+        case .fetch: return "Getting the reel"
+        case .transcribe: return "Listening to the video"
+        case .extract: return "Writing the recipe"
         case .ready: return "Recipe ready"
         }
     }
     var subtitle: String {
         switch self {
-        case .fetch: return "Caption, thumbnail & metadata"
-        case .transcribe: return "In 60-second chunks"
+        case .fetch: return "Grabbing the video & details"
+        case .transcribe: return "Catching every ingredient & step"
         case .extract: return "Ingredients & steps"
         case .ready: return "Tap to open"
         }

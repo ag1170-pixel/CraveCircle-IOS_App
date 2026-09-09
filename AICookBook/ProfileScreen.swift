@@ -256,7 +256,7 @@ struct ProfileScreen: View {
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
 
-            Text("Connects your phone to your local Mac/Homelab Whisper server for instant reel imports.")
+            Text("Connects your phone to your import server for faster reel imports.")
                 .font(AppFont.body(12))
                 .foregroundStyle(AppTheme.textTertiary)
                 .padding(.horizontal, AppSpacing.xs)
@@ -581,9 +581,9 @@ struct KitchenServerSheet: View {
     @State private var isSuccess: Bool = false
 
     private let presets: [(name: String, icon: String, url: String, desc: String)] = [
-        ("Homelab Whisper", "server.rack", "http://100.70.151.71:8009", "Tailscale mesh server"),
-        ("Mac Workstation", "laptopcomputer", "http://10.9.229.142:8000", "Local Wi-Fi server"),
-        ("Cloudflare Tunnel", "cloud.fill", "https://api.cravecircle.cc", "Zero Trust HTTPS proxy")
+        ("CraveCircle Server", "cloud.fill", "https://import.cravecircle.cc", "Default · works anywhere"),
+        ("Homelab", "server.rack", "http://100.70.151.71:8009", "Tailscale network"),
+        ("Local Wi-Fi", "laptopcomputer", "http://10.9.229.142:8000", "Same-network server")
     ]
 
     var body: some View {
@@ -594,7 +594,7 @@ struct KitchenServerSheet: View {
                         Text("Kitchen Server Endpoint")
                             .font(AppFont.display(22, weight: .bold))
                             .foregroundStyle(AppTheme.textPrimary)
-                        Text("Connects your phone to your Whisper transcription & recipe extraction engine.")
+                        Text("Connects your phone to your import server.")
                             .font(AppFont.body(14))
                             .foregroundStyle(AppTheme.textSecondary)
                     }

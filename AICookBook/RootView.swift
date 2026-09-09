@@ -448,9 +448,9 @@ struct ImportToastBanner: View {
         case .polling(_, let status):
             switch status {
             case .queued: return "Queued in kitchen"
-            case .downloading: return "Downloading Reel..."
-            case .transcribing: return "Transcribing Audio (Whisper)..."
-            case .extracting: return "Extracting Recipe & Kcal..."
+            case .downloading: return "Getting the reel..."
+            case .transcribing: return "Listening to the video..."
+            case .extracting: return "Writing your recipe..."
             case .done: return "Recipe Plated! ✨"
             case .error: return "Import Failed"
             }
