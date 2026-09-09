@@ -17,8 +17,6 @@ final class ShareViewController: UIViewController {
     private let appGroupID = "group.com.anassyed.AICookBook"
     private let pendingKey = "pending_import_url"
     private let hostAppURL = "cravecircle://import"
-    // The reel-import backend (same as AppConfig.defaultHost).
-    private let backendURL = "https://import.cravecircle.cc"
 
     // MARK: UI
     private let card = UIView()
@@ -75,45 +73,33 @@ final class ShareViewController: UIViewController {
         return detector?.firstMatch(in: text, options: [], range: range)?.url?.absoluteString
     }
 
+    private var sharedURL: String?
+
     private func deliver(_ urlString: String?) {
         guard let urlString, !urlString.isEmpty else {
             return showError("Couldn't find a video link in this share.")
         }
+        sharedURL = urlString
         // Stash in the App Group too (bonus for paid-team builds); harmless if unavailable.
         if let defaults = UserDefaults(suiteName: appGroupID) {
             defaults.set(urlString, forKey: pendingKey)
         }
-        postImport(urlString)
+        // Hand the URL to the APP so IT runs the import — that's what shows the live download/
+        // transcribe progress and files the recipe in the user's own library. Auto-attempt the
+        // open (usually works right after a user-initiated share); the button is the reliable
+        // fallback if the system didn't switch apps.
+        openHostApp()
+        showReady()
     }
 
-    /// POST the reel URL to the import backend so the recipe is built server-side.
-    private func postImport(_ urlString: String) {
-        guard let endpoint = URL(string: "\(backendURL)/reels/import") else {
-            return showError("Import server is unavailable.")
-        }
-        var req = URLRequest(url: endpoint)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["url": urlString, "target_language": "en"])
-        req.timeoutInterval = 25
-        URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
-            DispatchQueue.main.async {
-                let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
-                if err == nil, (200..<300).contains(code) {
-                    self?.showSuccess()
-                } else if err != nil {
-                    self?.showError("Couldn't reach CraveCircle. Check your connection and try again.")
-                } else {
-                    self?.showError("CraveCircle couldn't start this import (error \(code)).")
-                }
-            }
-        }.resume()
-    }
-
-    // MARK: Open host app (best-effort nudge to refresh)
-
+    /// Open CraveCircle with the reel URL embedded, so the app imports it (live progress + owned by
+    /// the user). Walk the responder chain to UIApplication and call openURL: on it.
     private func openHostApp() {
-        guard let url = URL(string: hostAppURL) else { return }
+        guard let urlString = sharedURL else { return }
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        let encoded = urlString.addingPercentEncoding(withAllowedCharacters: allowed) ?? urlString
+        guard let url = URL(string: "\(hostAppURL)?url=\(encoded)") else { return }
         let selector = sel_registerName("openURL:")
         var responder: UIResponder? = self
         while let r = responder {
@@ -149,14 +135,13 @@ final class ShareViewController: UIViewController {
         }
     }
 
-    private func showSuccess() {
-        openHostApp()   // best-effort: bring the app forward so it refreshes
+    private func showReady() {
         setState(loading: false,
-                 title: "Added to CraveCircle ✨",
-                 message: "Your recipe is cooking. Open CraveCircle in a minute to see it in your library.",
-                 systemIcon: "checkmark.seal.fill",
+                 title: "Import this reel",
+                 message: "Open CraveCircle to download it and turn it into a recipe — you'll watch the progress and it lands in your library.",
+                 systemIcon: "arrow.up.forward.app.fill",
                  iconTint: UIColor(red: 0.42, green: 0.78, blue: 0.44, alpha: 1))
-        primaryButton.setTitle("Done", for: .normal)
+        primaryButton.setTitle("Open CraveCircle", for: .normal)
     }
 
     private func showError(_ message: String) {
@@ -168,7 +153,10 @@ final class ShareViewController: UIViewController {
         primaryButton.setTitle("Close", for: .normal)
     }
 
-    @objc private func primaryTapped() { finish() }
+    @objc private func primaryTapped() {
+        if sharedURL != nil { openHostApp() }   // reliable, user-initiated open into the app
+        finish()
+    }
 
     // MARK: UI build
 
