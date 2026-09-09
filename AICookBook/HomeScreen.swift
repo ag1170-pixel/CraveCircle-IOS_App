@@ -10,6 +10,13 @@
 
 import SwiftUI
 
+struct HorizontalScrollFrameKey: PreferenceKey {
+    static var defaultValue: [CGRect] = []
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
 struct HomeScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Binding var showingImportSheet: Bool
@@ -159,6 +166,9 @@ struct HomeScreen: View {
                 .padding(.horizontal, AppSpacing.md)
             }
             .scrollClipDisabled()
+            .background(GeometryReader { geo in
+                Color.clear.preference(key: HorizontalScrollFrameKey.self, value: [geo.frame(in: .global)])
+            })
         }
     }
 
@@ -201,6 +211,9 @@ struct HomeScreen: View {
                     .padding(.horizontal, AppSpacing.md)
                 }
                 .scrollClipDisabled()
+                .background(GeometryReader { geo in
+                    Color.clear.preference(key: HorizontalScrollFrameKey.self, value: [geo.frame(in: .global)])
+                })
             }
         }
     }
@@ -230,11 +243,15 @@ struct HomeScreen: View {
                                     .frame(maxWidth: 200, alignment: .leading)
                             }
                         }
+                        .frame(width: 168) // Fix for untidy/uneven frames due to chip text width
                     }
                 }
                 .padding(.horizontal, AppSpacing.md)
             }
             .scrollClipDisabled()
+            .background(GeometryReader { geo in
+                Color.clear.preference(key: HorizontalScrollFrameKey.self, value: [geo.frame(in: .global)])
+            })
         }
     }
 

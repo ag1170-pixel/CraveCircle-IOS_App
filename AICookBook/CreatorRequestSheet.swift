@@ -42,13 +42,13 @@ struct CreatorRequestSheet: View {
                         Picker("Platform", selection: $platform) {
                             ForEach(platforms, id: \.self) { Text($0) }
                         }
-                        TextField("Handle (e.g. @yourname)", text: $handle)
+                        TextField("Handle or Email ID (e.g. @name or email)", text: $handle)
                             .autocorrectionDisabled().textInputAutocapitalization(.never)
                         TextField("Profile link (optional)", text: $url)
                             .autocorrectionDisabled().textInputAutocapitalization(.never).keyboardType(.URL)
                     }
                     Section {
-                        Text("An admin verifies your social profile before you can publish — this keeps the creator community trustworthy.")
+                        Text("An admin verifies your profile before you can publish — this keeps the creator community trustworthy.")
                             .font(AppFont.body(13)).foregroundStyle(AppTheme.textSecondary)
                     }
                 }
@@ -74,16 +74,43 @@ struct CreatorRequestSheet: View {
     private func submit() {
         submitting = true
         Task {
+            let safeHandle = handle.trimmingCharacters(in: .whitespaces)
+            let safeUrl = url.trimmingCharacters(in: .whitespaces)
+            
+            // Try backend submission
             let ok = await environment.submitCreatorRequest(
                 platform: platform,
-                handle: handle.trimmingCharacters(in: .whitespaces),
-                url: url.trimmingCharacters(in: .whitespaces),
+                handle: safeHandle,
+                url: safeUrl,
                 note: nil
             )
+            
             await MainActor.run {
                 submitting = false
-                if ok { Haptics.success(); withAnimation { done = true } }
+                if ok || !environment.hasRealSession {
+                    // Simulate success if in dev mode (no real session), otherwise real success
+                    Haptics.success()
+                    withAnimation { done = true }
+                    
+                    // Fallback to email to ensure adityagupta2646@gmail.com gets it
+                    if !ok || !environment.hasRealSession {
+                        sendEmailToAdmin(platform: platform, handle: safeHandle, url: safeUrl)
+                    }
+                } else {
+                    // Backend failed, fallback to email directly
+                    sendEmailToAdmin(platform: platform, handle: safeHandle, url: safeUrl)
+                    Haptics.success()
+                    withAnimation { done = true }
+                }
             }
+        }
+    }
+    
+    private func sendEmailToAdmin(platform: String, handle: String, url: String) {
+        let subject = "Creator Request: \(handle)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let body = "Platform: \(platform)\nHandle/Email: \(handle)\nLink: \(url)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        if let emailUrl = URL(string: "mailto:adityagupta2646@gmail.com?subject=\(subject)&body=\(body)") {
+            UIApplication.shared.open(emailUrl)
         }
     }
 }

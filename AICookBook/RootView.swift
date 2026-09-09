@@ -264,6 +264,7 @@ struct MainTabView: View {
     @State private var showingImportSheet = false
     @State private var showingProgressDetail = false
     @State private var tab: AppTab = .home
+    @State private var ignoreSwipeFrames: [CGRect] = []
 
     var body: some View {
         // Instagram's iOS 26 bar is the system UITabBar: one floating Liquid Glass
@@ -304,6 +305,31 @@ struct MainTabView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        .onPreferenceChange(HorizontalScrollFrameKey.self) { frames in
+            // Keep track of horizontal scroll areas (like carousels on HomeScreen)
+            ignoreSwipeFrames = frames
+        }
+        // ponytail: swipe-to-switch-tabs. We explicitly check ignoreSwipeFrames so that
+        // horizontal ScrollViews (fresh/suggested/following) aren't overridden.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 50, coordinateSpace: .global)
+                .onEnded { value in
+                    // If swipe started inside a horizontal scroll view, ignore it to let the scroll view handle it.
+                    if ignoreSwipeFrames.contains(where: { $0.contains(value.startLocation) }) { return }
+                    
+                    let h = value.translation.width
+                    let v = value.translation.height
+                    // Only act on predominantly horizontal swipes.
+                    guard abs(h) > abs(v) * 1.4 else { return }
+                    if h < -50, let next = tab.next {
+                        Haptics.select()
+                        withAnimation(.easeOut(duration: 0.25)) { tab = next }
+                    } else if h > 50, let prev = tab.previous {
+                        Haptics.select()
+                        withAnimation(.easeOut(duration: 0.25)) { tab = prev }
+                    }
+                }
+        )
         .overlay(alignment: .top) {
             ImportToastBanner(onOpenDetails: { showingProgressDetail = true })
                 .padding(.top, 46)
