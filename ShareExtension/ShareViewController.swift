@@ -67,7 +67,11 @@ final class ShareViewController: UIViewController {
         }
         DispatchQueue.main.async { [weak self] in
             self?.openHostApp(with: urlString)
-            self?.finish()
+            // Give the system a beat to switch to the host app before tearing down the extension —
+            // calling completeRequest immediately can cancel the pending openURL on iOS 18/26.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                self?.finish()
+            }
         }
     }
 
