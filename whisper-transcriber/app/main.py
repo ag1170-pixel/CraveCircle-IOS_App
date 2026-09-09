@@ -19,6 +19,7 @@ import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -28,7 +29,7 @@ import uuid
 from typing import Optional
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Header, BackgroundTasks
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 
 from .transcriber import transcribe, detect_speech, MODEL_NAME, DEVICE, _model
@@ -71,23 +72,37 @@ def _run_ytdlp(extra_args: list[str], url: str) -> subprocess.CompletedProcess:
     base = [sys.executable, "-m", "yt_dlp", "--no-warnings", "--extractor-args", "youtube:player_client=android"]
 
     auth: list[str] = []
+    tmp_cookies_path = None
     if COOKIES_FILE and os.path.exists(COOKIES_FILE):
-        auth = ["--cookies", COOKIES_FILE]
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tf:
+                tmp_cookies_path = tf.name
+            shutil.copy(COOKIES_FILE, tmp_cookies_path)
+            auth = ["--cookies", tmp_cookies_path]
+        except Exception:
+            auth = ["--cookies", COOKIES_FILE]
     elif COOKIES_BROWSER:
         auth = ["--cookies-from-browser", COOKIES_BROWSER]
 
-    res = subprocess.run(base + auth + extra_args + [url], capture_output=True, text=True)
-    if res.returncode == 0:
-        return res
+    try:
+        res = subprocess.run(base + auth + extra_args + [url], capture_output=True, text=True)
+        if res.returncode == 0:
+            return res
 
-    # A public URL can fail *because* of stale cookies — retry once anonymously.
-    if auth:
-        res_anon = subprocess.run(base + extra_args + [url], capture_output=True, text=True)
-        if res_anon.returncode == 0:
-            return res_anon
-        res = res_anon
+        # A public URL can fail *because* of stale cookies — retry once anonymously.
+        if auth:
+            res_anon = subprocess.run(base + extra_args + [url], capture_output=True, text=True)
+            if res_anon.returncode == 0:
+                return res_anon
+            res = res_anon
 
-    raise RuntimeError(_friendly_ytdlp_error(res.stderr, url))
+        raise RuntimeError(_friendly_ytdlp_error(res.stderr, url))
+    finally:
+        if tmp_cookies_path and os.path.exists(tmp_cookies_path):
+            try:
+                os.remove(tmp_cookies_path)
+            except Exception:
+                pass
 
 
 def _check_key(provided: Optional[str]) -> None:
@@ -683,6 +698,80 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
 
 
 # MARK: - REST API Endpoints
+
+MEDIA_CACHE_DIR = "/tmp/cravecircle_media"
+os.makedirs(MEDIA_CACHE_DIR, exist_ok=True)
+
+def _clean_old_media():
+    now = time.time()
+    for f in glob.glob(os.path.join(MEDIA_CACHE_DIR, "*")):
+        try:
+            if os.path.isfile(f) and now - os.path.getmtime(f) > 3600:
+                os.remove(f)
+        except Exception:
+            pass
+
+class ReelDownloadRequest(BaseModel):
+    url: str
+
+class ReelDownloadResponse(BaseModel):
+    media_id: str
+    title: str
+    caption: str
+    author: str
+    thumbnail: Optional[str]
+    download_url: str
+
+@app.post("/reels/download", response_model=ReelDownloadResponse)
+def download_reel(req: ReelDownloadRequest, bg: BackgroundTasks):
+    media_id = f"reel_{uuid.uuid4().hex[:12]}"
+    out_template = os.path.join(MEDIA_CACHE_DIR, f"{media_id}.%(ext)s")
+    
+    try:
+        res_meta = _run_ytdlp(["--dump-json"], req.url)
+        meta = json.loads(res_meta.stdout)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    title = meta.get("title") or "Cooking Reel"
+    caption = (meta.get("description") or "").strip()
+    author = meta.get("uploader") or meta.get("channel") or meta.get("uploader_id") or "chef"
+    thumbnail = meta.get("thumbnail")
+
+    try:
+        _run_ytdlp([
+            "-f", "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
+            "--merge-output-format", "mp4",
+            "-o", out_template
+        ], req.url)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to download video: {e}")
+
+    candidates = glob.glob(os.path.join(MEDIA_CACHE_DIR, f"{media_id}.*"))
+    if not candidates:
+        raise HTTPException(status_code=500, detail="Video downloaded but file not found on disk")
+        
+    actual_file = candidates[0]
+    filename = os.path.basename(actual_file)
+
+    bg.add_task(_clean_old_media)
+
+    return ReelDownloadResponse(
+        media_id=media_id,
+        title=title,
+        caption=caption,
+        author=author,
+        thumbnail=thumbnail,
+        download_url=f"/reels/media/{filename}"
+    )
+
+@app.get("/reels/media/{filename}")
+def get_reel_media(filename: str):
+    safe_name = os.path.basename(filename)
+    file_path = os.path.join(MEDIA_CACHE_DIR, safe_name)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Media file expired or not found")
+    return FileResponse(file_path, media_type="video/mp4", filename=safe_name)
 
 @app.get("/health")
 def health() -> dict:

@@ -664,10 +664,35 @@ final class AppEnvironment: ObservableObject {
     func startImport(from instagramURL: String) async {
         do {
             importState = .submitting
-            let targetLanguage = UserDefaults.standard.string(forKey: LanguagePrefs.key) ?? LanguagePrefs.default.rawValue
-            let response = try await apiClient.submitImport(url: instagramURL, targetLanguage: targetLanguage)
-            importState = .polling(jobId: response.jobId, status: response.status ?? .queued)
-            beginPolling(jobId: response.jobId)
+            
+            // 1) Fetch reel info and server-cached mp4 link
+            let reel = try await apiClient.downloadReel(url: instagramURL)
+            let downloadPath = reel.downloadUrl.starts(with: "http") 
+                ? reel.downloadUrl 
+                : config.apiBaseURL.appending(path: reel.downloadUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/"))).absoluteString
+
+            guard let downloadUrl = URL(string: downloadPath) else {
+                throw URLError(.badURL)
+            }
+            
+            // 2) Download video file to local temporary storage on iPhone
+            importState = .polling(jobId: reel.mediaId, status: .downloading)
+            let (tempFileUrl, _) = try await URLSession.shared.download(from: downloadUrl)
+            
+            let localMp4 = FileManager.default.temporaryDirectory.appendingPathComponent("\(reel.mediaId).mp4")
+            if FileManager.default.fileExists(atPath: localMp4.path) {
+                try? FileManager.default.removeItem(at: localMp4)
+            }
+            try FileManager.default.moveItem(at: tempFileUrl, to: localMp4)
+            
+            // 3) Hand off to the fast on-device pipeline (Apple Neural Engine + Vision)
+            // We can pass the extracted caption to the extractor later, but for now we just 
+            // call importFromVideo which does the full on-device pipeline.
+            await importFromVideo(localMp4)
+            
+            // Clean up
+            try? FileManager.default.removeItem(at: localMp4)
+            
         } catch {
             importState = .failed(message: friendlyImportError(error))
         }

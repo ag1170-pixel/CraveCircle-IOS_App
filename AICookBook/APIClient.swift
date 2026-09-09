@@ -42,6 +42,29 @@ actor APIClient {
         return try await requestSingle(url: url)
     }
 
+    struct ReelDownloadResult: Decodable {
+        let mediaId: String
+        let title: String?
+        let caption: String?
+        let author: String?
+        let thumbnail: String?
+        let downloadUrl: String
+
+        enum CodingKeys: String, CodingKey {
+            case mediaId = "media_id"
+            case title
+            case caption
+            case author
+            case thumbnail
+            case downloadUrl = "download_url"
+        }
+    }
+    
+    func downloadReel(url: String) async throws -> ReelDownloadResult {
+        let payload = ["url": url]
+        return try await request(path: "reels/download", method: "POST", body: payload)
+    }
+
     func submitImport(url: String, targetLanguage: String) async throws -> ImportSubmitResponse {
         // target_language: the user's preferred recipe language — the pipeline transcribes
         // the reel, detects the source language, and translates into this before storing.
