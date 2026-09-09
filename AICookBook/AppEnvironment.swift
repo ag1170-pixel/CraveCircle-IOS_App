@@ -707,8 +707,18 @@ final class AppEnvironment: ObservableObject {
             }
             try FileManager.default.moveItem(at: tempFileUrl, to: localMp4)
             
-            // 3) Hand off to the fast on-device pipeline (Apple Neural Engine + Vision)
-            await importFromVideo(localMp4, caption: reel.caption, title: reel.title, thumbnailUrl: reel.thumbnail)
+            // 3) Hand off to the fast on-device pipeline (Apple Neural Engine + Vision).
+            //    Resolve the thumbnail (the server returns a relative /reels/media/… path for its
+            //    ffmpeg frame; the reel's own poster image comes as a full http URL).
+            let resolvedThumb: String?
+            if let t = reel.thumbnail, !t.isEmpty {
+                resolvedThumb = t.starts(with: "http")
+                    ? t
+                    : config.apiBaseURL.appending(path: t.trimmingCharacters(in: CharacterSet(charactersIn: "/"))).absoluteString
+            } else {
+                resolvedThumb = nil
+            }
+            await importFromVideo(localMp4, caption: reel.caption, title: reel.title, thumbnailUrl: resolvedThumb)
             
             // Clean up
             try? FileManager.default.removeItem(at: localMp4)
@@ -811,6 +821,13 @@ final class AppEnvironment: ObservableObject {
         //    and block hotlinking, causing them to fail to load).
         if let thumb = await VideoThumbnail.frame(from: url),
            let file = LocalStore.saveData(thumb.data, to: "thumb-\(recipe.id).\(thumb.ext)") {
+            recipe.thumbnailUrl = file.absoluteString
+        } else if let remote = thumbnailUrl, let rurl = URL(string: remote),
+                  rurl.scheme?.hasPrefix("http") == true,
+                  let (data, _) = try? await URLSession.shared.data(from: rurl),
+                  let file = LocalStore.saveData(data, to: "thumb-\(recipe.id).jpg") {
+            // Frame grab failed (e.g. a VP9 clip iOS can't decode) — fall back to the reel's own
+            // thumbnail, downloaded now while the CDN link is fresh and stored locally so it persists.
             recipe.thumbnailUrl = file.absoluteString
         }
 

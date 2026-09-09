@@ -792,7 +792,12 @@ def download_reel(req: ReelDownloadRequest, bg: BackgroundTasks):
 
     try:
         _run_ytdlp([
-            "-f", "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
+            # Prefer H.264 (avc1) video + AAC audio: iOS AVFoundation can't decode VP9/AV1, so a VP9
+            # download transcribes fine (AAC audio) but can't yield a thumbnail frame. Fall back to
+            # any format only if H.264 isn't available.
+            "-f", ("bestvideo[vcodec^=avc1][height<=720]+bestaudio[ext=m4a]/"
+                   "best[vcodec^=avc1][height<=720]/"
+                   "bestvideo[height<=720]+bestaudio/best[height<=720]/best"),
             "--merge-output-format", "mp4",
             "-o", out_template
         ], req.url)
@@ -805,6 +810,22 @@ def download_reel(req: ReelDownloadRequest, bg: BackgroundTasks):
         
     actual_file = candidates[0]
     filename = os.path.basename(actual_file)
+
+    # Server-side cover frame (priority 2): ffmpeg decodes VP9/AV1 that iOS AVFoundation can't, so a
+    # real frame is available for every reel regardless of codec. Prefer this over the reel's poster
+    # image; if ffmpeg fails, keep the reel's own thumbnail (priority 3). The app tries its own
+    # on-device frame first (priority 1) and only downloads this when that fails.
+    thumb_file = os.path.join(MEDIA_CACHE_DIR, f"{media_id}.jpg")
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-ss", "1", "-i", actual_file, "-frames:v", "1",
+             "-vf", "scale='min(800,iw)':-2", "-q:v", "3", thumb_file],
+            check=True, capture_output=True, timeout=30,
+        )
+        if os.path.exists(thumb_file) and os.path.getsize(thumb_file) > 0:
+            thumbnail = f"/reels/media/{media_id}.jpg"
+    except Exception:
+        pass  # fall back to the reel's own poster image (already in `thumbnail`)
 
     bg.add_task(_clean_old_media)
 
