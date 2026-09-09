@@ -264,6 +264,8 @@ struct MainTabView: View {
     @State private var showingImportSheet = false
     @State private var showingProgressDetail = false
     @State private var tab: AppTab = .home
+    @State private var contentWidth: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         // Instagram's iOS 26 bar is the system UITabBar: one floating Liquid Glass
@@ -301,6 +303,17 @@ struct MainTabView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { contentWidth = geo.size.width }
+                    .onChange(of: geo.size.width) { _, w in contentWidth = w }
+            }
+        )
+        // Edge-swipe to move between main tabs (Home ⇄ Studio ⇄ Grocery ⇄ Search ⇄ Profile).
+        // Starts from a screen edge only, so it never fights the centered horizontal rails on
+        // Home/Studio/Search. Runs simultaneously with scrolls — vertical/rail drags are ignored.
+        .simultaneousGesture(tabEdgeSwipe())
         .overlay(alignment: .top) {
             ImportToastBanner(onOpenDetails: { showingProgressDetail = true })
                 .padding(.top, 46)
@@ -350,6 +363,36 @@ struct MainTabView: View {
             withAnimation(.easeOut(duration: 0.25)) { tab = requested }
             environment.pendingTabSwitch = nil
         }
+    }
+
+    /// Horizontal edge-swipe navigation between the main tabs. Only fires when the drag begins
+    /// within `edge` points of the left/right screen edge, so it can't be triggered by the
+    /// centered horizontal rails on Home/Studio/Search. Right edge → next tab, left edge → previous.
+    private func tabEdgeSwipe() -> some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onEnded { value in
+                guard contentWidth > 0 else { return }
+                let dx = value.translation.width
+                let dy = value.translation.height
+                // Must be a clearly horizontal swipe, not a scroll.
+                guard abs(dx) > 70, abs(dx) > abs(dy) * 2 else { return }
+
+                let edge: CGFloat = 44
+                let startX = value.startLocation.x
+                let order = AppTab.allCases
+                guard let i = order.firstIndex(of: tab) else { return }
+
+                var target: Int?
+                if startX >= contentWidth - edge, dx < 0 {
+                    target = i + 1                     // swipe in from the RIGHT edge → next feature
+                } else if startX <= edge, dx > 0 {
+                    target = i - 1                     // swipe in from the LEFT edge → previous feature
+                }
+                guard let t = target, order.indices.contains(t) else { return }
+
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) { tab = order[t] }
+                Haptics.select()
+            }
     }
 }
 
