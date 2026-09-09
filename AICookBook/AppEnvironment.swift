@@ -1027,10 +1027,12 @@ final class AppEnvironment: ObservableObject {
               isOwner(of: recipe)
         else { return }
         studioDraftIds.remove(recipeId)
-        if let recipe = recipes.first(where: { $0.id == recipeId }) {
-            let notif = CircleNotificationItem(title: "Recipe Published", message: "Your recipe '\(recipe.title)' is now live on your profile.", timeAgo: "Just now", symbol: "sparkles", isRead: false, recipeId: recipeId)
-            circleNotifications.insert(notif, at: 0)
-        }
+        // Publishing must actually push the recipe to the cloud so followers/everyone can see it —
+        // not just flip a local draft flag. Mark it dirty and sync now, then refresh the feed.
+        markRecipeDirty(recipeId)
+        let notif = CircleNotificationItem(title: "Recipe Published", message: "Your recipe '\(recipe.title)' is now live on your profile.", timeAgo: "Just now", symbol: "sparkles", isRead: false, recipeId: recipeId)
+        circleNotifications.insert(notif, at: 0)
+        Task { await syncRecipes() }
     }
     
     func unpublishRecipe(recipeId: String) {
