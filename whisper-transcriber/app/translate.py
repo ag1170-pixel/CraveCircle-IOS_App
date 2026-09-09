@@ -35,6 +35,14 @@ def _looks_untranslatable(s: str) -> bool:
     return not re.search(r"[A-Za-zऀ-෿Ѐ-ӿ]", s or "")
 
 
+def _is_error_response(text: str) -> bool:
+    """Google's rate-limit/error pages come back as translatable-looking text — reject them."""
+    t = (text or "").lower()
+    return ("error 500" in t or "server error" in t
+            or "that’s an error" in t or "that's an error" in t
+            or "please try again later" in t)
+
+
 def translate_recipe(recipe: dict, target_language: str | None) -> dict:
     """Return a copy of `recipe` with title/description/ingredients/directions translated into
     `target_language`. No-op (returns the original) if target is missing/unsupported, the recipe is
@@ -84,14 +92,23 @@ def translate_recipe(recipe: dict, target_language: str | None) -> dict:
     if not strings:
         return recipe
 
+    # Translate everything in ONE request (newline-joined) — deep-translator's translate_batch fires
+    # one request PER string, which trips Google's rate limit and returns error pages as "text".
+    SEP = "\n"
+    joined = SEP.join(s.replace("\n", " ").strip() for s in strings)
     try:
-        translated = translator.translate_batch(strings)
+        result = translator.translate(joined)
     except Exception:
-        # Batch failed (rate limit / network) — leave the recipe untranslated but usable.
         recipe["source_language"] = source
         return recipe
 
-    if not translated or len(translated) != len(strings):
+    if not result or _is_error_response(result):
+        recipe["source_language"] = source
+        return recipe
+
+    translated = [p.strip() for p in result.split(SEP)]
+    if len(translated) != len(strings):
+        # Line count drifted (Google merged/split lines) — don't risk misaligning fields.
         recipe["source_language"] = source
         return recipe
 
