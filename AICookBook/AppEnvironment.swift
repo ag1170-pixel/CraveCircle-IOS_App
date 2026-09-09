@@ -623,6 +623,11 @@ final class AppEnvironment: ObservableObject {
         likedRecipeIds.remove(id)
         studioDraftIds.remove(id)
         if selectedRecipe?.id == id { selectedRecipe = nil }
+        
+        Task {
+            try? await apiClient.deleteRecipe(id: id)
+            // if we had a real Supabase backend hooked up for delete, we would call it here too.
+        }
     }
 
     // MARK: - Owner-aware recipe collections (single source of truth for "your" recipes)

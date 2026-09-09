@@ -142,12 +142,14 @@ struct StudioScreen: View {
                             Haptics.success()
                             withAnimation(AppMotion.snappy) {
                                 environment.publishDraft(recipeId: recipe.id)
+                                tab = 1 // Switch to Published tab
                             }
                         },
                         onUnpublish: {
                             Haptics.tap()
                             withAnimation(AppMotion.snappy) {
                                 environment.unpublishRecipe(recipeId: recipe.id)
+                                tab = 0 // Switch to Drafts tab
                             }
                         }
                     )

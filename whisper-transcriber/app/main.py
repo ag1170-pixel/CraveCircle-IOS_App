@@ -879,6 +879,18 @@ async def get_recipe(recipe_id: str) -> dict:
     return recipe
 
 
+@app.get("/recipes")
+async def get_all_recipes() -> list[dict]:
+    # Return everything in memory
+    return list(RECIPES.values())
+
+@app.delete("/recipes/{recipe_id}")
+async def delete_recipe(recipe_id: str):
+    if recipe_id in RECIPES:
+        del RECIPES[recipe_id]
+        return {"status": "ok"}
+    raise HTTPException(status_code=404, detail="Recipe not found")
+
 @app.get("/profile")
 async def get_profile() -> dict:
     return {

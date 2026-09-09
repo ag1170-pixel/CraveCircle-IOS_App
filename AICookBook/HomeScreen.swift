@@ -179,8 +179,7 @@ struct HomeScreen: View {
     }
 
     private var libraryGridRecipes: [Recipe] {
-        let personal = environment.recipes.filter { environment.canDelete($0) || environment.isSaved(recipeId: $0.id) }
-        return personal.isEmpty ? Array(environment.recipes.prefix(6)) : personal
+        environment.recipes.filter { environment.canDelete($0) || environment.isSaved(recipeId: $0.id) }
     }
 
     // MARK: Fresh in your Circle

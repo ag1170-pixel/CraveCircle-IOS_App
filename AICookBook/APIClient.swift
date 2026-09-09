@@ -56,6 +56,10 @@ actor APIClient {
         return try await request(path: "reels/download", method: "POST", body: payload)
     }
 
+    func deleteRecipe(id: String) async throws {
+        let _: [String: String] = try await request(path: "recipes/\(id)", method: "DELETE", body: nil as String?)
+    }
+
     func submitFeedback(type: String, content: String, email: String? = nil, handle: String? = nil) async throws {
         let payload: [String: String] = [
             "type": type,
