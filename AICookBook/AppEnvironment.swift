@@ -686,9 +686,7 @@ final class AppEnvironment: ObservableObject {
             try FileManager.default.moveItem(at: tempFileUrl, to: localMp4)
             
             // 3) Hand off to the fast on-device pipeline (Apple Neural Engine + Vision)
-            // We can pass the extracted caption to the extractor later, but for now we just 
-            // call importFromVideo which does the full on-device pipeline.
-            await importFromVideo(localMp4)
+            await importFromVideo(localMp4, caption: reel.caption, title: reel.title)
             
             // Clean up
             try? FileManager.default.removeItem(at: localMp4)
@@ -716,7 +714,7 @@ final class AppEnvironment: ObservableObject {
 
     /// On-device import: video → transcribe (Neural Engine) → structure (Foundation Models) → recipe.
     /// No backend, no auth, no download. Drives the same import-progress UI.
-    func importFromVideo(_ url: URL) async {
+    func importFromVideo(_ url: URL, caption: String? = nil, title: String? = nil) async {
         importState = .submitting
         guard await OnDeviceTranscriber.ensureAuthorized() else {
             importState = .failed(message: "Enable Speech Recognition in Settings to import on device.")
@@ -727,8 +725,12 @@ final class AppEnvironment: ObservableObject {
         // 1) Transcribe narration. A silent / music-only clip just yields an empty string here —
         //    that's expected, not a failure, so we fall through to on-screen text.
         var transcript = ""
-        if let out = try? await OnDeviceTranscriber.transcribe(url: url, localeID: AppLanguage.preferred.localeID) {
+        do {
+            let out = try await OnDeviceTranscriber.transcribe(url: url, localeID: AppLanguage.preferred.localeID)
             transcript = out.text
+            print("🎙️ On-device transcription succeeded. Characters: \(transcript.count)")
+        } catch {
+            print("⚠️ On-device transcription failed: \(error)")
         }
 
         // 2) Little or no narration => read the ON-SCREEN text with Vision OCR (many reels put the
@@ -741,8 +743,10 @@ final class AppEnvironment: ObservableObject {
 
         // 3) Structure it (Foundation Models when available, else heuristic).
         importState = .polling(jobId: "on-device", status: .extracting)
+        let fullCaption = [title, caption].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
+        
         var recipe = await RecipeExtractor.extract(
-            transcript: transcript, caption: nil, ownerId: currentUser?.id ?? "you",
+            transcript: transcript, caption: fullCaption.isEmpty ? nil : fullCaption, ownerId: currentUser?.id ?? "you",
             sourceLanguage: nil, onScreenText: onScreen
         )
 
