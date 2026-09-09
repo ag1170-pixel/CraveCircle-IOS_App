@@ -92,8 +92,7 @@ struct CraveTabBar: View {
                                            startPoint: .top, endPoint: .bottom),
                             lineWidth: 0.75)
                 )
-                .shadow(color: .black.opacity(0.16), radius: 20, y: 10)
-                .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
+                .shadow(color: .black.opacity(0.10), radius: 12, y: 6)   // subtle, iOS-26 system-bar-like
         }
         .padding(.horizontal, AppSpacing.md)                // small margin → wide, near edge-to-edge
     }
@@ -114,15 +113,17 @@ struct CraveTabBar: View {
                 .font(.system(size: 18, weight: .semibold))
                 .symbolVariant(isSelected ? .fill : .none)
                 .symbolEffect(.bounce, value: isSelected)      // a little delight on select
-                .foregroundStyle(isSelected ? AppTheme.accentInk : AppTheme.textSecondary)
+                // iOS 26 system bar: selected tab tinted with the accent, others muted grey.
+                .foregroundStyle(isSelected ? AppTheme.accent : AppTheme.textSecondary)
                 .frame(maxWidth: .infinity)                     // even spread across the wide pill
                 .frame(height: 40)
                 .background {
                     if isSelected {
+                        // Concentric tinted lozenge behind the active icon (system selection look).
                         Capsule(style: .continuous)
-                            .fill(AppTheme.accentSoft)
+                            .fill(AppTheme.accent.opacity(0.15))
                             .matchedGeometryEffect(id: "tabpill", in: ns)
-                            .padding(.horizontal, 10)           // rounded highlight around the icon
+                            .padding(.horizontal, 10)
                     }
                 }
                 .contentShape(Rectangle())
