@@ -829,6 +829,7 @@ struct RecipeDetailScreen: View {
     // MARK: Helpers
 
     private func toggle<T: Hashable>(_ set: inout Set<T>, _ value: T) {
+        Haptics.select()
         if set.contains(value) { set.remove(value) } else { set.insert(value) }
     }
 
