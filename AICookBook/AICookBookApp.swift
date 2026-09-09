@@ -62,12 +62,17 @@ struct CraveCircleApp: App {
                     }
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    // On foreground, pull any reel the Share Extension imported server-side while we
-                    // were away (this is how a shared reel shows up when the extension can't open us).
+                    // On foreground, pull any reel the Share Extension imported server-side. A shared
+                    // reel finishes processing ~1-2 min AFTER the share, so refresh a few times over
+                    // ~90s so it appears on its own without the user pulling to refresh.
                     if phase == .active {
                         Task {
                             await environment.importFromSharedURL()
-                            await environment.refreshRecipes()
+                            for gap in [UInt64(0), 30, 60] {   // refresh at ~0s, ~30s, ~90s
+                                if gap > 0 { try? await Task.sleep(nanoseconds: gap * 1_000_000_000) }
+                                if scenePhase != .active { break }
+                                await environment.refreshRecipes()
+                            }
                         }
                     }
                 }
