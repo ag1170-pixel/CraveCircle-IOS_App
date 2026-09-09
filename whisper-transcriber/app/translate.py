@@ -132,3 +132,43 @@ def translate_recipe(recipe: dict, target_language: str | None) -> dict:
 
     out["source_language"] = source   # so the app shows "Translated from <source>"
     return out
+
+
+def translate_texts(texts: list[str], target_language: str | None) -> list[str]:
+    """Translate a flat list of strings into `target_language`, preserving order and count.
+    Detects the source from the combined text; if it already matches the target, is unsupported,
+    or anything fails, the ORIGINAL list is returned unchanged (best-effort, never raises)."""
+    target = (target_language or "").split("-")[0].lower()
+    if target not in _SUPPORTED or not texts:
+        return texts
+
+    sample = " ".join(t for t in texts[:4] if t).strip()
+    source = _detect(sample)
+    if not source or source == target:
+        return texts
+
+    # Only translate strings with real letters; keep pure numbers/symbols as-is.
+    idxs = [i for i, t in enumerate(texts) if t and not _looks_untranslatable(t)]
+    if not idxs:
+        return texts
+
+    try:
+        from deep_translator import GoogleTranslator
+        translator = GoogleTranslator(source="auto", target=target)
+        SEP = "\n"
+        joined = SEP.join(texts[i].replace("\n", " ").strip() for i in idxs)
+        result = translator.translate(joined)
+    except Exception:
+        return texts
+
+    if not result or _is_error_response(result):
+        return texts
+    parts = [p.strip() for p in result.split(SEP)]
+    if len(parts) != len(idxs):
+        return texts
+
+    out = list(texts)
+    for slot, i in enumerate(idxs):
+        if parts[slot]:
+            out[i] = parts[slot]
+    return out

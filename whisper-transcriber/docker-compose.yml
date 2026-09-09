@@ -12,6 +12,7 @@ services:
       WHISPER_COMPUTE_TYPE: int8
       WHISPER_BEAM_SIZE: "5"
       COOKIES_FILE: /cookies/cookies.txt
+      DB_PATH: /models/cravecircle_admin.db
     volumes:
       - whisper-models:/models
       - ./cookies:/cookies:ro

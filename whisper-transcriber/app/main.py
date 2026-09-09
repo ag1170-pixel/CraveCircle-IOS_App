@@ -33,7 +33,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 
 from .transcriber import transcribe, detect_speech, MODEL_NAME, DEVICE, _model
-from .translate import translate_recipe
+from .translate import translate_recipe, translate_texts
 
 app = FastAPI(title="CraveCircle Local Backend & Transcriber", version="2.0")
 API_KEY = os.getenv("WHISPER_API_KEY", "")
@@ -828,6 +828,19 @@ def get_reel_media(filename: str):
 @app.get("/health")
 def health() -> dict:
     return {"ok": True, "service": "cravecircle-backend", "model": MODEL_NAME, "device": DEVICE}
+
+
+class TranslateTextRequest(BaseModel):
+    texts: list[str]
+    target_language: Optional[str] = "en"
+
+
+@app.post("/translate-text")
+def translate_text_endpoint(req: TranslateTextRequest) -> dict:
+    """Translate a list of strings into the user's language. Used by the on-device import path to
+    bring a recipe transcribed/extracted on the phone into the user's chosen language. Best-effort:
+    returns the originals unchanged if translation isn't needed or fails."""
+    return {"texts": translate_texts(req.texts, req.target_language)}
 
 
 class ImportRequest(BaseModel):

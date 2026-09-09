@@ -736,6 +736,27 @@ final class AppEnvironment: ObservableObject {
 
     /// On-device import: video → transcribe (Neural Engine) → structure (Foundation Models) → recipe.
     /// No backend, no auth, no download. Drives the same import-progress UI.
+    /// Translate a recipe's text into the user's chosen language via the server translator.
+    /// Best-effort: returns the original if anything fails or it's already in the target language.
+    private func translateToPreferredLanguage(_ recipe: Recipe) async -> Recipe {
+        let target = AppLanguage.preferred.rawValue
+        var strings: [String] = [recipe.title, recipe.description ?? ""]
+        for g in recipe.ingredients { strings.append(contentsOf: g.items) }
+        for d in recipe.directions { strings.append(d.text) }
+        guard let translated = try? await apiClient.translateTexts(strings, target: target),
+              translated.count == strings.count else { return recipe }
+        var out = recipe
+        var i = 0
+        out.title = translated[i]; i += 1
+        let desc = translated[i]; i += 1
+        if !(recipe.description ?? "").isEmpty { out.description = desc }
+        for gi in out.ingredients.indices {
+            for ii in out.ingredients[gi].items.indices { out.ingredients[gi].items[ii] = translated[i]; i += 1 }
+        }
+        for di in out.directions.indices { out.directions[di].text = translated[i]; i += 1 }
+        return out
+    }
+
     func importFromVideo(_ url: URL, caption: String? = nil, title: String? = nil, thumbnailUrl: String? = nil) async {
         importState = .submitting
         guard await OnDeviceTranscriber.ensureAuthorized() else {
@@ -778,6 +799,11 @@ final class AppEnvironment: ObservableObject {
             importState = .failed(message: "We couldn't find a recipe in that video — no spoken steps and no on-screen text we could read. Try a clip where the creator narrates or lists the recipe.")
             return
         }
+
+        // 4.5) MULTILINGUAL: on-device transcription/extraction keeps the reel's own language, so
+        //      translate the result into the user's chosen language (best-effort; the server returns
+        //      it unchanged if it's already in that language).
+        recipe = await translateToPreferredLanguage(recipe)
 
         // 5) Give it a real cover: grab a representative frame from the video and store it locally,
         //    so the imported recipe looks like a real recipe instead of the generic fallback.

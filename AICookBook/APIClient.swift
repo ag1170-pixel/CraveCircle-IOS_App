@@ -56,6 +56,19 @@ actor APIClient {
         return try await request(path: "reels/download", method: "POST", body: payload)
     }
 
+    struct TranslateTextResult: Decodable { let texts: [String] }
+    /// Translate a list of strings into the user's language (used to bring an on-device-extracted
+    /// recipe into the chosen language). Returns the originals on any failure.
+    func translateTexts(_ texts: [String], target: String) async throws -> [String] {
+        struct Body: Encodable {
+            let texts: [String]
+            let target_language: String
+        }
+        let resp: TranslateTextResult = try await request(
+            path: "translate-text", method: "POST", body: Body(texts: texts, target_language: target))
+        return resp.texts
+    }
+
     func deleteRecipe(id: String) async throws {
         let _: [String: String] = try await request(path: "recipes/\(id)", method: "DELETE", body: nil as String?)
     }
