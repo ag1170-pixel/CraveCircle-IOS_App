@@ -69,6 +69,44 @@ struct SupabaseAuthClient {
         }
     }
 
+    /// Native Google sign-in: PKCE against accounts.google.com (public DNS, no Tailscale), then
+    /// exchange the Google ID token with Supabase GoTrue via the `id_token` grant. Works against the
+    /// cloud project because `config.supabaseURL` points at it; the cloud project's Auth → Google
+    /// provider must list the iOS OAuth client id as an authorized client id for the `aud` to match.
+    func signInWithGoogle() async throws -> AuthSession {
+        guard !config.isServiceRoleKeyConfigured else {
+            throw APIError.serverError("Service role key detected in app config. Use only SUPABASE_ANON_KEY on iOS.")
+        }
+        guard !config.supabaseAnonKey.isEmpty else {
+            throw APIError.serverError("Missing Supabase anon key in app configuration.")
+        }
+
+        let idToken = try await GoogleAuthSession.shared.signInIDToken()
+        let endpoint = config.supabaseURL.appending(path: "auth/v1/token")
+        var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "grant_type", value: "id_token")]
+        guard let url = components?.url else { throw APIError.serverError("Invalid auth URL") }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(config.supabaseAnonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(config.supabaseAnonKey)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "provider": "google",
+            "id_token": idToken,
+        ])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.serverError("Invalid response") }
+        guard (200..<300).contains(http.statusCode) else {
+            throw APIError.serverError(parseSupabaseAuthError(from: data, statusCode: http.statusCode))
+        }
+        let decoded = try JSONDecoder().decode(AuthSession.self, from: data)
+        tokenStore.saveSession(accessToken: decoded.accessToken, refreshToken: decoded.refreshToken)
+        return decoded
+    }
+
     func signUp(email: String, password: String) async throws {
         guard !config.isServiceRoleKeyConfigured else {
             throw APIError.serverError("Service role key detected in app config. Use only SUPABASE_ANON_KEY on iOS.")

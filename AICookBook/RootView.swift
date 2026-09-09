@@ -47,6 +47,7 @@ struct LoginView: View {
     @State private var password = ""
     @State private var confirmPassword = ""
     @State private var loading = false
+    @State private var googleLoading = false
     @State private var isSignUpMode = false
     @State private var inlineMessage: String?
     @State private var isError = false
@@ -118,7 +119,9 @@ struct LoginView: View {
 
             submitButton.padding(.top, AppSpacing.xxs)
 
-            Text("Email sign-in only. We never post to your socials.")
+            googleButton
+
+            Text("We never post to your socials.")
                 .font(AppFont.body(12))
                 .foregroundStyle(AppTheme.textTertiary)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -140,6 +143,37 @@ struct LoginView: View {
             .padding(.top, AppSpacing.sm)
         }
         .padding(AppSpacing.lg)
+    }
+
+    private var googleButton: some View {
+        Button {
+            Haptics.tap()
+            googleLoading = true
+            Task {
+                await environment.signInWithGoogle()
+                googleLoading = false
+            }
+        } label: {
+            HStack(spacing: 10) {
+                if googleLoading {
+                    ProgressView().tint(AppTheme.textPrimary)
+                } else {
+                    Image(systemName: "g.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                }
+                Text(googleLoading ? "Connecting…" : "Continue with Google")
+                    .font(AppFont.body(15, weight: .semibold))
+            }
+            .foregroundStyle(AppTheme.textPrimary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(AppTheme.surface, in: Capsule())
+            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            .opacity(googleLoading ? 0.7 : 1)
+        }
+        .buttonStyle(PressableStyle())
+        .disabled(googleLoading || loading)
+        .padding(.top, AppSpacing.xs)
     }
 
     private var submitButton: some View {

@@ -171,6 +171,33 @@ final class AppEnvironment: ObservableObject {
         try await authClient.signUp(email: email, password: password)
     }
 
+    /// Native Google sign-in. Mirrors `signIn`'s post-auth steps (real cloud profile, guest-data
+    /// migration, personalization reset, hydrate). Cancellation is silent; other failures surface.
+    func signInWithGoogle() async {
+        do {
+            _ = try await authClient.signInWithGoogle()
+            // Prefer the real Supabase profile (id = auth uid) so cloud ownership/RLS writes line up.
+            if let profile = await supabase.fetchMyProfile() {
+                currentUser = profile
+            } else {
+                do { currentUser = try await apiClient.fetchProfile() }
+                catch { currentUser = fallbackUser(email: "") }
+            }
+            if let user = currentUser {
+                migrateGuestData(to: user.id)
+            }
+            resetPersonalizationIfUserChanged()
+            appState = .signedIn
+            if !hydrated { hydrateLocal() }
+            await refreshRecipes()
+        } catch GoogleAuthError.canceled {
+            // user backed out of the Google sheet — no error UI
+        } catch {
+            appState = .signedOut
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func signOut() {
         hydrated = false          // don't let clearing state overwrite the on-disk library
         importTask?.cancel()

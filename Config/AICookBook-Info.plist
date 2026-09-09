@@ -16,7 +16,19 @@
 				<string>cravecircle</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.anassyed.AICookBook.google</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.752209970913-4lptajjg9djnasfhs5qhjg060bhe4s9l</string>
+			</array>
+		</dict>
 	</array>
+	<key>GIDClientID</key>
+	<string>752209970913-4lptajjg9djnasfhs5qhjg060bhe4s9l.apps.googleusercontent.com</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
