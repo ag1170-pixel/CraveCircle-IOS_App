@@ -59,18 +59,28 @@ final class ShareViewController: UIViewController {
     }
 
     private func deliver(_ urlString: String?) {
+        // Primary hand-off: embed the link in the deep link (works WITHOUT an App Group, which
+        // free personal teams can't use). Also stash in the App Group when one is available
+        // (paid team) as a redundant fallback.
         if let urlString, let defaults = UserDefaults(suiteName: appGroupID) {
             defaults.set(urlString, forKey: pendingKey)
         }
         DispatchQueue.main.async { [weak self] in
-            self?.openHostApp()
+            self?.openHostApp(with: urlString)
             self?.finish()
         }
     }
 
     /// Extensions can't call UIApplication.shared.open, so walk the responder chain to openURL:.
-    private func openHostApp() {
-        guard let url = URL(string: hostAppURL) else { return }
+    private func openHostApp(with urlString: String?) {
+        var link = hostAppURL
+        if let urlString, !urlString.isEmpty {
+            var allowed = CharacterSet.alphanumerics
+            allowed.insert(charactersIn: "-._~")   // strict: encode :/?=& so the link stays one query value
+            let encoded = urlString.addingPercentEncoding(withAllowedCharacters: allowed) ?? urlString
+            link = "\(hostAppURL)?url=\(encoded)"
+        }
+        guard let url = URL(string: link) else { return }
         var responder: UIResponder? = self
         let selector = sel_registerName("openURL:")
         while let r = responder {

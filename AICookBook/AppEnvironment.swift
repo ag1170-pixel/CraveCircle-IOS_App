@@ -602,16 +602,21 @@ final class AppEnvironment: ObservableObject {
     static let appGroupID = "group.com.anassyed.AICookBook"
     static let pendingImportKey = "pending_import_url"
 
-    /// Pull a link shared into the app from the system Share sheet and import it.
+    /// Import a link shared into the app from the system Share sheet.
+    /// `passedURL` is the link carried in the `cravecircle://import?url=…` deep link (the primary
+    /// path, works with no App Group). When nil, falls back to the App-Group hand-off (paid team).
     /// No-op when there's nothing pending or an import is already running.
-    func importFromSharedURL() async {
-        guard
-            let defaults = UserDefaults(suiteName: Self.appGroupID),
-            let urlString = defaults.string(forKey: Self.pendingImportKey),
-            !urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else { return }
-        defaults.removeObject(forKey: Self.pendingImportKey)   // consume once
+    func importFromSharedURL(_ passedURL: String? = nil) async {
+        var urlString = passedURL?.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        if urlString?.isEmpty ?? true,
+           let defaults = UserDefaults(suiteName: Self.appGroupID),
+           let stored = defaults.string(forKey: Self.pendingImportKey) {
+            urlString = stored.trimmingCharacters(in: .whitespacesAndNewlines)
+            defaults.removeObject(forKey: Self.pendingImportKey)   // consume once
+        }
+
+        guard let urlString, !urlString.isEmpty else { return }
         guard importState == .idle else { return }
         await startImport(from: urlString)
     }

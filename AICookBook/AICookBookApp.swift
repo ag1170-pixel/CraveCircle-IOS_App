@@ -51,7 +51,12 @@ struct CraveCircleApp: App {
                         let id = url.lastPathComponent
                         if !id.isEmpty, id != "/" { environment.openRecipe(id: id) }
                     } else {
-                        Task { await environment.importFromSharedURL() }
+                        // Share Extension deep link: cravecircle://import?url=<encoded link>.
+                        // Pass the carried link directly (no App Group needed); nil falls back to the
+                        // App-Group hand-off for paid-team builds.
+                        let shared = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                            .queryItems?.first(where: { $0.name == "url" })?.value
+                        Task { await environment.importFromSharedURL(shared) }
                     }
                 }
                 .onChange(of: scenePhase) { _, phase in
