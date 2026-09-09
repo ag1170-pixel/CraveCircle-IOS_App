@@ -349,6 +349,7 @@ struct CreatorChip: View {
 /// floats up, centred over the card photo, when you like. Applied as `.overlay { … }` on the cover.
 struct CardLikeOverlay: View {
     let recipeId: String
+    var onSingleTap: (() -> Void)? = nil
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -359,6 +360,25 @@ struct CardLikeOverlay: View {
 
     var body: some View {
         ZStack {
+            Color.white.opacity(0.001)
+                .contentShape(Rectangle())
+                .onTapGesture(count: 2) {
+                    let liked = environment.isLiked(recipeId: recipeId)
+                    if !liked {
+                        Haptics.select()
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.55)) {
+                            environment.toggleLikeRecipe(id: recipeId)
+                        }
+                    }
+                    triggerBurst()
+                }
+                .onTapGesture(count: 1) {
+                    if let onSingleTap {
+                        Haptics.tap()
+                        onSingleTap()
+                    }
+                }
+
             if showBurst {
                 Image(systemName: "heart.fill")
                     .font(.system(size: 54, weight: .bold))
@@ -437,7 +457,7 @@ struct FreshCard: View {
                             .padding(8)
                     }
                 }
-                .overlay { CardLikeOverlay(recipeId: recipe.id) }
+                .overlay { CardLikeOverlay(recipeId: recipe.id, onSingleTap: onTap) }
             Text(recipe.title)
                 .font(AppFont.body(15, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
@@ -502,7 +522,7 @@ struct LibraryCard: View {
                             .padding(8)
                     }
                 }
-                .overlay { CardLikeOverlay(recipeId: recipe.id) }
+                .overlay { CardLikeOverlay(recipeId: recipe.id, onSingleTap: onTap) }
             Text(recipe.title)
                 .font(AppFont.body(16, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
