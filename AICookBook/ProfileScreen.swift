@@ -12,7 +12,7 @@ import PhotosUI
 struct ProfileScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @AppStorage(LanguagePrefs.key) private var langCode = LanguagePrefs.default.rawValue
-    @AppStorage("custom_api_url") private var customApiUrl = "https://api.cravecircle.cc"
+    @AppStorage("custom_api_url") private var customApiUrl = "https://import.cravecircle.cc"
     @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
     
     private var unreadSharedCount: Int {
