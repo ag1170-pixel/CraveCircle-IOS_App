@@ -51,13 +51,25 @@ struct CraveCircleApp: App {
                         let id = url.lastPathComponent
                         if !id.isEmpty, id != "/" { environment.openRecipe(id: id) }
                     } else {
-                        // Share Extension: the reel is imported server-side by the extension, so pull
-                        // the new recipe into the library. (A ?url= — older hand-off path — still imports.)
-                        let shared = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                            .queryItems?.first(where: { $0.name == "url" })?.value
-                        Task {
-                            await environment.importFromSharedURL(shared)
-                            await environment.refreshRecipes()
+                        // Share Extension. Prefer the server job id → resume the live progress UI and
+                        // file the recipe as the user's. Fall back to a carried ?url= (legacy), else
+                        // just refresh (the recipe is being built server-side and will land shortly).
+                        // Parse robustly: URLComponents can miss query items on a custom-scheme URL,
+                        // so fall back to splitting url.query ourselves.
+                        func queryValue(_ key: String) -> String? {
+                            if let v = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                                .queryItems?.first(where: { $0.name == key })?.value { return v }
+                            return url.query?.split(separator: "&").compactMap { pair -> String? in
+                                let kv = pair.split(separator: "=", maxSplits: 1).map(String.init)
+                                return kv.count == 2 && kv[0] == key ? (kv[1].removingPercentEncoding ?? kv[1]) : nil
+                            }.first
+                        }
+                        if let job = queryValue("job"), !job.isEmpty {
+                            environment.resumeSharedImport(jobId: job)
+                        } else if let shared = queryValue("url"), !shared.isEmpty {
+                            Task { await environment.importFromSharedURL(shared); await environment.refreshRecipes() }
+                        } else {
+                            Task { await environment.checkPendingSharedImport(); await environment.refreshRecipes() }
                         }
                     }
                 }
@@ -66,6 +78,7 @@ struct CraveCircleApp: App {
                     // reel finishes processing ~1-2 min AFTER the share, so refresh a few times over
                     // ~90s so it appears on its own without the user pulling to refresh.
                     if phase == .active {
+                        environment.checkPendingSharedImport()   // resume a share's server job (paid-team App Group)
                         Task {
                             await environment.importFromSharedURL()
                             for gap in [UInt64(0), 30, 60] {   // refresh at ~0s, ~30s, ~90s
@@ -78,6 +91,7 @@ struct CraveCircleApp: App {
                 }
                 .onAppear {
                     // Cold-launch check: scenePhase is already .active at launch so onChange doesn't fire.
+                    environment.checkPendingSharedImport()
                     Task { await environment.importFromSharedURL() }
                 }
         }

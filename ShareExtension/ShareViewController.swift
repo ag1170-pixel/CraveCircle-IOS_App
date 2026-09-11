@@ -78,6 +78,7 @@ final class ShareViewController: UIViewController {
     }
 
     private var sharedURL: String?
+    private var sharedJobId: String?
 
     private func deliver(_ urlString: String?) {
         guard let urlString, !urlString.isEmpty else {
@@ -95,10 +96,18 @@ final class ShareViewController: UIViewController {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: ["url": urlString, "target_language": "en"])
         req.timeoutInterval = 25
-        URLSession.shared.dataTask(with: req) { [weak self] _, resp, err in
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
             DispatchQueue.main.async {
                 let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
                 if err == nil, (200..<300).contains(code) {
+                    // Capture the job id so the app can show live progress + file the recipe as the
+                    // user's. Stash in the App Group too (paid-team fallback when opened manually).
+                    if let data,
+                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let jid = json["job_id"] as? String {
+                        self?.sharedJobId = jid
+                        UserDefaults(suiteName: self?.appGroupID ?? "")?.set(jid, forKey: "pending_import_job")
+                    }
                     self?.showReady()
                 } else {
                     self?.showError("Couldn't reach CraveCircle right now. Please try again in a moment.")
@@ -111,7 +120,10 @@ final class ShareViewController: UIViewController {
     /// no URL is passed — the app just refreshes and shows the new recipe once it's ready). Walk the
     /// responder chain to UIApplication and call openURL: on it.
     private func openHostApp() {
-        guard let url = URL(string: hostAppURL) else { return }
+        // Pass the server job id so the app resumes the live progress UI and files the recipe as the
+        // user's. (No ?url= — the import is already running server-side, so we never re-import.)
+        let link = sharedJobId.map { "\(hostAppURL)?job=\($0)" } ?? hostAppURL
+        guard let url = URL(string: link) else { return }
         let selector = sel_registerName("openURL:")
         var responder: UIResponder? = self
         while let r = responder {

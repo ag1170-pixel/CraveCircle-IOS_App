@@ -683,6 +683,25 @@ final class AppEnvironment: ObservableObject {
         await startImport(from: urlString)
     }
 
+    /// On launch/foreground, resume a share's server job if the extension left one in the App Group
+    /// (paid-team builds). No-op on free teams (no App Group) — there the deep link or refresh covers it.
+    func checkPendingSharedImport() {
+        guard importState == .idle, let d = UserDefaults(suiteName: Self.appGroupID),
+              let job = d.string(forKey: "pending_import_job"), !job.isEmpty else { return }
+        d.removeObject(forKey: "pending_import_job")
+        resumeSharedImport(jobId: job)
+    }
+
+    /// Resume watching a server-side import the Share Extension already started (it POSTs
+    /// /reels/import and hands us the job id). Shows the live progress UI and, on completion,
+    /// fetches the recipe, marks it as the user's, and files it in the library — same as an in-app
+    /// import, but the heavy work ran on the server so it worked even while the app was closed.
+    func resumeSharedImport(jobId: String) {
+        guard importState == .idle else { return }   // don't stomp an import already in progress
+        importState = .polling(jobId: jobId, status: .transcribing)
+        beginPolling(jobId: jobId)
+    }
+
     func startImport(from instagramURL: String) async {
         do {
             importState = .submitting
