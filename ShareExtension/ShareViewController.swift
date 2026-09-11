@@ -17,6 +17,10 @@ final class ShareViewController: UIViewController {
     private let appGroupID = "group.com.anassyed.AICookBook"
     private let pendingKey = "pending_import_url"
     private let hostAppURL = "cravecircle://import"
+    // The import backend (same as AppConfig.defaultHost). The extension imports SERVER-SIDE so the
+    // recipe is built in the background — the user can close this and keep scrolling; it appears in
+    // their library on next app open, with no need to be in the app and no fragile app hand-off.
+    private let backendURL = "https://import.cravecircle.cc"
 
     // MARK: UI
     private let card = UIView()
@@ -80,26 +84,34 @@ final class ShareViewController: UIViewController {
             return showError("Couldn't find a video link in this share.")
         }
         sharedURL = urlString
-        // Stash in the App Group too (bonus for paid-team builds); harmless if unavailable.
-        if let defaults = UserDefaults(suiteName: appGroupID) {
-            defaults.set(urlString, forKey: pendingKey)
+        // Kick off the import ON THE SERVER — it runs in the background independent of the app, so
+        // the user can close this and keep scrolling. /reels/import returns immediately (queued) and
+        // the server finishes transcribing/translating on its own; the recipe lands in the library.
+        guard let endpoint = URL(string: "\(backendURL)/reels/import") else {
+            return showError("Something went wrong. Please try again.")
         }
-        // Hand the URL to the APP so IT runs the import — that's what shows the live download/
-        // transcribe progress and files the recipe in the user's own library. Auto-attempt the
-        // open (usually works right after a user-initiated share); the button is the reliable
-        // fallback if the system didn't switch apps.
-        openHostApp()
-        showReady()
+        var req = URLRequest(url: endpoint)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["url": urlString, "target_language": "en"])
+        req.timeoutInterval = 25
+        URLSession.shared.dataTask(with: req) { [weak self] _, resp, err in
+            DispatchQueue.main.async {
+                let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+                if err == nil, (200..<300).contains(code) {
+                    self?.showReady()
+                } else {
+                    self?.showError("Couldn't reach CraveCircle right now. Please try again in a moment.")
+                }
+            }
+        }.resume()
     }
 
-    /// Open CraveCircle with the reel URL embedded, so the app imports it (live progress + owned by
-    /// the user). Walk the responder chain to UIApplication and call openURL: on it.
+    /// Best-effort: bring CraveCircle to the foreground (the import is already running server-side, so
+    /// no URL is passed — the app just refreshes and shows the new recipe once it's ready). Walk the
+    /// responder chain to UIApplication and call openURL: on it.
     private func openHostApp() {
-        guard let urlString = sharedURL else { return }
-        var allowed = CharacterSet.alphanumerics
-        allowed.insert(charactersIn: "-._~")
-        let encoded = urlString.addingPercentEncoding(withAllowedCharacters: allowed) ?? urlString
-        guard let url = URL(string: "\(hostAppURL)?url=\(encoded)") else { return }
+        guard let url = URL(string: hostAppURL) else { return }
         let selector = sel_registerName("openURL:")
         var responder: UIResponder? = self
         while let r = responder {
@@ -137,9 +149,9 @@ final class ShareViewController: UIViewController {
 
     private func showReady() {
         setState(loading: false,
-                 title: "Import this reel",
-                 message: "Open CraveCircle to download it and turn it into a recipe — you'll watch the progress and it lands in your library.",
-                 systemIcon: "arrow.up.forward.app.fill",
+                 title: "Recipe on its way!",
+                 message: "We're turning this reel into a recipe in the background — no need to keep the app open. It'll appear in your CraveCircle library in about a minute.",
+                 systemIcon: "checkmark.circle.fill",
                  iconTint: UIColor(red: 0.42, green: 0.78, blue: 0.44, alpha: 1))
         primaryButton.setTitle("Open CraveCircle", for: .normal)
     }
@@ -154,8 +166,11 @@ final class ShareViewController: UIViewController {
     }
 
     @objc private func primaryTapped() {
-        if sharedURL != nil { openHostApp() }   // reliable, user-initiated open into the app
-        finish()
+        // User-initiated open into the app (best-effort). Delay completeRequest so dismissing the
+        // extension doesn't cancel the pending openURL. The import is already running server-side,
+        // so even if the switch doesn't happen, the recipe still shows up on next open.
+        if sharedURL != nil { openHostApp() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.finish() }
     }
 
     // MARK: UI build
