@@ -3,9 +3,10 @@
 //  CraveCircle Share Extension
 //
 //  Lets users share a cooking video from Instagram / YouTube / TikTok / Facebook straight into
-//  CraveCircle. It grabs the shared link and imports it directly on the backend (works on any
-//  signing team — no App Group, no fragile openURL hand-off), showing a clear confirmation UI so
-//  the user always knows it worked. The recipe appears in the app on next open.
+//  CraveCircle. It grabs the shared link and hands it to the app, which imports it ON-DEVICE
+//  (Apple Neural Engine) — the fast path (seconds), with live progress, filed in the user's own
+//  library. The URL is also stashed in the App Group so the app picks it up on next open if the
+//  system didn't switch apps.
 //
 
 import UIKit
@@ -17,10 +18,6 @@ final class ShareViewController: UIViewController {
     private let appGroupID = "group.com.anassyed.AICookBook"
     private let pendingKey = "pending_import_url"
     private let hostAppURL = "cravecircle://import"
-    // The import backend (same as AppConfig.defaultHost). The extension imports SERVER-SIDE so the
-    // recipe is built in the background — the user can close this and keep scrolling; it appears in
-    // their library on next app open, with no need to be in the app and no fragile app hand-off.
-    private let backendURL = "https://import.cravecircle.cc"
 
     // MARK: UI
     private let card = UIView()
@@ -78,52 +75,31 @@ final class ShareViewController: UIViewController {
     }
 
     private var sharedURL: String?
-    private var sharedJobId: String?
 
     private func deliver(_ urlString: String?) {
         guard let urlString, !urlString.isEmpty else {
             return showError("Couldn't find a video link in this share.")
         }
         sharedURL = urlString
-        // Kick off the import ON THE SERVER — it runs in the background independent of the app, so
-        // the user can close this and keep scrolling. /reels/import returns immediately (queued) and
-        // the server finishes transcribing/translating on its own; the recipe lands in the library.
-        guard let endpoint = URL(string: "\(backendURL)/reels/import") else {
-            return showError("Something went wrong. Please try again.")
+        // Hand the URL to the APP so IT runs the import on-device (Apple Neural Engine) — that's the
+        // FAST path (seconds, not minutes) and it files the recipe in the user's own library with
+        // live progress. Stash in the App Group too so the app also picks it up on next open if the
+        // system didn't switch apps. Auto-attempt the open; the button is the reliable fallback.
+        if let defaults = UserDefaults(suiteName: appGroupID) {
+            defaults.set(urlString, forKey: pendingKey)
         }
-        var req = URLRequest(url: endpoint)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["url": urlString, "target_language": "en"])
-        req.timeoutInterval = 25
-        URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
-            DispatchQueue.main.async {
-                let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
-                if err == nil, (200..<300).contains(code) {
-                    // Capture the job id so the app can show live progress + file the recipe as the
-                    // user's. Stash in the App Group too (paid-team fallback when opened manually).
-                    if let data,
-                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let jid = json["job_id"] as? String {
-                        self?.sharedJobId = jid
-                        UserDefaults(suiteName: self?.appGroupID ?? "")?.set(jid, forKey: "pending_import_job")
-                    }
-                    self?.showReady()
-                } else {
-                    self?.showError("Couldn't reach CraveCircle right now. Please try again in a moment.")
-                }
-            }
-        }.resume()
+        openHostApp()
+        showReady()
     }
 
-    /// Best-effort: bring CraveCircle to the foreground (the import is already running server-side, so
-    /// no URL is passed — the app just refreshes and shows the new recipe once it's ready). Walk the
-    /// responder chain to UIApplication and call openURL: on it.
+    /// Open CraveCircle with the reel URL embedded so the app imports it on-device (fast, live
+    /// progress, owned by the user). Walk the responder chain to UIApplication and call openURL:.
     private func openHostApp() {
-        // Pass the server job id so the app resumes the live progress UI and files the recipe as the
-        // user's. (No ?url= — the import is already running server-side, so we never re-import.)
-        let link = sharedJobId.map { "\(hostAppURL)?job=\($0)" } ?? hostAppURL
-        guard let url = URL(string: link) else { return }
+        guard let urlString = sharedURL else { return }
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        let encoded = urlString.addingPercentEncoding(withAllowedCharacters: allowed) ?? urlString
+        guard let url = URL(string: "\(hostAppURL)?url=\(encoded)") else { return }
         let selector = sel_registerName("openURL:")
         var responder: UIResponder? = self
         while let r = responder {
@@ -161,8 +137,8 @@ final class ShareViewController: UIViewController {
 
     private func showReady() {
         setState(loading: false,
-                 title: "Recipe on its way!",
-                 message: "We're turning this reel into a recipe in the background — no need to keep the app open. It'll appear in your CraveCircle library in about a minute.",
+                 title: "Import this reel",
+                 message: "Tap below to open CraveCircle and turn this reel into a recipe — it only takes a few seconds.",
                  systemIcon: "checkmark.circle.fill",
                  iconTint: UIColor(red: 0.42, green: 0.78, blue: 0.44, alpha: 1))
         primaryButton.setTitle("Open CraveCircle", for: .normal)
