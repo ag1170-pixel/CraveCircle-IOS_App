@@ -353,6 +353,12 @@ struct MainTabView: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.background)
         }
+        .onChange(of: environment.importState) { _, state in
+            // When an import is cancelled/cleared (Cancel, Close, or "View Recipe"), the state goes
+            // back to .idle — close the progress sheet too. Without this the sheet stays up and,
+            // because .idle renders as stage-0, shows a spinner forever ("buffering + Cancel dead").
+            if state == .idle { showingProgressDetail = false }
+        }
         .fullScreenCover(item: Binding(
             get: { environment.selectedRecipe },
             set: { _ in environment.dismissRecipeDetail() }

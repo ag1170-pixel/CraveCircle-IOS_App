@@ -772,8 +772,16 @@ final class AppEnvironment: ObservableObject {
         var strings: [String] = [recipe.title, recipe.description ?? ""]
         for g in recipe.ingredients { strings.append(contentsOf: g.items) }
         for d in recipe.directions { strings.append(d.text) }
-        guard let translated = try? await apiClient.translateTexts(strings, target: target),
-              translated.count == strings.count else { return recipe }
+        // Best-effort, and time-boxed: translation is a nicety, not worth stalling the import on a
+        // slow server. If it doesn't answer quickly, keep the recipe as-is and finish (reach .done).
+        let translated: [String]? = await withTaskGroup(of: [String]?.self) { group in
+            group.addTask { try? await self.apiClient.translateTexts(strings, target: target) }
+            group.addTask { try? await Task.sleep(for: .seconds(12)); return nil }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+        guard let translated, translated.count == strings.count else { return recipe }
         var out = recipe
         var i = 0
         out.title = translated[i]; i += 1

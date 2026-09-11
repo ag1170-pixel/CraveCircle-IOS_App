@@ -118,6 +118,7 @@ struct ImportProgressScreen: View {
                 }
                 PillButton(title: "Close", kind: .outlined, fullWidth: true) {
                     environment.cancelImport()
+                    dismiss()
                 }
             }
         } else if isDone {
@@ -139,6 +140,7 @@ struct ImportProgressScreen: View {
         } else {
             PillButton(title: "Cancel", kind: .outlined, fullWidth: true) {
                 environment.cancelImport()
+                dismiss()
             }
         }
     }
