@@ -176,7 +176,7 @@ struct ImportProgressScreen: View {
         guard let m = errorMessage?.lowercased() else { return false }
         return m.contains("couldn't find") || m.contains("no spoken") || m.contains("no recipe")
             || m.contains("readable") || m.contains("on-screen text") || m.contains("narrat")
-            || m.contains("list the recipe")
+            || m.contains("list the recipe") || m.contains("cooking video") || m.contains("enough for us to read")
     }
 
     private func currentIndex() -> Int {

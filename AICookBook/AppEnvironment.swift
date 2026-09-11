@@ -806,7 +806,15 @@ final class AppEnvironment: ObservableObject {
         // 4) Nothing readable anywhere (no audio, no caption, no on-screen text) => fail with a
         //    clear reason instead of saving an empty recipe.
         guard recipeHasContent(recipe) else {
-            importState = .failed(message: "We couldn't find a recipe in that video — no spoken steps and no on-screen text we could read. Try a clip where the creator narrates or lists the recipe.")
+            // Food reel, but nothing readable to build from — reassure, don't blame.
+            importState = .failed(message: "This one didn't have quite enough for us to read — no spoken steps, caption, or on-screen text. If it's a recipe, try a reel where the creator lists or talks through the ingredients and steps, and we'll plate it up.")
+            return
+        }
+
+        // 4.4) FOOD GATE: CraveCircle is for cooking. If the reel isn't a food recipe (a fashion/
+        //      product clip can still parse into 'ingredients'), stop kindly instead of saving junk.
+        guard RecipeExtractor.looksLikeFood(recipe) else {
+            importState = .failed(message: "Hmm, this doesn't look like a cooking video. CraveCircle turns food & recipe reels into recipes — share one where someone's making a dish and we'll do the rest.")
             return
         }
 

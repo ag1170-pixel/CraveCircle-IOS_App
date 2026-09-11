@@ -486,6 +486,37 @@ def _has_recipe_content(parsed: dict) -> bool:
     return has_ing or has_dir
 
 
+_FOOD_WORDS = {
+    "cook","cooking","recipe","fry","fried","bake","baked","boil","boiled","roast","grill","saute",
+    "simmer","marinate","knead","whisk","stir","chop","dice","mince","blend","garnish","serve",
+    "season","preheat","dough","batter","sauce","gravy","curry","masala","spice","spices","chilli",
+    "chili","salt","sugar","flour","oil","ghee","butter","milk","cream","cheese","paneer","egg","eggs",
+    "water","onion","garlic","ginger","tomato","potato","rice","dal","lentil","chicken","mutton","fish",
+    "prawn","beef","pork","vegetable","veggies","bread","noodles","pasta","soup","salad","dessert",
+    "cake","cookie","chocolate","honey","yogurt","curd","coriander","cumin","turmeric","pepper","lemon",
+    "tsp","tbsp","teaspoon","tablespoon","cup","cups","cloves","pinch","boneless","chopped","minced",
+    "grated","kadhai","pan","oven","stove","dish","meal","flavour","flavor","kitchen","ingredient","ingredients",
+}
+_NON_FOOD_WORDS = {
+    "fabric","cotton","polyester","spandex","denim","linen","wool","nylon","knit","henley","shirt",
+    "tshirt","tee","jeans","trouser","pant","jacket","hoodie","outfit","clothing","apparel","wardrobe",
+    "wear","fashion","collar","sleeve","stitch","garment","dress","shoe","sneaker","gadget","phone",
+    "laptop","charger","gaming","makeup","skincare","serum","workout","dumbbell","engine","crypto","stocks",
+}
+
+
+def _looks_like_food(parsed: dict) -> bool:
+    """True when the extracted content actually reads as a FOOD recipe — blocks non-cooking reels
+    (fashion/tech/product) that still parse into 'ingredients' like '100g cotton fabric'."""
+    parts = [parsed.get("title", "")]
+    parts += [i for g in parsed.get("ingredients", []) for i in g.get("items", [])]
+    parts += [d.get("text", "") for d in parsed.get("directions", [])]
+    tokens = set(re.findall(r"[a-z]+", " ".join(parts).lower()))
+    food = len(tokens & _FOOD_WORDS)
+    non_food = len(tokens & _NON_FOOD_WORDS)
+    return food >= 2 and food > non_food
+
+
 def _recipe_is_complete(parsed: dict) -> bool:
     has_ing = any(g.get("items") for g in parsed.get("ingredients", []))
     has_dir = len(parsed.get("directions", [])) >= 2
@@ -683,8 +714,17 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
             # fail gracefully with a clear reason instead of storing an empty recipe.
             if not _has_recipe_content(parsed):
                 raise RuntimeError(
-                    "This video has no spoken steps, caption, or on-screen text we could read. "
-                    "Try a reel where the creator narrates or lists the recipe."
+                    "This one didn't have quite enough for us to read — no spoken steps, caption, "
+                    "or on-screen text. If it's a recipe, try a reel where the creator lists or "
+                    "talks through the ingredients and steps."
+                )
+
+            # FOOD GATE: CraveCircle is for cooking. Block non-food reels (fashion/product) that still
+            # parse into 'ingredients' — stop kindly instead of storing a fake recipe in the feed.
+            if not _looks_like_food(parsed):
+                raise RuntimeError(
+                    "Hmm, this doesn't look like a cooking video. CraveCircle turns food & recipe "
+                    "reels into recipes — try one where someone's making a dish."
                 )
 
             # 5) MULTILINGUAL: translate the assembled recipe into the user's chosen language.

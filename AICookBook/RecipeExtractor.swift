@@ -170,6 +170,42 @@ enum RecipeExtractor {
         )
     }
 
+    // MARK: - Food relevance gate
+
+    private static let foodWords: Set<String> = [
+        "cook","cooking","recipe","fry","fried","bake","baked","boil","boiled","roast","grill","saute",
+        "simmer","marinate","knead","whisk","stir","chop","dice","mince","blend","garnish","serve",
+        "season","preheat","dough","batter","sauce","gravy","curry","masala","spice","spices","chilli",
+        "chili","salt","sugar","flour","oil","ghee","butter","milk","cream","cheese","paneer","egg",
+        "eggs","water","onion","garlic","ginger","tomato","potato","rice","dal","lentil","chicken",
+        "mutton","fish","prawn","beef","pork","vegetable","veggies","bread","noodles","pasta","soup",
+        "salad","dessert","cake","cookie","chocolate","honey","yogurt","curd","coriander","cumin",
+        "turmeric","pepper","lemon","tsp","tbsp","teaspoon","tablespoon","cup","cups","cloves","pinch",
+        "boneless","chopped","minced","grated","preheat","kadhai","pan","oven","stove","dish","meal",
+        "tasty","delicious","flavour","flavor","kitchen","edible","eat","ingredient","ingredients"]
+
+    private static let nonFoodWords: Set<String> = [
+        "fabric","cotton","polyester","spandex","denim","linen","wool","nylon","knit","henley","shirt",
+        "tshirt","t-shirt","tee","jeans","trouser","pant","jacket","hoodie","outfit","clothing","apparel",
+        "wardrobe","wear","size","fit","fashion","style","collar","sleeve","stitch","garment","dress",
+        "shoe","sneaker","gadget","phone","laptop","charger","gaming","makeup","skincare","serum",
+        "workout","gym","reps","dumbbell","car","bike","engine","crypto","stocks","subscribe"]
+
+    /// True when the extracted content actually reads as a FOOD recipe. Guards against non-cooking
+    /// reels (fashion/tech/product) that still parse into "ingredients" like "100g cotton fabric".
+    static func looksLikeFood(_ recipe: Recipe) -> Bool {
+        let hay = ([recipe.title]
+                   + recipe.ingredients.flatMap { $0.items }
+                   + recipe.directions.map { $0.text })
+            .joined(separator: " ").lowercased()
+        // Match on whole words so "wear" doesn't hit "swear" etc.
+        let tokens = Set(hay.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty })
+        let foodHits = foodWords.intersection(tokens).count
+        let nonFoodHits = nonFoodWords.intersection(tokens).count
+        // Needs a couple of genuine food signals, and more food than non-food signal.
+        return foodHits >= 2 && foodHits > nonFoodHits
+    }
+
     // MARK: Line classification (keeps ingredients / steps / noise apart)
 
     private static let cookingVerbs: Set<String> = [

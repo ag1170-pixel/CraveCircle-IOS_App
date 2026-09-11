@@ -470,7 +470,7 @@ struct ImportToastBanner: View {
         let l = m.lowercased()
         return l.contains("couldn't find") || l.contains("no spoken") || l.contains("no recipe")
             || l.contains("readable") || l.contains("on-screen text") || l.contains("narrat")
-            || l.contains("list the recipe")
+            || l.contains("list the recipe") || l.contains("cooking video") || l.contains("enough for us to read")
     }
 
     private var subtitleText: String {
