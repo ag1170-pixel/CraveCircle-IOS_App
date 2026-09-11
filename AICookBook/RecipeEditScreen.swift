@@ -147,24 +147,9 @@ struct RecipeEditScreen: View {
         Group {
             if let pickedImage {
                 Image(uiImage: pickedImage).resizable().scaledToFill()
-            } else if let thumb = draft.thumbnailUrl, UIImage(named: thumb) != nil {
-                Image(thumb).resizable().scaledToFill()
-            } else if let s = draft.thumbnailUrl, let url = URL(string: s),
-                      url.scheme == "http" || url.scheme == "https" || url.scheme == "file" {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let img):
-                        img.resizable().scaledToFill()
-                    case .failure:
-                        RecipeImagePlaceholder(isBuffering: false, size: 32)
-                    case .empty:
-                        RecipeImagePlaceholder(isBuffering: true, size: 32)
-                    @unknown default:
-                        RecipeImagePlaceholder(isBuffering: false, size: 32)
-                    }
-                }
             } else {
-                RecipeImagePlaceholder(isBuffering: false, size: 32)
+                RecipeCoverImage(urlString: draft.thumbnailUrl)
+                    .scaledToFill()
             }
         }
         .frame(height: 150)

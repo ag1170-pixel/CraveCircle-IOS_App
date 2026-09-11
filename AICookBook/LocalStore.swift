@@ -18,7 +18,7 @@ enum LocalStore {
         return dir
     }()
 
-    private static func url(_ name: String) -> URL { folder.appendingPathComponent(name) }
+    static func url(_ name: String) -> URL { folder.appendingPathComponent(name) }
 
     private static let ioQueue = DispatchQueue(label: "com.cravecircle.localstore.io", qos: .utility)
 
