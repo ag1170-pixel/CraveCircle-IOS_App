@@ -1425,6 +1425,9 @@ final class AppEnvironment: ObservableObject {
                             } else {
                                 self.recipes.insert(recipe, at: 0)
                             }
+                            self.markRecipeDirty(recipe.id)
+                            Task { await self.syncRecipes() }
+                            
                             // Do NOT auto-set selectedRecipe here. It causes a presentation conflict
                             // if the ImportProgressScreen sheet is currently active. Let the user
                             // explicitly tap "View" or "Open recipe" to select it.
