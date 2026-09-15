@@ -1395,7 +1395,7 @@ final class AppEnvironment: ObservableObject {
                 attempts += 1
                 do {
                     let job = try await self.apiClient.fetchImportJob(jobId: jobId)
-                    consecutiveErrors = 0
+                    
                     await MainActor.run {
                         self.importState = .polling(jobId: jobId, status: job.status)
                     }
@@ -1435,13 +1435,15 @@ final class AppEnvironment: ObservableObject {
                             self.notifyImportDone(recipeTitle: recipe.title)
                         }
                         return
-                    }
-                    if job.status == .error {
+                    } else if job.status == .error {
                         await MainActor.run {
                             self.importState = .failed(message: job.errorMessage ?? "Import failed. Try another link.")
                         }
                         return
                     }
+                    
+                    // Reset errors since we successfully polled a non-terminal status
+                    consecutiveErrors = 0
                 } catch {
                     consecutiveErrors += 1
                     // Tolerate transient blips; only fail after several in a row.

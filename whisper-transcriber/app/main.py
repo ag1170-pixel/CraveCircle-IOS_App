@@ -806,7 +806,8 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
                 "owner_username": f"@{author}" if not author.startswith("@") else author,
                 "source_language": parsed.get("source_language") or source_lang,
                 "source_url": url,
-                "nutrition": parsed["nutrition"]
+                "nutrition": parsed["nutrition"],
+                "visibility": "everyone"
             }
 
             RECIPES[recipe_id] = recipe_obj
