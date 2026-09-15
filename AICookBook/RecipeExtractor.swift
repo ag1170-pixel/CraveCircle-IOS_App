@@ -173,6 +173,7 @@ enum RecipeExtractor {
     // MARK: - Food relevance gate
 
     private static let foodWords: Set<String> = [
+        // English
         "cook","cooking","recipe","fry","fried","bake","baked","boil","boiled","roast","grill","saute",
         "simmer","marinate","knead","whisk","stir","chop","dice","mince","blend","garnish","serve",
         "season","preheat","dough","batter","sauce","gravy","curry","masala","spice","spices","chilli",
@@ -182,7 +183,26 @@ enum RecipeExtractor {
         "salad","dessert","cake","cookie","chocolate","honey","yogurt","curd","coriander","cumin",
         "turmeric","pepper","lemon","tsp","tbsp","teaspoon","tablespoon","cup","cups","cloves","pinch",
         "boneless","chopped","minced","grated","preheat","kadhai","pan","oven","stove","dish","meal",
-        "tasty","delicious","flavour","flavor","kitchen","edible","eat","ingredient","ingredients"]
+        "tasty","delicious","flavour","flavor","kitchen","edible","eat","ingredient","ingredients",
+        // Portuguese
+        "frango","cozinhar","receita","frigir","assar","ferver","grelhar","refogar","temperar",
+        "farinha","azeite","manteiga","leite","creme","queijo","ovo","ovos","cebola","alho",
+        "tomate","batata","arroz","sal","pimenta","colher","colheres","molho","caldo",
+        // Spanish
+        "cocinar","receta","freír","hornear","hervir","asar","mezclar","servir","sazonar",
+        "harina","aceite","mantequilla","leche","crema","queso","huevo","huevos","cebolla","ajo",
+        "tomate","pollo","carne","cerdo","pescado","cucharada","cucharadita","taza",
+        // Italian
+        "cucinare","ricetta","friggere","cuocere","bollire","arrostire","mescolare","condire",
+        "farina","olio","burro","latte","panna","formaggio","uovo","uova","cipolla","aglio",
+        "pomodoro","pollo","manzo","maiale","pesce","cucchiaio","cucchiaino","padella",
+        // French
+        "cuisiner","recette","frire","cuire","bouillir","griller","mélanger","assaisonner",
+        "farine","huile","beurre","lait","crème","fromage","oeuf","oeufs","oignon","ail",
+        "poulet","viande","porc","poisson","cuillère","casserole",
+        // Hindi (transliterated)
+        "pakana","pakao","sabzi","roti","chawal","daal","atta","tel","namak","mirch","haldi",
+        "jeera","dhaniya","pyaaz","adrak","tamatar","aloo","murgi","gosht","machli"]
 
     private static let nonFoodWords: Set<String> = [
         "fabric","cotton","polyester","spandex","denim","linen","wool","nylon","knit","henley","shirt",
@@ -209,12 +229,26 @@ enum RecipeExtractor {
     // MARK: Line classification (keeps ingredients / steps / noise apart)
 
     private static let cookingVerbs: Set<String> = [
+        // English
         "heat","add","cook","fry","stir","mix","pour","chop","dice","boil","saute","sauté","simmer",
         "cover","garnish","serve","blend","whisk","knead","marinate","bake","roast","grill","toss",
         "drain","season","sprinkle","combine","transfer","remove","cut","slice","grind","soak","fold",
         "spread","layer","flip","cool","rest","set","prepare","make","keep","put","take","boil","fry",
         "deep","shallow","temper","garnish","refrigerate","chill","strain","beat","crush","peel","wash",
-        "melt","preheat","bring","reduce","coat","dip","assemble","top","squeeze","brush","drizzle"]
+        "melt","preheat","bring","reduce","coat","dip","assemble","top","squeeze","brush","drizzle",
+        // Portuguese
+        "aqueça","adicione","cozinhe","frite","mexa","misture","despeje","corte","ferva","refogue",
+        "tampe","decore","sirva","asse","grelhe","escorra","tempere","polvilhe","retire","doure",
+        "prepare","coloque","deixe","retorne","finalize",
+        // Spanish
+        "caliente","añada","cocine","fría","revuelva","mezcle","vierta","corte","hierva","saltee",
+        "tape","decore","sirva","hornee","ase","escurra","sazone",
+        // Italian
+        "scaldare","aggiungere","cuocere","friggere","mescolare","versare","tagliare","bollire",
+        "coprire","decorare","servire","arrostire","grigliare","scolare","condire",
+        // French
+        "chauffer","ajouter","cuire","frire","remuer","verser","couper","bouillir",
+        "couvrir","décorer","servir","griller","égoutter","assaisonner"]
 
     /// A hashtag line, a mostly-hashtag line, or obvious non-recipe filler (promo/CTA/emoji-only).
     private static func isHashtagOrJunk(_ line: String) -> Bool {
@@ -224,7 +258,8 @@ enum RecipeExtractor {
                     "fyp", "explore", "viral", "trending", "share this", "save this", "dm ", "click"]
         if junk.contains(where: { l.contains($0) }) && !looksLikeStep(line) { return true }
         // Lines with no letters (emoji/symbols only).
-        if line.range(of: #"[A-Za-zऀ-ॿ]"#, options: .regularExpression) == nil { return true }
+        // Matches English, Hindi (Devanagari), and all Latin-extended/accented characters (À-ÿ).
+        if line.range(of: #"[A-Za-zÀ-ÿऀ-ॿ]"#, options: .regularExpression) == nil { return true }
         return false
     }
 
@@ -234,14 +269,30 @@ enum RecipeExtractor {
         let l = line.lowercased()
         if l.hasSuffix(":") && line.count <= 40 { return true }
         if l.hasPrefix("for ") && line.count <= 40 && !looksLikeIngredient(line) { return true }
+        if l.hasPrefix("para ") && line.count <= 40 && !looksLikeIngredient(line) { return true }  // PT/ES
+        if l.hasPrefix("per ") && line.count <= 40 && !looksLikeIngredient(line) { return true }   // IT
+        if l.hasPrefix("pour ") && line.count <= 40 && !looksLikeIngredient(line) { return true }  // FR
         let headers = ["ingredients", "method", "steps", "directions", "instructions", "recipe",
-                       "for garnish", "for serving", "to serve", "notes"]
+                       "for garnish", "for serving", "to serve", "notes",
+                       // PT
+                       "ingredientes", "modo de preparo", "preparo", "preparação",
+                       // ES
+                       "ingredientes", "preparación", "instrucciones", "pasos",
+                       // IT
+                       "ingredienti", "preparazione", "istruzioni",
+                       // FR
+                       "ingrédients", "préparation", "étapes"]
         return headers.contains(where: { l == $0 || l.hasPrefix($0) }) && line.count <= 40
     }
 
     private static func isStepSectionHeader(_ line: String) -> Bool {
         let l = line.lowercased()
-        return ["method", "steps", "directions", "instructions"].contains(where: { l.hasPrefix($0) })
+        return ["method", "steps", "directions", "instructions",
+                "modo de preparo", "preparo", "preparação",     // PT
+                "preparación", "instrucciones", "pasos",        // ES
+                "preparazione", "istruzioni",                   // IT
+                "préparation", "étapes"                         // FR
+        ].contains(where: { l.hasPrefix($0) })
     }
 
     private static func cleanedHeader(_ line: String) -> String {
@@ -253,11 +304,17 @@ enum RecipeExtractor {
     private static func looksLikeIngredient(_ line: String) -> Bool {
         guard line.count >= 2, line.count <= 80 else { return false }
         if looksLikeStep(line) { return false }
-        let qty = #"(?i)(\b\d+([.,/]\d+)?\b|½|¼|¾|⅓|⅔)\s*(g|gm|gms|gram|grams|kg|mg|ml|l|litre|oz|lb|lbs|cup|cups|tbsp|tbs|tablespoons?|tsp|teaspoons?|clove|cloves|slice|slices|can|cans|pinch|stick|sticks|egg|eggs|packet|packets|piece|pieces|inch|handful)\b"#
+        // Multilingual units: EN + PT (colher/colheres/xícara) + ES (cucharada/taza) + IT (cucchiaio) + FR (cuillère)
+        let qty = #"(?i)(\b\d+([.,/]\d+)?\b|½|¼|¾|⅓|⅔)\s*(g|gm|gms|gram|grams|kg|mg|ml|l|litre|oz|lb|lbs|cup|cups|tbsp|tbs|tablespoons?|tsp|teaspoons?|clove|cloves|slice|slices|can|cans|pinch|stick|sticks|egg|eggs|packet|packets|piece|pieces|inch|handful|colher|colheres|xícara|cucharada|cucharadita|taza|cucchiaio|cucchiaino|cuillère)\b"#
         if line.range(of: qty, options: .regularExpression) != nil { return true }
-        // "Onion - 1/2 (finely chopped)", "Coriander leaves - few", "Hakka noodles - 1 small packet"
+        // "Onion - 1/2 (finely chopped)", bullet-point lists (• item)
         if line.range(of: #"\s[-–—]\s"#, options: .regularExpression) != nil { return true }
-        let pantry = ["to taste", "for frying", "for garnish", "as required", "as needed"]
+        if line.hasPrefix("•") || line.hasPrefix("·") { return true }
+        let pantry = ["to taste", "for frying", "for garnish", "as required", "as needed",
+                      "a gosto", "para fritar", "para decorar",  // PT
+                      "al gusto", "para freír",                  // ES
+                      "a piacere",                               // IT
+                      "au goût"]                                 // FR
         if pantry.contains(where: { line.lowercased().contains($0) }) { return true }
         return false
     }

@@ -498,6 +498,7 @@ def _has_recipe_content(parsed: dict) -> bool:
 
 
 _FOOD_WORDS = {
+    # English
     "cook","cooking","recipe","fry","fried","bake","baked","boil","boiled","roast","grill","saute",
     "simmer","marinate","knead","whisk","stir","chop","dice","mince","blend","garnish","serve",
     "season","preheat","dough","batter","sauce","gravy","curry","masala","spice","spices","chilli",
@@ -507,6 +508,25 @@ _FOOD_WORDS = {
     "cake","cookie","chocolate","honey","yogurt","curd","coriander","cumin","turmeric","pepper","lemon",
     "tsp","tbsp","teaspoon","tablespoon","cup","cups","cloves","pinch","boneless","chopped","minced",
     "grated","kadhai","pan","oven","stove","dish","meal","flavour","flavor","kitchen","ingredient","ingredients",
+    # Portuguese
+    "frango","cozinhar","receita","frigir","assar","ferver","grelhar","refogar","temperar",
+    "farinha","azeite","manteiga","leite","creme","queijo","ovo","ovos","cebola","alho",
+    "tomate","batata","arroz","sal","pimenta","colher","colheres","molho","caldo",
+    # Spanish
+    "cocinar","receta","hornear","hervir","asar","mezclar","servir","sazonar",
+    "harina","aceite","mantequilla","leche","crema","queso","huevo","huevos","cebolla","ajo",
+    "pollo","carne","cerdo","pescado","cucharada","cucharadita","taza",
+    # Italian
+    "cucinare","ricetta","friggere","cuocere","bollire","arrostire","mescolare","condire",
+    "farina","olio","burro","latte","panna","formaggio","uovo","uova","cipolla","aglio",
+    "pomodoro","manzo","maiale","pesce","cucchiaio","cucchiaino","padella",
+    # French
+    "cuisiner","recette","frire","cuire","bouillir","griller","assaisonner",
+    "farine","huile","beurre","lait","fromage","oeuf","oeufs","oignon","ail",
+    "poulet","viande","porc","poisson","casserole",
+    # Hindi (transliterated)
+    "pakana","sabzi","roti","chawal","daal","atta","tel","namak","mirch","haldi",
+    "jeera","dhaniya","pyaaz","adrak","tamatar","aloo","murgi","gosht","machli",
 }
 _NON_FOOD_WORDS = {
     "fabric","cotton","polyester","spandex","denim","linen","wool","nylon","knit","henley","shirt",
