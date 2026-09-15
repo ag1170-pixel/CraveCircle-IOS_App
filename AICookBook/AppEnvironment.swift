@@ -13,6 +13,11 @@ final class AppEnvironment: ObservableObject {
 
     @Published private(set) var appState: AppState = .loading
     @Published private(set) var currentUser: UserProfile?
+
+    /// APNs device token (hex), captured by the AppDelegate. Held until we have a signed-in user,
+    /// then uploaded so the server can push "your recipe is ready" for background share-imports.
+    private var apnsDeviceTokenHex: String?
+    private var apnsEnvironment: String = "sandbox"
     /// The user's chosen profile photo, stored on-device (persisted). Shown as their avatar.
     @Published private(set) var avatarImageData: Data? { didSet { persist(avatarImageData, "avatar.json") } }
     @AppStorage("guest_user_id") private var guestUserId: String = ""
@@ -75,7 +80,12 @@ final class AppEnvironment: ObservableObject {
         self.authClient = SupabaseAuthClient(config: config, tokenStore: tokenStore)
         self.apiClient = APIClient(config: config, tokenStore: tokenStore)
         self.supabase = SupabaseData(config: config, tokenStore: tokenStore)
+        AppEnvironment.shared = self
     }
+
+    /// Weak handle so the UIApplicationDelegate (APNs token / push tap) can reach the live
+    /// environment without threading it through the view tree.
+    static weak var shared: AppEnvironment?
 
     private let supabase: SupabaseData
 
@@ -131,12 +141,14 @@ final class AppEnvironment: ObservableObject {
             currentUser = profile
             appState = .signedIn
             await refreshRecipes()
+            await uploadDeviceTokenIfPossible()
             return
         }
         do {
             currentUser = try await apiClient.fetchProfile()
             appState = .signedIn
             await refreshRecipes()
+            await uploadDeviceTokenIfPossible()
         } catch {
             if case APIError.unauthorized = error {
                 tokenStore.clearSession()
@@ -186,6 +198,7 @@ final class AppEnvironment: ObservableObject {
         appState = .signedIn
         if !hydrated { hydrateLocal() }
         await refreshRecipes()
+        await uploadDeviceTokenIfPossible()   // token may have arrived before login
     }
 
     func signUp(email: String, password: String) async throws {
@@ -228,6 +241,37 @@ final class AppEnvironment: ObservableObject {
         selectedRecipe = nil
         importState = .idle
         appState = .signedOut
+    }
+
+    // MARK: - Push notifications (background share-import "recipe ready")
+
+    /// Called by the AppDelegate when APNs hands us a device token. Store it and upload if we already
+    /// have a signed-in user (covers "token arrives after login"). DORMANT until APNs is configured
+    /// on a paid Apple team — before that, registration fails and this is simply never called.
+    func registerAPNSToken(_ tokenData: Data, environment: String) {
+        apnsDeviceTokenHex = tokenData.map { String(format: "%02x", $0) }.joined()
+        apnsEnvironment = environment
+        Task { await uploadDeviceTokenIfPossible() }
+    }
+
+    /// Upload the APNs token to the server, tied to the current (non-guest) user. Safe to call
+    /// repeatedly; no-ops until we have both a token and a real signed-in user. Called on login and
+    /// whenever a token arrives, so either ordering works.
+    func uploadDeviceTokenIfPossible() async {
+        guard let token = apnsDeviceTokenHex, !token.isEmpty,
+              let user = currentUser, !isGuest, !user.id.isEmpty else { return }
+        try? await apiClient.registerDevice(apnsToken: token, environment: apnsEnvironment)
+    }
+
+    /// A "recipe ready" push was tapped → open the finished recipe (already synced to the library),
+    /// and refresh so it's present even if the sync hadn't landed yet.
+    func handlePushOpen(_ userInfo: [AnyHashable: Any]) {
+        Task {
+            await refreshRecipes()
+            if let id = userInfo["recipe_id"] as? String, !id.isEmpty {
+                openRecipe(id: id)
+            }
+        }
     }
 
     func refreshRecipes() async {

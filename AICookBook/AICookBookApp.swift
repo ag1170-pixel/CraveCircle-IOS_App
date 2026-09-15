@@ -7,19 +7,66 @@
 
 import SwiftUI
 import UserNotifications
+import UIKit
 
 /// Presents local notifications (Recipe Ready, cook-nudge, "shared with you") as banners even while
 /// the app is in the foreground — otherwise iOS silently suppresses them and the user misses the info.
+/// Also routes a tapped "recipe ready" push to the finished recipe.
 final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationPresenter()
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .list, .sound]
     }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse) async {
+        await MainActor.run {
+            AppEnvironment.shared?.handlePushOpen(response.notification.request.content.userInfo)
+        }
+    }
+}
+
+/// UIKit application delegate — only for remote-notification (APNs) plumbing, which SwiftUI's App
+/// lifecycle doesn't surface. DORMANT until Push Notifications is enabled on a paid Apple team:
+/// `registerForRemoteNotifications()` simply calls `didFailToRegister` on the simulator / free team,
+/// which we swallow quietly. Nothing else in the app depends on it.
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
+        return true
+    }
+
+    func application(_ application: UIApplication,
+                     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        #if DEBUG
+        let env = "sandbox"
+        #else
+        let env = "production"
+        #endif
+        Task { @MainActor in AppEnvironment.shared?.registerAPNSToken(deviceToken, environment: env) }
+    }
+
+    func application(_ application: UIApplication,
+                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        // Expected on the simulator and on a free signing team (no aps-environment entitlement).
+        print("ℹ️ Remote notifications unavailable: \(error.localizedDescription)")
+    }
+}
+
+/// Ask for notification permission and, if granted, register for remote (APNs) pushes so the server
+/// can say "your recipe is ready" after a background share-import. Harmless where APNs isn't set up.
+@MainActor func requestPushAuthorization() {
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+        guard granted else { return }
+        DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
+    }
 }
 
 @main
 struct CraveCircleApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var environment = AppEnvironment()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -78,6 +125,7 @@ struct CraveCircleApp: App {
                     // reel finishes processing ~1-2 min AFTER the share, so refresh a few times over
                     // ~90s so it appears on its own without the user pulling to refresh.
                     if phase == .active {
+                        if environment.appState == .signedIn { requestPushAuthorization() }
                         environment.checkPendingSharedImport()   // resume a share's server job (paid-team App Group)
                         Task {
                             await environment.importFromSharedURL()

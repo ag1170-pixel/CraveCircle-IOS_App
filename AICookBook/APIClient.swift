@@ -95,6 +95,20 @@ actor APIClient {
         return try await requestSingle(url: url)
     }
 
+    /// Register this device's APNs token with the server so it can push "your recipe is ready" when
+    /// a background (share-extension) import finishes. Authenticated request → the server ties the
+    /// token to the current user. No-op server-side until APNs is configured (paid Apple account).
+    func registerDevice(apnsToken: String, environment: String) async throws {
+        struct Body: Encodable {
+            let apns_token: String
+            let platform: String
+            let environment: String   // "sandbox" (dev) or "production"
+        }
+        let _: [String: String] = try await request(
+            path: "devices", method: "POST",
+            body: Body(apns_token: apnsToken, platform: "ios", environment: environment))
+    }
+
     private func request<T: Decodable>(path: String, method: String = "GET", body: Encodable? = nil) async throws -> T {
         let url = config.apiBaseURL.appending(path: path)
         return try await request(url: url, method: method, body: body)

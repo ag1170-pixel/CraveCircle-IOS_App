@@ -60,6 +60,17 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    # APNs device registry — maps a signed-in user to their device push tokens, so a background
+    # share-import can push "recipe ready" when it finishes. Populated by POST /devices.
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS devices (
+            apns_token TEXT PRIMARY KEY,
+            user_id TEXT,
+            platform TEXT,
+            environment TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -653,6 +664,21 @@ def assemble_recipe(caption: str, transcript: str, ocr_text: str, has_speech: bo
     }
 
 
+def _send_apns_push(recipe_id: str, recipe_title: str) -> None:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT apns_token, environment, user_id FROM devices")
+    devices = c.fetchall()
+    conn.close()
+    
+    if not devices:
+        return
+        
+    for token, env, uid in devices:
+        print(f"🌟 [APNs Stub] Pushing 'Recipe Ready: {recipe_title}' to {uid} at {token} ({env})")
+        # DORMANT: Requires Apple Developer Program (.p8 key) to send actual HTTP/2 pushes
+        # payload = {"aps": {"alert": {"title": "Recipe Ready! 🍳", "body": f"Your imported reel '{recipe_title}' is ready."}, "sound": "default"}, "recipe_id": recipe_id}
+
 def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
     JOBS[job_id]["status"] = "downloading"
     local_tmp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".tmp")
@@ -753,6 +779,8 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
             RECIPES[recipe_id] = recipe_obj
             JOBS[job_id]["recipe_id"] = recipe_id
             JOBS[job_id]["status"] = "done"
+            
+            _send_apns_push(recipe_id, recipe_obj.get("title", "Recipe"))
 
     except Exception as e:
         JOBS[job_id]["status"] = "error"
@@ -760,6 +788,46 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
 
 
 # MARK: - Feedback & Admin Endpoints
+
+class DeviceRegister(BaseModel):
+    apns_token: str
+    platform: str
+    environment: str
+
+@app.post("/devices")
+def register_device(req: DeviceRegister, authorization: Optional[str] = Header(None)):
+    user_id = "unknown"
+    if authorization and authorization.startswith("Bearer "):
+        import base64
+        import json
+        token = authorization.split(" ")[1]
+        parts = token.split(".")
+        if len(parts) == 3:
+            payload_b64 = parts[1]
+            payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
+            try:
+                payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+                user_id = payload.get("sub", "unknown")
+            except Exception:
+                pass
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(
+        '''
+        INSERT INTO devices (apns_token, user_id, platform, environment, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(apns_token) DO UPDATE SET
+            user_id=excluded.user_id,
+            platform=excluded.platform,
+            environment=excluded.environment,
+            updated_at=CURRENT_TIMESTAMP
+        ''',
+        (req.apns_token, user_id, req.platform, req.environment)
+    )
+    conn.commit()
+    conn.close()
+    return {"status": "ok"}
 
 class FeedbackSubmit(BaseModel):
     type: str

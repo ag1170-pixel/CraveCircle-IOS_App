@@ -3,10 +3,10 @@
 //  CraveCircle Share Extension
 //
 //  Lets users share a cooking video from Instagram / YouTube / TikTok / Facebook straight into
-//  CraveCircle. It grabs the shared link and hands it to the app, which imports it ON-DEVICE
-//  (Apple Neural Engine) — the fast path (seconds), with live progress, filed in the user's own
-//  library. The URL is also stashed in the App Group so the app picks it up on next open if the
-//  system didn't switch apps.
+//  CraveCircle. It fires the import on the SERVER and dismisses — the server transcribes in the
+//  background whether or not the app is open, then (once APNs is configured) pushes "recipe ready".
+//  No app switch, exactly like sharing IG → WhatsApp. The URL is also stashed in the App Group as a
+//  fallback so the app still picks it up on next open before push is live.
 //
 
 import UIKit
@@ -17,7 +17,10 @@ final class ShareViewController: UIViewController {
     // Must match AppEnvironment.appGroupID / pendingImportKey in the main app.
     private let appGroupID = "group.com.anassyed.AICookBook"
     private let pendingKey = "pending_import_url"
-    private let hostAppURL = "cravecircle://import"
+    // The import backend (same as AppConfig.defaultHost). We fire the import SERVER-SIDE and finish —
+    // the server transcribes in the background and (once APNs is live) pushes "recipe ready". The
+    // user never has to open the app, exactly like sharing IG → WhatsApp.
+    private let backendURL = "https://import.cravecircle.cc"
 
     // MARK: UI
     private let card = UIView()
@@ -74,41 +77,36 @@ final class ShareViewController: UIViewController {
         return detector?.firstMatch(in: text, options: [], range: range)?.url?.absoluteString
     }
 
-    private var sharedURL: String?
-
     private func deliver(_ urlString: String?) {
         guard let urlString, !urlString.isEmpty else {
             return showError("Couldn't find a video link in this share.")
         }
-        sharedURL = urlString
-        // Hand the URL to the APP so IT runs the import on-device (Apple Neural Engine) — that's the
-        // FAST path (seconds, not minutes) and it files the recipe in the user's own library with
-        // live progress. Stash in the App Group too so the app also picks it up on next open if the
-        // system didn't switch apps. Auto-attempt the open; the button is the reliable fallback.
+        // Stash in the App Group as a fallback (harmless if unavailable on a free team) — the app
+        // will also pick it up on next open even if the push path isn't live yet.
         if let defaults = UserDefaults(suiteName: appGroupID) {
             defaults.set(urlString, forKey: pendingKey)
         }
-        openHostApp()
-        showReady()
-    }
-
-    /// Open CraveCircle with the reel URL embedded so the app imports it on-device (fast, live
-    /// progress, owned by the user). Walk the responder chain to UIApplication and call openURL:.
-    private func openHostApp() {
-        guard let urlString = sharedURL else { return }
-        var allowed = CharacterSet.alphanumerics
-        allowed.insert(charactersIn: "-._~")
-        let encoded = urlString.addingPercentEncoding(withAllowedCharacters: allowed) ?? urlString
-        guard let url = URL(string: "\(hostAppURL)?url=\(encoded)") else { return }
-        let selector = sel_registerName("openURL:")
-        var responder: UIResponder? = self
-        while let r = responder {
-            if let app = r as? UIApplication, app.responds(to: selector) {
-                app.perform(selector, with: url)
-                return
-            }
-            responder = r.next
+        // Fire the import ON THE SERVER and finish. /reels/import returns immediately (job queued);
+        // the server transcribes in the background regardless of whether the app is open, then (once
+        // APNs is configured) pushes "your recipe is ready". No app switch, no waiting here.
+        guard let endpoint = URL(string: "\(backendURL)/reels/import") else {
+            return showError("Something went wrong. Please try again.")
         }
+        var req = URLRequest(url: endpoint)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["url": urlString, "target_language": "en"])
+        req.timeoutInterval = 25
+        URLSession.shared.dataTask(with: req) { [weak self] _, resp, err in
+            DispatchQueue.main.async {
+                let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+                if err == nil, (200..<300).contains(code) {
+                    self?.showReady()
+                } else {
+                    self?.showError("Couldn't reach CraveCircle right now. Please try again in a moment.")
+                }
+            }
+        }.resume()
     }
 
     private func finish() {
@@ -137,11 +135,11 @@ final class ShareViewController: UIViewController {
 
     private func showReady() {
         setState(loading: false,
-                 title: "Import this reel",
-                 message: "Tap below to open CraveCircle and turn this reel into a recipe — it only takes a few seconds.",
+                 title: "On it! 🍳",
+                 message: "We're turning this reel into a recipe in the background — no need to keep the app open. We'll notify you the moment it's ready, and you'll find it in your CraveCircle library.",
                  systemIcon: "checkmark.circle.fill",
                  iconTint: UIColor(red: 0.42, green: 0.78, blue: 0.44, alpha: 1))
-        primaryButton.setTitle("Open CraveCircle", for: .normal)
+        primaryButton.setTitle("Done", for: .normal)
     }
 
     private func showError(_ message: String) {
@@ -154,11 +152,9 @@ final class ShareViewController: UIViewController {
     }
 
     @objc private func primaryTapped() {
-        // User-initiated open into the app (best-effort). Delay completeRequest so dismissing the
-        // extension doesn't cancel the pending openURL. The import is already running server-side,
-        // so even if the switch doesn't happen, the recipe still shows up on next open.
-        if sharedURL != nil { openHostApp() }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.finish() }
+        // Just dismiss the share sheet — the import is already running on the server and will notify
+        // when ready. No app switch (that's the whole point: like sharing IG → WhatsApp).
+        finish()
     }
 
     // MARK: UI build
