@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import re
 
-# App language codes (EN/HI/MR/TA/TE/BN/ES/FR) already match Google's codes, so no remap needed.
-_SUPPORTED = {"en", "hi", "mr", "ta", "te", "bn", "es", "fr"}
+# App language codes already match Google's codes, so no remap needed.
+_SUPPORTED = {"en", "hi", "mr", "ta", "te", "bn", "es", "fr", "it", "pt"}
 
 
 def _detect(text: str) -> str | None:
