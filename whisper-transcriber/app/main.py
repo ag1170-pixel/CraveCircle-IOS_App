@@ -206,8 +206,8 @@ def _seed_initial_recipes() -> None:
 
 
 _CTA = re.compile(r"(follow|link in bio|comment below|save this|tag a|subscribe|full recipe|check out|dm me|like and|for more|let me know|share this|tap the link)", re.I)
-_SECTION_ING = re.compile(r"^\s*[*_~#\[({«<✨\s]*ingredients?\s*[*_~#\])}»>\s]*[-:–—=]?\s*$", re.I)
-_SECTION_DIR = re.compile(r"^\s*[*_~#\[({«<✨\s]*(directions?|method|steps?|instructions?|process|recipe)\s*[*_~#\])}»>\s]*[-:–—=]?\s*$", re.I)
+_SECTION_ING = re.compile(r"^\s*[*_~#\[({«<✨\s]*(ingredients?|ingredientes|ingredienti|ingrédients)\s*[*_~#\])}»>\s]*[-:–—=]?\s*$", re.I)
+_SECTION_DIR = re.compile(r"^\s*[*_~#\[({«<✨\s]*(directions?|method|steps?|instructions?|process|recipe|modo de preparo|preparo|preparação|preparación|pasos|preparazione|istruzioni|préparation|étapes)\s*[*_~#\])}»>\s]*[-:–—=]?\s*$", re.I)
 _END_SECTIONS = re.compile(r"^\s*(notes?|tips?|subscribe|more recipes|follow|socials?|newsletter)\s*[-:–—=]?\s*$", re.I)
 # ponytail: Heuristic — social media intro lines are chatty sentences, not dish names.
 # A dish name is typically short (< 45 chars) and doesn't read like a full sentence.
@@ -340,8 +340,8 @@ def _extract_conversational_ingredients(transcript: str) -> list[str]:
 
 # On-screen text (OCR) has no "Ingredients:"/"Method:" headers, so classify line-by-line:
 # a line with a quantity+unit is an ingredient; a line starting with a cooking verb is a step.
-_QTY_LINE = re.compile(r"\b(\d+(?:[.,/]\d+)?|½|¼|¾|⅓|⅔)\s*(g|kg|mg|ml|l|oz|lb|lbs|cup|cups|tbsp|tbs|tblsp|tablespoon|tablespoons|tsp|teaspoon|teaspoons|clove|cloves|slice|slices|can|cans|pinch|egg|eggs|stick|sticks)\b", re.I)
-_IMPERATIVE = re.compile(r"^\s*(add|mix|stir|pour|heat|bake|cook|fry|air\s*fry|boil|simmer|whisk|combine|blend|chop|slice|dice|season|serve|fold|knead|marinate|grill|roast|preheat|drain|cover|remove|garnish|sprinkle|coat|dip|layer|spread|place|cut|melt|beat|toss|saute|saut|sear|rest|let|transfer|top|bring|reduce|flip|repeat|set)\b", re.I)
+_QTY_LINE = re.compile(r"\b(\d+(?:[.,/]\d+)?|½|¼|¾|⅓|⅔)\s*(g|kg|mg|ml|l|oz|lb|lbs|cup|cups|tbsp|tbs|tblsp|tablespoon|tablespoons|tsp|teaspoon|teaspoons|clove|cloves|slice|slices|can|cans|pinch|egg|eggs|stick|sticks|colher|colheres|xícara|cucharada|cucharadita|taza|cucchiaio|cucchiaino|cuillère)\b", re.I)
+_IMPERATIVE = re.compile(r"^\s*(add|mix|stir|pour|heat|bake|cook|fry|air\s*fry|boil|simmer|whisk|combine|blend|chop|slice|dice|season|serve|fold|knead|marinate|grill|roast|preheat|drain|cover|remove|garnish|sprinkle|coat|dip|layer|spread|place|cut|melt|beat|toss|saute|saut|sear|rest|let|transfer|top|bring|reduce|flip|repeat|set|aqueça|adicione|cozinhe|frite|mexa|misture|despeje|corte|ferva|refogue|tampe|decore|sirva|asse|grelhe|escorra|tempere|polvilhe|retire|doure|prepare|coloque|deixe|retorne|finalize|caliente|añada|cocine|fría|revuelva|mezcle|vierta|hierva|saltee|tape|hornee|ase|sazone|scaldare|aggiungere|cuocere|friggere|mescolare|versare|tagliare|bollire|coprire|decorare|servire|arrostire|grigliare|scolare|condire|chauffer|ajouter|cuire|frire|remuer|verser|couper|bouillir|couvrir|décorer|égoutter|assaisonner)\b", re.I)
 
 
 def _parse_structured_lines(text: str, capture_title: bool) -> tuple[str, list[dict], list[str]]:
@@ -542,7 +542,8 @@ def _looks_like_food(parsed: dict) -> bool:
     parts = [parsed.get("title", "")]
     parts += [i for g in parsed.get("ingredients", []) for i in g.get("items", [])]
     parts += [d.get("text", "") for d in parsed.get("directions", [])]
-    tokens = set(re.findall(r"[a-z]+", " ".join(parts).lower()))
+    # Use \w to match all Unicode letters (like ã, ç, é), not just a-z
+    tokens = set(re.findall(r"[^\W\d_]+", " ".join(parts).lower()))
     food = len(tokens & _FOOD_WORDS)
     non_food = len(tokens & _NON_FOOD_WORDS)
     return food >= 2 and food > non_food
