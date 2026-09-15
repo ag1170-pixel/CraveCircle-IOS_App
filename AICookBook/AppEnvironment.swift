@@ -865,10 +865,31 @@ final class AppEnvironment: ObservableObject {
             onScreen = await VideoTextOCR.recognizeText(url: url)
         }
 
-        // 3) Structure it (Foundation Models when available, else heuristic).
+        // 3) MULTILINGUAL BRIDGE: the heuristic extractor and food gate only understand English
+        //    units/verbs/food words. Translate ALL text sources to English before extraction so
+        //    Portuguese/Italian/Arabic/etc. reels parse correctly. Best-effort, time-boxed to 8s.
+        //    The LLM path (Foundation Models) handles multilingual natively, but the food gate
+        //    still needs English tokens, so we always translate.
         importState = .polling(jobId: "on-device", status: .extracting)
-        let fullCaption = [title, caption].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
-        
+        var fullCaption = [title, caption].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
+
+        let textsToTranslate = [fullCaption, onScreen, transcript].filter { !$0.isEmpty }
+        if !textsToTranslate.isEmpty {
+            let englishTexts: [String]? = await withTaskGroup(of: [String]?.self) { group in
+                group.addTask { try? await self.apiClient.translateTexts(textsToTranslate, target: "en") }
+                group.addTask { try? await Task.sleep(for: .seconds(8)); return nil }
+                let first = await group.next() ?? nil
+                group.cancelAll()
+                return first
+            }
+            if let en = englishTexts, en.count == textsToTranslate.count {
+                var idx = 0
+                if !fullCaption.isEmpty { fullCaption = en[idx]; idx += 1 }
+                if !onScreen.isEmpty { onScreen = en[idx]; idx += 1 }
+                if !transcript.isEmpty { transcript = en[idx]; idx += 1 }
+            }
+        }
+
         var recipe = await RecipeExtractor.extract(
             transcript: transcript, caption: fullCaption.isEmpty ? nil : fullCaption, ownerId: currentUser?.id ?? "you",
             sourceLanguage: nil, onScreenText: onScreen
@@ -884,14 +905,14 @@ final class AppEnvironment: ObservableObject {
 
         // 4.4) FOOD GATE: CraveCircle is for cooking. If the reel isn't a food recipe (a fashion/
         //      product clip can still parse into 'ingredients'), stop kindly instead of saving junk.
+        //      Runs AFTER translation so English food words are present regardless of source language.
         guard RecipeExtractor.looksLikeFood(recipe) else {
             importState = .failed(message: "Hmm, this doesn't look like a cooking video. CraveCircle turns food & recipe reels into recipes — share one where someone's making a dish and we'll do the rest.")
             return
         }
 
-        // 4.5) MULTILINGUAL: on-device transcription/extraction keeps the reel's own language, so
-        //      translate the result into the user's chosen language (best-effort; the server returns
-        //      it unchanged if it's already in that language).
+        // 4.5) MULTILINGUAL: translate the extracted recipe into the user's preferred language
+        //      (the recipe is currently in English from the bridge above; this brings it to hi/pt/etc.)
         recipe = await translateToPreferredLanguage(recipe)
 
         // 5) Give it a real cover: grab a representative frame from the video and store it locally,
