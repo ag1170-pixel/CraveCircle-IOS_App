@@ -81,14 +81,8 @@ final class ShareViewController: UIViewController {
         guard let urlString, !urlString.isEmpty else {
             return showError("Couldn't find a video link in this share.")
         }
-        // Stash in the App Group as a fallback (harmless if unavailable on a free team) — the app
-        // will also pick it up on next open even if the push path isn't live yet.
-        if let defaults = UserDefaults(suiteName: appGroupID) {
-            defaults.set(urlString, forKey: pendingKey)
-        }
         // Fire the import ON THE SERVER and finish. /reels/import returns immediately (job queued);
-        // the server transcribes in the background regardless of whether the app is open, then (once
-        // APNs is configured) pushes "your recipe is ready". No app switch, no waiting here.
+        // the server transcribes in the background regardless of whether the app is open.
         guard let endpoint = URL(string: "\(backendURL)/reels/import") else {
             return showError("Something went wrong. Please try again.")
         }
@@ -97,13 +91,29 @@ final class ShareViewController: UIViewController {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: ["url": urlString, "target_language": "en"])
         req.timeoutInterval = 25
-        URLSession.shared.dataTask(with: req) { [weak self] _, resp, err in
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
             DispatchQueue.main.async {
                 let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
                 if err == nil, (200..<300).contains(code) {
+                    // Save the job_id so the main app can fetch the FINISHED recipe instead of re-running on-device!
+                    if let data = data,
+                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let jobId = json["job_id"] as? String,
+                       let defaults = UserDefaults(suiteName: self?.appGroupID) {
+                        defaults.set(jobId, forKey: "pending_import_job")
+                        // Clear the fallback URL since we successfully started a server job
+                        defaults.removeObject(forKey: self?.pendingKey ?? "")
+                    } else if let defaults = UserDefaults(suiteName: self?.appGroupID) {
+                        // Fallback: server succeeded but no job id? Stash URL for on-device run
+                        defaults.set(urlString, forKey: self?.pendingKey ?? "")
+                    }
                     self?.showReady()
                 } else {
-                    self?.showError("Couldn't reach CraveCircle right now. Please try again in a moment.")
+                    // Fallback to on-device import if server fails to accept the job
+                    if let defaults = UserDefaults(suiteName: self?.appGroupID) {
+                        defaults.set(urlString, forKey: self?.pendingKey ?? "")
+                    }
+                    self?.showReady() // Still say "On it!" so they aren't blocked, app will do it later
                 }
             }
         }.resume()
