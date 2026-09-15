@@ -301,7 +301,7 @@ struct RecipeDetailScreen: View {
             if recipe.isImportedFromSocial {
                 Button {
                     Haptics.tap()
-                    showWatchReel = true
+                    UIApplication.shared.open(recipe.reelUrl)
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "play.fill").font(.system(size: 12, weight: .bold))
