@@ -712,13 +712,20 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
                 has_speech, _secs = detect_speech(audio_files[0])
                 if has_speech:                       # only pay for Whisper when someone's talking
                     try:
-                        r = transcribe(audio_files[0], language=None, task="transcribe")
+                        # Translate natively to English for the extraction pipeline
+                        r = transcribe(audio_files[0], language=None, task="translate")
                         transcript, source_lang = r.text, (r.language or "en")
                     except Exception:
                         transcript = ""
 
-            # 3) Merge caption + audio (best per field).
+            # 3) Merge caption + audio (best per field). 
+            # Our extraction heuristics (like quantities) and food gate are English-based.
             JOBS[job_id]["status"] = "extracting"
+            from .translate import translate_texts
+            if caption:
+                t_cap = translate_texts([caption], "en")
+                if t_cap: caption = t_cap[0]
+
             parsed = assemble_recipe(caption, transcript, "", has_speech,
                                      video_title=video_title, author=author)
 
@@ -731,6 +738,8 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
                     if vids:
                         ocr_text = _ocr_video_frames(vids[0], tmp)
                         if ocr_text.strip():
+                            t_ocr = translate_texts([ocr_text], "en")
+                            if t_ocr: ocr_text = t_ocr[0]
                             parsed = assemble_recipe(caption, transcript, ocr_text, has_speech,
                                                      video_title=video_title, author=author)
                 except Exception:
@@ -756,7 +765,10 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
             # 5) MULTILINGUAL: translate the assembled recipe into the user's chosen language.
             # Best-effort — if it can't translate, the original recipe is kept (import never fails).
             JOBS[job_id]["status"] = "translating"
+            from .translate import translate_recipe
             parsed = translate_recipe(parsed, target_language)
+            if source_lang and source_lang.lower() != "en":
+                parsed["source_language"] = source_lang
 
             recipe_id = f"recipe-{uuid.uuid4().hex[:8]}"
             recipe_obj = {
