@@ -51,6 +51,24 @@ struct RecipeDetailScreen: View {
         _servings = State(initialValue: recipe.servings ?? 2)
     }
 
+    /// Transparency + safety note for reels turned into recipes automatically. Required disclosure
+    /// that the content is AI-generated, and a real caution for allergen-sensitive cooks.
+    private var aiDisclosureNote: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(AppTheme.textTertiary)
+            Text("Auto-generated from a video — quantities, nutrition, and especially allergens may be inaccurate. Double-check before cooking.")
+                .font(AppFont.body(12))
+                .foregroundStyle(AppTheme.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             ScrollView {
@@ -511,6 +529,10 @@ struct RecipeDetailScreen: View {
             }
 
             NutritionCard(nutrition: recipe.nutritionOrEstimate, servings: servings)
+
+            if recipe.isImportedFromSocial {
+                aiDisclosureNote
+            }
 
             actionRow
 
