@@ -278,6 +278,11 @@ _PIECE_GRAMS = {
     "egg":50,"onion":110,"tomato":120,"potato":170,"garlic":3,"clove":3,"chilli":15,"chili":15,
     "capsicum":120,"carrot":60,"lemon":60,"lime":45,"banana":120,"apple":180,"bread":30,
     "roti":45,"chapati":45,"cucumber":300,"beetroot":80,"onions":110,"tomatoes":120,"potatoes":170,
+    "avocado":150,
+    # nuts (per nut) & whole spices (per piece) — were counted as 60g each, wildly over-counting.
+    "cashew":1.5,"almond":1.2,"walnut":5,"pistachio":0.7,"peanut":0.5,"pecan":2,
+    "cardamom":0.3,"bay leaf":0.2,"cinnamon":3,"star anise":1,"peppercorn":0.05,"curry leaf":0.1,
+    "clove ":0.1,  # whole clove spice (trailing space avoids matching garlic "cloves")
 }
 
 
@@ -332,14 +337,14 @@ def _parse_grams(item: str) -> float:
     for k, g in _PIECE_GRAMS.items():
         if k in core:
             return qty * g
-    # No amount stated (common in narrated reels: "add some paprika") — use a realistic typical
-    # amount by type so a lone spice/condiment isn't counted as a full 80g.
-    if not has_qty:
-        if any(w in core for w in _SPICE_WORDS):
-            return 2.0     # ~1 tsp of a spice/herb
-        if any(w in s for w in _CONDIMENT_WORDS):
-            return 15.0    # ~1 tbsp of a sauce/oil/syrup/aromatic
-    return qty * 60.0 if has_qty else 80.0
+    # Spices/herbs are tiny even when counted ("2 tsp paprika", "a pinch"): ~2g per unit.
+    if any(w in core for w in _SPICE_WORDS):
+        return qty * 2.0 if has_qty else 2.0
+    # Sauces/oils/syrups/aromatics without a unit ~1 tbsp per unit.
+    if any(w in s for w in _CONDIMENT_WORDS):
+        return qty * 15.0 if has_qty else 15.0
+    # Bare count of an unknown food ("2 buns") — a modest ~40g each (was 60g, which over-counted).
+    return qty * 40.0 if has_qty else 80.0
 
 
 def _load_usda_db() -> list:
@@ -507,6 +512,10 @@ def estimate_nutrition(ingredients: list[dict], servings: int = 2) -> dict:
             if not item.strip():
                 continue
             lower = item.lower()
+            # Water / pasta-water / stock-water contributes ~0 kcal, and otherwise mis-matches
+            # ("pasta water" -> pasta). Skip it (coconut/rose water are the rare exceptions).
+            if _core_name(item).split()[-1:] == ["water"] and "coconut" not in lower and "rose" not in lower:
+                continue
             grams = _parse_grams(item)
             # Curated table FIRST — hand-tuned and correct for common & Indian items (USDA's fuzzy
             # search mismatches colloquial terms, e.g. "curd" -> tofu, "mutton" -> a processed loaf).
