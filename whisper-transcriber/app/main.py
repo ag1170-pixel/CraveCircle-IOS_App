@@ -227,15 +227,180 @@ def _strip_marker(line: str) -> str:
     return line.strip()
 
 
+# ---------------------------------------------------------------------------
+# Nutrition helpers (Phase 1): USDA-backed macros, robust grams, real servings.
+# ---------------------------------------------------------------------------
+USDA_API_KEY = os.environ.get("USDA_API_KEY", "DEMO_KEY")  # free key: fdc.nal.usda.gov/api-key-signup
+_USDA_CACHE: dict = {}  # core-name -> per-100g macros dict, or None for a confirmed miss
+
+_UNIT_GRAMS = {
+    "kg": 1000, "g": 1, "gram": 1, "grams": 1, "gm": 1, "gms": 1, "mg": 0.001,
+    "l": 1000, "litre": 1000, "liter": 1000, "ml": 1,
+    "lb": 454, "lbs": 454, "pound": 454, "pounds": 454, "oz": 28, "ounce": 28, "ounces": 28,
+    "cup": 200, "cups": 200, "tbsp": 15, "tablespoon": 15, "tablespoons": 15,
+    "tsp": 5, "teaspoon": 5, "teaspoons": 5, "clove": 3, "cloves": 3,
+    "slice": 20, "slices": 20, "can": 400, "cans": 400, "pinch": 0.5,
+    "egg": 50, "eggs": 50, "roti": 45, "chapati": 45, "packet": 200, "pack": 200,
+}
+
+# Prep/adjective/unit words removed before a food lookup so "finely chopped fresh onion" -> "onion".
+_PREP_WORDS = {
+    "finely","roughly","freshly","fresh","chopped","sliced","diced","minced","grated","shredded",
+    "ground","crushed","peeled","boneless","skinless","large","medium","small","big","ripe","raw",
+    "cooked","boiled","fried","roasted","toasted","dried","frozen","canned","optional","to","taste",
+    "for","garnish","garnishing","washed","cleaned","cut","into","pieces","chunks","cubes","thinly",
+    "halved","whole","a","an","the","of","some","few","handful","pinch","approx","approximately",
+    "or","and","with","without","your","choice","as","needed","per","required","level","heaped","room",
+    "temperature","warm","cold","hot","beaten","softened","melted","extra","virgin","light","dark",
+}
+_PREP_WORDS |= set(_UNIT_GRAMS.keys())
+
+_WORD_NUM = {"one":1,"two":2,"three":3,"four":4,"five":5,"six":6,"seven":7,"eight":8,"nine":9,
+             "ten":10,"eleven":11,"twelve":12,"half":0.5,"quarter":0.25,"dozen":12,"couple":2}
+
+# Typical grams of ONE piece for count-based items (used when no unit is written, e.g. "2 onions").
+_PIECE_GRAMS = {
+    "egg":50,"onion":110,"tomato":120,"potato":170,"garlic":3,"clove":3,"chilli":15,"chili":15,
+    "capsicum":120,"carrot":60,"lemon":60,"lime":45,"banana":120,"apple":180,"bread":30,
+    "roti":45,"chapati":45,"cucumber":300,"beetroot":80,"onions":110,"tomatoes":120,"potatoes":170,
+}
+
+
+def _core_name(item: str) -> str:
+    """Reduce an ingredient line to just the food words for a lookup:
+    'finely chopped 2 fresh onions (medium)' -> 'onions'."""
+    s = re.sub(r"\([^)]*\)", " ", item.lower())          # drop parentheticals
+    s = re.sub(r"[0-9¼½¾⅓⅔¹²³/.,\-]+", " ", s)           # drop numbers/fractions/punctuation
+    words = [w for w in re.findall(r"[a-z]+", s) if w not in _PREP_WORDS and len(w) > 1]
+    return " ".join(words[:4]).strip()
+
+
+def _parse_grams(item: str) -> float:
+    """Best-effort grams for one ingredient line: kg/g/ml/cups/tbsp, '1 1/2', unicode fractions,
+    '2-3' ranges, word-numbers, 'to taste'/'a pinch'/'handful', and count items ('2 eggs',
+    '3 onions') via typical per-piece weights."""
+    s = item.lower().strip()
+    s = re.sub(r"(\d+)\s*[-–—]\s*(\d+)", lambda m: str((int(m.group(1)) + int(m.group(2))) / 2), s)
+
+    qty = None
+    m = re.match(r"\s*(\d+)\s+(\d+)/(\d+)", s)                 # "1 1/2"
+    if m:
+        qty = int(m.group(1)) + int(m.group(2)) / int(m.group(3))
+    if qty is None:
+        m = re.search(r"(\d+(?:\.\d+)?)\s*/\s*(\d+)", s)       # "1/2"
+        if m:
+            qty = float(m.group(1)) / float(m.group(2))
+    if qty is None:
+        for ch, v in {"½":0.5,"¼":0.25,"¾":0.75,"⅓":1/3,"⅔":2/3}.items():
+            if ch in s:
+                qty = v; break
+    if qty is None:
+        m = re.search(r"(\d+(?:\.\d+)?)", s)
+        if m:
+            qty = float(m.group(1))
+    if qty is None:
+        for w, v in _WORD_NUM.items():
+            if re.search(r"\b" + w + r"\b", s):
+                qty = v; break
+    has_qty = qty is not None
+    if qty is None:
+        qty = 1.0
+
+    unit = next((w for w in re.findall(r"[a-z]+", s) if w in _UNIT_GRAMS), None)
+    if unit:
+        return qty * _UNIT_GRAMS[unit]
+    if "to taste" in s or "pinch" in s:
+        return 1.0
+    if "handful" in s:
+        return 30.0
+    core = _core_name(s)
+    for k, g in _PIECE_GRAMS.items():
+        if k in core:
+            return qty * g
+    return qty * 60.0 if has_qty else 80.0
+
+
+def _usda_lookup(core: str) -> dict | None:
+    """Per-100g macros for a food from USDA FoodData Central (fuzzy search, first result). Cached;
+    None = confirmed miss. Uses USDA_API_KEY (DEMO_KEY works but is rate-limited ~30/hr)."""
+    core = (core or "").strip().lower()
+    if not core:
+        return None
+    if core in _USDA_CACHE:
+        return _USDA_CACHE[core]
+    macro = None
+    try:
+        import json
+        from urllib.parse import urlencode
+        from urllib.request import Request, urlopen
+        qs = urlencode({"api_key": USDA_API_KEY, "query": core, "pageSize": 1,
+                        "dataType": "Foundation,SR Legacy,Survey (FNDDS)"})
+        req = Request("https://api.nal.usda.gov/fdc/v1/foods/search?" + qs,
+                      headers={"User-Agent": "CraveCircle/1.0"})
+        with urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        foods = data.get("foods") or []
+        if foods:
+            got = {}
+            for n in foods[0].get("foodNutrients", []):
+                name = (n.get("nutrientName") or "").lower()
+                unit = (n.get("unitName") or "").upper()
+                val = n.get("value")
+                if val is None:
+                    continue
+                if "energy" in name and unit == "KCAL" and "kcal" not in got:
+                    got["kcal"] = val
+                elif name.startswith("carbohydrate"):
+                    got.setdefault("carbs", val)
+                elif name.startswith("protein"):
+                    got.setdefault("protein", val)
+                elif name.startswith("total lipid") or name == "total fat":
+                    got.setdefault("fat", val)
+            if "kcal" in got:
+                macro = {"kcal": got.get("kcal", 0.0), "carbs": got.get("carbs", 0.0),
+                         "protein": got.get("protein", 0.0), "fat": got.get("fat", 0.0)}
+    except Exception:
+        macro = None
+    _USDA_CACHE[core] = macro
+    return macro
+
+
+# USDA's fuzzy search mismatches colloquial/regional terms (curd->tofu, brinjal->?), so map the
+# common ones to the term USDA indexes well. Only used for items NOT in the curated table.
+_USDA_SYNONYMS = {
+    "capsicum": "bell pepper", "brinjal": "eggplant", "aubergine": "eggplant",
+    "lady finger": "okra", "bhindi": "okra", "coriander": "cilantro", "dhania": "cilantro",
+    "corn flour": "cornstarch", "maida": "wheat flour", "curd rice": "rice",
+    "spring onion": "scallions", "coconut milk": "coconut milk", "green chilli": "green chili pepper",
+}
+
+
+def _usda_query(item: str) -> str:
+    """Normalized query for USDA: strip prep words, then swap in a term USDA indexes well."""
+    core = _core_name(item)
+    for k, v in _USDA_SYNONYMS.items():
+        if k in core:
+            return v
+    return core
+
+
+def _parse_servings(*texts: str) -> int:
+    """Pull the real serving count from caption/title/steps; default 2 when unstated."""
+    blob = " ".join(t for t in texts if t).lower()
+    for pat in (r"serves?\s+(\d{1,2})", r"(\d{1,2})\s+servings?", r"makes?\s+(?:about\s+)?(\d{1,2})",
+                r"for\s+(\d{1,2})\s+(?:people|persons?)", r"(\d{1,2})\s+portions?",
+                r"yield[s]?\s+(\d{1,2})"):
+        m = re.search(pat, blob)
+        if m:
+            n = int(m.group(1))
+            if 1 <= n <= 20:
+                return n
+    return 2
+
+
 def estimate_nutrition(ingredients: list[dict], servings: int = 2) -> dict:
-    unit_grams = {
-        "kg": 1000, "g": 1, "gram": 1, "grams": 1, "mg": 0.001,
-        "l": 1000, "litre": 1000, "ml": 1,
-        "lb": 454, "lbs": 454, "oz": 28,
-        "cup": 200, "cups": 200, "tbsp": 15, "tablespoon": 15, "tsp": 5, "teaspoon": 5,
-        "clove": 5, "cloves": 5, "slice": 20, "slices": 20, "can": 400, "pinch": 0.5,
-        "egg": 50, "eggs": 50, "roti": 45, "chapati": 45
-    }
+    """Whole-recipe nutrition → per serving. Each ingredient's grams come from _parse_grams and its
+    per-100g macros from USDA FoodData Central (with the built-in table as an offline fallback)."""
     # Per-100g. Ordered SPECIFIC → GENERIC because matching takes the first key that is a
     # substring of the ingredient line (so "buttermilk"/"coconut milk" must precede "milk").
     table = [
@@ -306,32 +471,20 @@ def estimate_nutrition(ingredients: list[dict], servings: int = 2) -> dict:
     total_kcal, total_carbs, total_protein, total_fat = 0.0, 0.0, 0.0, 0.0
     for group in ingredients:
         for item in group.get("items", []):
+            if not item.strip():
+                continue
             lower = item.lower()
-            m_num = re.search(r"(\d+(?:\.\d+)?|\d+/\d+|½|¼|¾)", lower)
-            qty = 1.0
-            if m_num:
-                raw_num = m_num.group(1)
-                if raw_num == "½": qty = 0.5
-                elif raw_num == "¼": qty = 0.25
-                elif raw_num == "¾": qty = 0.75
-                elif "/" in raw_num:
-                    num, den = raw_num.split("/")
-                    qty = float(num) / float(den)
-                else:
-                    qty = float(raw_num)
-            
-            unit = None
-            for w in re.findall(r"[a-z]+", lower):
-                if w in unit_grams:
-                    unit = w
-                    break
-            
-            grams = qty * unit_grams[unit] if unit else (qty * 60.0 if m_num else 80.0)
+            grams = _parse_grams(item)
+            # Curated table FIRST — hand-tuned and correct for common & Indian items (USDA's fuzzy
+            # search mismatches colloquial terms, e.g. "curd" -> tofu, "mutton" -> a processed loaf).
+            # USDA fills the long tail (specific vegetables/cuts the table doesn't list).
             macro = None
             for key, val in table:
                 if key in lower:
                     macro = val
                     break
+            if macro is None:
+                macro = _usda_lookup(_usda_query(item))
             if macro:
                 f = grams / 100.0
                 total_kcal += macro["kcal"] * f
@@ -713,13 +866,14 @@ def assemble_recipe(caption: str, transcript: str, ocr_text: str, has_speech: bo
             split_dirs.append(d)
     directions = split_dirs
 
-    nutrition = estimate_nutrition(groups, servings=2)
+    serving_count = _parse_servings(caption, video_title, " ".join(directions))
+    nutrition = estimate_nutrition(groups, servings=serving_count)
     return {
         "title": title,
         "description": f"Extracted from @{author}'s cooking reel." if author else "Freshly extracted cooking reel recipe.",
         "prep_time": "10 min",
         "cook_time": "15 min",
-        "servings": 2,
+        "servings": serving_count,
         "ingredients": groups,
         "directions": [{"step_index": i + 1, "text": t} for i, t in enumerate(directions)],
         "nutrition": nutrition,
