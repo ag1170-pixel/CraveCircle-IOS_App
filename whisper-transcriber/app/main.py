@@ -236,27 +236,68 @@ def estimate_nutrition(ingredients: list[dict], servings: int = 2) -> dict:
         "clove": 5, "cloves": 5, "slice": 20, "slices": 20, "can": 400, "pinch": 0.5,
         "egg": 50, "eggs": 50, "roti": 45, "chapati": 45
     }
+    # Per-100g. Ordered SPECIFIC → GENERIC because matching takes the first key that is a
+    # substring of the ingredient line (so "buttermilk"/"coconut milk" must precede "milk").
     table = [
         ("buttermilk", {"kcal": 40, "carbs": 4.8, "protein": 3.3, "fat": 0.9}),
+        ("ghee", {"kcal": 900, "carbs": 0, "protein": 0, "fat": 100}),
         ("butter", {"kcal": 717, "carbs": 0.1, "protein": 0.9, "fat": 81}),
         ("cornstarch", {"kcal": 381, "carbs": 91, "protein": 0.3, "fat": 0.1}),
+        ("cornflour", {"kcal": 381, "carbs": 91, "protein": 0.3, "fat": 0.1}),
         ("paneer", {"kcal": 265, "carbs": 6, "protein": 18, "fat": 20}),
+        # --- meats & seafood (were missing → main ingredient counted as 0 kcal) ---
+        ("mutton", {"kcal": 165, "carbs": 0, "protein": 26, "fat": 6}),
+        ("goat", {"kcal": 143, "carbs": 0, "protein": 27, "fat": 3}),
+        ("lamb", {"kcal": 258, "carbs": 0, "protein": 25, "fat": 17}),
+        ("keema", {"kcal": 165, "carbs": 0, "protein": 26, "fat": 6}),
+        ("qeema", {"kcal": 165, "carbs": 0, "protein": 26, "fat": 6}),
+        ("mince", {"kcal": 165, "carbs": 0, "protein": 26, "fat": 6}),
         ("chicken", {"kcal": 165, "carbs": 0, "protein": 31, "fat": 3.6}),
+        ("bacon", {"kcal": 541, "carbs": 1.4, "protein": 37, "fat": 42}),
+        ("beef", {"kcal": 250, "carbs": 0, "protein": 26, "fat": 15}),
+        ("pork", {"kcal": 242, "carbs": 0, "protein": 27, "fat": 14}),
+        ("prawn", {"kcal": 99, "carbs": 0.2, "protein": 24, "fat": 0.3}),
+        ("shrimp", {"kcal": 99, "carbs": 0.2, "protein": 24, "fat": 0.3}),
+        ("fish", {"kcal": 206, "carbs": 0, "protein": 22, "fat": 12}),
+        ("egg", {"kcal": 155, "carbs": 1.1, "protein": 13, "fat": 11}),
+        # --- legumes / flours / grains ---
+        ("chickpea", {"kcal": 164, "carbs": 27, "protein": 9, "fat": 2.6}),
+        ("chana", {"kcal": 164, "carbs": 27, "protein": 9, "fat": 2.6}),
+        ("rajma", {"kcal": 127, "carbs": 23, "protein": 9, "fat": 0.5}),
+        ("kidney bean", {"kcal": 127, "carbs": 23, "protein": 9, "fat": 0.5}),
+        ("lentil", {"kcal": 116, "carbs": 20, "protein": 9, "fat": 0.4}),
+        ("dal", {"kcal": 116, "carbs": 20, "protein": 9, "fat": 0.4}),
+        ("bean", {"kcal": 127, "carbs": 23, "protein": 9, "fat": 0.5}),
+        ("besan", {"kcal": 387, "carbs": 58, "protein": 22, "fat": 7}),
+        ("gram flour", {"kcal": 387, "carbs": 58, "protein": 22, "fat": 7}),
         ("flour", {"kcal": 364, "carbs": 76, "protein": 10, "fat": 1}),
         ("pasta", {"kcal": 371, "carbs": 75, "protein": 13, "fat": 1.5}),
         ("macaroni", {"kcal": 371, "carbs": 75, "protein": 13, "fat": 1.5}),
         ("rice", {"kcal": 130, "carbs": 28, "protein": 2.7, "fat": 0.3}),
+        # --- nuts (rich gravies) ---
+        ("cashew", {"kcal": 553, "carbs": 30, "protein": 18, "fat": 44}),
+        ("almond", {"kcal": 579, "carbs": 22, "protein": 21, "fat": 50}),
+        ("peanut", {"kcal": 567, "carbs": 16, "protein": 26, "fat": 49}),
+        # --- vegetables / aromatics ---
         ("onion", {"kcal": 40, "carbs": 9, "protein": 1.1, "fat": 0.1}),
         ("tomato", {"kcal": 18, "carbs": 3.9, "protein": 0.9, "fat": 0.2}),
         ("potato", {"kcal": 77, "carbs": 17, "protein": 2, "fat": 0.1}),
+        ("ginger", {"kcal": 80, "carbs": 18, "protein": 1.8, "fat": 0.8}),
         ("garlic", {"kcal": 149, "carbs": 33, "protein": 6.4, "fat": 0.5}),
+        ("spinach", {"kcal": 23, "carbs": 3.6, "protein": 2.9, "fat": 0.4}),
+        # --- dairy (coconut BEFORE milk/cream so 'coconut milk' isn't read as milk) ---
+        ("coconut milk", {"kcal": 230, "carbs": 6, "protein": 2.3, "fat": 24}),
+        ("coconut", {"kcal": 354, "carbs": 15, "protein": 3.3, "fat": 33}),
         ("cheddar", {"kcal": 402, "carbs": 1.3, "protein": 25, "fat": 33}),
         ("mozzarella", {"kcal": 300, "carbs": 2.2, "protein": 22, "fat": 22}),
         ("parmesan", {"kcal": 431, "carbs": 3.2, "protein": 38, "fat": 29}),
         ("cheese", {"kcal": 402, "carbs": 1.3, "protein": 25, "fat": 33}),
         ("cream", {"kcal": 340, "carbs": 2.8, "protein": 2.1, "fat": 36}),
+        ("curd", {"kcal": 61, "carbs": 4.7, "protein": 3.5, "fat": 3.3}),
+        ("dahi", {"kcal": 61, "carbs": 4.7, "protein": 3.5, "fat": 3.3}),
+        ("yogurt", {"kcal": 61, "carbs": 4.7, "protein": 3.5, "fat": 3.3}),
+        ("yoghurt", {"kcal": 61, "carbs": 4.7, "protein": 3.5, "fat": 3.3}),
         ("milk", {"kcal": 62, "carbs": 4.8, "protein": 3.2, "fat": 3.3}),
-        ("egg", {"kcal": 155, "carbs": 1.1, "protein": 13, "fat": 11}),
         ("sugar", {"kcal": 387, "carbs": 100, "protein": 0, "fat": 0}),
         ("honey", {"kcal": 304, "carbs": 82, "protein": 0.3, "fat": 0}),
         ("oil", {"kcal": 884, "carbs": 0, "protein": 0, "fat": 100}),
@@ -685,22 +726,28 @@ def assemble_recipe(caption: str, transcript: str, ocr_text: str, has_speech: bo
     }
 
 
-def _send_apns_push(recipe_id: str, recipe_title: str) -> None:
+def _send_apns_push(recipe_id: str, recipe_title: str, user_id: Optional[str] = None) -> None:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT apns_token, environment, user_id FROM devices")
+    # Target ONLY the user who shared the reel — never every registered device. If we don't know
+    # who imported it (no user_id on the job), send to nobody rather than spamming everyone.
+    if user_id:
+        c.execute("SELECT apns_token, environment, user_id FROM devices WHERE user_id = ?", (user_id,))
+    else:
+        c.execute("SELECT apns_token, environment, user_id FROM devices WHERE 1 = 0")
     devices = c.fetchall()
     conn.close()
-    
+
     if not devices:
+        print(f"ℹ️ [APNs] No device to notify for user_id={user_id} (recipe {recipe_id})")
         return
-        
+
     for token, env, uid in devices:
         print(f"🌟 [APNs Stub] Pushing 'Recipe Ready: {recipe_title}' to {uid} at {token} ({env})")
         # DORMANT: Requires Apple Developer Program (.p8 key) to send actual HTTP/2 pushes
         # payload = {"aps": {"alert": {"title": "Recipe Ready! 🍳", "body": f"Your imported reel '{recipe_title}' is ready."}, "sound": "default"}, "recipe_id": recipe_id}
 
-def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
+def _process_reel_import(job_id: str, url: str, target_language: str, user_id: Optional[str] = None) -> None:
     JOBS[job_id]["status"] = "downloading"
     local_tmp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".tmp")
     os.makedirs(local_tmp, exist_ok=True)
@@ -814,7 +861,7 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
             JOBS[job_id]["recipe_id"] = recipe_id
             JOBS[job_id]["status"] = "done"
             
-            _send_apns_push(recipe_id, recipe_obj.get("title", "Recipe"))
+            _send_apns_push(recipe_id, recipe_obj.get("title", "Recipe"), user_id)
 
     except Exception as e:
         JOBS[job_id]["status"] = "error"
@@ -1009,6 +1056,9 @@ def translate_text_endpoint(req: TranslateTextRequest) -> dict:
 class ImportRequest(BaseModel):
     url: str
     target_language: Optional[str] = "en"
+    # Who shared this reel — set by the Share Extension from the App Group. Lets the "recipe ready"
+    # push target only this user's devices. Absent for anonymous/legacy callers (then: no push).
+    user_id: Optional[str] = None
 
 
 @app.post("/reels/import")
@@ -1019,10 +1069,11 @@ async def submit_reel_import(req: ImportRequest, bg: BackgroundTasks) -> dict:
         "status": "queued",
         "url": req.url,
         "target_language": req.target_language,
+        "user_id": req.user_id,
         "recipe_id": None,
         "error_message": None
     }
-    bg.add_task(_process_reel_import, job_id, req.url, req.target_language)
+    bg.add_task(_process_reel_import, job_id, req.url, req.target_language, req.user_id)
     return {"job_id": job_id, "status": "queued"}
 
 

@@ -142,6 +142,7 @@ final class AppEnvironment: ObservableObject {
             appState = .signedIn
             await refreshRecipes()
             await uploadDeviceTokenIfPossible()
+            syncSharedUserId()
             return
         }
         do {
@@ -149,6 +150,7 @@ final class AppEnvironment: ObservableObject {
             appState = .signedIn
             await refreshRecipes()
             await uploadDeviceTokenIfPossible()
+            syncSharedUserId()
         } catch {
             if case APIError.unauthorized = error {
                 tokenStore.clearSession()
@@ -199,6 +201,7 @@ final class AppEnvironment: ObservableObject {
         if !hydrated { hydrateLocal() }
         await refreshRecipes()
         await uploadDeviceTokenIfPossible()   // token may have arrived before login
+        syncSharedUserId()
     }
 
     func signUp(email: String, password: String) async throws {
@@ -241,6 +244,7 @@ final class AppEnvironment: ObservableObject {
         selectedRecipe = nil
         importState = .idle
         appState = .signedOut
+        syncSharedUserId()   // clear the shared user id so shares aren't attributed to a signed-out user
     }
 
     // MARK: - Push notifications (background share-import "recipe ready")
@@ -261,6 +265,18 @@ final class AppEnvironment: ObservableObject {
         guard let token = apnsDeviceTokenHex, !token.isEmpty,
               let user = currentUser, !isGuest, !user.id.isEmpty else { return }
         try? await apiClient.registerDevice(apnsToken: token, environment: apnsEnvironment)
+    }
+
+    /// Publish the signed-in user id to the Share Extension (via App Group) so a background
+    /// share-import is attributed to this user and the "recipe ready" push targets only their
+    /// devices. Cleared on sign-out / guest so we never push to the wrong person.
+    func syncSharedUserId() {
+        guard let d = UserDefaults(suiteName: Self.appGroupID) else { return }
+        if let id = currentUser?.id, !isGuest, !id.isEmpty {
+            d.set(id, forKey: "shared_user_id")
+        } else {
+            d.removeObject(forKey: "shared_user_id")
+        }
     }
 
     /// A "recipe ready" push was tapped → open the finished recipe (already synced to the library),

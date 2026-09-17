@@ -89,7 +89,13 @@ final class ShareViewController: UIViewController {
         var req = URLRequest(url: endpoint)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["url": urlString, "target_language": "en"])
+        // Attribute the import to the signed-in user (written to the App Group by the app) so the
+        // "recipe ready" push targets only their devices — never everyone's.
+        var payload: [String: Any] = ["url": urlString, "target_language": "en"]
+        if let uid = UserDefaults(suiteName: appGroupID)?.string(forKey: "shared_user_id"), !uid.isEmpty {
+            payload["user_id"] = uid
+        }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: payload)
         req.timeoutInterval = 25
         URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
             DispatchQueue.main.async {
