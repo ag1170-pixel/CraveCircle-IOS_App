@@ -77,10 +77,10 @@ extension Recipe {
             ownerUsername: "@nada_dl",
             sourceLanguage: "en",
             nutrition: RecipeNutrition(
-                calories: 680,
-                carbsG: 52,
-                proteinG: 48,
-                fatG: 28,
+                calories: 844,
+                carbsG: 85,
+                proteinG: 45,
+                fatG: 36,
                 estimated: false
             )
         ),
@@ -137,10 +137,10 @@ extension Recipe {
             ownerUsername: "@aicookbook",
             sourceLanguage: nil,
             nutrition: RecipeNutrition(
-                calories: 403,
-                carbsG: 23,
-                proteinG: 28,
-                fatG: 23,
+                calories: 586,
+                carbsG: 45,
+                proteinG: 25,
+                fatG: 34,
                 estimated: false
             ),
             sourceUrl: nil
@@ -194,10 +194,10 @@ extension Recipe {
             ownerUsername: "@Kristy.Graver",
             sourceLanguage: "en",
             nutrition: RecipeNutrition(
-                calories: 540,
-                carbsG: 8,
+                calories: 738,
+                carbsG: 12,
                 proteinG: 42,
-                fatG: 38,
+                fatG: 58,
                 estimated: false
             )
         ),
@@ -243,10 +243,10 @@ extension Recipe {
             ownerUsername: "@chefbot",
             sourceLanguage: "en",
             nutrition: RecipeNutrition(
-                calories: 480,
-                carbsG: 78,
-                proteinG: 16,
-                fatG: 12,
+                calories: 660,
+                carbsG: 80,
+                proteinG: 22,
+                fatG: 28,
                 estimated: false
             )
         ),
@@ -1892,10 +1892,10 @@ extension Recipe {
             ownerUsername: "@priyacooks",
             sourceLanguage: "hi",
             nutrition: RecipeNutrition(
-                calories: 310,
-                carbsG: 52,
-                proteinG: 6,
-                fatG: 10,
+                calories: 454,
+                carbsG: 65,
+                proteinG: 8,
+                fatG: 18,
                 estimated: false
             )
         ),
@@ -1947,10 +1947,10 @@ extension Recipe {
             ownerUsername: "@priyacooks",
             sourceLanguage: "ml",
             nutrition: RecipeNutrition(
-                calories: 390,
-                carbsG: 11,
-                proteinG: 34,
-                fatG: 24,
+                calories: 436,
+                carbsG: 14,
+                proteinG: 32,
+                fatG: 28,
                 estimated: false
             )
         ),
@@ -2004,10 +2004,10 @@ extension Recipe {
             ownerUsername: "@Sanjeev.Kapoor",
             sourceLanguage: "hi",
             nutrition: RecipeNutrition(
-                calories: 430,
-                carbsG: 22,
-                proteinG: 16,
-                fatG: 32,
+                calories: 546,
+                carbsG: 24,
+                proteinG: 18,
+                fatG: 42,
                 estimated: false
             )
         ),
@@ -2062,10 +2062,10 @@ extension Recipe {
             ownerUsername: "@Aditya.Gupta",
             sourceLanguage: "ta",
             nutrition: RecipeNutrition(
-                calories: 490,
-                carbsG: 14,
-                proteinG: 41,
-                fatG: 30,
+                calories: 520,
+                carbsG: 16,
+                proteinG: 42,
+                fatG: 32,
                 estimated: false
             )
         )
