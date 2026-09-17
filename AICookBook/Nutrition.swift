@@ -88,6 +88,67 @@ struct RecipeNutrition: Codable, Hashable {
 
 // MARK: - On-device estimator (fallback only)
 
+// MARK: - Bundled offline USDA database (mirrors the server; no API, no network)
+
+/// Per-100g macros looked up from the bundled USDA SR Legacy dataset (usda_sr.json, ~7.8k foods).
+/// Fully offline — same data and matching logic as the server, so both import paths agree.
+enum OfflineFoodDB {
+    struct Macro { let kcal, carbs, protein, fat: Double }
+    private struct Entry { let desc: String; let words: Set<String>; let k, c, p, f: Double }
+
+    private static var entries: [Entry] = []
+    private static var loaded = false
+    private static var cache: [String: Macro?] = [:]
+    private static let lock = NSLock()
+
+    // Down-rank processed/branded/dish/non-flesh entries so a query lands on the generic raw food.
+    private static let processed = ["roll","breaded","battered","canned","gravy","dish","baby",
+        "infant","dessert","dinner","fast food","restaurant","soup","flavored","leaves","leaf",
+        "cereal","ready-to-eat","bunches","juice","powder","chips","fries","berries","strawberry",
+        "vanilla","chocolate","dip","spread","stem","sprouts","glazed"]
+
+    private static func loadIfNeeded() {
+        guard !loaded else { return }
+        loaded = true
+        guard let url = Bundle.main.url(forResource: "usda_sr", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+        entries = arr.compactMap { o in
+            guard let d = o["d"] as? String else { return nil }
+            let words = Set(d.lowercased().split { !$0.isLetter }.map(String.init))
+            func num(_ k: String) -> Double { (o[k] as? Double) ?? (o[k] as? NSNumber)?.doubleValue ?? 0 }
+            return Entry(desc: d, words: words, k: num("k"), c: num("c"), p: num("p"), f: num("f"))
+        }
+    }
+
+    static func lookup(_ core: String) -> Macro? {
+        let key = core.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !key.isEmpty else { return nil }
+        lock.lock()
+        if let cached = cache[key] { lock.unlock(); return cached }
+        loadIfNeeded()
+        let tokens = key.split(separator: " ").map(String.init)
+        let head = tokens.last ?? ""
+        var cands = entries.filter { e in tokens.allSatisfy { e.words.contains($0) } }
+        if cands.isEmpty, !head.isEmpty { cands = entries.filter { $0.words.contains(head) } }
+        var result: Macro? = nil
+        if let best = cands.max(by: { score($0, head: head) < score($1, head: head) }) {
+            result = Macro(kcal: best.k, carbs: best.c, protein: best.p, fat: best.f)
+        }
+        cache[key] = result
+        lock.unlock()
+        return result
+    }
+
+    private static func score(_ e: Entry, head: String) -> Double {
+        var s = -0.03 * Double(e.desc.count)
+        if e.words.contains("raw") { s += 3 }
+        if e.desc.lowercased().hasPrefix(head) { s += 2 }
+        for w in processed where e.desc.lowercased().contains(w) { s -= 2 }
+        return s
+    }
+}
+
 enum NutritionEstimator {
     /// Rough per-serving estimate from ingredient lines. Server values always win.
     static func estimate(for recipe: Recipe) -> RecipeNutrition {
@@ -98,7 +159,16 @@ enum NutritionEstimator {
         for group in recipe.ingredients {
             for item in group.items where !item.trimmingCharacters(in: .whitespaces).isEmpty {
                 let (grams, name) = parse(item)
-                guard let macro = lookup(name) else { continue }
+                // Curated table FIRST (correct for common & Indian items), then the bundled offline
+                // USDA dataset for the long tail — same order and data as the server.
+                let macro: Macro
+                if let t = lookup(name) {
+                    macro = t
+                } else if let db = OfflineFoodDB.lookup(offlineQuery(item)) {
+                    macro = Macro(kcal: db.kcal, carbs: db.carbs, protein: db.protein, fat: db.fat)
+                } else {
+                    continue
+                }
                 let f = grams / 100.0
                 kcal += macro.kcal * f
                 carbs += macro.carbs * f
@@ -126,6 +196,20 @@ enum NutritionEstimator {
             breakdown: breakdown.isEmpty ? nil : breakdown,
             estimated: true
         )
+    }
+
+    /// Colloquial/regional term -> a term USDA indexes well (used only for the offline DB fallback).
+    private static let synonyms: [String: String] = [
+        "capsicum": "sweet pepper", "bell pepper": "sweet pepper", "brinjal": "eggplant",
+        "aubergine": "eggplant", "lady finger": "okra", "bhindi": "okra", "coriander": "cilantro",
+        "dhania": "cilantro", "corn flour": "cornstarch", "maida": "wheat flour", "curd rice": "rice"
+    ]
+
+    /// Normalized food-name query for the offline USDA dataset (core name + synonym swap).
+    static func offlineQuery(_ item: String) -> String {
+        let core = GrocerySort.coreName(item).lowercased()
+        for (k, v) in synonyms where core.contains(k) { return v }
+        return core
     }
 
     /// Short readable name for the breakdown ("2 fresh onions, sliced" -> "Onions").

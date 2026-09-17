@@ -93,9 +93,24 @@ enum RecipeExtractor {
         return Recipe(
             id: UUID().uuidString, ownerId: ownerId,
             title: g.title.isEmpty ? "Imported Recipe" : g.title,
-            servings: 2, ingredients: ingredients, directions: steps,
+            servings: parseServings(transcript, caption, onScreenText),
+            ingredients: ingredients, directions: steps,
             ownerUsername: "@you", sourceLanguage: sourceLanguage
         )
+    }
+
+    /// Real serving count from the reel's text ("serves 4", "makes 6 servings"); default 2.
+    static func parseServings(_ texts: String?...) -> Int {
+        let blob = texts.compactMap { $0 }.joined(separator: " ").lowercased()
+        let patterns = [#"serves?\s+(\d{1,2})"#, #"(\d{1,2})\s+servings?"#,
+                        #"makes?\s+(?:about\s+)?(\d{1,2})"#,
+                        #"for\s+(\d{1,2})\s+(?:people|persons?)"#, #"(\d{1,2})\s+portions?"#]
+        for p in patterns {
+            guard let r = blob.range(of: p, options: .regularExpression) else { continue }
+            if let nr = blob[r].range(of: #"\d{1,2}"#, options: .regularExpression),
+               let n = Int(blob[r][nr]), (1...20).contains(n) { return n }
+        }
+        return 2
     }
     #endif
 
@@ -164,7 +179,8 @@ enum RecipeExtractor {
 
         return Recipe(
             id: UUID().uuidString, ownerId: ownerId,
-            title: titleCandidate ?? "Imported Recipe", servings: 2,
+            title: titleCandidate ?? "Imported Recipe",
+            servings: parseServings(transcript, caption, onScreenText),
             ingredients: groups, directions: Array(steps),
             ownerUsername: "@you", sourceLanguage: sourceLanguage
         )

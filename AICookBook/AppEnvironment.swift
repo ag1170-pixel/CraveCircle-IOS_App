@@ -394,20 +394,21 @@ final class AppEnvironment: ObservableObject {
 
     private var nutritionAttempted = Set<String>()
 
-    /// Upgrade a recipe's nutrition to authoritative USDA values once, in the background. Keeps the
-    /// on-device estimate if USDA can't resolve enough ingredients (or the network/key is down).
-    /// Stored to the library, so it shows the next time the recipe is opened.
+    /// Compute nutrition once (off-main) for a recipe that has none yet — using the bundled offline
+    /// USDA engine (no network, no API). Stores it (with the macro breakdown) so it persists and
+    /// doesn't recompute every render. NEVER overwrites a recipe that already has nutrition (e.g. the
+    /// accurate server value from a share import).
     func refreshAuthoritativeNutrition(for recipe: Recipe) {
-        guard recipe.nutrition == nil || recipe.nutrition?.estimated == true,
-              !nutritionAttempted.contains(recipe.id) else { return }
+        guard recipe.nutrition == nil, !nutritionAttempted.contains(recipe.id) else { return }
         nutritionAttempted.insert(recipe.id)
-        Task {
-            guard let usda = await USDANutrition.compute(for: recipe, apiKey: config.usdaApiKey) else { return }
+        Task.detached { [weak self] in
+            let computed = NutritionEstimator.estimate(for: recipe)   // offline USDA-backed
             await MainActor.run {
+                guard let self else { return }
                 if let i = self.recipes.firstIndex(where: { $0.id == recipe.id }) {
-                    self.recipes[i].nutrition = usda
+                    self.recipes[i].nutrition = computed
                 }
-                if self.selectedRecipe?.id == recipe.id { self.selectedRecipe?.nutrition = usda }
+                if self.selectedRecipe?.id == recipe.id { self.selectedRecipe?.nutrition = computed }
             }
         }
     }

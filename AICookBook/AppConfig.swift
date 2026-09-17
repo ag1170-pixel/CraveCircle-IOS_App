@@ -5,10 +5,6 @@ struct AppConfig {
     let supabaseURL: URL
     let supabaseAnonKey: String
     let isServiceRoleKeyConfigured: Bool
-    /// USDA FoodData Central key for authoritative nutrition. Free key: fdc.nal.usda.gov/api-key-signup.
-    /// DEMO_KEY works but is rate-limited (~30/hr) — replace via SUPABASE-style Info.plist/env override.
-    let usdaApiKey: String
-
     static let privacyPolicyURL = URL(string: "https://cravecircle.cc/privacy")!
     static let termsOfServiceURL = URL(string: "https://cravecircle.cc/terms")!
     static let supportURL = URL(string: "https://cravecircle.cc/support")!
@@ -37,15 +33,11 @@ struct AppConfig {
         let serviceRoleDetected = jwtRole(from: anonRaw) == "service_role"
         let safeAnonKey = serviceRoleDetected ? "" : anonRaw
 
-        let usdaKey = ((dict["USDA_API_KEY"] as? String) ?? env["USDA_API_KEY"] ?? "DEMO_KEY")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
         return AppConfig(
             apiBaseURL: apiURL,
             supabaseURL: supabaseURL,
             supabaseAnonKey: safeAnonKey,
-            isServiceRoleKeyConfigured: serviceRoleDetected,
-            usdaApiKey: usdaKey.isEmpty ? "DEMO_KEY" : usdaKey
+            isServiceRoleKeyConfigured: serviceRoleDetected
         )
     }
 
