@@ -10,7 +10,8 @@ import SwiftUI
 
 struct NutritionCard: View {
     let nutrition: RecipeNutrition
-    var servings: Int = 1
+    var servings: Int = 1          // how many servings the user is splitting the dish into (stepper)
+    var baseServings: Int = 1      // the recipe's own serving count (what the stored per-serving used)
     @State private var showTotal = false
     @State private var selectedMacro: MacroKind? = nil
 
@@ -38,8 +39,11 @@ struct NutritionCard: View {
     private let proteinColor = Color(hex: "E0A02E")
     private let fatColor = Color(hex: "6E93A6")
 
+    // Model A: the dish is fixed. Whole recipe = stored per-serving × baseServings (constant).
+    // Per serving = whole recipe ÷ current servings → drops as you raise the servings stepper.
+    private var perServingScale: Double { Double(max(baseServings, 1)) / Double(max(servings, 1)) }
     private var activeMultiplier: Double {
-        showTotal ? Double(max(servings, 1)) : 1.0
+        showTotal ? Double(max(baseServings, 1)) : perServingScale
     }
 
     private var activeCalories: Double {
@@ -67,7 +71,7 @@ struct NutritionCard: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Nutrition").sectionLabelStyle(AppTheme.accentInk)
                 Spacer()
-                if servings > 1 {
+                if baseServings > 1 {
                     Button {
                         Haptics.tap()
                         withAnimation(AppMotion.snappy) {
@@ -75,7 +79,7 @@ struct NutritionCard: View {
                         }
                     } label: {
                         HStack(spacing: 4) {
-                            Text(showTotal ? "Total (\(servings) servings)" : "Per serving")
+                            Text(showTotal ? "Whole recipe" : "Per serving")
                                 .font(AppFont.body(12, weight: .semibold))
                             Image(systemName: "arrow.2.squarepath")
                                 .font(.system(size: 10, weight: .bold))
@@ -100,7 +104,9 @@ struct NutritionCard: View {
                         .font(AppFont.display(28, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                         .monospacedDigit()
-                    Text(showTotal ? "Total Calories" : "Calories")
+                        .contentTransition(.numericText())
+                        .animation(AppMotion.snappy, value: activeCalories)
+                    Text(showTotal ? "Whole Recipe" : "Calories")
                         .font(AppFont.body(14, weight: .medium))
                         .foregroundStyle(AppTheme.textSecondary)
                     dvBar
@@ -167,7 +173,8 @@ struct NutritionCard: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(AppTheme.separator)
                 Capsule().fill(AppTheme.accent)
-                    .frame(width: geo.size.width * min(Double(nutrition.caloriesDVPercent) / 100, 1))
+                    .frame(width: geo.size.width * min(Double(activeDVPercent) / 100, 1))
+                    .animation(AppMotion.snappy, value: activeDVPercent)
             }
         }
         .frame(width: 150, height: 6)
@@ -184,6 +191,8 @@ struct NutritionCard: View {
                     .font(AppFont.body(16, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(AppMotion.snappy, value: grams)
                 Text(kind.title)
                     .font(AppFont.body(12, weight: .medium))
                     .foregroundStyle(color)

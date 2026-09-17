@@ -132,7 +132,7 @@ struct RecipeDetailScreen: View {
         }
         .scrollIndicators(.hidden)
         .fullScreenCover(isPresented: $showCook) {
-            CookModeScreen(recipe: recipe, servings: servings)
+            CookModeScreen(recipe: recipe, servings: recipe.servings ?? 2)
         }
         .fullScreenCover(isPresented: $showEdit) {
             RecipeEditScreen(recipe: $recipe, onSave: { environment.updateRecipe($0) })
@@ -510,7 +510,7 @@ struct RecipeDetailScreen: View {
                 descriptionBlock(description)
             }
 
-            NutritionCard(nutrition: recipe.nutritionOrEstimate, servings: servings)
+            NutritionCard(nutrition: recipe.nutritionOrEstimate, servings: servings, baseServings: recipe.servings ?? 2)
 
             actionRow
 
@@ -751,7 +751,7 @@ struct RecipeDetailScreen: View {
 
             PillButton(title: "Add to Grocery", systemImage: "basket.fill", kind: .outlined) {
                 Haptics.success()
-                let count = environment.addIngredientsToGrocery(recipe: recipe, servings: servings)
+                let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
                 addedGroceryCount = count
                 withAnimation { showGroceryBanner = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
@@ -769,9 +769,9 @@ struct RecipeDetailScreen: View {
         return VStack(alignment: .leading, spacing: AppSpacing.md) {
             if servings != baseServings {
                 HStack(spacing: 6) {
-                    Image(systemName: "slider.horizontal.3")
+                    Image(systemName: "person.2.fill")
                         .font(.system(size: 12, weight: .semibold))
-                    Text("Quantities scaled for \(servings) servings (original: \(baseServings))")
+                    Text("Nutrition split across \(servings) servings — ingredients stay as the recipe.")
                         .font(AppFont.body(12, weight: .medium))
                     Spacer()
                     Button("Reset") {
@@ -794,9 +794,10 @@ struct RecipeDetailScreen: View {
                     }
                     ForEach(Array(group.items.enumerated()), id: \.offset) { itemIndex, item in
                         let key = "\(groupIndex):\(itemIndex)"
-                        let scaledText = IngredientScaler.scale(text: item, from: baseServings, to: servings)
+                        // Model A: the dish is fixed — ingredient amounts are the recipe's own, not
+                        // scaled by the servings stepper (the stepper only re-portions the nutrition).
                         VStack(spacing: 0) {
-                            IngredientRow(text: scaledText, checked: checkedIngredients.contains(key)) {
+                            IngredientRow(text: item, checked: checkedIngredients.contains(key)) {
                                 toggle(&checkedIngredients, key)
                             }
                             if itemIndex < group.items.count - 1 {
