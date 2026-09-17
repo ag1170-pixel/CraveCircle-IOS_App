@@ -60,8 +60,6 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		27945DB32F9F211200B8F8B8 /* AICookBook */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = AICookBook;
 			sourceTree = "<group>";
 		};

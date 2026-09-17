@@ -34,3 +34,4 @@ Config/Local.xcconfig
 # scratch/patch helpers (do not commit)
 /patch*.py
 /test_*.swift
+/fix_*.py
