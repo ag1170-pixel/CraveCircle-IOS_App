@@ -30,3 +30,7 @@ whisper-transcriber/.tmp/
 
 # Per-developer signing (machine-specific team id)
 Config/Local.xcconfig
+
+# scratch/patch helpers (do not commit)
+/patch*.py
+/test_*.swift
