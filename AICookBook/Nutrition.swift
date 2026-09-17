@@ -158,6 +158,11 @@ enum NutritionEstimator {
 
         for group in recipe.ingredients {
             for item in group.items where !item.trimmingCharacters(in: .whitespaces).isEmpty {
+                // Water / pasta-water contributes ~0 kcal and otherwise mis-matches ("pasta water"
+                // -> pasta). Skip it (coconut/rose water are the rare exceptions).
+                let low = item.lowercased()
+                if GrocerySort.coreName(item).lowercased().split(separator: " ").last == "water",
+                   !low.contains("coconut"), !low.contains("rose") { continue }
                 let (grams, name) = parse(item)
                 // Curated table FIRST (correct for common & Indian items), then the bundled offline
                 // USDA dataset for the long tail — same order and data as the server.
@@ -231,35 +236,70 @@ enum NutritionEstimator {
         "roti": 45, "rotis": 45, "chapati": 45
     ]
 
-    /// Extract a gram amount + a lowercased ingredient name from a line like "300 ml buttermilk".
-    /// Shared with USDANutrition so both sources scale by the same grams.
+    /// Typical grams of ONE piece for count items — nuts & whole spices included, so "15 cashews"
+    /// or "1 bay leaf" aren't counted as 60g each (mirrors the server).
+    private static let pieceGrams: [String: Double] = [
+        "egg": 50, "onion": 110, "tomato": 120, "potato": 170, "garlic": 3, "clove": 3,
+        "chilli": 15, "chili": 15, "capsicum": 120, "carrot": 60, "lemon": 60, "lime": 45,
+        "banana": 120, "apple": 180, "bread": 30, "roti": 45, "chapati": 45, "cucumber": 300,
+        "beetroot": 80, "avocado": 150,
+        "cashew": 1.5, "almond": 1.2, "walnut": 5, "pistachio": 0.7, "peanut": 0.5, "pecan": 2,
+        "cardamom": 0.3, "bay leaf": 0.2, "cinnamon": 3, "star anise": 1, "peppercorn": 0.05,
+        "curry leaf": 0.1
+    ]
+    private static let spiceWords: Set<String> = ["salt","pepper","paprika","cumin","turmeric",
+        "cinnamon","cardamom","chili","chilli","flakes","powder","oregano","thyme","rosemary",
+        "basil","nutmeg","cloves","masala","seasoning","spice","zest","bay","coriander","parsley","mint"]
+    private static let condimentWords: Set<String> = ["sauce","honey","vinegar","oil","mirin","syrup",
+        "juice","paste","ketchup","mustard","mayo","garlic","ginger","sake","wine"]
+
+    /// Extract a gram amount + the lowercased ingredient line (used for the table lookup).
     static func parse(_ line: String) -> (grams: Double, name: String) {
         let lower = line.lowercased()
+        var s = lower
 
-        // 1) leading quantity — decimal, "1/2", or a unicode fraction
-        var qty = 1.0
-        var hasNumber = false
-        let uni: [Character: Double] = ["½": 0.5, "¼": 0.25, "¾": 0.75, "⅓": 1.0/3, "⅔": 2.0/3]
-        if let first = lower.trimmingCharacters(in: .whitespaces).first, let v = uni[first] {
-            qty = v; hasNumber = true
-        } else {
-            let sc = Scanner(string: lower); sc.charactersToBeSkipped = .whitespaces
-            if let n = sc.scanDouble() {
-                qty = n; hasNumber = true
-                if sc.scanString("/") != nil, let d = sc.scanDouble(), d != 0 { qty = n / d }
-            }
+        // ranges "2-3" -> midpoint
+        if let m = s.range(of: #"(\d+)\s*[-–—]\s*(\d+)"#, options: .regularExpression) {
+            let nums = s[m].split { !$0.isNumber }.compactMap { Double($0) }
+            if nums.count == 2 { s.replaceSubrange(m, with: String((nums[0] + nums[1]) / 2)) }
         }
 
-        // 2) unit — first whole word that is a known unit
-        let words = lower.split { !$0.isLetter }.map(String.init)
-        let unit = words.first { unitGrams[$0] != nil }
+        // quantity: "1 1/2", "1/2", unicode fraction, plain number, or a word-number
+        var qty: Double? = nil
+        if let m = s.range(of: #"^\s*(\d+)\s+(\d+)/(\d+)"#, options: .regularExpression) {
+            let n = s[m].split { !$0.isNumber }.compactMap { Double($0) }
+            if n.count == 3, n[2] != 0 { qty = n[0] + n[1] / n[2] }
+        }
+        if qty == nil, let m = s.range(of: #"(\d+(?:\.\d+)?)\s*/\s*(\d+)"#, options: .regularExpression) {
+            let n = s[m].split { !($0.isNumber || $0 == ".") }.compactMap { Double($0) }
+            if n.count == 2, n[1] != 0 { qty = n[0] / n[1] }
+        }
+        if qty == nil {
+            for (ch, v) in [("½",0.5),("¼",0.25),("¾",0.75),("⅓",1.0/3),("⅔",2.0/3)] where s.contains(ch) { qty = v; break }
+        }
+        if qty == nil, let m = s.range(of: #"\d+(?:\.\d+)?"#, options: .regularExpression) {
+            qty = Double(s[m])
+        }
+        if qty == nil {
+            for (w, v) in [("one",1.0),("two",2.0),("three",3.0),("four",4.0),("five",5.0),("half",0.5),("dozen",12.0)]
+            where s.range(of: "\\b\(w)\\b", options: .regularExpression) != nil { qty = v; break }
+        }
+        let hasNumber = qty != nil
+        let q = qty ?? 1.0
 
-        // 3) grams
-        let grams: Double
-        if let unit, let g = unitGrams[unit] { grams = qty * g }   // "300 ml", "2 cloves"
-        else if hasNumber { grams = qty * 60 }                     // bare count, e.g. "2 rotis"
-        else { grams = 80 }                                        // "onion slices", no quantity
-        return (grams, lower)
+        // unit — first whole word that is a known unit
+        let letters = s.split { !$0.isLetter }.map(String.init)
+        if let unit = letters.first(where: { unitGrams[$0] != nil }), let g = unitGrams[unit] {
+            return (q * g, lower)
+        }
+        if s.contains("to taste") || s.contains("pinch") { return (1.0, lower) }
+        if s.contains("handful") { return (30.0, lower) }
+
+        let core = GrocerySort.coreName(s).lowercased()
+        for (k, g) in pieceGrams where core.contains(k) { return (q * g, lower) }
+        if spiceWords.contains(where: { core.contains($0) }) { return (hasNumber ? q * 2.0 : 2.0, lower) }
+        if condimentWords.contains(where: { s.contains($0) }) { return (hasNumber ? q * 15.0 : 15.0, lower) }
+        return (hasNumber ? q * 40.0 : 80.0, lower)   // bare count of unknown food (was 60)
     }
 
     private struct Macro { let kcal, carbs, protein, fat: Double }
@@ -333,6 +373,7 @@ enum NutritionEstimator {
             ("brown sugar", Macro(kcal: 380, carbs: 98, protein: 0, fat: 0)),
             ("sugar", Macro(kcal: 387, carbs: 100, protein: 0, fat: 0)),
             ("honey", Macro(kcal: 304, carbs: 82, protein: 0.3, fat: 0)),
+            ("salt", Macro(kcal: 0, carbs: 0, protein: 0, fat: 0)),
             ("oil", Macro(kcal: 884, carbs: 0, protein: 0, fat: 100))
         ]
         for (key, macro) in table where name.contains(key) { return macro }
