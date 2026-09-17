@@ -230,8 +230,15 @@ def _strip_marker(line: str) -> str:
 # ---------------------------------------------------------------------------
 # Nutrition helpers (Phase 1): USDA-backed macros, robust grams, real servings.
 # ---------------------------------------------------------------------------
-USDA_API_KEY = os.environ.get("USDA_API_KEY", "DEMO_KEY")  # free key: fdc.nal.usda.gov/api-key-signup
+# Bundled offline nutrition DB (USDA SR Legacy, public domain) — NO API, NO key, NO per-user cost.
+_USDA_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "usda_sr.json")
+_USDA_DB: list | None = None
 _USDA_CACHE: dict = {}  # core-name -> per-100g macros dict, or None for a confirmed miss
+# Down-rank processed/branded/dish/non-flesh entries so a query lands on the generic raw food.
+_PROCESSED = ("roll","breaded","battered","canned","gravy","dish","baby","infant","dessert",
+              "dinner","fast food","restaurant","soup","flavored","leaves","leaf","cereal",
+              "ready-to-eat","bunches","juice","powder","chips","fries","berries","strawberry",
+              "vanilla","chocolate","dip","spread","stem","sprouts","glazed","honey-roasted")
 
 _UNIT_GRAMS = {
     "kg": 1000, "g": 1, "gram": 1, "grams": 1, "gm": 1, "gms": 1, "mg": 0.001,
@@ -320,47 +327,49 @@ def _parse_grams(item: str) -> float:
     return qty * 60.0 if has_qty else 80.0
 
 
-def _usda_lookup(core: str) -> dict | None:
-    """Per-100g macros for a food from USDA FoodData Central (fuzzy search, first result). Cached;
-    None = confirmed miss. Uses USDA_API_KEY (DEMO_KEY works but is rate-limited ~30/hr)."""
+def _load_usda_db() -> list:
+    """Load the bundled USDA dataset once. Empty list if missing (then only the curated table is used)."""
+    global _USDA_DB
+    if _USDA_DB is None:
+        try:
+            import json
+            with open(_USDA_DB_PATH, encoding="utf-8") as f:
+                _USDA_DB = json.load(f)
+        except Exception:
+            _USDA_DB = []
+    return _USDA_DB
+
+
+def _offline_lookup(core: str) -> dict | None:
+    """Per-100g macros for a food from the BUNDLED USDA dataset — fully offline, no API, no key, no
+    per-user cost. Scores candidates to prefer the generic 'raw' food over processed/dish entries.
+    Cached; None = confirmed miss."""
     core = (core or "").strip().lower()
     if not core:
         return None
     if core in _USDA_CACHE:
         return _USDA_CACHE[core]
+    db = _load_usda_db()
+    tokens = core.split()
+    head = tokens[-1] if tokens else ""
+    # WHOLE-WORD match (so "salmon" doesn't hit "salmonberries"); fall back to the head noun.
+    def has_word(d, t):
+        return re.search(r"\b" + re.escape(t) + r"\b", d) is not None
+    cands = [e for e in db if all(has_word(e["d"], t) for t in tokens)]
+    if not cands and head:
+        cands = [e for e in db if has_word(e["d"], head)]
+
     macro = None
-    try:
-        import json
-        from urllib.parse import urlencode
-        from urllib.request import Request, urlopen
-        qs = urlencode({"api_key": USDA_API_KEY, "query": core, "pageSize": 1,
-                        "dataType": "Foundation,SR Legacy,Survey (FNDDS)"})
-        req = Request("https://api.nal.usda.gov/fdc/v1/foods/search?" + qs,
-                      headers={"User-Agent": "CraveCircle/1.0"})
-        with urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        foods = data.get("foods") or []
-        if foods:
-            got = {}
-            for n in foods[0].get("foodNutrients", []):
-                name = (n.get("nutrientName") or "").lower()
-                unit = (n.get("unitName") or "").upper()
-                val = n.get("value")
-                if val is None:
-                    continue
-                if "energy" in name and unit == "KCAL" and "kcal" not in got:
-                    got["kcal"] = val
-                elif name.startswith("carbohydrate"):
-                    got.setdefault("carbs", val)
-                elif name.startswith("protein"):
-                    got.setdefault("protein", val)
-                elif name.startswith("total lipid") or name == "total fat":
-                    got.setdefault("fat", val)
-            if "kcal" in got:
-                macro = {"kcal": got.get("kcal", 0.0), "carbs": got.get("carbs", 0.0),
-                         "protein": got.get("protein", 0.0), "fat": got.get("fat", 0.0)}
-    except Exception:
-        macro = None
+    if cands:
+        def score(e):
+            d = e["d"]; s = -0.03 * len(d)            # prefer shorter/generic descriptions
+            if "raw" in d: s += 3
+            if d.startswith(head): s += 2
+            for w in _PROCESSED:
+                if w in d: s -= 2
+            return s
+        best = max(cands, key=score)
+        macro = {"kcal": best["k"], "carbs": best["c"], "protein": best["p"], "fat": best["f"]}
     _USDA_CACHE[core] = macro
     return macro
 
@@ -368,10 +377,10 @@ def _usda_lookup(core: str) -> dict | None:
 # USDA's fuzzy search mismatches colloquial/regional terms (curd->tofu, brinjal->?), so map the
 # common ones to the term USDA indexes well. Only used for items NOT in the curated table.
 _USDA_SYNONYMS = {
-    "capsicum": "bell pepper", "brinjal": "eggplant", "aubergine": "eggplant",
-    "lady finger": "okra", "bhindi": "okra", "coriander": "cilantro", "dhania": "cilantro",
-    "corn flour": "cornstarch", "maida": "wheat flour", "curd rice": "rice",
-    "spring onion": "scallions", "coconut milk": "coconut milk", "green chilli": "green chili pepper",
+    "capsicum": "sweet pepper", "bell pepper": "sweet pepper", "brinjal": "eggplant",
+    "aubergine": "eggplant", "lady finger": "okra", "bhindi": "okra", "coriander": "cilantro",
+    "dhania": "cilantro", "corn flour": "cornstarch", "maida": "wheat flour", "curd rice": "rice",
+    "spring onion": "onions spring", "green chilli": "peppers jalapeno", "green chili": "peppers jalapeno",
 }
 
 
@@ -491,7 +500,7 @@ def estimate_nutrition(ingredients: list[dict], servings: int = 2) -> dict:
                     macro = val
                     break
             if macro is None:
-                macro = _usda_lookup(_usda_query(item))
+                macro = _offline_lookup(_usda_query(item))
             if macro:
                 f = grams / 100.0
                 ck, cc, cp, cfat = (macro["kcal"] * f, macro.get("carbs", 0) * f,
