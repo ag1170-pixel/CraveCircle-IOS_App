@@ -530,33 +530,64 @@ def estimate_nutrition(ingredients: list[dict], servings: int = 2) -> dict:
     }
 
 
+# Ingredient vocabulary for pulling items out of SPOKEN narration (many reels list ingredients only
+# in the voiceover / inside steps like "add garlic, soy sauce, mirin, honey..."). Longer phrases are
+# matched first and then masked out, so "soy sauce" wins over "sauce" and "chili flakes" over "chili".
+_INGREDIENT_VOCAB = [
+    "worcestershire sauce","apple cider vinegar","all purpose flour","ginger garlic paste",
+    "red pepper flakes","smoked paprika","spring onion","green onion","green chilli","green chili",
+    "red chilli","chili flakes","chilli flakes","black pepper","white pepper","lemon zest","lime zest",
+    "lemon juice","lime juice","orange juice","coconut milk","condensed milk","evaporated milk",
+    "heavy cream","whipping cream","sour cream","cream cheese","maple syrup","corn syrup","brown sugar",
+    "powdered sugar","baking soda","baking powder","coriander powder","curry powder","garam masala",
+    "bay leaf","sesame seeds","sesame oil","olive oil","vegetable oil","mustard oil","coconut oil",
+    "rice vinegar","white vinegar","rice wine","cooking wine","fish sauce","oyster sauce","hoisin sauce",
+    "tomato sauce","chili sauce","hot sauce","teriyaki sauce","soy sauce","bbq sauce","chicken breast",
+    "chicken thigh","spring onions","bread crumbs","breadcrumbs","corn starch","cornstarch","cornflour",
+    "all-purpose flour","bell pepper","capsicum",
+    "soy","mirin","sake","honey","molasses","vinegar","butter","ghee","margarine","yogurt","curd",
+    "paneer","parmesan","mozzarella","cheddar","cheese","cream","milk","eggs","egg","chicken","mutton",
+    "lamb","goat","beef","pork","bacon","shrimp","prawn","salmon","tuna","fish","tofu","onion","garlic",
+    "ginger","tomato","potato","carrot","chilli","chili","lemon","lime","cilantro","coriander","parsley",
+    "mint","basil","spinach","mushroom","broccoli","cabbage","cucumber","celery","corn","peas","paprika",
+    "pepper","salt","cumin","turmeric","cinnamon","cardamom","cloves","oregano","thyme","rosemary","flour",
+    "sugar","sesame","rice","noodles","pasta","bread","oats","scallions",
+]
+
+# Promo / intro / CTA lines that aren't real cooking steps (common at the start/end of reels).
+_INTRO_LINE = re.compile(
+    r"^\s*(this is how|here'?s how|today (?:i|we)|in this (?:video|recipe|reel)|let me show|"
+    r"i(?:'m| am) (?:going to|gonna) (?:show|make)|i(?:'ll| will) show|welcome|hey (?:guys|everyone|there)|"
+    r"what'?s up|so today|alright(?:,| )|okay(?:,| )so|don'?t forget|make sure (?:to|you)|"
+    r"follow (?:me|for)|like and subscribe|comment (?:below|down)|save this|link in bio)", re.I)
+
+# Quantity that may precede a spoken ingredient ("2 tbsp soy sauce", "a pinch of salt").
+_SPOKEN_QTY = re.compile(
+    r"(\d+(?:[.,/]\d+)?|½|¼|¾|⅓|⅔|a|an|one|two|three|four|some|half)\s*"
+    r"(tablespoons?|tbsp|teaspoons?|tsp|cups?|cloves?|grams?|g|kg|ml|l|ounces?|oz|pounds?|lbs?|"
+    r"pinch(?:es)?|slices?|sticks?|handful|dash|cans?)?\s*(?:of\s+)?$", re.I)
+
+
 def _extract_conversational_ingredients(transcript: str) -> list[str]:
-    known = [
-        ("macaroni", "200g elbow macaroni"),
-        ("pasta", "200g pasta"),
-        ("butter", "2 tbsp butter"),
-        ("flour", "2 tbsp flour"),
-        ("milk", "2 cups milk"),
-        ("cheddar", "½ cup cheddar cheese"),
-        ("mozzarella", "½ cup mozzarella cheese"),
-        ("parmesan", "¼ cup parmesan cheese"),
-        ("cheese", "1 cup shredded cheese blend"),
-        ("chicken", "300g chicken"),
-        ("garlic", "2 cloves garlic"),
-        ("onion", "1 onion"),
-        ("cream", "¼ cup cream"),
-        ("eggs", "2 eggs"),
-        ("egg", "2 eggs"),
-        ("seasoning", "1 tsp mixed seasonings (paprika, black pepper, oregano)"),
-    ]
-    lower = transcript.lower()
-    items = []
-    seen = set()
-    for key, formatted in known:
-        if key in lower and key not in seen:
-            items.append(formatted)
-            seen.add(key)
-    return items
+    """Extract ingredients from spoken narration using the vocabulary above. Captures a quantity when
+    one is spoken right before the ingredient; otherwise lists the ingredient name alone (honest — a
+    narrated recipe often doesn't state amounts). Ordered by first mention, deduped, capped."""
+    if not transcript.strip():
+        return []
+    work = " " + transcript.lower() + " "
+    found = []  # (position, display)
+    for name in sorted(_INGREDIENT_VOCAB, key=len, reverse=True):
+        pat = re.compile(r"(?<![a-z])" + re.escape(name) + r"(?![a-z])")
+        m = pat.search(work)
+        if not m:
+            continue
+        before = work[max(0, m.start() - 22):m.start()]
+        qm = _SPOKEN_QTY.search(before)
+        qty = qm.group(0).strip() if qm and qm.group(0).strip() not in ("", "a", "an", "some") else ""
+        found.append((m.start(), (qty + " " + name).strip()))
+        work = pat.sub("   ", work)  # mask so shorter sub-phrases don't re-match ("chili" in "chili flakes")
+    found.sort(key=lambda x: x[0])
+    return [d for _, d in found][:30]
 
 
 # On-screen text (OCR) has no "Ingredients:"/"Method:" headers, so classify line-by-line:
@@ -878,8 +909,22 @@ def assemble_recipe(caption: str, transcript: str, ocr_text: str, has_speech: bo
     else:
         groups = aud_groups
 
+    # Union spoken ingredients so items narrated (or listed only inside steps like "add garlic, soy
+    # sauce, mirin, honey...") are never lost, even when a short caption/OCR list was chosen above.
+    if aud_items:
+        existing = {_core_name(it) for g in groups for it in g.get("items", [])}
+        extra = [it for it in aud_items if _core_name(it) and _core_name(it) not in existing]
+        if extra:
+            if groups:
+                groups[0] = dict(groups[0], items=list(groups[0].get("items", [])) + extra)
+            else:
+                groups = [{"group_name": "Main Ingredients", "items": extra}]
+
     if not title:
         title = "Delicious Homemade Recipe"
+
+    # Drop promo / intro / CTA lines that aren't actual cooking steps.
+    directions = [d for d in directions if not _INTRO_LINE.match(d)]
 
     if len(directions) < 3 and groups:
         directions = _enrich_short_directions(directions, groups, title)
