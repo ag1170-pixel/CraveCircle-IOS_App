@@ -12,6 +12,26 @@ struct NutritionCard: View {
     let nutrition: RecipeNutrition
     var servings: Int = 1
     @State private var showTotal = false
+    @State private var selectedMacro: MacroKind? = nil
+
+    private var hasBreakdown: Bool { (nutrition.breakdown?.isEmpty == false) }
+
+    private func color(for kind: MacroKind) -> Color {
+        switch kind {
+        case .calories: return AppTheme.accent
+        case .carbs:    return carbsColor
+        case .protein:  return proteinColor
+        case .fat:      return fatColor
+        }
+    }
+
+    private func selectMacro(_ kind: MacroKind) {
+        guard hasBreakdown else { return }
+        Haptics.tap()
+        withAnimation(AppMotion.snappy) {
+            selectedMacro = (selectedMacro == kind) ? nil : kind
+        }
+    }
 
     // Macro data colors (distinct from the single coral accent — legitimate for data).
     private let carbsColor = AppTheme.accent
@@ -89,6 +109,8 @@ struct NutritionCard: View {
                         .font(AppFont.body(12))
                         .foregroundStyle(AppTheme.textTertiary)
                 }
+                .contentShape(Rectangle())
+                .onTapGesture { selectMacro(.calories) }
                 Spacer()
                 MacroRing(percent: activeDVPercent, color: AppTheme.accent, size: 76, lineWidth: 8,
                           label: "of daily", showPercentSuffix: true)
@@ -96,12 +118,20 @@ struct NutritionCard: View {
 
             Rectangle().fill(AppTheme.separator).frame(height: 1)
 
-            // Macro breakdown
+            // Macro breakdown — tap a macro to see which ingredients bring it.
             HStack(spacing: AppSpacing.sm) {
-                macro("Carbs", grams: activeCarbsG, percent: nutrition.carbsPercent, color: carbsColor)
-                macro("Protein", grams: activeProteinG, percent: nutrition.proteinPercent, color: proteinColor)
-                macro("Fat", grams: activeFatG, percent: nutrition.fatPercent, color: fatColor)
+                macroButton(.carbs, grams: activeCarbsG, percent: nutrition.carbsPercent, color: carbsColor)
+                macroButton(.protein, grams: activeProteinG, percent: nutrition.proteinPercent, color: proteinColor)
+                macroButton(.fat, grams: activeFatG, percent: nutrition.fatPercent, color: fatColor)
             }
+
+            if hasBreakdown && selectedMacro == nil {
+                Text("Tap a macro to see what it comes from")
+                    .font(AppFont.body(11))
+                    .foregroundStyle(AppTheme.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            breakdownPanel
 
             Rectangle().fill(AppTheme.separator).frame(height: 1)
 
@@ -143,18 +173,98 @@ struct NutritionCard: View {
         .frame(width: 150, height: 6)
     }
 
-    private func macro(_ label: String, grams: Double, percent: Int, color: Color) -> some View {
-        VStack(spacing: 6) {
-            MacroRing(percent: percent, color: color, size: 60, lineWidth: 6, label: nil, showPercentSuffix: true)
-            Text("\(Int(grams))g")
-                .font(AppFont.body(16, weight: .bold))
-                .foregroundStyle(AppTheme.textPrimary)
-                .monospacedDigit()
-            Text(label)
-                .font(AppFont.body(12, weight: .medium))
-                .foregroundStyle(color)
+    private func macroButton(_ kind: MacroKind, grams: Double, percent: Int, color: Color) -> some View {
+        let isSelected = selectedMacro == kind
+        return Button {
+            selectMacro(kind)
+        } label: {
+            VStack(spacing: 6) {
+                MacroRing(percent: percent, color: color, size: 60, lineWidth: 6, label: nil, showPercentSuffix: true)
+                Text("\(Int(grams))g")
+                    .font(AppFont.body(16, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .monospacedDigit()
+                Text(kind.title)
+                    .font(AppFont.body(12, weight: .medium))
+                    .foregroundStyle(color)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(isSelected ? color.opacity(0.10) : .clear,
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(isSelected ? color.opacity(0.5) : .clear, lineWidth: 1))
         }
-        .frame(maxWidth: .infinity)
+        .buttonStyle(.plain)
+        .disabled(!hasBreakdown)
+    }
+
+    // MARK: Tappable breakdown
+
+    @ViewBuilder private var breakdownPanel: some View {
+        if let kind = selectedMacro {
+            let rows = nutrition.contributions(for: kind)
+            let tint = color(for: kind)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Where the \(kind.title.lowercased()) comes from")
+                        .font(AppFont.body(13, weight: .bold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                    Spacer()
+                    Button { withAnimation(AppMotion.snappy) { selectedMacro = nil } } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(AppTheme.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close breakdown")
+                }
+                if rows.isEmpty {
+                    Text("No \(kind.title.lowercased()) sources we could identify in this recipe.")
+                        .font(AppFont.body(12))
+                        .foregroundStyle(AppTheme.textTertiary)
+                } else {
+                    ForEach(rows, id: \.item.name) { row in
+                        contributionRow(kind: kind, item: row.item, percent: row.percent, tint: tint)
+                    }
+                }
+            }
+            .padding(AppSpacing.sm)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppTheme.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    private func contributionRow(kind: MacroKind, item: IngredientMacro, percent: Int, tint: Color) -> some View {
+        let value = item.value(for: kind) * activeMultiplier
+        return VStack(spacing: 5) {
+            HStack {
+                Text(item.name)
+                    .font(AppFont.body(13, weight: .semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Text("\(fmtValue(value, kind: kind)) · \(percent)%")
+                    .font(AppFont.body(12, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .monospacedDigit()
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(tint.opacity(0.15))
+                    Capsule().fill(tint)
+                        .frame(width: geo.size.width * min(Double(percent) / 100, 1))
+                }
+            }
+            .frame(height: 5)
+        }
+    }
+
+    private func fmtValue(_ v: Double, kind: MacroKind) -> String {
+        if kind == .calories { return "\(Int(v.rounded())) kcal" }
+        let r = (v * 10).rounded() / 10
+        return (r == r.rounded() ? "\(Int(r))" : String(format: "%.1f", r)) + "g"
     }
 
     private func burnItem(icon: String, label: String, minutes: Int) -> some View {

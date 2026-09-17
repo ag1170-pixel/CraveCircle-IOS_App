@@ -11,13 +11,58 @@
 
 import Foundation
 
+/// The four things a user can tap on the nutrition card to see "where does this come from".
+enum MacroKind: String, CaseIterable, Hashable {
+    case calories, protein, carbs, fat
+    var title: String {
+        switch self {
+        case .calories: return "Calories"
+        case .protein:  return "Protein"
+        case .carbs:    return "Carbs"
+        case .fat:      return "Fat"
+        }
+    }
+    var unit: String { self == .calories ? "kcal" : "g" }
+}
+
+/// One ingredient's contribution to the recipe's macros (per serving). Powers the tappable
+/// breakdown so users can see which item brings the protein/carbs/fat and tweak recipes.
+struct IngredientMacro: Codable, Hashable {
+    var name: String
+    var kcal: Double
+    var carbsG: Double
+    var proteinG: Double
+    var fatG: Double
+
+    func value(for kind: MacroKind) -> Double {
+        switch kind {
+        case .calories: return kcal
+        case .protein:  return proteinG
+        case .carbs:    return carbsG
+        case .fat:      return fatG
+        }
+    }
+}
+
 struct RecipeNutrition: Codable, Hashable {
     var calories: Double          // per serving, kcal
     var carbsG: Double
     var proteinG: Double
     var fatG: Double
     var dailyCalories: Double = 2000
+    var breakdown: [IngredientMacro]? = nil   // per-ingredient contributions (server or on-device)
     var estimated: Bool = false   // true when computed on-device rather than server-verified
+
+    /// Ingredients contributing to `kind`, biggest first, each with its % share of that macro.
+    /// Only non-zero contributors; empty when there's no breakdown data to show.
+    func contributions(for kind: MacroKind) -> [(item: IngredientMacro, percent: Int)] {
+        guard let breakdown, !breakdown.isEmpty else { return [] }
+        let total = max(breakdown.reduce(0) { $0 + $1.value(for: kind) }, 0.0001)
+        return breakdown
+            .filter { $0.value(for: kind) > 0 }
+            .sorted { $0.value(for: kind) > $1.value(for: kind) }
+            .map { ($0, Int(($0.value(for: kind) / total * 100).rounded())) }
+    }
 
     // % of the daily-value calorie budget this serving uses.
     var caloriesDVPercent: Int { pct(calories / dailyCalories) }
@@ -48,9 +93,10 @@ enum NutritionEstimator {
     static func estimate(for recipe: Recipe) -> RecipeNutrition {
         let servings = Double(max(recipe.servings ?? 2, 1))
         var kcal = 0.0, carbs = 0.0, protein = 0.0, fat = 0.0
+        var contribs: [IngredientMacro] = []
 
         for group in recipe.ingredients {
-            for item in group.items {
+            for item in group.items where !item.trimmingCharacters(in: .whitespaces).isEmpty {
                 let (grams, name) = parse(item)
                 guard let macro = lookup(name) else { continue }
                 let f = grams / 100.0
@@ -58,15 +104,36 @@ enum NutritionEstimator {
                 carbs += macro.carbs * f
                 protein += macro.protein * f
                 fat += macro.fat * f
+                contribs.append(IngredientMacro(
+                    name: displayName(item),
+                    kcal: macro.kcal * f, carbsG: macro.carbs * f,
+                    proteinG: macro.protein * f, fatG: macro.fat * f))
             }
+        }
+        // Per-serving breakdown, biggest calorie contributor first (matches the server shape).
+        let breakdown = contribs.sorted { $0.kcal > $1.kcal }.map {
+            IngredientMacro(name: $0.name,
+                            kcal: ($0.kcal / servings).rounded(),
+                            carbsG: ($0.carbsG / servings * 10).rounded() / 10,
+                            proteinG: ($0.proteinG / servings * 10).rounded() / 10,
+                            fatG: ($0.fatG / servings * 10).rounded() / 10)
         }
         return RecipeNutrition(
             calories: (kcal / servings).rounded(),
             carbsG: (carbs / servings).rounded(),
             proteinG: (protein / servings).rounded(),
             fatG: (fat / servings).rounded(),
+            breakdown: breakdown.isEmpty ? nil : breakdown,
             estimated: true
         )
+    }
+
+    /// Short readable name for the breakdown ("2 fresh onions, sliced" -> "Onions").
+    private static func displayName(_ item: String) -> String {
+        let core = GrocerySort.coreName(item)
+        return (core.isEmpty ? item : core)
+            .trimmingCharacters(in: CharacterSet(charactersIn: " ,."))
+            .capitalized
     }
 
     /// grams per one unit — matched as a WHOLE word (so "garlic" never matches "g").

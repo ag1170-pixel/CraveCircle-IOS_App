@@ -384,6 +384,12 @@ def _usda_query(item: str) -> str:
     return core
 
 
+def _nice_name(item: str) -> str:
+    """Short, readable ingredient name for the breakdown UI ('1kg mutton, curry cut' -> 'Mutton')."""
+    core = _core_name(item)
+    return core.title() if core else item.strip().rstrip(",").title()
+
+
 def _parse_servings(*texts: str) -> int:
     """Pull the real serving count from caption/title/steps; default 2 when unstated."""
     blob = " ".join(t for t in texts if t).lower()
@@ -469,6 +475,7 @@ def estimate_nutrition(ingredients: list[dict], servings: int = 2) -> dict:
     ]
 
     total_kcal, total_carbs, total_protein, total_fat = 0.0, 0.0, 0.0, 0.0
+    contribs = []   # per-ingredient macro contribution (whole recipe), for the tappable breakdown
     for group in ingredients:
         for item in group.get("items", []):
             if not item.strip():
@@ -487,18 +494,29 @@ def estimate_nutrition(ingredients: list[dict], servings: int = 2) -> dict:
                 macro = _usda_lookup(_usda_query(item))
             if macro:
                 f = grams / 100.0
-                total_kcal += macro["kcal"] * f
-                total_carbs += macro["carbs"] * f
-                total_protein += macro["protein"] * f
-                total_fat += macro["fat"] * f
+                ck, cc, cp, cfat = (macro["kcal"] * f, macro.get("carbs", 0) * f,
+                                    macro.get("protein", 0) * f, macro.get("fat", 0) * f)
+                total_kcal += ck; total_carbs += cc; total_protein += cp; total_fat += cfat
+                contribs.append((_nice_name(item), ck, cc, cp, cfat))
 
     servings = max(1, servings)
+    # Per-serving breakdown, biggest calorie contributor first, so the app can show "who brings the
+    # protein/carbs/fat" when a macro is tapped. Only resolved ingredients appear (honest).
+    contribs.sort(key=lambda c: c[1], reverse=True)
+    breakdown = [{
+        "name": n,
+        "kcal": float(round(ck / servings)),
+        "carbs_g": float(round(cc / servings, 1)),
+        "protein_g": float(round(cp / servings, 1)),
+        "fat_g": float(round(cfat / servings, 1)),
+    } for (n, ck, cc, cp, cfat) in contribs]
     return {
         "calories": float(round(total_kcal / servings)),
         "carbs_g": float(round(total_carbs / servings, 1)),
         "protein_g": float(round(total_protein / servings, 1)),
         "fat_g": float(round(total_fat / servings, 1)),
         "daily_calories": 2000.0,
+        "breakdown": breakdown,
         "estimated": True
     }
 
