@@ -266,6 +266,14 @@ _WORD_NUM = {"one":1,"two":2,"three":3,"four":4,"five":5,"six":6,"seven":7,"eigh
              "ten":10,"eleven":11,"twelve":12,"half":0.5,"quarter":0.25,"dozen":12,"couple":2}
 
 # Typical grams of ONE piece for count-based items (used when no unit is written, e.g. "2 onions").
+# When an ingredient has NO stated quantity, count spices/herbs as ~1 tsp and sauces/oils/aromatics
+# as ~1 tbsp, instead of a full 80g (which massively over-counts a lone "paprika" or "soy sauce").
+_SPICE_WORDS = {"salt","pepper","paprika","cumin","turmeric","cinnamon","cardamom","chili","chilli",
+                "flakes","powder","oregano","thyme","rosemary","basil","nutmeg","cloves","masala",
+                "seasoning","spice","zest","bay","coriander","parsley","mint"}
+_CONDIMENT_WORDS = {"sauce","honey","vinegar","oil","mirin","syrup","juice","paste","ketchup",
+                    "mustard","mayo","garlic","ginger","sake","wine"}
+
 _PIECE_GRAMS = {
     "egg":50,"onion":110,"tomato":120,"potato":170,"garlic":3,"clove":3,"chilli":15,"chili":15,
     "capsicum":120,"carrot":60,"lemon":60,"lime":45,"banana":120,"apple":180,"bread":30,
@@ -324,6 +332,13 @@ def _parse_grams(item: str) -> float:
     for k, g in _PIECE_GRAMS.items():
         if k in core:
             return qty * g
+    # No amount stated (common in narrated reels: "add some paprika") — use a realistic typical
+    # amount by type so a lone spice/condiment isn't counted as a full 80g.
+    if not has_qty:
+        if any(w in core for w in _SPICE_WORDS):
+            return 2.0     # ~1 tsp of a spice/herb
+        if any(w in s for w in _CONDIMENT_WORDS):
+            return 15.0    # ~1 tbsp of a sauce/oil/syrup/aromatic
     return qty * 60.0 if has_qty else 80.0
 
 
@@ -480,6 +495,8 @@ def estimate_nutrition(ingredients: list[dict], servings: int = 2) -> dict:
         ("milk", {"kcal": 62, "carbs": 4.8, "protein": 3.2, "fat": 3.3}),
         ("sugar", {"kcal": 387, "carbs": 100, "protein": 0, "fat": 0}),
         ("honey", {"kcal": 304, "carbs": 82, "protein": 0.3, "fat": 0}),
+        ("salt", {"kcal": 0, "carbs": 0, "protein": 0, "fat": 0}),
+        ("water", {"kcal": 0, "carbs": 0, "protein": 0, "fat": 0}),
         ("oil", {"kcal": 884, "carbs": 0, "protein": 0, "fat": 100}),
     ]
 
