@@ -501,7 +501,6 @@
 				INFOPLIST_FILE = "Config/AICookBook-Info.plist";
 				INFOPLIST_KEY_API_BASE_URL = "https://import.cravecircle.cc";
 				INFOPLIST_KEY_NSAllowsLocalNetworking = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "CraveCircle uses the camera for hands-free Flashcard cooking — wave your hand to move through recipe steps without touching your phone.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "CraveCircle transcribes cooking-video audio on your device to turn reels into recipes.";
 				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg0MzIzMjk1LCJleHAiOjIwOTk2ODMyOTV9.rfoxjE7PA4mov-tN7nebaT_BbdN5fLiiDCJDrE_kJeM";
 				INFOPLIST_KEY_SUPABASE_URL = "http://100.70.151.71:54321";
@@ -541,7 +540,6 @@
 				INFOPLIST_FILE = "Config/AICookBook-Info.plist";
 				INFOPLIST_KEY_API_BASE_URL = "https://import.cravecircle.cc";
 				INFOPLIST_KEY_NSAllowsLocalNetworking = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "CraveCircle uses the camera for hands-free Flashcard cooking — wave your hand to move through recipe steps without touching your phone.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "CraveCircle transcribes cooking-video audio on your device to turn reels into recipes.";
 				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg0MzIzMjk1LCJleHAiOjIwOTk2ODMyOTV9.rfoxjE7PA4mov-tN7nebaT_BbdN5fLiiDCJDrE_kJeM";
 				INFOPLIST_KEY_SUPABASE_URL = "http://100.70.151.71:54321";

@@ -3,9 +3,9 @@
 //  CraveCircle (AICookBook)
 //
 //  Hands-free flashcards for cooking. One big, glanceable card per step (plus an
-//  ingredients card), navigated by waving a hand in front of the phone (front-camera
-//  hand-pose) — or by swiping. The card stays full-screen; only a small status pill
-//  shows whether hands-free tracking is live. Honors Reduce Motion.
+//  ingredients card), navigated by voice ("next" / "back") — or by swiping. The card
+//  stays full-screen; only a small status pill shows whether voice is live. Honors
+//  Reduce Motion.
 //
 
 import SwiftUI
@@ -15,11 +15,9 @@ struct FlashcardCookScreen: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @StateObject private var gesture = HandGestureController()
     @StateObject private var voice = VoiceCommandController()
 
     @State private var index = 0
-    @State private var handsFree = true
     @State private var voiceOn = true
 
     private let cards: [FlashCard]
@@ -89,12 +87,10 @@ struct FlashcardCookScreen: View {
             .animation(.easeInOut(duration: 0.25), value: voice.permissionDenied)
         }
         .onAppear {
-            gesture.onGesture = { dir in advance(dir) }
-            voice.onCommand = { cmd in advance(cmd == .next ? .next : .previous) }
-            if handsFree { gesture.start() }
+            voice.onCommand = { cmd in advance(cmd) }
             if voiceOn { voice.start() }
         }
-        .onDisappear { gesture.stop(); voice.stop() }
+        .onDisappear { voice.stop() }
     }
 
     // MARK: Top bar
@@ -115,10 +111,7 @@ struct FlashcardCookScreen: View {
             .accessibilityLabel("Exit Flashcards")
 
             Spacer()
-            VStack(alignment: .trailing, spacing: 8) {
-                handsFreePill
-                voicePill
-            }
+            voicePill
         }
         .padding(.horizontal, AppSpacing.md)
         .padding(.top, AppSpacing.xs)
@@ -168,40 +161,6 @@ struct FlashcardCookScreen: View {
         return "Starting…"
     }
 
-    private var handsFreePill: some View {
-        Button {
-            handsFree.toggle()
-            Haptics.tap()
-            if handsFree { gesture.start() } else { gesture.stop() }
-        } label: {
-            HStack(spacing: 7) {
-                Image(systemName: handsFree ? "hand.raised.fill" : "hand.raised.slash.fill")
-                    .font(.system(size: 13, weight: .bold))
-                Text(statusText)
-                    .font(AppFont.body(13, weight: .semibold))
-                if handsFree && gesture.isRunning {
-                    Circle()
-                        .fill(gesture.handDetected ? AppTheme.accent : AppTheme.textTertiary)
-                        .frame(width: 8, height: 8)
-                }
-            }
-            .foregroundStyle(handsFree ? AppTheme.accentInk : AppTheme.textSecondary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(AppTheme.surface, in: Capsule())
-            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
-        }
-        .buttonStyle(PressableStyle())
-    }
-
-    private var statusText: String {
-        if !handsFree { return "Hands-free off" }
-        if gesture.permissionDenied { return "Enable camera" }
-        if !gesture.cameraAvailable { return "Swipe to move" }
-        if gesture.isRunning { return gesture.handDetected ? "Hand detected" : "Wave to flip" }
-        return "Starting…"
-    }
-
     // MARK: Bottom bar (progress + hint)
 
     private var bottomBar: some View {
@@ -222,14 +181,13 @@ struct FlashcardCookScreen: View {
     }
 
     private var hint: String {
-        if voiceOn && voice.isListening { return "Say “next” or “back” — or wave your hand" }
-        if handsFree && gesture.isRunning { return "Wave your hand left or right — no need to touch" }
+        if voiceOn && voice.isListening { return "Say “next” or “back” — or swipe to move" }
         return "Swipe left or right to move through the recipe"
     }
 
     // MARK: Navigation
 
-    private func advance(_ dir: HandGestureController.Direction) {
+    private func advance(_ dir: VoiceCommandController.Command) {
         let next = dir == .next ? index + 1 : index - 1
         guard next >= 0, next < cards.count, next != index else { return }
         withAnimation(reduceMotion ? nil : AppMotion.smooth) { index = next }
