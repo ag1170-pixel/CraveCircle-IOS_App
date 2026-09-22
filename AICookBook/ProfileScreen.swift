@@ -339,6 +339,11 @@ struct ProfileScreen: View {
                 Text("Crafted for cooks & food lovers")
                     .font(AppFont.body(11))
                     .foregroundStyle(AppTheme.textTertiary)
+                Text("Nutrition data: USDA FoodData Central · IFCT 2017 (NIN/ICMR)")
+                    .font(AppFont.body(10))
+                    .foregroundStyle(AppTheme.textTertiary)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 2)
             }
             .frame(maxWidth: .infinity)
             .padding(.top, AppSpacing.xs)
