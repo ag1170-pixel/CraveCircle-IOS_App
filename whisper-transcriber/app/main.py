@@ -347,16 +347,24 @@ def _parse_grams(item: str) -> float:
     return qty * 40.0 if has_qty else 80.0
 
 
+_IFCT_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "ifct_2017.json")
+
+
 def _load_usda_db() -> list:
-    """Load the bundled USDA dataset once. Empty list if missing (then only the curated table is used)."""
+    """Load the bundled food datasets once: USDA SR Legacy (whole-food backbone) + IFCT 2017
+    (India-accurate; NIN/ICMR). IFCT rows carry s=="ifct" and get a score bonus so Indian staples
+    resolve to real Indian measurements. Empty list if missing (then only the curated table is used)."""
     global _USDA_DB
     if _USDA_DB is None:
-        try:
-            import json
-            with open(_USDA_DB_PATH, encoding="utf-8") as f:
-                _USDA_DB = json.load(f)
-        except Exception:
-            _USDA_DB = []
+        import json
+        db = []
+        for path in (_USDA_DB_PATH, _IFCT_DB_PATH):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    db.extend(json.load(f))
+            except Exception:
+                pass
+        _USDA_DB = db
     return _USDA_DB
 
 
@@ -383,6 +391,7 @@ def _offline_lookup(core: str) -> dict | None:
     if cands:
         def score(e):
             d = e["d"]; s = -0.03 * len(d)            # prefer shorter/generic descriptions
+            if e.get("s") == "ifct": s += 1.5         # prefer India-accurate IFCT 2017 on ties
             if "raw" in d: s += 3
             if d.startswith(head): s += 2
             for w in _PROCESSED:
@@ -399,8 +408,15 @@ def _offline_lookup(core: str) -> dict | None:
 _USDA_SYNONYMS = {
     "capsicum": "sweet pepper", "bell pepper": "sweet pepper", "brinjal": "eggplant",
     "aubergine": "eggplant", "lady finger": "okra", "bhindi": "okra", "coriander": "cilantro",
-    "dhania": "cilantro", "corn flour": "cornstarch", "maida": "wheat flour", "curd rice": "rice",
+    "dhania": "cilantro", "corn flour": "cornstarch", "curd rice": "rice",
     "spring onion": "onions spring", "green chilli": "peppers jalapeno", "green chili": "peppers jalapeno",
+    # Indian staples -> IFCT 2017 names (India-accurate macros)
+    "toor dal": "red gram dal", "arhar dal": "red gram dal", "tur dal": "red gram dal",
+    "pigeon pea": "red gram dal", "moong dal": "green gram dal", "mung dal": "green gram dal",
+    "urad dal": "black gram dal", "chana dal": "bengal gram dal", "masoor dal": "lentil dal",
+    "besan": "bengal gram dal", "gram flour": "bengal gram dal",
+    "atta": "wheat flour atta", "whole wheat flour": "wheat flour atta", "maida": "wheat flour refined",
+    "basmati": "rice raw milled", "white rice": "rice raw milled",
 }
 
 

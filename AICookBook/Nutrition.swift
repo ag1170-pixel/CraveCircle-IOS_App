@@ -94,7 +94,7 @@ struct RecipeNutrition: Codable, Hashable {
 /// Fully offline — same data and matching logic as the server, so both import paths agree.
 enum OfflineFoodDB {
     struct Macro { let kcal, carbs, protein, fat: Double }
-    private struct Entry { let desc: String; let words: Set<String>; let k, c, p, f: Double }
+    private struct Entry { let desc: String; let words: Set<String>; let k, c, p, f: Double; let ifct: Bool }
 
     private static var entries: [Entry] = []
     private static var loaded = false
@@ -107,18 +107,24 @@ enum OfflineFoodDB {
         "cereal","ready-to-eat","bunches","juice","powder","chips","fries","berries","strawberry",
         "vanilla","chocolate","dip","spread","stem","sprouts","glazed"]
 
-    private static func loadIfNeeded() {
-        guard !loaded else { return }
-        loaded = true
-        guard let url = Bundle.main.url(forResource: "usda_sr", withExtension: "json"),
+    private static func load(_ resource: String, ifct: Bool) -> [Entry] {
+        guard let url = Bundle.main.url(forResource: resource, withExtension: "json"),
               let data = try? Data(contentsOf: url),
-              let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
-        entries = arr.compactMap { o in
+              let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        return arr.compactMap { o in
             guard let d = o["d"] as? String else { return nil }
             let words = Set(d.lowercased().split { !$0.isLetter }.map(String.init))
             func num(_ k: String) -> Double { (o[k] as? Double) ?? (o[k] as? NSNumber)?.doubleValue ?? 0 }
-            return Entry(desc: d, words: words, k: num("k"), c: num("c"), p: num("p"), f: num("f"))
+            return Entry(desc: d, words: words, k: num("k"), c: num("c"), p: num("p"), f: num("f"), ifct: ifct)
         }
+    }
+
+    private static func loadIfNeeded() {
+        guard !loaded else { return }
+        loaded = true
+        // USDA SR Legacy (whole-food backbone) + IFCT 2017 (India-accurate; NIN/ICMR). IFCT is
+        // preferred on ties (score bonus) so Indian staples resolve to real Indian measurements.
+        entries = load("usda_sr", ifct: false) + load("ifct_2017", ifct: true)
     }
 
     static func lookup(_ core: String) -> Macro? {
@@ -142,6 +148,7 @@ enum OfflineFoodDB {
 
     private static func score(_ e: Entry, head: String) -> Double {
         var s = -0.03 * Double(e.desc.count)
+        if e.ifct { s += 1.5 }   // prefer India-accurate IFCT 2017 on ties
         if e.words.contains("raw") { s += 3 }
         if e.desc.lowercased().hasPrefix(head) { s += 2 }
         for w in processed where e.desc.lowercased().contains(w) { s -= 2 }
@@ -207,7 +214,14 @@ enum NutritionEstimator {
     private static let synonyms: [String: String] = [
         "capsicum": "sweet pepper", "bell pepper": "sweet pepper", "brinjal": "eggplant",
         "aubergine": "eggplant", "lady finger": "okra", "bhindi": "okra", "coriander": "cilantro",
-        "dhania": "cilantro", "corn flour": "cornstarch", "maida": "wheat flour", "curd rice": "rice"
+        "dhania": "cilantro", "corn flour": "cornstarch", "curd rice": "rice",
+        // Indian staples -> IFCT 2017 names (India-accurate macros)
+        "toor dal": "red gram dal", "arhar dal": "red gram dal", "tur dal": "red gram dal",
+        "pigeon pea": "red gram dal", "moong dal": "green gram dal", "mung dal": "green gram dal",
+        "urad dal": "black gram dal", "chana dal": "bengal gram dal", "masoor dal": "lentil dal",
+        "besan": "bengal gram dal", "gram flour": "bengal gram dal",
+        "atta": "wheat flour atta", "whole wheat flour": "wheat flour atta", "maida": "wheat flour refined",
+        "basmati": "rice raw milled", "white rice": "rice raw milled"
     ]
 
     /// Normalized food-name query for the offline USDA dataset (core name + synonym swap).
