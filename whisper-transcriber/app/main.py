@@ -46,6 +46,116 @@ COOKIES_BROWSER = os.getenv("COOKIES_BROWSER")
 # Facebook / YouTube / TikTok downloads without a browser profile in the container.
 COOKIES_FILE = os.getenv("COOKIES_FILE", "/cookies/cookies.txt")
 
+# OpenAI-compatible LLM endpoint on the Homelab for target-language translation.
+# Defaults match the docker-compose Ollama service on the same network. Empty URL
+# disables translation and delivers the recipe in the source language.
+LLM_TRANSLATOR_URL = os.getenv("LLM_TRANSLATOR_URL", "http://ollama:11434/v1")
+LLM_TRANSLATOR_MODEL = os.getenv("LLM_TRANSLATOR_MODEL", "qwen2.5:7b")
+LLM_TRANSLATOR_KEY = os.getenv("LLM_TRANSLATOR_KEY", "")
+LLM_TRANSLATOR_TIMEOUT_S = float(os.getenv("LLM_TRANSLATOR_TIMEOUT_S", "60"))
+
+_LANG_NAMES = {
+    "en": "English", "hi": "Hindi", "mr": "Marathi", "ta": "Tamil",
+    "te": "Telugu", "bn": "Bengali", "es": "Spanish", "fr": "French",
+}
+
+
+def _norm_lang(code: Optional[str]) -> str:
+    return (code or "")[:2].lower()
+
+
+def translate_recipe(parsed: dict, source_lang: str, target_lang: str) -> dict:
+    """Translate title/description/times/ingredient items/direction texts into target_lang.
+    Preserves structure and array lengths. Returns parsed unchanged when translation isn't
+    needed (same language, unknown target) or the LLM is unreachable — the recipe still gets
+    saved, just in the source language."""
+    src = _norm_lang(source_lang)
+    tgt = _norm_lang(target_lang)
+    if not tgt or src == tgt:
+        return parsed
+    target_name = _LANG_NAMES.get(tgt)
+    if not target_name or not LLM_TRANSLATOR_URL:
+        return parsed
+
+    payload = {
+        "title": parsed.get("title", ""),
+        "description": parsed.get("description", ""),
+        "prep_time": parsed.get("prep_time", ""),
+        "cook_time": parsed.get("cook_time", ""),
+        "ingredients": [
+            {"group_name": g.get("group_name", ""), "items": list(g.get("items", []))}
+            for g in parsed.get("ingredients", [])
+        ],
+        "directions": [d.get("text", "") for d in parsed.get("directions", [])],
+    }
+
+    system = (
+        f"You are a professional culinary translator. Translate the recipe's user-facing text "
+        f"into {target_name}. Keep the EXACT same JSON shape and array lengths. Preserve all "
+        f"numbers, quantities, and units (e.g. '200g', '2', '8 min') unchanged. Do not add, "
+        f"remove, or reorder items. Return ONLY the JSON object, no prose, no code fences."
+    )
+    user = f"Translate this recipe JSON to {target_name}:\n{json.dumps(payload, ensure_ascii=False)}"
+
+    body = json.dumps({
+        "model": LLM_TRANSLATOR_MODEL,
+        "stream": False,
+        "format": "json",  # Ollama honors this; others ignore it
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+    }).encode("utf-8")
+
+    url = LLM_TRANSLATOR_URL.rstrip("/") + "/chat/completions"
+    req = urllib.request.Request(url, data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+    if LLM_TRANSLATOR_KEY:
+        req.add_header("Authorization", f"Bearer {LLM_TRANSLATOR_KEY}")
+    try:
+        with urllib.request.urlopen(req, timeout=LLM_TRANSLATOR_TIMEOUT_S) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+        data = json.loads(raw)
+        content = data["choices"][0]["message"]["content"]
+        content = content.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        out = json.loads(content)
+    except Exception as e:
+        print(f"[translate] skipping ({tgt}): {e}", flush=True)
+        return parsed
+
+    res = dict(parsed)
+    res["title"] = (out.get("title") or parsed.get("title") or "").strip() or parsed.get("title", "")
+    res["description"] = (out.get("description") or parsed.get("description") or "").strip() or parsed.get("description", "")
+    res["prep_time"] = out.get("prep_time") or parsed.get("prep_time", "")
+    res["cook_time"] = out.get("cook_time") or parsed.get("cook_time", "")
+
+    src_groups = parsed.get("ingredients", [])
+    tr_groups = out.get("ingredients", [])
+    if isinstance(tr_groups, list) and len(tr_groups) == len(src_groups):
+        new_groups = []
+        for sg, tg in zip(src_groups, tr_groups):
+            src_items = sg.get("items", [])
+            tr_items = tg.get("items", []) if isinstance(tg, dict) else []
+            if len(tr_items) == len(src_items):
+                items = [(ti.strip() or si) for si, ti in zip(src_items, tr_items)]
+            else:
+                items = src_items
+            new_groups.append({
+                "group_name": (tg.get("group_name") if isinstance(tg, dict) else "") or sg.get("group_name", ""),
+                "items": items,
+            })
+        res["ingredients"] = new_groups
+
+    src_dirs = parsed.get("directions", [])
+    tr_dirs = out.get("directions", [])
+    if isinstance(tr_dirs, list) and len(tr_dirs) == len(src_dirs):
+        res["directions"] = [
+            {"step_index": sd.get("step_index", i + 1), "text": (td.strip() if isinstance(td, str) and td.strip() else sd.get("text", ""))}
+            for i, (sd, td) in enumerate(zip(src_dirs, tr_dirs))
+        ]
+
+    return res
+
 
 def _friendly_ytdlp_error(stderr: str, url: str) -> str:
     """Turn a raw yt-dlp stderr into a short, user-facing reason."""
@@ -647,6 +757,14 @@ def _process_reel_import(job_id: str, url: str, target_language: str) -> None:
                     "This video has no spoken steps, caption, or on-screen text we could read. "
                     "Try a reel where the creator narrates or lists the recipe."
                 )
+
+            # 5) Deliver into the user's preferred language. Whisper detected the source;
+            #    if the user picked a different target (e.g. reel is English, user picked
+            #    Tamil), translate the user-facing text via the Homelab LLM. source_language
+            #    stays the DETECTED one so the iOS "Translated from …" badge lights up.
+            if _norm_lang(target_language) and _norm_lang(target_language) != _norm_lang(source_lang):
+                JOBS[job_id]["status"] = "extracting"
+                parsed = translate_recipe(parsed, source_lang, target_language)
 
             recipe_id = f"recipe-{uuid.uuid4().hex[:8]}"
             recipe_obj = {
