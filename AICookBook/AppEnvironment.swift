@@ -2,6 +2,8 @@ import SwiftUI
 import Foundation
 import Combine
 import UserNotifications
+import AVFoundation
+
 
 @MainActor
 final class AppEnvironment: ObservableObject {
