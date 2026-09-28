@@ -45,7 +45,7 @@ enum AppTab: CaseIterable, Hashable {
         case .home: return "house"
         case .studio: return "square.and.pencil"
         case .groceries: return "basket"
-        case .search: return "person.2"   // now the "Circle" people tab (search moved to Home)
+        case .search: return "magnifyingglass"   // keep the magnifier icon (tab opens "Your Circle")
         case .profile: return "person"
         }
     }
