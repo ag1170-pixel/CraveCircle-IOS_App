@@ -43,8 +43,7 @@ struct ProfileScreen: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: AppSpacing.xl) {
-                    identity
-                    stats
+                    header
                     settings
                 }
                 .padding(.horizontal, AppSpacing.md)
@@ -96,41 +95,53 @@ struct ProfileScreen: View {
         }
     }
 
-    // MARK: Identity
+    // MARK: Header (identity on the left, 2×2 stat grid on the right)
 
-    private var identity: some View {
-        VStack(spacing: AppSpacing.sm) {
-            Button {
-                showEditProfile = true
-            } label: {
-                avatarView
+    private var header: some View {
+        HStack(alignment: .top, spacing: AppSpacing.md) {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                Button { showEditProfile = true } label: { avatarView }
+                    .buttonStyle(.plain)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(environment.currentUser?.fullName ?? "Your Profile")
+                        .font(AppFont.display(19, weight: .bold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Text(displayHandle)
+                        .font(AppFont.body(13, weight: .medium))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+
+                Button { showEditProfile = true } label: {
+                    Text("Edit Profile")
+                        .font(AppFont.body(13, weight: .semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 7)
+                        .background(AppTheme.surface, in: Capsule())
+                        .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                }
+                .buttonStyle(PressableStyle())
+                .padding(.top, 2)
+            }
+            .frame(width: 138, alignment: .leading)
+
+            // 2×2 stat grid
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: AppSpacing.xs), GridItem(.flexible(), spacing: AppSpacing.xs)],
+                spacing: AppSpacing.xs
+            ) {
+                NavigationLink { LibraryScreen() } label: { statTile("\(environment.myLibraryRecipes.count)", "Recipes") }
+                NavigationLink { LibraryScreen() } label: { statTile("\(environment.likedRecipes.count)", "Liked") }
+                NavigationLink { FriendsScreen() } label: { statTile("\(environment.circleFriends.count)", "Friends") }
+                NavigationLink { CollectionsScreen() } label: { statTile("\(environment.ownedCollections.count + environment.sharedCollections.count)", "Collections") }
             }
             .buttonStyle(.plain)
-
-            VStack(spacing: 2) {
-                Text(environment.currentUser?.fullName ?? "Your Profile")
-                    .font(AppFont.display(24, weight: .bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                Text(displayHandle)
-                    .font(AppFont.body(15, weight: .medium))
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-
-            Button {
-                showEditProfile = true
-            } label: {
-                Text("Edit Profile")
-                    .font(AppFont.body(14, weight: .semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 8)
-                    .background(AppTheme.surface, in: Capsule())
-                    .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
-            }
-            .buttonStyle(PressableStyle())
-            .padding(.top, 4)
         }
-        .frame(maxWidth: .infinity)
     }
 
     /// The user's chosen photo, or the initials avatar, with a camera badge showing it's editable.
@@ -162,22 +173,10 @@ struct ProfileScreen: View {
         return u.hasPrefix("@") ? u : "@\(u)"
     }
 
-    // MARK: Stats
-
-    private var stats: some View {
-        HStack(spacing: AppSpacing.xs) {
-            NavigationLink { LibraryScreen() } label: { statTile("\(environment.myLibraryRecipes.count)", "Recipes") }
-            NavigationLink { LibraryScreen() } label: { statTile("\(environment.likedRecipes.count)", "Liked") }
-            NavigationLink { FriendsScreen() } label: { statTile("\(environment.circleFriends.count)", "Friends") }
-            NavigationLink { CollectionsScreen() } label: { statTile("\(environment.ownedCollections.count + environment.sharedCollections.count)", "Collections") }
-        }
-        .buttonStyle(.plain)
-    }
-
     private func statTile(_ value: String, _ label: String) -> some View {
         VStack(spacing: 2) {
             Text(value)
-                .font(AppFont.serif(24, weight: .medium))
+                .font(AppFont.display(24, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .monospacedDigit()
             Text(label)
