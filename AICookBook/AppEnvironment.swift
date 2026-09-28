@@ -906,7 +906,8 @@ final class AppEnvironment: ObservableObject {
         // slow server. If it doesn't answer quickly, keep the recipe as-is and finish (reach .done).
         let translated: [String]? = await withTaskGroup(of: [String]?.self) { group in
             group.addTask { try? await self.apiClient.translateTexts(strings, target: target) }
-            group.addTask { try? await Task.sleep(for: .seconds(12)); return nil }
+            // A full recipe is many strings and the server translates them per-string, so allow time.
+            group.addTask { try? await Task.sleep(for: .seconds(25)); return nil }
             let first = await group.next() ?? nil
             group.cancelAll()
             return first
@@ -1511,6 +1512,10 @@ final class AppEnvironment: ObservableObject {
                                 sourceUrl: recipe.sourceUrl
                             )
                         }
+                        // Server-imported recipes can come back in the source language (its own
+                        // translation is best-effort). Ensure the user's chosen Recipe Language on the
+                        // app side too — no-op if the server already delivered it in the target.
+                        recipe = await self.translateToPreferredLanguage(recipe)
                         await MainActor.run {
                             if let index = self.recipes.firstIndex(where: { $0.id == recipe.id }) {
                                 self.recipes[index] = recipe
