@@ -515,10 +515,10 @@ final class AppEnvironment: ObservableObject {
         guard let s = recipe.thumbnailUrl, !s.isEmpty,
               !s.hasPrefix("http://"), !s.hasPrefix("https://") else { return }
         let fileURL = s.hasPrefix("file://") ? URL(string: s) : LocalStore.url(s)
-        guard let fileURL, let data = try? Data(contentsOf: fileURL) else { return }
-        let ext = fileURL.pathExtension.lowercased().isEmpty ? "jpg" : fileURL.pathExtension.lowercased()
-        let type = ext == "png" ? "image/png" : "image/jpeg"
-        if let publicURL = await supabase.uploadThumbnail(data: data, path: "\(recipe.id).\(ext)", contentType: type) {
+        guard let fileURL, let raw = try? Data(contentsOf: fileURL) else { return }
+        // Shrink to a feed-sized JPEG so the cover loads fast for everyone (full frames are ~1–2 MB).
+        let payload = ImageDownscale.jpeg(from: raw, maxPixel: 720, quality: 0.6) ?? raw
+        if let publicURL = await supabase.uploadThumbnail(data: payload, path: "\(recipe.id).jpg", contentType: "image/jpeg") {
             recipe.thumbnailUrl = publicURL
         }
     }

@@ -203,6 +203,8 @@ struct SupabaseData {
               var req = request(path: "storage/v1/object/recipe-thumbnails/\(path)") else { return nil }
         req.setValue(contentType, forHTTPHeaderField: "Content-Type")
         req.setValue("true", forHTTPHeaderField: "x-upsert")   // overwrite if it already exists
+        // Covers are content-addressed by recipe id, so they can cache hard (CDN + client).
+        req.setValue("public, max-age=31536000, immutable", forHTTPHeaderField: "Cache-Control")
         req.httpBody = data
         guard let (_, resp) = try? await URLSession.shared.data(for: req),
               let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
