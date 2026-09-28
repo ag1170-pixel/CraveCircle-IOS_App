@@ -15,25 +15,21 @@ struct RecipeCoverImage: View {
     let urlString: String?
     
     var body: some View {
-        if let s = urlString {
+        if let s = urlString, !s.isEmpty {
             if let img = UIImage(named: s) {
                 Image(uiImage: img).resizable()
-            } else if s.hasPrefix("http://") || s.hasPrefix("https://") {
-                if let url = URL(string: s) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable()
-                        case .failure:
-                            RecipeImagePlaceholder(isBuffering: false, size: 28)
-                        case .empty:
-                            RecipeImagePlaceholder(isBuffering: true, size: 28)
-                        @unknown default:
-                            RecipeImagePlaceholder(isBuffering: false, size: 28)
-                        }
+            } else if let url = Self.remoteURL(from: s) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable()
+                    case .failure:
+                        RecipeImagePlaceholder(isBuffering: false, size: 28)
+                    case .empty:
+                        RecipeImagePlaceholder(isBuffering: true, size: 28)
+                    @unknown default:
+                        RecipeImagePlaceholder(isBuffering: false, size: 28)
                     }
-                } else {
-                    RecipeImagePlaceholder(isBuffering: false, size: 28)
                 }
             } else {
                 // Local file: handle both legacy absolute `file://` URLs and direct filenames
@@ -48,6 +44,17 @@ struct RecipeCoverImage: View {
         } else {
             RecipeImagePlaceholder(isBuffering: false, size: 28)
         }
+    }
+
+    /// Resolve a thumbnail string into a loadable remote URL:
+    /// absolute http(s) as-is; a server-relative path ("/reels/media/…" from the import backend,
+    /// "/media/…" from the media API) gets the right host prepended. Returns nil for local filenames.
+    static func remoteURL(from s: String) -> URL? {
+        if s.hasPrefix("http://") || s.hasPrefix("https://") { return URL(string: s) }
+        guard s.hasPrefix("/") else { return nil }
+        let host = s.hasPrefix("/media/") ? "https://api.cravecircle.cc"
+                                          : AppConfig.current.apiBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return URL(string: host + s)
     }
 }
 
