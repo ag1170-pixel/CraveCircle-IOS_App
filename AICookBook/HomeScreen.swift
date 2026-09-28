@@ -592,9 +592,12 @@ struct LibraryCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            cover(recipe)
-                .aspectRatio(1.1, contentMode: .fill)
+            // Definite 1.1 aspect box so every card's cover is the SAME height (the cover() helper is a
+            // GeometryReader with no intrinsic size, so it needs a sized container to fill).
+            Color.clear
                 .frame(maxWidth: .infinity)
+                .aspectRatio(1.1, contentMode: .fit)
+                .overlay { cover(recipe) }
                 .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
                 .overlay(alignment: .bottomLeading) {
                     Circle()

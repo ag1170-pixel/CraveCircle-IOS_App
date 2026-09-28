@@ -493,10 +493,11 @@ final class AppEnvironment: ObservableObject {
                 // Make each cover shareable (device-local file -> public Storage URL) BEFORE it hits the
                 // cloud, and mirror the rewritten URL locally so every surface uses the http cover.
                 for i in dirty.indices {
-                    await uploadLocalThumbnailIfNeeded(&dirty[i])
-                    if let idx = recipes.firstIndex(where: { $0.id == dirty[i].id }),
-                       recipes[idx].thumbnailUrl != dirty[i].thumbnailUrl {
-                        recipes[idx].thumbnailUrl = dirty[i].thumbnailUrl
+                    if let publicURL = await uploadedThumbnailURL(for: dirty[i]) {
+                        dirty[i].thumbnailUrl = publicURL
+                        if let idx = recipes.firstIndex(where: { $0.id == dirty[i].id }) {
+                            recipes[idx].thumbnailUrl = publicURL
+                        }
                     }
                 }
                 if await supabase.upsertRecipes(dirty, ownerId: uid) {
@@ -508,19 +509,22 @@ final class AppEnvironment: ObservableObject {
         await syncShares()
     }
 
-    /// If a recipe's cover is a device-local file (not http/https), upload the bytes to public
-    /// Storage once and rewrite `thumbnailUrl` to the returned public URL. No-op for covers that are
-    /// already remote or aren't a readable local file (e.g. bundled asset names on sample recipes).
-    private func uploadLocalThumbnailIfNeeded(_ recipe: inout Recipe) async {
+    /// Upload a device-local cover (not http/https) to public Storage and return the public URL,
+    /// or nil if there's nothing to upload. The heavy work — disk read + JPEG downscale — runs OFF
+    /// the main actor (`Task.detached`) so a multi-recipe sync never blocks/hangs the UI.
+    private func uploadedThumbnailURL(for recipe: Recipe) async -> String? {
         guard let s = recipe.thumbnailUrl, !s.isEmpty,
-              !s.hasPrefix("http://"), !s.hasPrefix("https://") else { return }
+              !s.hasPrefix("http://"), !s.hasPrefix("https://") else { return nil }
         let fileURL = s.hasPrefix("file://") ? URL(string: s) : LocalStore.url(s)
-        guard let fileURL, let raw = try? Data(contentsOf: fileURL) else { return }
-        // Shrink to a feed-sized JPEG so the cover loads fast for everyone (full frames are ~1–2 MB).
-        let payload = ImageDownscale.jpeg(from: raw, maxPixel: 720, quality: 0.6) ?? raw
-        if let publicURL = await supabase.uploadThumbnail(data: payload, path: "\(recipe.id).jpg", contentType: "image/jpeg") {
-            recipe.thumbnailUrl = publicURL
-        }
+        guard let fileURL else { return nil }
+        let recipeId = recipe.id
+        let payload: Data? = await Task.detached(priority: .utility) {
+            guard let raw = try? Data(contentsOf: fileURL) else { return nil }
+            // Shrink to a feed-sized JPEG so covers load fast for everyone (full frames are ~1–2 MB).
+            return ImageDownscale.jpeg(from: raw, maxPixel: 720, quality: 0.6) ?? raw
+        }.value
+        guard let payload else { return nil }
+        return await supabase.uploadThumbnail(data: payload, path: "\(recipeId).jpg", contentType: "image/jpeg")
     }
 
     /// True when the signed-in user owns this recipe (edit/delete are owner-only).
