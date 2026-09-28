@@ -278,6 +278,9 @@ final class AppEnvironment: ObservableObject {
         } else {
             d.removeObject(forKey: "shared_user_id")
         }
+        // Share Extension runs in a separate process and can't read the app's @AppStorage, so mirror
+        // the chosen Recipe Language into the App Group — otherwise shared reels import in English.
+        d.set(AppLanguage.preferred.rawValue, forKey: "shared_recipe_language")
     }
 
     /// A "recipe ready" push was tapped → open the finished recipe (already synced to the library),

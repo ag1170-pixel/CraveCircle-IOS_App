@@ -56,6 +56,14 @@ struct ProfileScreen: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .tint(AppTheme.accentInk)
+        // Mirror the Recipe Language into the App Group so the Share Extension (separate process)
+        // imports shared reels in this language instead of always English.
+        .onChange(of: langCode) { _, newValue in
+            UserDefaults(suiteName: AppEnvironment.appGroupID)?.set(newValue, forKey: "shared_recipe_language")
+        }
+        .task {
+            UserDefaults(suiteName: AppEnvironment.appGroupID)?.set(langCode, forKey: "shared_recipe_language")
+        }
         .sheet(isPresented: $showEditProfile) {
             EditProfileSheet()
                 .presentationDetents([.medium, .large])

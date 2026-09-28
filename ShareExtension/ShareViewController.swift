@@ -91,7 +91,9 @@ final class ShareViewController: UIViewController {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         // Attribute the import to the signed-in user (written to the App Group by the app) so the
         // "recipe ready" push targets only their devices — never everyone's.
-        var payload: [String: Any] = ["url": urlString, "target_language": "en"]
+        // Import in the user's chosen Recipe Language (mirrored into the App Group by the app).
+        let lang = UserDefaults(suiteName: appGroupID)?.string(forKey: "shared_recipe_language") ?? "en"
+        var payload: [String: Any] = ["url": urlString, "target_language": lang]
         if let uid = UserDefaults(suiteName: appGroupID)?.string(forKey: "shared_user_id"), !uid.isEmpty {
             payload["user_id"] = uid
         }
