@@ -952,7 +952,7 @@ final class AppEnvironment: ObservableObject {
 
         var recipe = await RecipeExtractor.extract(
             transcript: transcript, caption: fullCaption.isEmpty ? nil : fullCaption, ownerId: currentUser?.id ?? "you",
-            sourceLanguage: nil, onScreenText: onScreen
+            sourceLanguage: nil, onScreenText: onScreen, targetLanguage: AppLanguage.preferred
         )
 
         // 4) Nothing readable anywhere (no audio, no caption, no on-screen text) => fail with a
@@ -971,9 +971,7 @@ final class AppEnvironment: ObservableObject {
             return
         }
 
-        // 4.5) MULTILINGUAL: translate the extracted recipe into the user's preferred language
-        //      (the recipe is currently in English from the bridge above; this brings it to hi/pt/etc.)
-        recipe = await translateToPreferredLanguage(recipe)
+
 
         // 5) Give it a real cover: grab a representative frame from the video and store it locally,
         //    so the imported recipe looks like a real recipe instead of the generic fallback.
