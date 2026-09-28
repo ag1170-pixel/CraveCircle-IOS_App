@@ -26,13 +26,18 @@ enum RecipeExtractor {
 
     /// Extract a recipe on-device. Uses the LLM when available, otherwise a heuristic.
     /// `onScreenText` is Vision-OCR'd overlay text — the main source for silent, caption-less reels.
+    /// `targetLanguage` — when set and different from the source, the LLM writes the recipe's
+    /// user-facing text in that language, so a Tamil user importing an English reel gets a Tamil
+    /// recipe in one pass. The heuristic fallback can't translate; it delivers in source language.
     static func extract(transcript: String, caption: String?, ownerId: String,
-                        sourceLanguage: String?, onScreenText: String? = nil) async -> Recipe {
+                        sourceLanguage: String?, onScreenText: String? = nil,
+                        targetLanguage: AppLanguage? = nil) async -> Recipe {
         #if canImport(FoundationModels)
         if #available(iOS 26, *), case .available = SystemLanguageModel.default.availability {
             if let recipe = try? await generate(transcript: transcript, caption: caption,
                                                 onScreenText: onScreenText,
-                                                ownerId: ownerId, sourceLanguage: sourceLanguage) {
+                                                ownerId: ownerId, sourceLanguage: sourceLanguage,
+                                                targetLanguage: targetLanguage) {
                 return recipe
             }
         }
@@ -66,13 +71,34 @@ enum RecipeExtractor {
 
     @available(iOS 26, *)
     private static func generate(transcript: String, caption: String?, onScreenText: String?,
-                                ownerId: String, sourceLanguage: String?) async throws -> Recipe {
+                                ownerId: String, sourceLanguage: String?,
+                                targetLanguage: AppLanguage?) async throws -> Recipe {
+        // Translate in the same pass: title, group names, ingredient items and step texts all come
+        // out in targetLanguage. Numbers, quantities and units stay unchanged (200g stays 200g).
+        var languageRule = ""
+        if let target = targetLanguage,
+           let src = sourceLanguage.flatMap({ AppLanguage.from(code: $0) }),
+           src != target {
+            languageRule = """
+
+            Write ALL user-facing text (title, group names, ingredient items, steps) in \(target.name)
+            (\(target.nativeName)). Keep numbers, quantities and units unchanged (e.g. "200g", "1 tbsp",
+            "8 min" stay the same). Translate ingredient names and cooking verbs; do not transliterate.
+            """
+        } else if let target = targetLanguage, sourceLanguage == nil {
+            // No detected source (silent / caption-only). Still deliver in the user's chosen language.
+            languageRule = """
+
+            Write ALL user-facing text in \(target.name) (\(target.nativeName)). Keep numbers, quantities
+            and units unchanged (e.g. "200g", "1 tbsp"). Translate ingredient names and cooking verbs.
+            """
+        }
         let session = LanguageModelSession(instructions: """
         You convert a cooking video into a clean, structured recipe. Your sources are the spoken
         transcript, the caption, and the ON-SCREEN TEXT read off the video frames — any of them may
         be empty. On-screen text is often the ingredient list and step captions, so use it fully.
         Only include ingredients and steps that actually appear in the sources. Keep quantities and
-        units. Never invent ingredients, amounts, or steps that aren't in the source.
+        units. Never invent ingredients, amounts, or steps that aren't in the source.\(languageRule)
         """)
         var prompt = "Extract the recipe.\n"
         if let caption, !caption.isEmpty { prompt += "CAPTION:\n\(caption)\n\n" }

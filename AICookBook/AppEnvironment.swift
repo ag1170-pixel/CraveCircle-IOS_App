@@ -620,12 +620,23 @@ final class AppEnvironment: ObservableObject {
         }
         importState = .polling(jobId: "on-device", status: .transcribing)
 
-        // 1) Transcribe narration. A silent / music-only clip just yields an empty string here —
-        //    that's expected, not a failure, so we fall through to on-screen text.
+        // 1) Transcribe narration. Try the user's preferred locale first, but fall back to English
+        //    when it comes back thin — a Tamil user importing an English reel would otherwise get
+        //    empty/garbage text from a Tamil ASR fed English audio. sourceLocale records what the
+        //    audio actually was, which the extractor + "Translated from …" badge both use.
         var transcript = ""
-        if let out = try? await OnDeviceTranscriber.transcribe(url: url, localeID: AppLanguage.preferred.localeID) {
+        var sourceLocale = AppLanguage.preferred.localeID
+        if let out = try? await OnDeviceTranscriber.transcribe(url: url, localeID: sourceLocale) {
             transcript = out.text
         }
+        if transcript.count < 40 && AppLanguage.preferred != .english {
+            if let en = try? await OnDeviceTranscriber.transcribe(url: url, localeID: AppLanguage.english.localeID),
+               en.text.count > transcript.count {
+                transcript = en.text
+                sourceLocale = AppLanguage.english.localeID
+            }
+        }
+        let detectedSource = AppLanguage.from(code: sourceLocale)?.rawValue
 
         // 2) Little or no narration => read the ON-SCREEN text with Vision OCR (many reels put the
         //    whole recipe on screen with no voiceover and no caption).
@@ -635,11 +646,14 @@ final class AppEnvironment: ObservableObject {
             onScreen = await VideoTextOCR.recognizeText(url: url)
         }
 
-        // 3) Structure it (Foundation Models when available, else heuristic).
+        // 3) Structure it (Foundation Models when available, else heuristic). Ask the extractor to
+        //    write the output in the user's preferred language directly — one LLM pass, no separate
+        //    translate step.
         importState = .polling(jobId: "on-device", status: .extracting)
         var recipe = await RecipeExtractor.extract(
             transcript: transcript, caption: nil, ownerId: currentUser?.id ?? "you",
-            sourceLanguage: nil, onScreenText: onScreen
+            sourceLanguage: detectedSource, onScreenText: onScreen,
+            targetLanguage: AppLanguage.preferred
         )
 
         // 4) Nothing readable anywhere (no audio, no caption, no on-screen text) => fail with a
