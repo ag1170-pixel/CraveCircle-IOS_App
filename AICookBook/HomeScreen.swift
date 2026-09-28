@@ -289,7 +289,6 @@ struct HomeScreen: View {
                     .italic()
                     .foregroundStyle(AppTheme.accentInk)
                 Spacer(minLength: 0)
-                ScrollMoreHint()
             }
             .padding(.horizontal, AppSpacing.md)
 
@@ -324,7 +323,6 @@ struct HomeScreen: View {
                     .font(AppFont.display(20, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
                 Spacer(minLength: 0)
-                ScrollMoreHint()
             }
             .padding(.horizontal, AppSpacing.md)
 
@@ -532,36 +530,14 @@ struct CardLikeOverlay: View {
     }
 }
 
-/// Trailing hint on a horizontally-scrolling section header: a gently nudging chevron so users
-/// know there's more to the right. Honors Reduce Motion (static arrow, still directional).
-struct ScrollMoreHint: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var nudge = false
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Text("Swipe")
-                .font(AppFont.body(12, weight: .semibold))
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .bold))
-                .offset(x: nudge ? 3 : 0)
-        }
-        .foregroundStyle(AppTheme.textTertiary)
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) { nudge = true }
-        }
-        .accessibilityHidden(true)
-    }
-}
-
 struct FreshCard: View {
     let recipe: Recipe
     let onTap: () -> Void
     @EnvironmentObject private var environment: AppEnvironment
 
-    /// Sized so exactly two cards fill the screen width (md gutters on both sides + between).
-    static var cardWidth: CGFloat { (UIScreen.main.bounds.width - AppSpacing.md * 3) / 2 }
+    /// Two cards fit with a slice of the next one peeking on the right — the peek is the cue that
+    /// there's more to swipe (no text hint needed). The -24 per card frees ~48pt for that peek.
+    static var cardWidth: CGFloat { (UIScreen.main.bounds.width - AppSpacing.md * 3) / 2 - 24 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
