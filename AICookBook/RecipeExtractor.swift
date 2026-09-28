@@ -46,6 +46,35 @@ enum RecipeExtractor {
                          ownerId: ownerId, sourceLanguage: sourceLanguage)
     }
 
+    /// True when the assembled recipe reads like actual cooking — it has cooking verbs, measurements,
+    /// or common ingredients. Runs AFTER translation so English food words are present regardless of
+    /// the reel's source language. Deliberately lenient: better to accept a borderline recipe than
+    /// reject a real one (a fashion/product clip has none of these signals and is turned away).
+    static func looksLikeFood(_ recipe: Recipe) -> Bool {
+        let text = ([recipe.title, recipe.description ?? ""]
+                    + recipe.ingredients.flatMap { $0.items }
+                    + recipe.directions.map { $0.text })
+            .joined(separator: " ")
+            .lowercased()
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return false }
+
+        func hits(_ words: [String]) -> Int {
+            words.reduce(0) { $0 + (text.range(of: "\\b\($1)", options: .regularExpression) != nil ? 1 : 0) }
+        }
+        let cookingVerbs = ["cook","bake","fry","boil","simmer","roast","grill","saute","sauté","stir",
+            "mix","whisk","knead","chop","dice","mince","slice","marinate","season","garnish","serve",
+            "preheat","heat","blend","fold","drain","steam","toss","spread","pour","add","cut","cover"]
+        let units = ["cup","cups","tbsp","tablespoon","tsp","teaspoon","gram","grams","kg","ml","litre",
+            "liter","oz","ounce","pound","clove","cloves","pinch"]
+        let foods = ["salt","sugar","oil","butter","ghee","flour","egg","eggs","milk","water","onion",
+            "garlic","ginger","tomato","chicken","mutton","paneer","rice","cheese","sauce","pepper",
+            "spice","masala","cream","dough","batter","paste","chilli","chili","cumin","turmeric",
+            "lemon","yogurt","curd","dal","lentil","bean","potato","carrot","coriander","vegetable"]
+
+        let verbHits = hits(cookingVerbs), unitHits = hits(units), foodHits = hits(foods)
+        return (verbHits >= 1 && foodHits >= 1) || unitHits >= 1 || foodHits >= 2
+    }
+
     // MARK: - Foundation Models (guided generation)
 
     #if canImport(FoundationModels)
