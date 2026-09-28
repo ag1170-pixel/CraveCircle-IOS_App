@@ -336,7 +336,7 @@ struct HomeScreen: View {
                                     .frame(maxWidth: 200, alignment: .leading)
                             }
                         }
-                        .frame(width: 168) // Fix for untidy/uneven frames due to chip text width
+                        .frame(width: FreshCard.cardWidth) // match the 2-up card width
                     }
                 }
                 .padding(.horizontal, AppSpacing.md)
@@ -535,10 +535,13 @@ struct FreshCard: View {
     let onTap: () -> Void
     @EnvironmentObject private var environment: AppEnvironment
 
+    /// Sized so exactly two cards fill the screen width (md gutters on both sides + between).
+    static var cardWidth: CGFloat { (UIScreen.main.bounds.width - AppSpacing.md * 3) / 2 }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             cover(recipe)
-                .frame(width: 168, height: 130)
+                .frame(width: Self.cardWidth, height: Self.cardWidth * 0.78)
                 .clipShape(RoundedRectangle(cornerRadius: AppRadius.tile, style: .continuous))
                 .overlay(alignment: .topTrailing) {
                     if recipe.visibility == .followers {
@@ -559,7 +562,7 @@ struct FreshCard: View {
             CreatorLine(handle: recipe.ownerUsername)
             MetaLine(recipe: recipe)
         }
-        .frame(width: 168, alignment: .leading)
+        .frame(width: Self.cardWidth, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture { Haptics.tap(); onTap() }
         .contextMenu {
