@@ -21,8 +21,8 @@ struct HomeScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Binding var showingImportSheet: Bool
     @State private var showNotifications = false
-    @State private var selectedCreator: Creator?
-    @State private var navigateToFriends = false
+    @State private var query = ""                       // search moved here from the old Search tab
+    @State private var filters = RecipeFilters()
     @State private var navigateToLibrary = false
     @State private var showShared = false
     @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
@@ -44,12 +44,16 @@ struct HomeScreen: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                    followingSection
-                    freshSection
-                    if !environment.suggestedRecipes.isEmpty {
-                        suggestedSection
+                    searchSection
+                    if isSearching {
+                        searchResultsSection
+                    } else {
+                        freshSection
+                        if !environment.suggestedRecipes.isEmpty {
+                            suggestedSection
+                        }
+                        librarySection
                     }
-                    librarySection
                 }
                 .padding(.top, AppSpacing.sm)
                 .padding(.bottom, AppSpacing.xl)
@@ -66,19 +70,11 @@ struct HomeScreen: View {
                 }
             }
             .safeAreaInset(edge: .top) { topBar }
-            .navigationDestination(isPresented: $navigateToFriends) {
-                FriendsScreen()
-            }
             .navigationDestination(isPresented: $navigateToLibrary) {
                 LibraryScreen()
             }
             .sheet(isPresented: $showNotifications) {
                 CircleNotificationsSheet()
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-            }
-            .sheet(item: $selectedCreator) { creator in
-                CreatorProfileSheet(handle: creator.handle, name: creator.name)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
@@ -142,34 +138,129 @@ struct HomeScreen: View {
         .accessibilityLabel(label)
     }
 
-    // MARK: Following
+    // MARK: Search (moved here from the old Search tab)
 
-    private var followingSection: some View {
+    private var isSearching: Bool {
+        !query.trimmingCharacters(in: .whitespaces).isEmpty || filters.isActive
+    }
+
+    private var results: [Recipe] {
+        RecipeSearch.apply(environment.recipes, query: query, filters: filters)
+    }
+
+    private var searchSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            HomeSectionHeader(title: "Following", showViewAll: true) {
-                navigateToFriends = true
+            searchField.padding(.horizontal, AppSpacing.md)
+            filterBar
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: AppSpacing.xs) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(AppTheme.textTertiary)
+            TextField("Search recipes, creators, ingredients", text: $query)
+                .font(AppFont.body(16))
+                .foregroundStyle(AppTheme.textPrimary)
+                .autocorrectionDisabled()
+            if !query.isEmpty {
+                Button { query = ""; Haptics.tap() } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(AppTheme.textTertiary)
+                }.buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, AppSpacing.md)
+        .frame(height: 48)
+        .background(AppTheme.surface, in: Capsule())
+        .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+    }
+
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                FilterChip(title: "Veg", systemImage: "leaf.fill", isOn: filters.diet == .veg) { setDiet(.veg) }
+                FilterChip(title: "Non-veg", systemImage: "fish.fill", isOn: filters.diet == .nonVeg) { setDiet(.nonVeg) }
+                FilterChip(title: "Vegan", systemImage: "carrot.fill", isOn: filters.diet == .vegan) { setDiet(.vegan) }
+                filterDivider
+                FilterChip(title: "Under 15m", systemImage: "bolt.fill", isOn: filters.time == .under15) { setTime(.under15) }
+                FilterChip(title: "15–30m", systemImage: "clock.fill", isOn: filters.time == .mid) { setTime(.mid) }
+                FilterChip(title: "30m+", systemImage: "clock", isOn: filters.time == .long) { setTime(.long) }
+                filterDivider
+                FilterChip(title: "High protein", systemImage: "flame.fill", isOn: filters.highProtein) {
+                    Haptics.select()
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { filters.highProtein.toggle() }
+                }
+                if filters.isActive {
+                    Button {
+                        Haptics.tap()
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { filters = RecipeFilters() }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
+                            Text("Clear").font(AppFont.body(14, weight: .semibold))
+                        }
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .padding(.horizontal, 12).padding(.vertical, 9)
+                    }
+                    .buttonStyle(PressableStyle())
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                }
             }
             .padding(.horizontal, AppSpacing.md)
+        }
+        .scrollClipDisabled()
+    }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AppSpacing.md) {
-                    ForEach(Creator.samples) { creator in
-                        Button {
-                            Haptics.tap()
-                            selectedCreator = creator
-                        } label: {
-                            CreatorChip(creator: creator)
-                        }
-                        .buttonStyle(.plain)
+    private var filterDivider: some View {
+        Rectangle().fill(AppTheme.hairline).frame(width: 1, height: 22).padding(.horizontal, 2)
+    }
+
+    private func setDiet(_ d: DietFilter) {
+        Haptics.select()
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            filters.diet = (filters.diet == d) ? .any : d
+        }
+    }
+
+    private func setTime(_ t: TimeFilter) {
+        Haptics.select()
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            filters.time = (filters.time == t) ? .any : t
+        }
+    }
+
+    private var searchResultsSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            if results.isEmpty {
+                noResults
+            } else {
+                let n = results.count
+                Text("\(n) \(n == 1 ? "result" : "results")")
+                    .font(AppFont.display(20, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .padding(.horizontal, AppSpacing.md)
+                LazyVGrid(columns: columns, spacing: AppSpacing.md) {
+                    ForEach(results) { recipe in
+                        LibraryCard(recipe: recipe) { environment.selectRecipe(recipe, in: results) }
                     }
                 }
                 .padding(.horizontal, AppSpacing.md)
             }
-            .scrollClipDisabled()
-            .background(GeometryReader { geo in
-                Color.clear.preference(key: HorizontalScrollFrameKey.self, value: [geo.frame(in: .global)])
-            })
         }
+    }
+
+    private var noResults: some View {
+        VStack(spacing: AppSpacing.sm) {
+            Image(systemName: "magnifyingglass").font(.system(size: 32)).foregroundStyle(AppTheme.textTertiary)
+            Text(query.isEmpty ? "No recipes match those filters" : "No matches for \u{201C}\(query)\u{201D}")
+                .font(AppFont.body(16, weight: .semibold)).foregroundStyle(AppTheme.textPrimary)
+                .multilineTextAlignment(.center)
+            Text("Try a different dish, ingredient, or fewer filters.")
+                .font(AppFont.body(14)).foregroundStyle(AppTheme.textSecondary)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, AppSpacing.xl).padding(.horizontal, AppSpacing.md)
     }
 
     // MARK: Feed computation
