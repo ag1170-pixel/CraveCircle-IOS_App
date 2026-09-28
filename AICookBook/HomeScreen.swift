@@ -289,6 +289,7 @@ struct HomeScreen: View {
                     .italic()
                     .foregroundStyle(AppTheme.accentInk)
                 Spacer(minLength: 0)
+                ScrollMoreHint()
             }
             .padding(.horizontal, AppSpacing.md)
 
@@ -323,6 +324,7 @@ struct HomeScreen: View {
                     .font(AppFont.display(20, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
                 Spacer(minLength: 0)
+                ScrollMoreHint()
             }
             .padding(.horizontal, AppSpacing.md)
 
@@ -527,6 +529,29 @@ struct CardLikeOverlay: View {
             burstScale = 1.3; burstOpacity = 0; burstY = -22
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { showBurst = false }
+    }
+}
+
+/// Trailing hint on a horizontally-scrolling section header: a gently nudging chevron so users
+/// know there's more to the right. Honors Reduce Motion (static arrow, still directional).
+struct ScrollMoreHint: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var nudge = false
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Text("Swipe")
+                .font(AppFont.body(12, weight: .semibold))
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .bold))
+                .offset(x: nudge ? 3 : 0)
+        }
+        .foregroundStyle(AppTheme.textTertiary)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) { nudge = true }
+        }
+        .accessibilityHidden(true)
     }
 }
 
