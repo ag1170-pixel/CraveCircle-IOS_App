@@ -971,7 +971,11 @@ final class AppEnvironment: ObservableObject {
             return
         }
 
-
+        // 4.5) Deliver the recipe in the user's chosen Recipe Language. The on-device LLM already
+        //      writes in the target language WHEN Apple Intelligence is available, but the heuristic
+        //      fallback (and older devices) produce English — so translate the finished recipe
+        //      server-side. No-op when it's already in the target language.
+        recipe = await translateToPreferredLanguage(recipe)
 
         // 5) Give it a real cover: grab a representative frame from the video and store it locally,
         //    so the imported recipe looks like a real recipe instead of the generic fallback.
