@@ -173,13 +173,16 @@ struct HomeScreen: View {
     }
 
     // MARK: Feed computation
+    // "Fresh in your Circle" = recipes from OTHER people (not yours). Your library grid = yours or
+    // saved. Both key off ownership, not `canDelete` (a moderation check that's true for any imported
+    // recipe, which leaked other creators' recipes into your library and drained the Circle feed).
     private var freshFeedRecipes: [Recipe] {
-        let feed = environment.recipes.filter { !environment.canDelete($0) }
+        let feed = environment.recipes.filter { !environment.isOwner(of: $0) }
         return feed.isEmpty ? environment.recipes : feed
     }
 
     private var libraryGridRecipes: [Recipe] {
-        environment.recipes.filter { environment.canDelete($0) || environment.isSaved(recipeId: $0.id) }
+        environment.recipes.filter { environment.isOwner(of: $0) || environment.isSaved(recipeId: $0.id) }
     }
 
     // MARK: Fresh in your Circle

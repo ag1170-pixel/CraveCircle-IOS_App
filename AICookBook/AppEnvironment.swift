@@ -716,8 +716,11 @@ final class AppEnvironment: ObservableObject {
     /// The user's own recipes that are published.
     var myPublished: [Recipe] { ownedRecipes.filter { !isDraft(recipeId: $0.id) } }
 
+    /// Your Library = recipes you created/imported (owner) or explicitly saved. NOT `canDelete`,
+    /// which is a moderation check that's true for any imported/published recipe (so it leaked
+    /// other creators' published recipes into your library — they belong only in Discover/Circle).
     var myLibraryRecipes: [Recipe] {
-        recipes.filter { canDelete($0) || isSaved(recipeId: $0.id) }
+        recipes.filter { isOwner(of: $0) || isSaved(recipeId: $0.id) }
     }
 
 

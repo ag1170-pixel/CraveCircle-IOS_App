@@ -35,7 +35,7 @@ struct LibraryScreen: View {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 LimeSegmentedControl(
                     segments: [
-                        "All \(environment.recipes.count)",
+                        "All \(environment.myLibraryRecipes.count)",
                         "Liked \(environment.likedRecipeIds.count)",
                         "Saved \(environment.savedRecipeIds.count)",
                         "Created \(environment.ownedRecipes.count)"
