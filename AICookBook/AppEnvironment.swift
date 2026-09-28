@@ -478,6 +478,16 @@ final class AppEnvironment: ObservableObject {
         }
         // PUSH — send my own changed recipes up; clear the dirty flag only on success.
         if supabase.hasSession, let uid = currentUser?.id {
+            // Backfill: recipes published before Storage upload still carry a device-local cover in the
+            // cloud (unreachable to other users → placeholder). Re-flag my own local-cover recipes whose
+            // image file still exists so the upload-on-sync path below rewrites them to a public URL.
+            for r in recipes where r.ownerId == uid && !unsyncedRecipeIds.contains(r.id) {
+                guard let t = r.thumbnailUrl, !t.isEmpty, !t.hasPrefix("http") else { continue }
+                let fileURL = t.hasPrefix("file://") ? URL(string: t) : LocalStore.url(t)
+                if let fileURL, FileManager.default.fileExists(atPath: fileURL.path) {
+                    unsyncedRecipeIds.insert(r.id)
+                }
+            }
             var dirty = recipes.filter { unsyncedRecipeIds.contains($0.id) && $0.ownerId == uid }
             if !dirty.isEmpty {
                 // Make each cover shareable (device-local file -> public Storage URL) BEFORE it hits the
