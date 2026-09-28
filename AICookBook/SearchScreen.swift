@@ -18,8 +18,12 @@ struct SearchScreen: View {
         GridItem(.flexible(), spacing: AppSpacing.sm)
     ]
 
-    /// Recipes from creators the user follows.
-    private var circleRecipes: [Recipe] { environment.communityFeed }
+    /// Recipes from creators the user follows; if they follow no one yet, fall back to everyone
+    /// else's recipes so the Circle isn't empty (matches Home's old "Fresh in your Circle").
+    private var circleRecipes: [Recipe] {
+        let followed = environment.communityFeed
+        return followed.isEmpty ? environment.recipes.filter { !environment.isOwner(of: $0) } : followed
+    }
 
     var body: some View {
         ScrollView {
