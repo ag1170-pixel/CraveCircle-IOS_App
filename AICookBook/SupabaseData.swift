@@ -195,6 +195,20 @@ struct SupabaseData {
         return true
     }
     
+    /// Upload a recipe cover to the public `recipe-thumbnails` Storage bucket and return its public
+    /// https URL (nil on failure). Needed because imported covers are saved as device-local files —
+    /// other users can't load those, so a published recipe must carry a shareable URL.
+    func uploadThumbnail(data: Data, path: String, contentType: String) async -> String? {
+        guard hasSession,
+              var req = request(path: "storage/v1/object/recipe-thumbnails/\(path)") else { return nil }
+        req.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        req.setValue("true", forHTTPHeaderField: "x-upsert")   // overwrite if it already exists
+        req.httpBody = data
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return config.supabaseURL.absoluteString + "/storage/v1/object/public/recipe-thumbnails/\(path)"
+    }
+
     /// Delete a recipe from the cloud. Requires a session — RLS only lets a user delete rows where owner_id = auth.uid().
     func deleteRecipe(id: String, ownerId: String) async -> Bool {
         guard hasSession,

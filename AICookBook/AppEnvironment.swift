@@ -478,13 +478,39 @@ final class AppEnvironment: ObservableObject {
         }
         // PUSH — send my own changed recipes up; clear the dirty flag only on success.
         if supabase.hasSession, let uid = currentUser?.id {
-            let dirty = recipes.filter { unsyncedRecipeIds.contains($0.id) && $0.ownerId == uid }
-            if !dirty.isEmpty, await supabase.upsertRecipes(dirty, ownerId: uid) {
-                unsyncedRecipeIds.subtract(dirty.map { $0.id })
+            var dirty = recipes.filter { unsyncedRecipeIds.contains($0.id) && $0.ownerId == uid }
+            if !dirty.isEmpty {
+                // Make each cover shareable (device-local file -> public Storage URL) BEFORE it hits the
+                // cloud, and mirror the rewritten URL locally so every surface uses the http cover.
+                for i in dirty.indices {
+                    await uploadLocalThumbnailIfNeeded(&dirty[i])
+                    if let idx = recipes.firstIndex(where: { $0.id == dirty[i].id }),
+                       recipes[idx].thumbnailUrl != dirty[i].thumbnailUrl {
+                        recipes[idx].thumbnailUrl = dirty[i].thumbnailUrl
+                    }
+                }
+                if await supabase.upsertRecipes(dirty, ownerId: uid) {
+                    unsyncedRecipeIds.subtract(dirty.map { $0.id })
+                }
             }
         }
         // Pull shares (Sent + Received) so the "Shared with you" inbox stays current.
         await syncShares()
+    }
+
+    /// If a recipe's cover is a device-local file (not http/https), upload the bytes to public
+    /// Storage once and rewrite `thumbnailUrl` to the returned public URL. No-op for covers that are
+    /// already remote or aren't a readable local file (e.g. bundled asset names on sample recipes).
+    private func uploadLocalThumbnailIfNeeded(_ recipe: inout Recipe) async {
+        guard let s = recipe.thumbnailUrl, !s.isEmpty,
+              !s.hasPrefix("http://"), !s.hasPrefix("https://") else { return }
+        let fileURL = s.hasPrefix("file://") ? URL(string: s) : LocalStore.url(s)
+        guard let fileURL, let data = try? Data(contentsOf: fileURL) else { return }
+        let ext = fileURL.pathExtension.lowercased().isEmpty ? "jpg" : fileURL.pathExtension.lowercased()
+        let type = ext == "png" ? "image/png" : "image/jpeg"
+        if let publicURL = await supabase.uploadThumbnail(data: data, path: "\(recipe.id).\(ext)", contentType: type) {
+            recipe.thumbnailUrl = publicURL
+        }
     }
 
     /// True when the signed-in user owns this recipe (edit/delete are owner-only).
