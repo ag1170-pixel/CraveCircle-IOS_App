@@ -1,19 +1,22 @@
 # CraveCircle — Prioritized Tasks
 
-Ordered by **impact ÷ effort**. Owner key: **Claude** = logic/data/backend/ops · **Antigravity** =
-UI/screens/web/content · **Aditya** = decisions/keys/device-testing only he can do. Full reasoning
-in the vault: `State-of-the-App-Gaps.md`.
+**Vault (current):** `Projects/CraveCircle/State-of-the-App-Gaps.md` (updated 2026-09-20). Auth P0 is **done** (Homelab public `db.cravecircle.cc`). Do not treat 0.1 as open.
 
-> The single highest-leverage decision is **auth** — it unblocks P0–P2 below at once.
+**Parked next (Anas picks):** A public share page · B recommender RPCs · C share-inbox missing recipes · D web grocery parity · iOS comments → Homelab API.
+
+Ordered by **impact ÷ effort**. Owner key: **Claude** = logic/data/backend/ops · **Antigravity** =
+UI/screens/web/content · **Aditya** = decisions/keys/device-testing only he can do.
+
+> Historical: the Sep 6 line below said auth unblocks everything. That decision is made (Homelab).
 
 ---
 
 ## P0 — Unblocks everything (do first)
 | # | Task | Owner | Notes |
 |---|------|-------|-------|
-| 0.1 | **Decide auth path: A) new cloud Supabase, or B) expose Homelab Supabase publicly** | **Aditya** | Blocks sharing, community, cross-user recs, cross-device. Nothing real ships without this. |
+| 0.1 | ~~Decide auth path~~ **DONE 2026-09-20** Homelab public Auth/REST | **Aditya** | `https://db.cravecircle.cc` isolated gateway. Cloud ref is legacy. |
 | 0.2 | Stand up Supabase schema: `profiles(role)`, `recipes(visibility, creator_id)`, `follows`, `shares`, `user_interactions` | Claude | After 0.1. Includes the RLS policies that make followers-only un-bypassable. |
-| 0.3 | Real sign-in/up wired to the chosen Supabase; remove the DEBUG dev-bypass | Claude + Antigravity | Claude: auth client + token store. Antigravity: auth screen polish. |
+| 0.3 | ~~Real sign-in/up~~ **DONE** Homelab GoTrue + Google | Claude + Antigravity | DEBUG bypass gone. |
 
 ## P1 — Make the social promise real (needs P0)
 | # | Task | Owner | Notes |
