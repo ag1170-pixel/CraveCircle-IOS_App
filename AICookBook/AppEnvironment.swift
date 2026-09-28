@@ -910,7 +910,10 @@ final class AppEnvironment: ObservableObject {
         //    that's expected, not a failure, so we fall through to on-screen text.
         var transcript = ""
         do {
-            let out = try await OnDeviceTranscriber.transcribe(url: url, localeID: AppLanguage.preferred.localeID)
+            let asset = AVURLAsset(url: url)
+            let trackLang = try? await asset.loadTracks(withMediaType: .audio).first?.languageCode
+            let transcribeLocale = (trackLang != nil && trackLang != "und") ? Locale(identifier: trackLang!).identifier : "en-US"
+            let out = try await OnDeviceTranscriber.transcribe(url: url, localeID: transcribeLocale)
             transcript = out.text
             print("🎙️ On-device transcription succeeded. Characters: \(transcript.count)")
         } catch {
