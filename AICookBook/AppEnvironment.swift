@@ -2,8 +2,6 @@ import SwiftUI
 import Foundation
 import Combine
 import UserNotifications
-import AVFoundation
-
 
 @MainActor
 final class AppEnvironment: ObservableObject {
@@ -912,10 +910,7 @@ final class AppEnvironment: ObservableObject {
         //    that's expected, not a failure, so we fall through to on-screen text.
         var transcript = ""
         do {
-            let asset = AVURLAsset(url: url)
-            let trackLang = try? await asset.loadTracks(withMediaType: .audio).first?.languageCode
-            let transcribeLocale = (trackLang != nil && trackLang != "und") ? Locale(identifier: trackLang!).identifier : "en-US"
-            let out = try await OnDeviceTranscriber.transcribe(url: url, localeID: transcribeLocale)
+            let out = try await OnDeviceTranscriber.transcribe(url: url, localeID: AppLanguage.preferred.localeID)
             transcript = out.text
             print("🎙️ On-device transcription succeeded. Characters: \(transcript.count)")
         } catch {
