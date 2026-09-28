@@ -2,6 +2,7 @@ import SwiftUI
 import Foundation
 import Combine
 import UserNotifications
+import NaturalLanguage
 
 @MainActor
 final class AppEnvironment: ObservableObject {
@@ -871,6 +872,31 @@ final class AppEnvironment: ObservableObject {
     /// No backend, no auth, no download. Drives the same import-progress UI.
     /// Translate a recipe's text into the user's chosen language via the server translator.
     /// Best-effort: returns the original if anything fails or it's already in the target language.
+    /// Best-guess speech-recognition locale for a reel, inferred from its caption/title language
+    /// (captions usually match the spoken audio). Only returns a locale the on-device recognizer
+    /// actually supports; otherwise en-US — the most common cooking-reel language and most robust
+    /// recognizer. This picks the language to LISTEN in; the recipe's output language is separate.
+    static func speechLocale(forHint hint: String) async -> String {
+        let fallback = "en-US"
+        let text = hint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.count >= 12 else { return fallback }
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        guard let code = recognizer.dominantLanguage?.rawValue else { return fallback }
+        // NL language codes ("en","ta","hi"…) → a speech locale with a region.
+        let map: [String: String] = [
+            "en": "en-US", "ta": "ta-IN", "hi": "hi-IN", "te": "te-IN", "bn": "bn-IN",
+            "mr": "mr-IN", "kn": "kn-IN", "ml": "ml-IN", "gu": "gu-IN", "pa": "pa-IN",
+            "es": "es-ES", "fr": "fr-FR", "it": "it-IT", "pt": "pt-BR", "de": "de-DE",
+            "ar": "ar-SA", "ja": "ja-JP", "ko": "ko-KR", "zh": "zh-CN", "ru": "ru-RU",
+        ]
+        let candidate = map[code] ?? fallback
+        if candidate != fallback, await OnDeviceTranscriber.isSupported(localeID: candidate) {
+            return candidate
+        }
+        return fallback
+    }
+
     private func translateToPreferredLanguage(_ recipe: Recipe) async -> Recipe {
         let target = AppLanguage.preferred.rawValue
         var strings: [String] = [recipe.title, recipe.description ?? ""]
@@ -908,11 +934,15 @@ final class AppEnvironment: ObservableObject {
 
         // 1) Transcribe narration. A silent / music-only clip just yields an empty string here —
         //    that's expected, not a failure, so we fall through to on-screen text.
+        //    Auto-detect the spoken language from the caption/title (captions usually match the
+        //    audio) so an English reel isn't transcribed by a Tamil recognizer and vice-versa —
+        //    the recipe's OUTPUT language is handled separately by translateToPreferredLanguage().
         var transcript = ""
         do {
-            let out = try await OnDeviceTranscriber.transcribe(url: url, localeID: AppLanguage.preferred.localeID)
+            let locale = await Self.speechLocale(forHint: [title, caption].compactMap { $0 }.joined(separator: " "))
+            let out = try await OnDeviceTranscriber.transcribe(url: url, localeID: locale)
             transcript = out.text
-            print("🎙️ On-device transcription succeeded. Characters: \(transcript.count)")
+            print("🎙️ On-device transcription (\(locale)) succeeded. Characters: \(transcript.count)")
         } catch {
             print("⚠️ On-device transcription failed: \(error)")
         }
