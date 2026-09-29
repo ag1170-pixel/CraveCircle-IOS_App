@@ -459,6 +459,9 @@ final class AppEnvironment: ObservableObject {
 
     func markRecipeDirty(_ id: String) { unsyncedRecipeIds.insert(id) }
 
+    /// One-shot guard so the thumbnail backfill scan runs once per launch, not on every sync.
+    private var didThumbnailBackfill = false
+
     /// Two-way sync with Supabase. PULL is additive — it brings in newly published recipes
     /// (creator/developer content) so the library shows updates, without clobbering local unsynced
     /// edits or removing local-only recipes. PUSH sends the user's own dirty recipes up (needs auth).
@@ -482,14 +485,17 @@ final class AppEnvironment: ObservableObject {
         }
         // PUSH — send my own changed recipes up; clear the dirty flag only on success.
         if supabase.hasSession, let uid = currentUser?.id {
-            // Backfill: recipes published before Storage upload still carry a device-local cover in the
-            // cloud (unreachable to other users → placeholder). Re-flag my own local-cover recipes whose
-            // image file still exists so the upload-on-sync path below rewrites them to a public URL.
-            for r in recipes where r.ownerId == uid && !unsyncedRecipeIds.contains(r.id) {
-                guard let t = r.thumbnailUrl, !t.isEmpty, !t.hasPrefix("http") else { continue }
-                let fileURL = t.hasPrefix("file://") ? URL(string: t) : LocalStore.url(t)
-                if let fileURL, FileManager.default.fileExists(atPath: fileURL.path) {
-                    unsyncedRecipeIds.insert(r.id)
+            // Backfill (once per session): recipes published before Storage upload still carry a
+            // device-local cover in the cloud (unreachable to others → placeholder). Re-flag my own
+            // local-cover recipes whose image file still exists so the upload path fixes them.
+            if !didThumbnailBackfill {
+                didThumbnailBackfill = true
+                for r in recipes where r.ownerId == uid && !unsyncedRecipeIds.contains(r.id) {
+                    guard let t = r.thumbnailUrl, !t.isEmpty, !t.hasPrefix("http") else { continue }
+                    let fileURL = t.hasPrefix("file://") ? URL(string: t) : LocalStore.url(t)
+                    if let fileURL, FileManager.default.fileExists(atPath: fileURL.path) {
+                        unsyncedRecipeIds.insert(r.id)
+                    }
                 }
             }
             var dirty = recipes.filter { unsyncedRecipeIds.contains($0.id) && $0.ownerId == uid }
