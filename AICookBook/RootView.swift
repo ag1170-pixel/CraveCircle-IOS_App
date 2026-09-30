@@ -266,6 +266,26 @@ struct MainTabView: View {
     @State private var tab: AppTab = .home
     @State private var ignoreSwipeFrames: [CGRect] = []
 
+    /// Osta-style floating Import button, bottom-right, above the glassy tab bar. Opens Add-a-recipe.
+    private var importFAB: some View {
+        Button {
+            Haptics.tap()
+            showingImportSheet = true
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 58, height: 58)
+                .background(Color(hex: "EA5A38"), in: Circle())
+                .overlay(Circle().stroke(.white.opacity(0.18), lineWidth: 1))
+                .shadow(color: Color(hex: "EA5A38").opacity(0.45), radius: 10, y: 4)
+        }
+        .buttonStyle(PressableStyle())
+        .padding(.trailing, 22)
+        .padding(.bottom, 96)
+        .accessibilityLabel("Add a recipe")
+    }
+
     var body: some View {
         // Instagram's iOS 26 bar is the system UITabBar: one floating Liquid Glass
         // platter, five equal icons, selection capsule drawn by UIKit, shrinks on scroll.
@@ -279,25 +299,17 @@ struct MainTabView: View {
                 Image(systemName: AppTab.home.icon)
                     .accessibilityLabel(AppTab.home.title)
             }
+            Tab(value: AppTab.discover) {
+                NavigationStack { SearchScreen() }
+            } label: {
+                Image(systemName: AppTab.discover.icon)
+                    .accessibilityLabel(AppTab.discover.title)
+            }
             Tab(value: AppTab.groceries) {
                 GroceryScreen()
             } label: {
                 Image(systemName: AppTab.groceries.icon)
                     .accessibilityLabel(AppTab.groceries.title)
-            }
-            Tab(value: AppTab.community) {
-                NavigationStack { SearchScreen() }
-            } label: {
-                Image(systemName: AppTab.community.icon)
-                    .accessibilityLabel(AppTab.community.title)
-            }
-            // Import is an ACTION, not a screen — selecting it opens the Add-a-recipe sheet (below)
-            // and the selection is reverted to the previous tab.
-            Tab(value: AppTab.importReel) {
-                Color.clear
-            } label: {
-                Image(systemName: AppTab.importReel.icon)
-                    .accessibilityLabel(AppTab.importReel.title)
             }
             Tab(value: AppTab.profile) {
                 ProfileScreen()
@@ -306,11 +318,8 @@ struct MainTabView: View {
                     .accessibilityLabel(AppTab.profile.title)
             }
         }
-        .onChange(of: tab) { old, new in
-            guard new == .importReel else { return }
-            showingImportSheet = true
-            tab = (old == .importReel) ? .home : old   // revert; Import never stays selected
-        }
+        // Osta-style: Import is a floating round button, not a tab (keeps the glassy 4-icon bar).
+        .overlay(alignment: .bottomTrailing) { importFAB }
         .tabBarMinimizeBehavior(.onScrollDown)
         .onPreferenceChange(HorizontalScrollFrameKey.self) { frames in
             // Keep track of horizontal scroll areas (like carousels on HomeScreen)
