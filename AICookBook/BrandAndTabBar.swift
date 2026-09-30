@@ -38,23 +38,25 @@ struct BrandLockup: View {
 // MARK: - Tabs
 
 enum AppTab: CaseIterable, Hashable {
-    case home, studio, groceries, search, profile
+    // Order = tab bar order. `importReel` is a center action button (opens the Add-a-recipe sheet,
+    // doesn't switch to a screen). The old Studio/"Create" tab was removed.
+    case home, groceries, community, importReel, profile
 
     var icon: String {
         switch self {
         case .home: return "house"
-        case .studio: return "square.and.pencil"
         case .groceries: return "basket"
-        case .search: return "magnifyingglass"   // keep the magnifier icon (tab opens "Your Circle")
+        case .community: return "person.2"
+        case .importReel: return "plus.circle.fill"
         case .profile: return "person"
         }
     }
     var title: String {
         switch self {
         case .home: return "Home"
-        case .studio: return "Studio"
         case .groceries: return "Grocery"
-        case .search: return "Circle"
+        case .community: return "Community"
+        case .importReel: return "Import"
         case .profile: return "Profile"
         }
     }

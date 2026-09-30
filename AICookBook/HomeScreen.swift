@@ -48,11 +48,11 @@ struct HomeScreen: View {
                     if isSearching {
                         searchResultsSection
                     } else {
+                        librarySection
                         freshSection
                         if !environment.suggestedRecipes.isEmpty {
                             suggestedSection
                         }
-                        librarySection
                     }
                 }
                 .padding(.top, AppSpacing.sm)
@@ -97,15 +97,9 @@ struct HomeScreen: View {
                     .italic()
                     .foregroundStyle(AppTheme.textPrimary)
             }
-            // Leading: mail (shared inbox) top-left. Trailing: import + bell.
-            HStack(spacing: AppSpacing.xs) {
-                iconButton("envelope", label: unreadSharedCount > 0 ? "Shared with you, \(unreadSharedCount) new" : "Shared with you", badgeCount: unreadSharedCount) {
-                    Haptics.tap()
-                    lastOpenedSharedScreen = Date().timeIntervalSince1970
-                    showShared = true
-                }
+            // Mail removed; import moved to the tab bar (+). Only the notifications bell remains (right).
+            HStack {
                 Spacer()
-                iconButton("square.and.arrow.down", label: "Import a recipe") { Haptics.tap(); showingImportSheet = true }
                 iconButton("bell", label: "Notifications") { Haptics.tap(); showNotifications = true }
             }
         }

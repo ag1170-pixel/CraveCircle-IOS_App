@@ -279,23 +279,25 @@ struct MainTabView: View {
                 Image(systemName: AppTab.home.icon)
                     .accessibilityLabel(AppTab.home.title)
             }
-            Tab(value: AppTab.studio) {
-                StudioScreen()
-            } label: {
-                Image(systemName: AppTab.studio.icon)
-                    .accessibilityLabel(AppTab.studio.title)
-            }
             Tab(value: AppTab.groceries) {
                 GroceryScreen()
             } label: {
                 Image(systemName: AppTab.groceries.icon)
                     .accessibilityLabel(AppTab.groceries.title)
             }
-            Tab(value: AppTab.search) {
+            Tab(value: AppTab.community) {
                 NavigationStack { SearchScreen() }
             } label: {
-                Image(systemName: AppTab.search.icon)
-                    .accessibilityLabel(AppTab.search.title)
+                Image(systemName: AppTab.community.icon)
+                    .accessibilityLabel(AppTab.community.title)
+            }
+            // Import is an ACTION, not a screen — selecting it opens the Add-a-recipe sheet (below)
+            // and the selection is reverted to the previous tab.
+            Tab(value: AppTab.importReel) {
+                Color.clear
+            } label: {
+                Image(systemName: AppTab.importReel.icon)
+                    .accessibilityLabel(AppTab.importReel.title)
             }
             Tab(value: AppTab.profile) {
                 ProfileScreen()
@@ -303,6 +305,11 @@ struct MainTabView: View {
                 Image(systemName: AppTab.profile.icon)
                     .accessibilityLabel(AppTab.profile.title)
             }
+        }
+        .onChange(of: tab) { old, new in
+            guard new == .importReel else { return }
+            showingImportSheet = true
+            tab = (old == .importReel) ? .home : old   // revert; Import never stays selected
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .onPreferenceChange(HorizontalScrollFrameKey.self) { frames in
