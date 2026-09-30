@@ -69,9 +69,3 @@ the recipient's app pulls it (RLS-scoped) → it appears in their inbox with a n
 
 - ✅ Zoom-style Safari Redirect hosted on homelab for deep-link URL sharing
 - ✅ Guest Mode Architecture: Unique temporary IDs, Profile Zeroing, 10-recipe Paywall limits, and Account data migration on login
-- ✅ Tab bar reorganized to Home · Discover · Grocery · Profile, with an Osta-style rounded Import (+) FAB on the bottom-right (Studio removed from the bar; still reachable elsewhere)
-
-## P4 — Delight / brand polish (ideas)
-| # | Task | Owner | Notes |
-|---|------|-------|-------|
-| 4.1 | **Mascot cat** — a small illustrated cat wearing a shirt, hat, and holding a spoon that lives inside the UI and hops between UI "islands" to make the app feel unique and cute. **Home & Discover:** cat sits on top of one recipe card and jumps to another card in the grid (its "playground" is the grid). **Grocery list:** cat hangs from one row and swings to the next. **Between tabs:** when the tab changes, the cat travels with the transition (springs into the new context). Needs: mascot art (idle + jump + hang sprites, or a Lottie/rive file), a `MascotLayer` overlay that reads the current tab and knows the on-screen "landing spots" (recipe card frames, row frames) to interpolate between with a spring path, and a Reduce Motion respect. Start with Home grid only, then expand. | Antigravity (art) + Claude (motion layer) | New. Captured 2026-09-30 from Aditya. Build a low-fi HTML/SwiftUI prototype first to nail the jump arc + timing before finalising art. |
