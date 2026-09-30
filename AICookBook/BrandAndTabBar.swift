@@ -38,23 +38,23 @@ struct BrandLockup: View {
 // MARK: - Tabs
 
 enum AppTab: CaseIterable, Hashable {
-    case home, studio, groceries, search, profile
+    // Order shown in the tab bar (left → right): Home, Discover, Grocery, Profile.
+    // Studio is reachable elsewhere (profile) and intentionally not in the bar.
+    case home, discover, groceries, profile
 
     var icon: String {
         switch self {
         case .home: return "house"
-        case .studio: return "square.and.pencil"
+        case .discover: return "magnifyingglass"
         case .groceries: return "basket"
-        case .search: return "magnifyingglass"
         case .profile: return "person"
         }
     }
     var title: String {
         switch self {
         case .home: return "Home"
-        case .studio: return "Studio"
+        case .discover: return "Discover"
         case .groceries: return "Grocery"
-        case .search: return "Search"
         case .profile: return "Profile"
         }
     }
@@ -95,7 +95,8 @@ struct CraveTabBar: View {
                 .shadow(color: .black.opacity(0.16), radius: 20, y: 10)
                 .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
         }
-        .padding(.horizontal, AppSpacing.md)                // small margin → wide, near edge-to-edge
+        // horizontal padding is applied by the caller so the pill can share a row with the
+        // floating Import button (see MainTabView).
     }
 
     @ViewBuilder
@@ -139,5 +140,42 @@ private struct TabPressStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.9 : 1)
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Floating Import button (Osta-style)
+//
+// A round accent-filled button that sits to the right of the tab bar. Tapping it opens the same
+// import sheet the old top-nav download icon used, so importing is one tap from anywhere.
+
+struct ImportFAB: View {
+    var action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button {
+            Haptics.tap()
+            action()
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(AppTheme.onAccent)
+                .frame(width: 54, height: 54)
+                .background(
+                    Circle()
+                        .fill(AppTheme.accent)
+                        .overlay(
+                            Circle().strokeBorder(
+                                LinearGradient(colors: [.white.opacity(0.5), .white.opacity(0.05)],
+                                               startPoint: .top, endPoint: .bottom),
+                                lineWidth: 0.75)
+                        )
+                        .shadow(color: .black.opacity(0.22), radius: 14, y: 8)
+                        .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
+                )
+                .contentShape(Circle())
+        }
+        .buttonStyle(TabPressStyle())
+        .accessibilityLabel("Import recipe")
     }
 }

@@ -257,9 +257,8 @@ struct MainTabView: View {
     private var pager: some View {
         TabView(selection: $tab) {
             HomeScreen(showingImportSheet: $showingImportSheet).tag(AppTab.home)
-            StudioScreen().tag(AppTab.studio)
+            NavigationStack { SearchScreen() }.tag(AppTab.discover)
             GroceryScreen().tag(AppTab.groceries)
-            NavigationStack { SearchScreen() }.tag(AppTab.search)
             ProfileScreen().tag(AppTab.profile)
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
@@ -270,8 +269,12 @@ struct MainTabView: View {
         ZStack(alignment: .bottom) {
             AppTheme.background.ignoresSafeArea()
             pager
-            CraveTabBar(selected: $tab)
-                .padding(.bottom, 6)
+            HStack(spacing: 10) {
+                CraveTabBar(selected: $tab)
+                ImportFAB { showingImportSheet = true }
+            }
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.bottom, 6)
         }
         .overlay(alignment: .top) {
             ImportToastBanner(onOpenDetails: { showingProgressDetail = true })
