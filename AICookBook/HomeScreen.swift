@@ -43,7 +43,10 @@ struct HomeScreen: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: AppSpacing.xl) {
+                VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                    // Brand header lives INSIDE the scroll content so it scrolls away as you scroll
+                    // down and returns at the top (Instagram-style), instead of staying pinned.
+                    topBar
                     searchSection
                     if isSearching {
                         searchResultsSection
@@ -55,12 +58,11 @@ struct HomeScreen: View {
                         }
                     }
                 }
-                .padding(.top, AppSpacing.sm)
                 .padding(.bottom, AppSpacing.xl)
             }
             .background(AppTheme.background.ignoresSafeArea())
             .scrollIndicators(.hidden)
-            .refreshable { 
+            .refreshable {
                 await environment.refreshRecipes()
                 await environment.fetchSuggestedFeed()
             }
@@ -69,7 +71,6 @@ struct HomeScreen: View {
                     await environment.fetchSuggestedFeed()
                 }
             }
-            .safeAreaInset(edge: .top) { topBar }
             .navigationDestination(isPresented: $navigateToLibrary) {
                 LibraryScreen()
             }
