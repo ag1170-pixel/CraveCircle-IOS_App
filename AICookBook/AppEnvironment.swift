@@ -498,7 +498,12 @@ final class AppEnvironment: ObservableObject {
                     }
                 }
             }
-            var dirty = recipes.filter { unsyncedRecipeIds.contains($0.id) && $0.ownerId == uid }
+            // Personal use / legal: NEVER push a social-imported recipe to the shared cloud — those
+            // stay private on the importer's device. Only a user's own original (non-social) recipes
+            // sync up, and only creators' originals ever become public (see publishDraft).
+            var dirty = recipes.filter {
+                unsyncedRecipeIds.contains($0.id) && $0.ownerId == uid && !$0.isImportedFromSocial
+            }
             if !dirty.isEmpty {
                 // Make each cover shareable (device-local file -> public Storage URL) BEFORE it hits the
                 // cloud, and mirror the rewritten URL locally so every surface uses the http cover.
@@ -1243,7 +1248,10 @@ final class AppEnvironment: ObservableObject {
     func publishDraft(recipeId: String) {
         guard canPublish,
               let recipe = recipes.first(where: { $0.id == recipeId }),
-              isOwner(of: recipe)
+              isOwner(of: recipe),
+              // Never publish a recipe imported from someone else's social post — creators may only
+              // publish their OWN original recipes. Social imports stay private to the importer.
+              !recipe.isImportedFromSocial
         else { return }
         studioDraftIds.remove(recipeId)
         // Publishing must actually push the recipe to the cloud so followers/everyone can see it —

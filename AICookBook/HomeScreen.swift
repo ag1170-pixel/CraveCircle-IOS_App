@@ -268,8 +268,9 @@ struct HomeScreen: View {
     // saved. Both key off ownership, not `canDelete` (a moderation check that's true for any imported
     // recipe, which leaked other creators' recipes into your library and drained the Circle feed).
     private var freshFeedRecipes: [Recipe] {
-        let feed = environment.recipes.filter { !environment.isOwner(of: $0) }
-        return feed.isEmpty ? environment.recipes : feed
+        // Only curated / creator-published content — NEVER other users' social imports (personal-use
+        // rule + it avoids redistributing scraped reels with dead Instagram thumbnails).
+        environment.recipes.filter { !environment.isOwner(of: $0) && !$0.isImportedFromSocial }
     }
 
     private var libraryGridRecipes: [Recipe] {

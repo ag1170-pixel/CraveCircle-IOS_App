@@ -21,8 +21,11 @@ struct SearchScreen: View {
     /// Recipes from creators the user follows; if they follow no one yet, fall back to everyone
     /// else's recipes so the Circle isn't empty (matches Home's old "Fresh in your Circle").
     private var circleRecipes: [Recipe] {
-        let followed = environment.communityFeed
-        return followed.isEmpty ? environment.recipes.filter { !environment.isOwner(of: $0) } : followed
+        // Never other users' social imports — only creator-published / curated content (personal-use).
+        let followed = environment.communityFeed.filter { !$0.isImportedFromSocial }
+        return followed.isEmpty
+            ? environment.recipes.filter { !environment.isOwner(of: $0) && !$0.isImportedFromSocial }
+            : followed
     }
 
     var body: some View {
