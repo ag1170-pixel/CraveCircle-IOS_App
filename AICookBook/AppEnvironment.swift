@@ -939,6 +939,40 @@ final class AppEnvironment: ObservableObject {
         return out
     }
 
+    /// Build a recipe from a photo of a written/printed recipe (Vision OCR → extractor). The photo
+    /// becomes the cover (stored locally). It's the user's own content, so it syncs like any original.
+    func importFromPhoto(_ image: UIImage) async {
+        importState = .submitting
+        let ocr = await PhotoTextOCR.recognize(image)
+        importState = .polling(jobId: "on-device", status: .extracting)
+        guard ocr.trimmingCharacters(in: .whitespacesAndNewlines).count > 10 else {
+            importState = .failed(message: "Couldn't read text from that photo. Try a clearer shot of the recipe.")
+            return
+        }
+        var recipe = await RecipeExtractor.extract(
+            transcript: "", caption: nil, ownerId: currentUser?.id ?? "you",
+            sourceLanguage: nil, onScreenText: ocr, targetLanguage: AppLanguage.preferred
+        )
+        guard recipeHasContent(recipe) else {
+            importState = .failed(message: "That photo didn't have enough to build a recipe — try a clearer shot of the ingredients and steps.")
+            return
+        }
+        guard RecipeExtractor.looksLikeFood(recipe) else {
+            importState = .failed(message: "Hmm, that doesn't look like a recipe. Try a photo of a dish's ingredients and steps.")
+            return
+        }
+        recipe = await translateToPreferredLanguage(recipe)
+        if let data = image.jpegData(compressionQuality: 0.8),
+           let file = LocalStore.saveData(ImageDownscale.jpeg(from: data, maxPixel: 720, quality: 0.6) ?? data, to: "thumb-\(recipe.id).jpg") {
+            recipe.thumbnailUrl = file.absoluteString
+        }
+        recipes.insert(recipe, at: 0)
+        markRecipeDirty(recipe.id)
+        Task { await syncRecipes() }
+        importState = .done(recipeId: recipe.id)
+        notifyImportDone(recipeTitle: recipe.title)
+    }
+
     func importFromVideo(_ url: URL, caption: String? = nil, title: String? = nil, thumbnailUrl: String? = nil) async {
         importState = .submitting
         guard await OnDeviceTranscriber.ensureAuthorized() else {

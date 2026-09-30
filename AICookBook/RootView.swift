@@ -342,8 +342,8 @@ struct MainTabView: View {
                 .padding(.top, 46)
         }
         .sheet(isPresented: $showingImportSheet) {
-            ImportSheet(showing: $showingImportSheet)
-                .presentationDetents([.height(470)])
+            AddRecipeSheet(showing: $showingImportSheet)
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.background)
         }
