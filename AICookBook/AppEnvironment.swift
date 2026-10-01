@@ -1364,9 +1364,14 @@ final class AppEnvironment: ObservableObject {
         recipeComments[recipeId] ?? []
     }
 
-    func addComment(recipeId: String, text: String) {
+    func addComment(recipeId: String, text: String, image: UIImage? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        // A comment needs text OR a photo (people can share just a picture of how it turned out).
+        var imageData: Data? = nil
+        if let image, let raw = image.jpegData(compressionQuality: 0.8) {
+            imageData = ImageDownscale.jpeg(from: raw, maxPixel: 1200, quality: 0.7) ?? raw
+        }
+        guard !trimmed.isEmpty || imageData != nil else { return }
         let user = currentUser?.fullName ?? "You"
         let handle = currentUser?.username ?? "@cravecircle"
         let newComment = RecipeComment(
@@ -1376,7 +1381,8 @@ final class AppEnvironment: ObservableObject {
             text: trimmed,
             timeAgo: "Just now",
             likesCount: 0,
-            isLiked: false
+            isLiked: false,
+            imageData: imageData
         )
         var list = recipeComments[recipeId] ?? []
         list.insert(newComment, at: 0)

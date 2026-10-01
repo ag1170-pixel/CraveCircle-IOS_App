@@ -6,16 +6,35 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 struct RecipeCommentsSection: View {
     let recipeId: String
     @EnvironmentObject private var environment: AppEnvironment
     @State private var commentText = ""
     @State private var isSubmitting = false
+    @State private var pickedItem: PhotosPickerItem?
+    @State private var pickedImage: UIImage?
     @FocusState private var isFocused: Bool
 
     private var comments: [RecipeComment] {
         environment.comments(for: recipeId)
+    }
+
+    private var canPost: Bool {
+        !commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pickedImage != nil
+    }
+
+    private func post() {
+        guard canPost else { return }
+        Haptics.tap()
+        withAnimation(AppMotion.snappy) {
+            environment.addComment(recipeId: recipeId, text: commentText, image: pickedImage)
+            commentText = ""
+            pickedImage = nil
+            pickedItem = nil
+            isFocused = false
+        }
     }
 
     var body: some View {
@@ -30,6 +49,29 @@ struct RecipeCommentsSection: View {
                     .foregroundStyle(AppTheme.textSecondary)
             }
 
+            // Attached-photo preview (how their dish turned out) with a remove button.
+            if let img = pickedImage {
+                ZStack(alignment: .topTrailing) {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 130)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    Button {
+                        withAnimation(AppMotion.snappy) { pickedImage = nil; pickedItem = nil }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(.white, .black.opacity(0.45))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(6)
+                    .accessibilityLabel("Remove photo")
+                }
+            }
+
             // Input field
             HStack(spacing: 8) {
                 Circle()
@@ -41,6 +83,15 @@ struct RecipeCommentsSection: View {
                             .foregroundStyle(AppTheme.accentInk)
                     )
 
+                // Attach a photo of how it turned out.
+                PhotosPicker(selection: $pickedItem, matching: .images) {
+                    Image(systemName: "photo.badge.plus")
+                        .font(.system(size: 20, weight: .regular))
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add a photo")
+
                 TextField("Share your tips, twists, or review...", text: $commentText)
                     .font(AppFont.body(14))
                     .focused($isFocused)
@@ -49,24 +100,25 @@ struct RecipeCommentsSection: View {
                     .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
 
-                Button {
-                    guard !commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                    Haptics.tap()
-                    withAnimation(AppMotion.snappy) {
-                        environment.addComment(recipeId: recipeId, text: commentText)
-                        commentText = ""
-                        isFocused = false
-                    }
-                } label: {
+                Button(action: post) {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? AppTheme.textTertiary : AppTheme.accent)
+                        .foregroundStyle(canPost ? AppTheme.accent : AppTheme.textTertiary)
                 }
                 .buttonStyle(.plain)
-                .disabled(commentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(!canPost)
                 .accessibilityLabel("Post comment")
             }
             .padding(.bottom, 4)
+            .onChange(of: pickedItem) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let ui = UIImage(data: data) {
+                        await MainActor.run { withAnimation(AppMotion.snappy) { pickedImage = ui } }
+                    }
+                }
+            }
 
             // Comments list
             if comments.isEmpty {
@@ -130,11 +182,25 @@ struct CommentRow: View {
                         .foregroundStyle(AppTheme.textTertiary)
                 }
 
-                Text(comment.text)
-                    .font(AppFont.body(14))
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                if !comment.text.isEmpty {
+                    Text(comment.text)
+                        .font(AppFont.body(14))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                // Photo of how their dish turned out.
+                if let data = comment.imageData, let ui = UIImage(data: data) {
+                    Image(uiImage: ui)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 170)
+                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .padding(.top, 2)
+                }
 
                 // Like interaction
                 HStack(spacing: 4) {

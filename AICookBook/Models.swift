@@ -267,6 +267,7 @@ struct RecipeComment: Codable, Identifiable, Hashable {
     var timeAgo: String
     var likesCount: Int = 0
     var isLiked: Bool = false
+    var imageData: Data? = nil      // optional photo: "here's how mine turned out"
     var initials: String {
         let parts = authorName.split(separator: " ")
         if parts.count >= 2 {
