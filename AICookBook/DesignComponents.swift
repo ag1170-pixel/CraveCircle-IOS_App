@@ -198,9 +198,10 @@ struct LimeSegmentedControl: View {
 
 /// Ingredient row — radio circle leading, strikethrough + muted when checked.
 /// Bold the quantity parts of a cooking line ("1 cup", "½ tbsp", "500g", "2 cloves", "half cup") while
-/// leaving the ingredient/instruction words at normal weight. Uses `.stronglyEmphasized` so it bolds the
-/// view's own font (keeps the typeface). Works for both ingredient lines and inline amounts in directions.
-func boldQuantities(_ text: String) -> AttributedString {
+/// leaving the ingredient/instruction words at normal weight. Sets an explicit BOLD font at `size` on the
+/// quantity (not `.stronglyEmphasized`, which only nudges to semibold — too subtle in dark mode) so it's a
+/// clear regular→bold jump. The rest inherits the view's own `.font`. Works for ingredients and directions.
+func boldQuantities(_ text: String, size: CGFloat) -> AttributedString {
     var attr = AttributedString(text)
     let number = #"(?:\d+[\d.,/\-–]*|[¼½¾⅓⅔⅛⅜⅝⅞]|one|two|three|four|five|six|seven|eight|nine|ten|half|quarter)"#
     let unit = #"(?:cups?|tbsps?|tablespoons?|tsps?|teaspoons?|grams?|g|kg|ml|l|oz|ounces?|lbs?|pounds?|cloves?|pinch(?:es)?|cans?|slices?|pieces?|sticks?|bunch(?:es)?|handfuls?)"#
@@ -213,7 +214,7 @@ func boldQuantities(_ text: String) -> AttributedString {
         let hi = text.distance(from: text.startIndex, to: sr.upperBound)
         let a = attr.index(attr.startIndex, offsetByCharacters: lo)
         let b = attr.index(attr.startIndex, offsetByCharacters: hi)
-        attr[a..<b].inlinePresentationIntent = .stronglyEmphasized
+        attr[a..<b].font = AppFont.body(size, weight: .bold)
     }
     return attr
 }
@@ -233,7 +234,7 @@ struct IngredientRow: View {
                     .font(.system(size: 22, weight: .regular))
                     .foregroundStyle(checked ? AppTheme.accentInk : AppTheme.textTertiary)
                     .contentTransition(.symbolEffect(.replace))
-                Text(boldQuantities(text))
+                Text(boldQuantities(text, size: 17))
                     .font(AppFont.body(17))
                     .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.textPrimary)
                     .strikethrough(checked, color: AppTheme.textTertiary)
@@ -347,7 +348,7 @@ struct DirectionRow: View {
 
                     // Optional Detail
                     if let detail = parsed.detail, !detail.isEmpty {
-                        Text(boldQuantities(detail))
+                        Text(boldQuantities(detail, size: 15))
                             .font(AppFont.body(15))
                             .foregroundStyle(checked ? AppTheme.textTertiary.opacity(0.7) : AppTheme.textSecondary)
                             .strikethrough(checked, color: AppTheme.textTertiary)
