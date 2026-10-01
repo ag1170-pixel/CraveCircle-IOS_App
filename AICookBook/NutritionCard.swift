@@ -138,30 +138,6 @@ struct NutritionCard: View {
                     .frame(maxWidth: .infinity, alignment: .center)
             }
             breakdownPanel
-
-            Rectangle().fill(AppTheme.separator).frame(height: 1)
-
-            // Kcal Burn Equivalents
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "flame.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(AppTheme.accentInk)
-                    Text("Kcal Burn Equivalents")
-                        .font(AppFont.body(13, weight: .bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                    Spacer()
-                    Text("70kg adult")
-                        .font(AppFont.body(11))
-                        .foregroundStyle(AppTheme.textTertiary)
-                }
-
-                HStack(spacing: 8) {
-                    burnItem(icon: "figure.run", label: "Running", minutes: Int((activeCalories / 12.0).rounded()))
-                    burnItem(icon: "figure.outdoor.cycle", label: "Cycling", minutes: Int((activeCalories / 9.8).rounded()))
-                    burnItem(icon: "figure.walk", label: "Walking", minutes: Int((activeCalories / 5.3).rounded()))
-                }
-            }
         }
         .padding(AppSpacing.md)
         .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
@@ -276,26 +252,6 @@ struct NutritionCard: View {
         return (r == r.rounded() ? "\(Int(r))" : String(format: "%.1f", r)) + "g"
     }
 
-    private func burnItem(icon: String, label: String, minutes: Int) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(AppTheme.accentInk)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("\(minutes) min")
-                    .font(AppFont.body(13, weight: .bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .monospacedDigit()
-                Text(label)
-                    .font(AppFont.body(10))
-                    .foregroundStyle(AppTheme.textTertiary)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 8)
-        .padding(.horizontal, 10)
-        .background(AppTheme.background, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
 }
 
 // MARK: - Ring
