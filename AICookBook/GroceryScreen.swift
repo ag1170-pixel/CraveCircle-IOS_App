@@ -256,17 +256,28 @@ struct GroceryRow: View {
     let toggle: () -> Void
 
     var body: some View {
+        let parts = GrocerySort.splitQuantity(item.ingredientName)
         Button(action: toggle) {
             HStack(spacing: AppSpacing.sm) {
                 Image(systemName: item.checked ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 22))
                     .foregroundStyle(item.checked ? AppTheme.accent : AppTheme.textTertiary)
                     .contentTransition(.symbolEffect(.replace))
-                Text(item.ingredientName)
+                // Ingredient name on the LEFT.
+                Text(parts.name)
                     .font(AppFont.body(17))
                     .foregroundStyle(item.checked ? AppTheme.textTertiary : AppTheme.textPrimary)
                     .strikethrough(item.checked, color: AppTheme.textTertiary)
-                Spacer()
+                Spacer(minLength: AppSpacing.sm)
+                // Quantity on the RIGHT, muted.
+                if !parts.qty.isEmpty {
+                    Text(parts.qty)
+                        .font(AppFont.body(15, weight: .semibold))
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .strikethrough(item.checked, color: AppTheme.textTertiary)
+                        .monospacedDigit()
+                        .layoutPriority(1)
+                }
             }
             .padding(.horizontal, AppSpacing.md)
             .padding(.vertical, 14)

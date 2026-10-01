@@ -100,6 +100,24 @@ enum GrocerySort {
         "pound","pounds","clove","cloves","pinch","can","cans","slice","slices","piece","pieces",
         "handful","bunch","stick","sticks","cup.","large","small","medium"]
 
+    /// Split a line into its leading quantity ("1 tbsp", "500g", "3 cloves") and the ingredient name,
+    /// so the row can show the name on the left and the amount on the right. Handles numbers, fractions,
+    /// ranges, unit words, and number-glued-to-unit ("500g"). If nothing reads as a quantity, qty is "".
+    static func splitQuantity(_ s: String) -> (qty: String, name: String) {
+        let tokens = s.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        func isQty(_ t: String) -> Bool {
+            let w = t.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            if w.range(of: #"^[0-9¼½¾⅓⅔⅛⅜⅝⅞/.\-–]+$"#, options: .regularExpression) != nil { return true } // 2, 1/2, 2-3
+            if units.contains(w) { return true }                                                               // cup, tbsp…
+            if w.range(of: #"^[0-9./]+[a-z]+$"#, options: .regularExpression) != nil { return true }           // 500g, 2tbsp
+            return false
+        }
+        var i = 0
+        while i < tokens.count, isQty(tokens[i]) { i += 1 }
+        guard i > 0, i < tokens.count else { return ("", s) }   // all-or-nothing: never hide the name
+        return (tokens[0..<i].joined(separator: " "), tokens[i...].joined(separator: " "))
+    }
+
     /// The bare ingredient (no leading quantity/unit) — used to de-duplicate across recipes.
     /// "2 tbsp olive oil" and "1 cup olive oil" both reduce to "olive oil".
     static func coreName(_ s: String) -> String {
