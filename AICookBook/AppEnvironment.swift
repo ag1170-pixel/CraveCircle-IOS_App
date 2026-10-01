@@ -1316,17 +1316,19 @@ final class AppEnvironment: ObservableObject {
         let baseServings = recipe.servings ?? 2
         let targetServings = servings ?? baseServings
 
-        // Existing core names so we don't add "olive oil" three times across recipes.
-        var seen = Set(groceryItems.map { GrocerySort.coreName($0.ingredientName) })
+        // De-dupe within THIS dish only (re-adding the same recipe won't double it), but keep dishes
+        // separate so filtering to one dish shows its full ingredient list — even shared staples.
+        let dish = recipe.title
+        var seen = Set(groceryItems.filter { $0.recipeName == dish }.map { GrocerySort.coreName($0.ingredientName) })
         for group in recipe.ingredients {
             for item in group.items {
                 let trimmed = item.trimmingCharacters(in: .whitespaces)
                 guard !trimmed.isEmpty else { continue }
                 let core = GrocerySort.coreName(trimmed)
-                if !core.isEmpty, seen.contains(core) { continue }   // de-dupe
+                if !core.isEmpty, seen.contains(core) { continue }   // de-dupe within this dish
                 if !core.isEmpty { seen.insert(core) }
                 let scaledText = IngredientScaler.scale(text: trimmed, from: baseServings, to: targetServings)
-                groceryItems.append(GroceryItem(id: UUID().uuidString, ingredientName: scaledText, checked: false))
+                groceryItems.append(GroceryItem(id: UUID().uuidString, ingredientName: scaledText, checked: false, recipeName: dish))
                 added += 1
             }
         }

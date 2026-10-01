@@ -60,6 +60,31 @@ enum GrocerySort {
         return .other
     }
 
+    static let handAddedLabel = "Added by you"
+
+    /// Grouped by DISH (the recipe each item came from), in first-appearance order; hand-added items
+    /// (no recipe) come last under "Added by you". This is how the Grocery screen reads now — you can
+    /// see and shop one dish at a time. Items keep their order within a dish.
+    static func groupedByDish(_ items: [GroceryItem]) -> [(dish: String, items: [GroceryItem])] {
+        var order: [String] = []
+        var buckets: [String: [GroceryItem]] = [:]
+        for item in items {
+            let key = item.recipeName ?? handAddedLabel
+            if buckets[key] == nil { order.append(key) }
+            buckets[key, default: []].append(item)
+        }
+        // keep "Added by you" at the end
+        order.sort { a, b in (a == handAddedLabel ? 1 : 0) < (b == handAddedLabel ? 1 : 0) }
+        return order.compactMap { key in buckets[key].map { (key, $0) } }
+    }
+
+    /// Distinct dish names in list order (for the filter chips). Excludes the hand-added bucket.
+    static func dishes(_ items: [GroceryItem]) -> [String] {
+        var seen = Set<String>(); var out: [String] = []
+        for item in items { if let r = item.recipeName, !seen.contains(r) { seen.insert(r); out.append(r) } }
+        return out
+    }
+
     /// Grouped and ordered by aisle (produce first). Items keep their original order within an aisle.
     static func grouped(_ items: [GroceryItem]) -> [(aisle: GroceryAisle, items: [GroceryItem])] {
         var buckets: [GroceryAisle: [GroceryItem]] = [:]

@@ -153,6 +153,7 @@ struct GroceryItem: Codable, Identifiable, Equatable {
     let id: String
     let ingredientName: String
     var checked: Bool
+    var recipeName: String? = nil   // the dish this came from; nil = added by hand. Groups the list by dish.
 }
 
 struct DirectionStep: Codable, Hashable {

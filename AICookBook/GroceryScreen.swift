@@ -14,9 +14,18 @@ struct GroceryScreen: View {
     @State private var newItem = ""
     @State private var showFinish = false
     @State private var catHeld = false          // true while dragging the grocery cat → freeze scroll
+    @State private var selectedDish: String? = nil   // nil = All; else show only that dish's ingredients
 
-    private var total: Int { environment.groceryItems.count }
-    private var checked: Int { environment.groceryItems.filter(\.checked).count }
+    private var groups: [(dish: String, items: [GroceryItem])] { GrocerySort.groupedByDish(environment.groceryItems) }
+    private var visibleGroups: [(dish: String, items: [GroceryItem])] {
+        guard let d = selectedDish else { return groups }
+        return groups.filter { $0.dish == d }
+    }
+    private var shownItems: [GroceryItem] { visibleGroups.flatMap(\.items) }
+
+    // Progress reflects the CURRENT view — cooking just the burger shows the burger's progress.
+    private var total: Int { shownItems.count }
+    private var checked: Int { shownItems.filter(\.checked).count }
     private var progress: Double { total == 0 ? 0 : Double(checked) / Double(total) }
 
     var body: some View {
@@ -27,6 +36,7 @@ struct GroceryScreen: View {
                     if environment.groceryItems.isEmpty {
                         GroceryEmptyState()
                     } else {
+                        if groups.count > 1 { dishFilter }
                         list
                     }
                     addRow
@@ -46,6 +56,12 @@ struct GroceryScreen: View {
             .task {
                 if environment.groceryItems.isEmpty {
                     await environment.loadGroceryList()
+                }
+            }
+            .onChange(of: environment.groceryItems) { _, items in
+                // If the focused dish is fully cleared, fall back to All.
+                if let d = selectedDish, !GrocerySort.groupedByDish(items).contains(where: { $0.dish == d }) {
+                    selectedDish = nil
                 }
             }
             .confirmationDialog("Finish grocery run", isPresented: $showFinish, titleVisibility: .visible) {
@@ -98,17 +114,50 @@ struct GroceryScreen: View {
         }
     }
 
-    // MARK: List
+    // MARK: Dish filter (focus one dish to cook)
+
+    private var dishFilter: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                dishChip(title: "All", active: selectedDish == nil) { selectedDish = nil }
+                ForEach(groups, id: \.dish) { g in
+                    dishChip(title: g.dish, active: selectedDish == g.dish) { selectedDish = g.dish }
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+        .scrollClipDisabled()
+    }
+
+    private func dishChip(title: String, active: Bool, _ tap: @escaping () -> Void) -> some View {
+        Button {
+            Haptics.select()
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { tap() }
+        } label: {
+            Text(title)
+                .font(AppFont.body(14, weight: .semibold))
+                .lineLimit(1)
+                .foregroundStyle(active ? .white : AppTheme.textPrimary)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(active ? AppTheme.accent : AppTheme.surface, in: Capsule())
+                .overlay(Capsule().stroke(active ? Color.clear : AppTheme.hairline, lineWidth: 1))
+        }
+        .buttonStyle(PressableStyle())
+    }
+
+    // MARK: List (grouped by dish)
 
     private var list: some View {
         VStack(spacing: AppSpacing.md) {
-            ForEach(GrocerySort.grouped(environment.groceryItems), id: \.aisle) { section in
+            ForEach(visibleGroups, id: \.dish) { section in
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 6) {
-                        Image(systemName: section.aisle.icon).font(.system(size: 12, weight: .semibold))
-                        Text(section.aisle.label).font(AppFont.body(12, weight: .bold)).textCase(.uppercase)
+                        Image(systemName: section.dish == GrocerySort.handAddedLabel ? "pencil" : "fork.knife")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text(section.dish).font(AppFont.body(12, weight: .bold)).textCase(.uppercase)
                         Spacer()
-                        Text("\(section.items.count)").font(AppFont.body(12, weight: .semibold))
+                        Text("\(section.items.filter { !$0.checked }.count)/\(section.items.count)")
+                            .font(AppFont.body(12, weight: .semibold))
                     }
                     .foregroundStyle(AppTheme.textTertiary)
                     .padding(.horizontal, AppSpacing.md).padding(.vertical, 10)
