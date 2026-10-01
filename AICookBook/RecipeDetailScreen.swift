@@ -18,7 +18,6 @@ struct RecipeDetailScreen: View {
 
     @Binding var tab: Int                            // 0 = Ingredients, 1 = Directions (owned by the pager)
     private let onSwitchRecipe: ((Int) -> Void)?     // +1 next / -1 prev — swipe OUTSIDE the segment region
-    @State private var segmentFrame: CGRect = .zero  // Ingredients/Directions region, in the "detail" space
     @State private var checkedIngredients: Set<String> = []
     @State private var checkedSteps: Set<Int> = []
     @State private var descriptionExpanded = false
@@ -78,15 +77,12 @@ struct RecipeDetailScreen: View {
                 .onEnded { value in
                     guard abs(value.translation.width) > abs(value.translation.height) * 1.3,
                           abs(value.translation.width) > 50 else { return }
-                    let goLeft = value.translation.width < 0
-                    if segmentFrame.contains(value.startLocation) {
-                        // swipe INSIDE the Ingredients/Directions region → switch those two
-                        withAnimation(.easeInOut(duration: 0.22)) { tab = goLeft ? 1 : 0 }
-                        Haptics.select()
-                    } else {
-                        // swipe anywhere ELSE on the page → previous / next recipe
-                        onSwitchRecipe?(goLeft ? 1 : -1)
-                    }
+                    // Clamped 2-tab toggle: Ingredients ⇄ Directions only. At either end a further
+                    // swipe does nothing — the window never shifts past the edge (no recipe switching).
+                    let next = value.translation.width < 0 ? 1 : 0
+                    guard next != tab else { return }
+                    withAnimation(.easeInOut(duration: 0.22)) { tab = next }
+                    Haptics.select()
                 }
         )
         .leadingEdgeBack { environment.dismissRecipeDetail() }
@@ -528,8 +524,6 @@ struct RecipeDetailScreen: View {
             .transition(.opacity)
             .animation(.easeInOut(duration: 0.2), value: tab)
             .contentShape(Rectangle())
-            // Report this region so a swipe here toggles Ingredients/Directions; elsewhere = switch recipe.
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("detail")) } action: { segmentFrame = $0 }
 
             Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.top, AppSpacing.sm)
 
