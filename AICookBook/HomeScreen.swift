@@ -25,6 +25,7 @@ struct HomeScreen: View {
     @State private var filters = RecipeFilters()
     @State private var navigateToLibrary = false
     @State private var showShared = false
+    @State private var catHeld = false                   // true while dragging the chef-cat → freeze scroll
     @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
     
     private var unreadSharedCount: Int {
@@ -61,7 +62,11 @@ struct HomeScreen: View {
                 .padding(.bottom, AppSpacing.xl)
             }
             .background(AppTheme.background.ignoresSafeArea())
+            .overlayPreferenceValue(CardFramesKey.self) { frames in
+                CatCompanion(cardFrames: frames, catHeld: $catHeld)   // peeks, walks, and is draggable
+            }
             .scrollIndicators(.hidden)
+            .scrollDisabled(catHeld)          // don't let the page scroll (and cancel the drag) while held
             .refreshable {
                 await environment.refreshRecipes()
                 await environment.fetchSuggestedFeed()
@@ -239,6 +244,7 @@ struct HomeScreen: View {
                 LazyVGrid(columns: columns, spacing: AppSpacing.md) {
                     ForEach(results) { recipe in
                         LibraryCard(recipe: recipe) { environment.selectRecipe(recipe, in: results) }
+                            .reportsCardFrame(id: "res-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
                     }
                 }
                 .padding(.horizontal, AppSpacing.md)
@@ -295,6 +301,7 @@ struct HomeScreen: View {
                     HStack(alignment: .top, spacing: AppSpacing.md) {
                         ForEach(freshFeedRecipes) { recipe in
                             FreshCard(recipe: recipe) { environment.selectRecipe(recipe) }
+                                .reportsCardFrame(id: "fresh-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
                         }
                     }
                     .padding(.horizontal, AppSpacing.md)
@@ -327,6 +334,7 @@ struct HomeScreen: View {
                     ForEach(environment.suggestedRecipes) { recipe in
                         VStack(alignment: .leading, spacing: 6) {
                             FreshCard(recipe: recipe) { environment.selectRecipe(recipe, in: environment.suggestedRecipes) }
+                                .reportsCardFrame(id: "sugg-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
                             if let why = environment.suggestionReasons[recipe.id] {
                                 SuggestionReasonChip(text: why)
                                     .frame(maxWidth: 200, alignment: .leading)
@@ -356,6 +364,7 @@ struct HomeScreen: View {
             LazyVGrid(columns: columns, spacing: AppSpacing.lg) {
                 ForEach(libraryGridRecipes) { recipe in
                     LibraryCard(recipe: recipe) { environment.selectRecipe(recipe) }
+                        .reportsCardFrame(id: "lib-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
                 }
             }
             .padding(.horizontal, AppSpacing.md)

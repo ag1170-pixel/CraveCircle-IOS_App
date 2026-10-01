@@ -13,6 +13,7 @@ struct GroceryScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var newItem = ""
     @State private var showFinish = false
+    @State private var catHeld = false          // true while dragging the grocery cat → freeze scroll
 
     private var total: Int { environment.groceryItems.count }
     private var checked: Int { environment.groceryItems.filter(\.checked).count }
@@ -35,7 +36,11 @@ struct GroceryScreen: View {
                 .padding(.bottom, AppSpacing.xl)
             }
             .background(AppTheme.background.ignoresSafeArea())
+            .overlayPreferenceValue(GRowKey.self) { rows in
+                GroceryCat(rows: rows, catHeld: $catHeld)   // fishes the list; draggable like the Home cat
+            }
             .scrollIndicators(.hidden)
+            .scrollDisabled(catHeld)          // don't let the page scroll (and cancel the drag) while held
             .navigationTitle("Grocery")
             .navigationBarTitleDisplayMode(.inline)
             .task {
@@ -110,6 +115,7 @@ struct GroceryScreen: View {
 
                     ForEach(section.items) { item in
                         GroceryRow(item: item) { toggle(item) }
+                            .reportsGroceryRow(id: item.id, done: item.checked)
                         if item.id != section.items.last?.id {
                             Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.leading, 44)
                         }

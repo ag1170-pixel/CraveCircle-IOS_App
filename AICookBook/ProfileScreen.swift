@@ -13,6 +13,7 @@ struct ProfileScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @AppStorage(LanguagePrefs.key) private var langCode = LanguagePrefs.default.rawValue
     @AppStorage("custom_api_url") private var customApiUrl = "https://import.cravecircle.cc"
+    @AppStorage("kitchen_cat_enabled") private var kitchenCatEnabled = true   // the playful chef-cat on Home
     @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
     
     private var unreadSharedCount: Int {
@@ -223,7 +224,23 @@ struct ProfileScreen: View {
                 SettingRow(icon: "person.crop.circle", title: "Account", detail: environment.currentUser?.username, tint: .blue) {
                     showAccountSheet = true
                 }
-                
+                Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                // Playful chef-cat that perches on the Home cards — toggle it off if it's distracting.
+                HStack(spacing: AppSpacing.sm) {
+                    Image(systemName: "cat.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 30, height: 30)
+                        .background(Color(hex: "EA5A38"), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    Text("Kitchen cat")
+                        .font(AppFont.body(16, weight: .medium))
+                        .foregroundStyle(AppTheme.textPrimary)
+                    Spacer()
+                    Toggle("", isOn: $kitchenCatEnabled).labelsHidden().tint(AppTheme.accent)
+                }
+                .padding(.horizontal, AppSpacing.md)
+                .padding(.vertical, 13)
+
                 if environment.isAdmin {
                     Divider().overlay(AppTheme.separator).padding(.leading, 56)
                     SettingRow(icon: "server.rack", title: "Kitchen Server", detail: customApiUrl.replacingOccurrences(of: "http://", with: ""), tint: .indigo) {
