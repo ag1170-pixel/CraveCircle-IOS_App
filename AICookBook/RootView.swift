@@ -278,7 +278,7 @@ struct MainTabView: View {
                 .frame(width: 58, height: 58)
                 .background(Color(hex: "EA5A38"), in: Circle())
                 .overlay(Circle().stroke(.white.opacity(0.18), lineWidth: 1))
-                .shadow(color: Color(hex: "EA5A38").opacity(0.45), radius: 10, y: 4)
+                .shadow(color: .black.opacity(0.12), radius: 6, y: 2)   // plain drop shadow, no coral glow
         }
         .buttonStyle(PressableStyle())
         .padding(.trailing, 22)
