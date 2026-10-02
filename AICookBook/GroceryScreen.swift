@@ -148,6 +148,7 @@ struct GroceryScreen: View {
     // MARK: List (grouped by dish)
 
     private var list: some View {
+        // Smooth cross-fade + settle when the dish filter switches, instead of a hard jump.
         VStack(spacing: AppSpacing.md) {
             ForEach(visibleGroups, id: \.dish) { section in
                 VStack(alignment: .leading, spacing: 0) {
@@ -172,8 +173,10 @@ struct GroceryScreen: View {
                 }
                 .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .animation(AppMotion.smooth, value: selectedDish)
     }
 
     // MARK: Add row

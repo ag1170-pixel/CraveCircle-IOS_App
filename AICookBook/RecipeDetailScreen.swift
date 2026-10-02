@@ -81,7 +81,7 @@ struct RecipeDetailScreen: View {
                     // swipe does nothing — the window never shifts past the edge (no recipe switching).
                     let next = value.translation.width < 0 ? 1 : 0
                     guard next != tab else { return }
-                    withAnimation(.easeInOut(duration: 0.22)) { tab = next }
+                    withAnimation(AppMotion.snappy) { tab = next }
                     Haptics.select()
                 }
         )
@@ -518,12 +518,22 @@ struct RecipeDetailScreen: View {
             LimeSegmentedControl(segments: ["Ingredients", "Directions"], selection: $tab)
                 .padding(.top, 2)
 
+            // Smooth horizontal slide for the Ingredients ⇄ Directions switch (tracks the swipe
+            // direction) instead of a crossfade — reads like a real tab transition.
             Group {
-                if tab == 0 { ingredientsList } else { directionsList }
+                if tab == 0 {
+                    ingredientsList
+                        .transition(.asymmetric(insertion: .move(edge: .leading),
+                                                removal: .move(edge: .leading)).combined(with: .opacity))
+                } else {
+                    directionsList
+                        .transition(.asymmetric(insertion: .move(edge: .trailing),
+                                                removal: .move(edge: .trailing)).combined(with: .opacity))
+                }
             }
-            .transition(.opacity)
-            .animation(.easeInOut(duration: 0.2), value: tab)
+            .animation(AppMotion.smooth, value: tab)
             .contentShape(Rectangle())
+            .clipped()
 
             Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.top, AppSpacing.sm)
 
