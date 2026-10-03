@@ -300,7 +300,9 @@ struct MainTabView: View {
                     .accessibilityLabel(AppTab.home.title)
             }
             Tab(value: AppTab.discover) {
-                NavigationStack { SearchScreen() }
+                // Discover is now the full-screen recipe reel (Instagram/TikTok style, Hinge swipes).
+                // The old SearchScreen stays in the repo — search lives on Home now.
+                RecipeReelScreen()
             } label: {
                 Image(systemName: AppTab.discover.icon)
                     .accessibilityLabel(AppTab.discover.title)
@@ -319,7 +321,8 @@ struct MainTabView: View {
             }
         }
         // Osta-style: Import is a floating round button, not a tab (keeps the glassy 4-icon bar).
-        .overlay(alignment: .bottomTrailing) { importFAB }
+        // Import FAB everywhere EXCEPT Discover — the reel is immersive and the FAB would cover the rail.
+        .overlay(alignment: .bottomTrailing) { if tab != .discover { importFAB } }
         .tabBarMinimizeBehavior(.onScrollDown)
         .onPreferenceChange(HorizontalScrollFrameKey.self) { frames in
             // Keep track of horizontal scroll areas (like carousels on HomeScreen)
