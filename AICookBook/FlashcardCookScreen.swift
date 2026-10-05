@@ -29,9 +29,41 @@ struct FlashcardCookScreen: View {
         let ingredients = recipe.ingredients.flatMap(\.items)
         if !ingredients.isEmpty { list.append(.ingredients(ingredients)) }
         let steps = recipe.directions.sorted { $0.stepIndex < $1.stepIndex }
-        for (i, s) in steps.enumerated() { list.append(.step(number: i + 1, text: s.text)) }
+        // Long steps are split into glanceable sub-cards (~22 words each) so hands-free cooking
+        // doesn't require the user to re-read a wall of text. Numbering stays sequential — easier
+        // for the cook to follow — so a 3-sentence step 1 becomes cards 1, 2, 3.
+        for s in steps {
+            for chunk in Self.chunkStep(s.text) {
+                list.append(.step(number: list.filter(\.isStep).count + 1, text: chunk))
+            }
+        }
         self.cards = list.isEmpty ? [.step(number: 1, text: "No steps for this recipe yet.")] : list
-        self.stepCount = steps.count
+        self.stepCount = list.filter(\.isStep).count
+    }
+
+    /// Split one direction into glanceable sub-cards. Prefers sentence boundaries; falls back to
+    /// commas; leaves anything already short alone. Keeps up to `maxWords` per card.
+    private static func chunkStep(_ text: String) -> [String] {
+        let maxWords = 22
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return [] }
+        if clean.split(separator: " ").count <= maxWords { return [clean] }
+        // Sentence-split (., !, ?). Merge short sentences so we don't produce 3-word cards.
+        let parts = clean.split(whereSeparator: { ".!?".contains($0) })
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let separators: [String] = parts.count > 1 ? parts : clean.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard separators.count > 1 else { return [clean] }     // can't split meaningfully
+        var out: [String] = []
+        var buf = ""
+        for p in separators {
+            let merged = buf.isEmpty ? p : "\(buf). \(p)"
+            if merged.split(separator: " ").count <= maxWords { buf = merged }
+            else { if !buf.isEmpty { out.append(buf) }; buf = p }
+        }
+        if !buf.isEmpty { out.append(buf) }
+        return out
     }
 
     var body: some View {
@@ -200,6 +232,8 @@ struct FlashcardCookScreen: View {
 enum FlashCard {
     case ingredients([String])
     case step(number: Int, text: String)
+
+    var isStep: Bool { if case .step = self { return true } else { return false } }
 }
 
 private struct CardContent: View {

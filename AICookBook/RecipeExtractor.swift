@@ -140,7 +140,7 @@ enum RecipeExtractor {
                                    items: $0.items.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) }
             .filter { !$0.items.isEmpty }
         let steps = g.steps
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { Self.clean($0) }
             .filter { !$0.isEmpty }
             .enumerated()
             .map { DirectionStep(stepIndex: $0.offset + 1, text: $0.element) }
@@ -173,7 +173,7 @@ enum RecipeExtractor {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { $0.count > 8 && !ingredientSet.contains($0.lowercased()) }
         let steps = sentences.prefix(14).enumerated()
-            .map { DirectionStep(stepIndex: $0.offset + 1, text: String($0.element)) }
+            .map { DirectionStep(stepIndex: $0.offset + 1, text: Self.clean(String($0.element))) }
 
         let title = text.split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -186,6 +186,23 @@ enum RecipeExtractor {
             ingredients: ingredients, directions: Array(steps),
             ownerUsername: "@you", sourceLanguage: sourceLanguage
         )
+    }
+
+    /// Clean a direction string: tidy whitespace and collapse HALLUCINATED REPETITIONS. Whisper on
+    /// music/silence often emits runs like "mix mix mix mix mix…"; the LLM sometimes doesn't fix
+    /// them. We collapse any word repeated 3+ times in a row (case-insensitive) to a single
+    /// occurrence, and cap the step at 400 chars so even an unsalvageable hallucination can't fill
+    /// the card.
+    static func clean(_ text: String) -> String {
+        let normalised = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalised.isEmpty,
+              let re = try? NSRegularExpression(pattern: #"\b(\w+)(?:\s+\1\b){2,}"#, options: [.caseInsensitive])
+        else { return normalised }
+        let full = NSRange(normalised.startIndex..., in: normalised)
+        let collapsed = re.stringByReplacingMatches(in: normalised, range: full, withTemplate: "$1")
+        return String(collapsed.prefix(400))
     }
 
     /// Lines that look like an ingredient (quantity + unit), de-duplicated. For OCR/caption text.
