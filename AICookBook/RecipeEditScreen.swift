@@ -42,29 +42,8 @@ struct RecipeEditScreen: View {
                     Stepper("Servings: \(draft.servings ?? 1)", value: servingsBinding, in: 1...30)
                 }
                 
-                Section("Community Visibility") {
-                    if environment.canPublish {
-                        Picker("Who can see this", selection: $draft.visibility) {
-                            Text("Everyone").tag(RecipeVisibility.everyone)
-                            Text("Followers Only").tag(RecipeVisibility.followers)
-                        }
-                    } else {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Share with your Circle")
-                                .font(.body.weight(.semibold))
-                            Text("Enroll as a Creator to publish recipes and control visibility.")
-                                .font(.subheadline)
-                                .foregroundStyle(AppTheme.textSecondary)
-                            Button("Join Studio") {
-                                Haptics.success()
-                                environment.enrollInStudio()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .padding(.top, 4)
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
+                // Community Visibility section intentionally removed for now (per 2026-10-07 UI batch).
+                // The draft.visibility field is kept (defaults to .everyone) so publishing still works.
 
                 ForEach(draft.ingredients.indices, id: \.self) { i in
                     Section(i == 0 ? "Ingredients" : "") {
