@@ -19,6 +19,8 @@ struct FlashcardCookScreen: View {
 
     @State private var index = 0
     @State private var voiceOn = true
+    @State private var readAloud = false
+    @State private var reader = SpeechReader()
 
     private let cards: [FlashCard]
     private let stepCount: Int
@@ -37,6 +39,8 @@ struct FlashcardCookScreen: View {
                 list.append(.step(number: list.filter(\.isStep).count + 1, text: chunk))
             }
         }
+        // A celebratory finish card closes the deck — the "you're done!" call.
+        if !list.isEmpty { list.append(.finish(recipeTitle: recipe.title)) }
         self.cards = list.isEmpty ? [.step(number: 1, text: "No steps for this recipe yet.")] : list
         self.stepCount = list.filter(\.isStep).count
     }
@@ -122,7 +126,32 @@ struct FlashcardCookScreen: View {
             voice.onCommand = { cmd in advance(cmd) }
             if voiceOn { voice.start() }
         }
-        .onDisappear { voice.stop() }
+        .onDisappear { voice.stop(); reader.stop() }
+        // Speak each card as it appears (voice "next"/"back" changes index → the new card is read).
+        .onChange(of: index) { _, _ in speakCurrentCard() }
+    }
+
+    private func speakCurrentCard() {
+        guard readAloud, cards.indices.contains(index) else { return }
+        // ponytail: reads with the en-US system voice; multilingual TTS is a later upgrade.
+        reader.speak(flashcardSpokenText(cards[index]))
+    }
+
+    private var readAloudButton: some View {
+        Button {
+            Haptics.tap()
+            readAloud.toggle()
+            if readAloud { speakCurrentCard() } else { reader.stop() }
+        } label: {
+            Image(systemName: readAloud ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(readAloud ? AppTheme.accentInk : AppTheme.textSecondary)
+                .frame(width: 38, height: 38)
+                .background(readAloud ? AppTheme.accentSoft : AppTheme.surface, in: Circle())
+                .overlay(Circle().stroke(readAloud ? AppTheme.accent : AppTheme.hairline, lineWidth: readAloud ? 1.5 : 1))
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel(readAloud ? "Turn off read aloud" : "Read steps aloud")
     }
 
     // MARK: Top bar
@@ -143,6 +172,7 @@ struct FlashcardCookScreen: View {
             .accessibilityLabel("Exit Flashcards")
 
             Spacer()
+            readAloudButton
             voicePill
         }
         .padding(.horizontal, AppSpacing.md)
@@ -232,8 +262,10 @@ struct FlashcardCookScreen: View {
 enum FlashCard {
     case ingredients([String])
     case step(number: Int, text: String)
+    case finish(recipeTitle: String)
 
     var isStep: Bool { if case .step = self { return true } else { return false } }
+    var isFinish: Bool { if case .finish = self { return true } else { return false } }
 }
 
 private struct CardContent: View {
@@ -266,7 +298,16 @@ private struct CardContent: View {
 
         case .step(let number, let text):
             VStack(alignment: .leading, spacing: AppSpacing.lg) {
-                Text("Step \(number) of \(stepCount)").sectionLabelStyle(AppTheme.accentInk)
+                HStack(spacing: 8) {
+                    Text("Step \(number) of \(stepCount)").sectionLabelStyle(AppTheme.accentInk)
+                    if number == stepCount {
+                        Text("LAST STEP")
+                            .font(AppFont.label(11, weight: .bold)).tracking(0.8)
+                            .foregroundStyle(AppTheme.accentInk)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(AppTheme.accentSoft, in: Capsule())
+                    }
+                }
                 Text(text)
                     .font(AppFont.display(30, weight: .semibold))
                     .foregroundStyle(AppTheme.textPrimary)
@@ -275,7 +316,32 @@ private struct CardContent: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .padding(.vertical, 90)
+
+        case .finish(let recipeTitle):
+            VStack(spacing: AppSpacing.md) {
+                Text("🎉")
+                    .font(.system(size: 64))
+                Text("Enjoy your meal!")
+                    .font(AppFont.display(34, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .multilineTextAlignment(.center)
+                Text("You finished \(recipeTitle). Bon appétit, chef!")
+                    .font(AppFont.body(17))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.vertical, 90)
         }
+    }
+}
+
+/// The words read aloud for a card (steps verbatim; ingredients listed; a spoken finish line).
+func flashcardSpokenText(_ card: FlashCard) -> String {
+    switch card {
+    case .ingredients(let items): return "Ingredients. " + items.joined(separator: ", ")
+    case .step(_, let text):      return text
+    case .finish(let title):      return "You finished \(title). Enjoy your meal, chef!"
     }
 }
 
