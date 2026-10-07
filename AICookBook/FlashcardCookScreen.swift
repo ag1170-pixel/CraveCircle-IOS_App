@@ -241,6 +241,14 @@ struct FlashcardCookScreen: View {
             Text(hint)
                 .font(AppFont.body(12))
                 .foregroundStyle(AppTheme.textTertiary)
+            // Live transcript — shows what the recognizer is hearing, so it's visible when it works.
+            if voiceOn && voice.isListening && !voice.lastHeard.isEmpty {
+                Text("“\(voice.lastHeard.split(separator: " ").suffix(5).joined(separator: " "))”")
+                    .font(AppFont.body(12, weight: .semibold))
+                    .foregroundStyle(AppTheme.accentInk)
+                    .lineLimit(1)
+                    .transition(.opacity)
+            }
         }
         .padding(.bottom, AppSpacing.lg)
     }

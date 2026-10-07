@@ -144,85 +144,78 @@ final class VoiceCommandController: NSObject, ObservableObject {
             }
             return
         }
-        startTask()
+        guard startEngine() else { return }
+        startRecognition()
     }
 
-    private func startTask() {
-        teardownAudio()
-
-        guard let recognizer, recognizer.isAvailable else {
-            publish { self.available = false }
-            return
-        }
-
-        let req = SFSpeechAudioBufferRecognitionRequest()
-        req.shouldReportPartialResults = true
-        // Privacy: keep recognition on-device so the mic audio never leaves the phone.
-        // Falls back to server only on the rare device without on-device support.
-        req.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
-        req.contextualStrings = ["Hey Crave", "Crave", "next", "back", "next step", "go back", "previous"]
-        request = req
-        lastConsumedIndex = 0
-
+    /// Start the mic engine ONCE and keep it running for the whole session. The tap feeds whatever
+    /// request is current, so we can swap recognition sessions (after a command, or when one
+    /// finalizes) WITHOUT stopping the engine. Stopping+restarting the engine on every command was
+    /// what made the mic go dead after the first "next".
+    @discardableResult
+    private func startEngine() -> Bool {
         let node = audioEngine.inputNode
         node.removeTap(onBus: 0)
         let format = node.outputFormat(forBus: 0)
         guard format.sampleRate > 0 else {
-            publish {
-                self.available = false
-                self.lastHeard = "Invalid audio format"
-            }
-            return
+            publish { self.available = false; self.lastHeard = "Invalid audio format" }
+            return false
         }
         node.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             guard let self, !self.suppressed else { return }   // don't feed TTS audio to the recognizer
             self.request?.append(buffer)
         }
-
         audioEngine.prepare()
-        do {
-            try audioEngine.start()
-        } catch {
-            publish {
-                self.available = false
-                self.lastHeard = "Engine start error"
-            }
-            return
+        do { try audioEngine.start() }
+        catch {
+            publish { self.available = false; self.lastHeard = "Engine start error" }
+            return false
         }
-        publish { self.isListening = true }
         print("[VoiceCommand] Engine started, listening for 'next' / 'back'...")
+        return true
+    }
+
+    /// (Re)start ONLY the speech request+task; the audio engine keeps running underneath.
+    private func startRecognition() {
+        guard let recognizer, recognizer.isAvailable else { publish { self.available = false }; return }
+        task?.cancel(); task = nil
+        request?.endAudio(); request = nil
+
+        let req = SFSpeechAudioBufferRecognitionRequest()
+        req.shouldReportPartialResults = true
+        // Privacy: keep recognition on-device so the mic audio never leaves the phone.
+        req.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
+        req.contextualStrings = ["next", "back", "next step", "go back", "previous", "forward"]
+        request = req
+        publish { self.isListening = true }
 
         task = recognizer.recognitionTask(with: req) { [weak self] result, error in
             guard let self else { return }
             if let result {
+                // Surface the live transcript so the user can SEE it's hearing them.
+                let text = result.bestTranscription.formattedString
+                self.publish { if !self.suppressed { self.lastHeard = text } }
                 self.handle(result.bestTranscription)
                 if result.isFinal { self.restart() }
             }
-            if error != nil {
-                self.restart()
-            }
+            if error != nil { self.restart() }
         }
     }
 
     private func restart() {
         guard isListening else { return }
-        teardownAudio()
-        // Short gap so we miss as little speech as possible between recognition sessions.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+        // Engine stays up — just spin a fresh recognition request after a tiny debounce.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self, self.isListening else { return }
-            self.startTask()
+            self.startRecognition()
         }
     }
 
-    /// Restart immediately after firing a command, so the just-heard word is cleared from the
-    /// transcription buffer and can't fire a second time.
+    /// Restart recognition immediately after firing a command, so the just-heard word is cleared and
+    /// can't fire a second time. The engine is untouched.
     private func hardRestart() {
         guard isListening else { return }
-        teardownAudio()
-        DispatchQueue.main.async { [weak self] in
-            guard let self, self.isListening else { return }
-            self.startTask()
-        }
+        startRecognition()
     }
 
     private func teardownAudio() {
