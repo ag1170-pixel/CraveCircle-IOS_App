@@ -124,6 +124,9 @@ struct FlashcardCookScreen: View {
         }
         .onAppear {
             voice.onCommand = { cmd in advance(cmd) }
+            // Mute the command mic while a card is being read, so TTS can't echo or self-trigger.
+            reader.onStart = { [weak voice] in voice?.suppress(true) }
+            reader.onFinish = { [weak voice] in voice?.suppress(false) }
             if voiceOn { voice.start() }
         }
         .onDisappear { voice.stop(); reader.stop() }

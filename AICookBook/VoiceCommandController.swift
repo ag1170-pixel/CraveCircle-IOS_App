@@ -38,12 +38,22 @@ final class VoiceCommandController: NSObject, ObservableObject {
     private var lastConsumedIndex: Int = 0
     private let cooldown: CFTimeInterval = 0.6
 
-    // Words that trigger navigation
+    /// While true, mic audio is NOT fed to the recognizer — set this during text-to-speech so the
+    /// spoken step can't echo back or self-trigger "next". Toggled by SpeechReader's start/finish.
+    private var suppressed = false
+    func suppress(_ on: Bool) {
+        suppressed = on
+        // Give a short cooldown when speech ends so a half-heard tail word can't fire late.
+        if !on { lastFireTime = CACurrentMediaTime() }
+    }
+
+    // Words that trigger navigation (+ common mis-hears, since on-device recognition of a single
+    // short word is imperfect).
     private let nextWords: Set<String> = [
-        "next", "forward", "skip", "continue", "advance"
+        "next", "forward", "skip", "continue", "advance", "nex", "neck", "necks", "nest", "nixed"
     ]
     private let backWords: Set<String> = [
-        "back", "previous", "prev", "last", "reverse", "return", "repeat", "beck", "pack"
+        "back", "previous", "prev", "last", "reverse", "return", "repeat", "beck", "pack", "bag", "black"
     ]
 
     // MARK: Lifecycle
@@ -165,7 +175,8 @@ final class VoiceCommandController: NSObject, ObservableObject {
             return
         }
         node.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
-            self?.request?.append(buffer)
+            guard let self, !self.suppressed else { return }   // don't feed TTS audio to the recognizer
+            self.request?.append(buffer)
         }
 
         audioEngine.prepare()
@@ -196,7 +207,19 @@ final class VoiceCommandController: NSObject, ObservableObject {
     private func restart() {
         guard isListening else { return }
         teardownAudio()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        // Short gap so we miss as little speech as possible between recognition sessions.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            guard let self, self.isListening else { return }
+            self.startTask()
+        }
+    }
+
+    /// Restart immediately after firing a command, so the just-heard word is cleared from the
+    /// transcription buffer and can't fire a second time.
+    private func hardRestart() {
+        guard isListening else { return }
+        teardownAudio()
+        DispatchQueue.main.async { [weak self] in
             guard let self, self.isListening else { return }
             self.startTask()
         }
@@ -214,72 +237,35 @@ final class VoiceCommandController: NSObject, ObservableObject {
 
     // MARK: Keyword & Command Matching
 
+    /// Spot a command in the tail of the live transcription. Looking at the last few words (rather
+    /// than tracking segment indices) is far more robust for short "next"/"back" utterances; after a
+    /// hit we hard-restart so the same word can't re-fire. A time cooldown debounces doubles.
     private func handle(_ transcription: SFTranscription) {
-        let segments = transcription.segments
-        guard segments.count > lastConsumedIndex else { return }
-
+        guard !suppressed else { return }
         let now = CACurrentMediaTime()
-        let newSegments = Array(segments[lastConsumedIndex...])
-        
-        var localWakeActive = self.wakeActive
+        guard now - lastFireTime >= cooldown else { return }
 
-        for (offset, seg) in newSegments.enumerated() {
-            let word = seg.substring.lowercased().trimmingCharacters(in: .punctuationCharacters)
-            if word.isEmpty { continue }
+        let words = transcription.formattedString
+            .lowercased()
+            .split { !$0.isLetter }
+            .map(String.init)
+        let tail = Array(words.suffix(3))      // only the most recent words
+        guard !tail.isEmpty else { return }
 
-            let globalIndex = lastConsumedIndex + offset
-
-            // 1. Check for Wake Word: "crave", "creave", "krave", "brave" or "hey crave"
-            var isWake = (word == "crave" || word == "creave" || word == "krave" || word == "brave")
-            if !isWake && offset > 0 {
-                let prev = newSegments[offset - 1].substring.lowercased().trimmingCharacters(in: .punctuationCharacters)
-                if prev == "hey" && (word == "crave" || word == "circle" || word == "creave") {
-                    isWake = true
-                }
-            }
-
-            if isWake && !localWakeActive {
-                localWakeActive = true
-                print("[VoiceCommand] 🌟 WAKE WORD: 'Hey Crave' activated! Staying open for entire cook session.")
-                publish {
-                    self.wakeActive = true
-                    self.lastHeard = "Hey Crave!"
-                    Haptics.select()
-                }
-            }
-
-            // 2. Direct two-word commands: "next step", "go back", "step back", "previous step"
-            if offset > 0 && now - lastFireTime >= cooldown {
-                let prev = newSegments[offset - 1].substring.lowercased().trimmingCharacters(in: .punctuationCharacters)
-                let pair = "\(prev) \(word)"
-                if pair == "next step" || pair == "go next" {
-                    print("[VoiceCommand] 👉 Executing direct NEXT STEP command")
-                    DispatchQueue.main.async { self.lastConsumedIndex = globalIndex + 1 }
-                    fireCommand(.next)
-                    return
-                } else if pair == "go back" || pair == "previous step" || pair == "last step" || pair == "step back" {
-                    print("[VoiceCommand] 👈 Executing direct GO BACK command")
-                    DispatchQueue.main.async { self.lastConsumedIndex = globalIndex + 1 }
-                    fireCommand(.previous)
-                    return
-                }
-            }
-
-            // 3. Single command words when wakeActive is true (stays active!)
-            if localWakeActive && now - lastFireTime >= cooldown {
-                if nextWords.contains(word) {
-                    print("[VoiceCommand] 👉 Executing NEXT command (word: '\(word)')")
-                    DispatchQueue.main.async { self.lastConsumedIndex = globalIndex + 1 }
-                    fireCommand(.next)
-                    return
-                } else if backWords.contains(word) {
-                    print("[VoiceCommand] 👈 Executing BACK command (word: '\(word)')")
-                    DispatchQueue.main.async { self.lastConsumedIndex = globalIndex + 1 }
-                    fireCommand(.previous)
-                    return
-                }
-            }
+        if tail.contains(where: { isCommand($0, in: nextWords) }) {
+            fireCommand(.next)
+            hardRestart()
+        } else if tail.contains(where: { isCommand($0, in: backWords) }) {
+            fireCommand(.previous)
+            hardRestart()
         }
+    }
+
+    /// Exact match, or within one edit (for words ≥4 chars) to tolerate a single mis-hear.
+    private func isCommand(_ word: String, in set: Set<String>) -> Bool {
+        if set.contains(word) { return true }
+        guard word.count >= 4 else { return false }
+        return set.contains { $0.count >= 4 && RecipeSearch.levenshtein(word, $0) <= 1 }
     }
 
     private func fireCommand(_ cmd: Command) {
