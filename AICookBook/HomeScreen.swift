@@ -223,6 +223,11 @@ struct HomeScreen: View {
             .padding(.horizontal, AppSpacing.md)
         }
         .scrollClipDisabled()
+        // Report this horizontal strip so the tab-switch swipe ignores it (otherwise a sideways
+        // swipe on the filter chips flips to the next tab instead of scrolling the chips).
+        .background(GeometryReader { geo in
+            Color.clear.preference(key: HorizontalScrollFrameKey.self, value: [geo.frame(in: .global)])
+        })
     }
 
     private var filterDivider: some View {

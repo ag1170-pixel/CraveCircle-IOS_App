@@ -131,6 +131,10 @@ struct FriendsScreen: View {
                 .padding(.vertical, 4)
             }
             .scrollClipDisabled()
+            // Report this horizontal strip so a sideways swipe scrolls the avatars, not the tab bar.
+            .background(GeometryReader { geo in
+                Color.clear.preference(key: HorizontalScrollFrameKey.self, value: [geo.frame(in: .global)])
+            })
         }
         .padding(.bottom, AppSpacing.xs)
     }

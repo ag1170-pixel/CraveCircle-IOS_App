@@ -138,6 +138,11 @@ struct GroceryScreen: View {
             .padding(.horizontal, 2)
         }
         .scrollClipDisabled()
+        // Report this horizontal strip so the tab-switch swipe ignores it (a sideways swipe on the
+        // dish chips should scroll them, not flip to the next tab).
+        .background(GeometryReader { geo in
+            Color.clear.preference(key: HorizontalScrollFrameKey.self, value: [geo.frame(in: .global)])
+        })
     }
 
     private func dishChip(title: String, active: Bool, _ tap: @escaping () -> Void) -> some View {
