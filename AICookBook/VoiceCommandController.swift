@@ -42,9 +42,17 @@ final class VoiceCommandController: NSObject, ObservableObject {
     /// spoken step can't echo back or self-trigger "next". Toggled by SpeechReader's start/finish.
     private var suppressed = false
     func suppress(_ on: Bool) {
+        guard suppressed != on else { return }
         suppressed = on
-        // Give a short cooldown when speech ends so a half-heard tail word can't fire late.
-        if !on { lastFireTime = CACurrentMediaTime() }
+        if on {
+            // Kill the recognition task so it can't time out from audio starvation during TTS.
+            task?.cancel(); task = nil
+            request?.endAudio(); request = nil
+        } else {
+            // TTS finished — spin a fresh recognition session. The engine tap is still running.
+            lastFireTime = CACurrentMediaTime()   // cooldown so a tail word can't fire late
+            if isListening { startRecognition() }
+        }
     }
 
     // Words that trigger navigation (+ common mis-hears, since on-device recognition of a single
@@ -203,10 +211,10 @@ final class VoiceCommandController: NSObject, ObservableObject {
     }
 
     private func restart() {
-        guard isListening else { return }
+        guard isListening, !suppressed else { return }
         // Engine stays up — just spin a fresh recognition request after a tiny debounce.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            guard let self, self.isListening else { return }
+            guard let self, self.isListening, !self.suppressed else { return }
             self.startRecognition()
         }
     }
