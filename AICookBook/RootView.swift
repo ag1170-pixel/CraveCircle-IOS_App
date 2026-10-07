@@ -274,13 +274,13 @@ struct MainTabView: View {
             Haptics.tap()
             if tab == .groceries { showingAddGrocery = true } else { showingImportSheet = true }
         } label: {
-            // One-accent rule (Design-Philosophy §4): charcoal is the action color, coral is the logo.
-            // So the FAB fills with AppTheme.accent (charcoal in light, cream in dark), icon onAccent.
+            // Brand coral in BOTH light and dark (owner call) — the + FAB is our brand primary, not the
+            // charcoal UI accent. White glyph, plain drop shadow, no glow.
             Image(systemName: "plus")
                 .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(AppTheme.onAccent)
+                .foregroundStyle(AppTheme.onBrand)
                 .frame(width: 58, height: 58)
-                .background(AppTheme.accent, in: Circle())
+                .background(AppTheme.brand, in: Circle())
                 .shadow(color: .black.opacity(0.12), radius: 6, y: 2)   // plain drop shadow, no coral glow
         }
         .buttonStyle(PressableStyle())

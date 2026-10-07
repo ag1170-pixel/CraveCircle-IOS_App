@@ -80,8 +80,6 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		27945DB32F9F211200B8F8B8 /* AICookBook */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = AICookBook;
 			sourceTree = "<group>";
 		};
@@ -130,7 +128,6 @@
 				CCD9AB484D1CE9C13CBF453A /* Info.plist */,
 				AD283A8C955D8588104A2836 /* Assets.xcassets */,
 			);
-			name = CookingWidget;
 			path = CookingWidget;
 			sourceTree = "<group>";
 		};
@@ -681,7 +678,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = YX9X5TTRA2;
+				DEVELOPMENT_TEAM = AGCD6X7P8Z;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CookingWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CookingWidget;
@@ -710,7 +707,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = YX9X5TTRA2;
+				DEVELOPMENT_TEAM = AGCD6X7P8Z;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CookingWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CookingWidget;

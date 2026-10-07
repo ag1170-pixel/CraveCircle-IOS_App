@@ -58,6 +58,11 @@ enum AppTheme {
     static let accentInk = Color(light: Color(hex: "1B1A17"), dark: Color(hex: "F2EFE8"))
     static let accentSoft = Color(light: Color(hex: "EDEBE4"), dark: Color(hex: "2A2822"))
 
+    // Brand primary — CraveCircle warm coral. Identity color, NOT the UI action accent (that's the
+    // charcoal `accent`). Same in light and dark so the brand reads consistently (e.g. the + FAB).
+    static let brand = Color(hex: "EA5A38")
+    static let onBrand = Color.white      // text/icon on the coral brand fill
+
     static let destructive = Color(light: Color(hex: "C7362A"), dark: Color(hex: "FF5A48"))
     static let scrim = Color.black
 
