@@ -248,6 +248,69 @@ struct GroceryScreen: View {
     }
 }
 
+// MARK: - Add-item sheet (opened by the context-aware + FAB on the Grocery tab)
+
+/// Osta-style "Add item to your list" bottom sheet: one field + a round send button. Stays open so
+/// you can add several items in a row; dismiss by swiping down.
+struct AddGroceryItemSheet: View {
+    @EnvironmentObject private var environment: AppEnvironment
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    private var trimmed: String { text.trimmingCharacters(in: .whitespaces) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            Text("Add item to your list")
+                .font(AppFont.display(20, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+            HStack(spacing: AppSpacing.xs) {
+                TextField("", text: $text)
+                    .font(AppFont.body(17))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .autocorrectionDisabled()
+                    .focused($focused)
+                    .submitLabel(.done)
+                    .onSubmit(add)
+                    .padding(.horizontal, AppSpacing.md)
+                    .frame(height: 50)
+                    .background(AppTheme.surface, in: Capsule())
+                    .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                    .overlay(alignment: .leading) {
+                        if text.isEmpty {
+                            CyclingPlaceholder(phrases: GroceryScreen.addHints)
+                                .padding(.leading, AppSpacing.md)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                Button(action: add) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(AppTheme.onAccent)
+                        .frame(width: 50, height: 50)
+                        .background(AppTheme.accent, in: Circle())
+                        .opacity(trimmed.isEmpty ? 0.5 : 1)
+                }
+                .buttonStyle(PressableStyle())
+                .disabled(trimmed.isEmpty)
+                .accessibilityLabel("Add item")
+            }
+        }
+        .padding(AppSpacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.background)
+        .onAppear { focused = true }
+    }
+
+    private func add() {
+        guard !trimmed.isEmpty else { return }
+        Haptics.tap()
+        withAnimation(AppMotion.snappy) { environment.addCustomGroceryItem(name: trimmed) }
+        text = ""
+        focused = true      // keep the keyboard up for the next item
+    }
+}
+
 // MARK: - Progress ring
 
 struct ProgressRing: View {

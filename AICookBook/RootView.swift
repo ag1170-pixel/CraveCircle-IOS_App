@@ -262,15 +262,17 @@ enum TabItem: String, CaseIterable {
 struct MainTabView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var showingImportSheet = false
+    @State private var showingAddGrocery = false
     @State private var showingProgressDetail = false
     @State private var tab: AppTab = .home
     @State private var ignoreSwipeFrames: [CGRect] = []
 
-    /// Osta-style floating Import button, bottom-right, above the glassy tab bar. Opens Add-a-recipe.
+    /// Osta-style floating + button, bottom-right. Context-aware: on the Grocery tab it opens
+    /// "Add item to your list"; everywhere else it opens Add-a-recipe.
     private var importFAB: some View {
         Button {
             Haptics.tap()
-            showingImportSheet = true
+            if tab == .groceries { showingAddGrocery = true } else { showingImportSheet = true }
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 24, weight: .bold))
@@ -283,7 +285,7 @@ struct MainTabView: View {
         .buttonStyle(PressableStyle())
         .padding(.trailing, 22)
         .padding(.bottom, 96)
-        .accessibilityLabel("Add a recipe")
+        .accessibilityLabel(tab == .groceries ? "Add grocery item" : "Add a recipe")
     }
 
     var body: some View {
@@ -356,6 +358,12 @@ struct MainTabView: View {
         .sheet(isPresented: $showingImportSheet) {
             AddRecipeSheet(showing: $showingImportSheet)
                 .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(AppTheme.background)
+        }
+        .sheet(isPresented: $showingAddGrocery) {
+            AddGroceryItemSheet()
+                .presentationDetents([.height(180), .medium])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.background)
         }
