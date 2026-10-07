@@ -439,11 +439,10 @@ struct HomeSectionHeader: View {
     var onViewAll: (() -> Void)? = nil
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(title)
                 .font(AppFont.display(20, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
-            Spacer()
             if showViewAll {
                 Button {
                     Haptics.tap()
@@ -456,6 +455,7 @@ struct HomeSectionHeader: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("View all")
             }
+            Spacer()
         }
     }
 }

@@ -274,17 +274,18 @@ struct MainTabView: View {
             Haptics.tap()
             if tab == .groceries { showingAddGrocery = true } else { showingImportSheet = true }
         } label: {
+            // One-accent rule (Design-Philosophy §4): charcoal is the action color, coral is the logo.
+            // So the FAB fills with AppTheme.accent (charcoal in light, cream in dark), icon onAccent.
             Image(systemName: "plus")
                 .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.onAccent)
                 .frame(width: 58, height: 58)
-                .background(Color(hex: "EA5A38"), in: Circle())
-                .overlay(Circle().stroke(.white.opacity(0.18), lineWidth: 1))
+                .background(AppTheme.accent, in: Circle())
                 .shadow(color: .black.opacity(0.12), radius: 6, y: 2)   // plain drop shadow, no coral glow
         }
         .buttonStyle(PressableStyle())
-        .padding(.trailing, 22)
-        .padding(.bottom, 96)
+        .padding(.trailing, 18)
+        .padding(.bottom, 78)   // nest just above the floating tab bar, clear of card content
         .accessibilityLabel(tab == .groceries ? "Add grocery item" : "Add a recipe")
     }
 
