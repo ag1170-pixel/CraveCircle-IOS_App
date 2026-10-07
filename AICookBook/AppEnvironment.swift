@@ -821,30 +821,44 @@ final class AppEnvironment: ObservableObject {
         beginPolling(jobId: jobId)
     }
 
+    /// Public entry — runs the whole import inside the cancellable `importTask` so the Cancel button
+    /// actually terminates it: it cancels the in-flight server/download requests AND stops the
+    /// on-device transcription/OCR/extraction, and no late state write can revive the banner.
     func startImport(from instagramURL: String) async {
+        importTask?.cancel()
+        importState = .submitting
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self._startImport(from: instagramURL)
+        }
+        importTask = task
+        await task.value
+    }
+
+    private func _startImport(from instagramURL: String) async {
         do {
-            importState = .submitting
-            
             // 1) Fetch reel info and server-cached mp4 link
             let reel = try await apiClient.downloadReel(url: instagramURL)
-            let downloadPath = reel.downloadUrl.starts(with: "http") 
-                ? reel.downloadUrl 
+            if Task.isCancelled { return }
+            let downloadPath = reel.downloadUrl.starts(with: "http")
+                ? reel.downloadUrl
                 : config.apiBaseURL.appending(path: reel.downloadUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/"))).absoluteString
 
             guard let downloadUrl = URL(string: downloadPath) else {
                 throw URLError(.badURL)
             }
-            
+
             // 2) Download video file to local temporary storage on iPhone
             importState = .polling(jobId: reel.mediaId, status: .downloading)
             let (tempFileUrl, _) = try await URLSession.shared.download(from: downloadUrl)
-            
+            if Task.isCancelled { try? FileManager.default.removeItem(at: tempFileUrl); return }
+
             let localMp4 = FileManager.default.temporaryDirectory.appendingPathComponent("\(reel.mediaId).mp4")
             if FileManager.default.fileExists(atPath: localMp4.path) {
                 try? FileManager.default.removeItem(at: localMp4)
             }
             try FileManager.default.moveItem(at: tempFileUrl, to: localMp4)
-            
+
             // 3) Hand off to the fast on-device pipeline (Apple Neural Engine + Vision).
             //    Resolve the thumbnail (the server returns a relative /reels/media/… path for its
             //    ffmpeg frame; the reel's own poster image comes as a full http URL).
@@ -856,12 +870,14 @@ final class AppEnvironment: ObservableObject {
             } else {
                 resolvedThumb = nil
             }
-            await importFromVideo(localMp4, caption: reel.caption, title: reel.title, thumbnailUrl: resolvedThumb)
-            
+            // Same task → cancellation propagates into the on-device pipeline.
+            await _importFromVideo(localMp4, caption: reel.caption, title: reel.title, thumbnailUrl: resolvedThumb)
+
             // Clean up
             try? FileManager.default.removeItem(at: localMp4)
-            
+
         } catch {
+            if Task.isCancelled { return }   // a cancelled request throws — don't show "failed"
             print("❌ startImport error: \(error)")
             importState = .failed(message: friendlyImportError(error))
         }
@@ -942,8 +958,19 @@ final class AppEnvironment: ObservableObject {
     /// Build a recipe from a photo of a written/printed recipe (Vision OCR → extractor). The photo
     /// becomes the cover (stored locally). It's the user's own content, so it syncs like any original.
     func importFromPhoto(_ image: UIImage) async {
+        importTask?.cancel()
         importState = .submitting
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self._importFromPhoto(image)
+        }
+        importTask = task
+        await task.value
+    }
+
+    private func _importFromPhoto(_ image: UIImage) async {
         let ocr = await PhotoTextOCR.recognize(image)
+        if Task.isCancelled { return }
         importState = .polling(jobId: "on-device", status: .extracting)
         guard ocr.trimmingCharacters(in: .whitespacesAndNewlines).count > 10 else {
             importState = .failed(message: "Couldn't read text from that photo. Try a clearer shot of the recipe.")
@@ -953,6 +980,7 @@ final class AppEnvironment: ObservableObject {
             transcript: "", caption: nil, ownerId: currentUser?.id ?? "you",
             sourceLanguage: nil, onScreenText: ocr, targetLanguage: AppLanguage.preferred
         )
+        if Task.isCancelled { return }
         guard recipeHasContent(recipe) else {
             importState = .failed(message: "That photo didn't have enough to build a recipe — try a clearer shot of the ingredients and steps.")
             return
@@ -962,6 +990,7 @@ final class AppEnvironment: ObservableObject {
             return
         }
         recipe = await translateToPreferredLanguage(recipe)
+        if Task.isCancelled { return }
         if let data = image.jpegData(compressionQuality: 0.8),
            let file = LocalStore.saveData(ImageDownscale.jpeg(from: data, maxPixel: 720, quality: 0.6) ?? data, to: "thumb-\(recipe.id).jpg") {
             recipe.thumbnailUrl = file.absoluteString
@@ -974,11 +1003,23 @@ final class AppEnvironment: ObservableObject {
     }
 
     func importFromVideo(_ url: URL, caption: String? = nil, title: String? = nil, thumbnailUrl: String? = nil) async {
+        importTask?.cancel()
         importState = .submitting
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self._importFromVideo(url, caption: caption, title: title, thumbnailUrl: thumbnailUrl)
+        }
+        importTask = task
+        await task.value
+    }
+
+    private func _importFromVideo(_ url: URL, caption: String? = nil, title: String? = nil, thumbnailUrl: String? = nil) async {
         guard await OnDeviceTranscriber.ensureAuthorized() else {
+            if Task.isCancelled { return }
             importState = .failed(message: "Enable Speech Recognition in Settings to import on device.")
             return
         }
+        if Task.isCancelled { return }
         importState = .polling(jobId: "on-device", status: .transcribing)
 
         // 1) Transcribe narration. A silent / music-only clip just yields an empty string here —
@@ -995,6 +1036,7 @@ final class AppEnvironment: ObservableObject {
         } catch {
             print("⚠️ On-device transcription failed: \(error)")
         }
+        if Task.isCancelled { return }
 
         // 2) Little or no narration => read the ON-SCREEN text with Vision OCR (many reels put the
         //    whole recipe on screen with no voiceover and no caption).
@@ -1002,6 +1044,7 @@ final class AppEnvironment: ObservableObject {
         if transcript.count < 40 {
             importState = .polling(jobId: "on-device", status: .extracting)
             onScreen = await VideoTextOCR.recognizeText(url: url)
+            if Task.isCancelled { return }
         }
 
         // 3) MULTILINGUAL BRIDGE: the heuristic extractor and food gate only understand English
@@ -1029,10 +1072,12 @@ final class AppEnvironment: ObservableObject {
             }
         }
 
+        if Task.isCancelled { return }
         var recipe = await RecipeExtractor.extract(
             transcript: transcript, caption: fullCaption.isEmpty ? nil : fullCaption, ownerId: currentUser?.id ?? "you",
             sourceLanguage: nil, onScreenText: onScreen, targetLanguage: AppLanguage.preferred
         )
+        if Task.isCancelled { return }
 
         // 4) Nothing readable anywhere (no audio, no caption, no on-screen text) => fail with a
         //    clear reason instead of saving an empty recipe.
@@ -1055,6 +1100,7 @@ final class AppEnvironment: ObservableObject {
         //      fallback (and older devices) produce English — so translate the finished recipe
         //      server-side. No-op when it's already in the target language.
         recipe = await translateToPreferredLanguage(recipe)
+        if Task.isCancelled { return }
 
         // 5) Give it a real cover: grab a representative frame from the video and store it locally,
         //    so the imported recipe looks like a real recipe instead of the generic fallback.
@@ -1071,6 +1117,7 @@ final class AppEnvironment: ObservableObject {
             // thumbnail, downloaded now while the CDN link is fresh and stored locally so it persists.
             recipe.thumbnailUrl = file.absoluteString
         }
+        if Task.isCancelled { return }
 
         recipes.insert(recipe, at: 0)
         markRecipeDirty(recipe.id)
