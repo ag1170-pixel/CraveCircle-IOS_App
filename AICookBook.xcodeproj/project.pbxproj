@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		07461873BB92CE6DCEE50617 /* CookingImportActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98577CBFB17090AC8A76AA7D /* CookingImportActivity.swift */; };
 		2A303018B560A693360B19EA /* LogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0D5D4D23ACE2F87DB8CF62 /* LogicTests.swift */; };
 		7906A88F190D4EF8293C4F71 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C04660930E4E2FD0277B90E7 /* Foundation.framework */; };
 		7AD9790A33A7B07FB2348694 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C04660930E4E2FD0277B90E7 /* Foundation.framework */; };
@@ -72,7 +73,7 @@
 		8BB474169F6A3DC7D08C720A /* CookingWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CookingWidgetBundle.swift; sourceTree = "<group>"; };
 		9189F5948181ABDFBC2BDE98 /* QuickActionsWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickActionsWidget.swift; sourceTree = "<group>"; };
 		98577CBFB17090AC8A76AA7D /* CookingImportActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CookingImportActivity.swift; path = AICookBook/CookingImportActivity.swift; sourceTree = "<group>"; };
-		AD283A8C955D8588104A2836 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = CookingWidget/Assets.xcassets; sourceTree = "<group>"; };
+		AD283A8C955D8588104A2836 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Assets.xcassets; sourceTree = "<group>"; };
 		BCADE85055928759A7A10D75 /* CookingWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CookingWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C04660930E4E2FD0277B90E7 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		CCD9AB484D1CE9C13CBF453A /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -366,6 +367,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B8807DE5533E0FC8A709E9F5 /* ShareViewController.swift in Sources */,
+				07461873BB92CE6DCEE50617 /* CookingImportActivity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
