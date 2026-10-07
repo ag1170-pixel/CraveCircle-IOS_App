@@ -83,21 +83,13 @@ final class ShareViewController: UIViewController {
             return showError("Couldn't find a video link in this share.")
         }
         
-        if ActivityAuthorizationInfo().areActivitiesEnabled {
-            let attrs = CookingImportAttributes(startedAt: Date())
-            let content = CookingImportAttributes.ContentState(
-                stage: .downloading, recipeTitle: "New recipe", recipeId: nil,
-                estimatedEnd: Date().addingTimeInterval(45), message: nil)
-            do {
-                _ = try Activity.request(
-                    attributes: attrs,
-                    content: ActivityContent(state: content, staleDate: nil),
-                    pushType: .token)
-            } catch {
-                print("Failed to start Live Activity: \(error)")
-            }
-        }
-        
+        // NOTE: a Share Extension CANNOT start a Live Activity. `Activity.request` is foreground-APP
+        // only — from an extension it throws ActivityAuthorizationError.visibility and shows nothing
+        // (which is why the island never appeared on share). The island is driven by the main app
+        // instead: when the app is opened it resumes this import and shows the Live Activity, and the
+        // proper zero-app-open path is a SERVER push-to-start Live Activity (iOS 17.2+) — see the
+        // Dynamic-Island plan note. So here we just submit the job; we don't try to start an activity.
+
         // Fire the import ON THE SERVER and finish. /reels/import returns immediately (job queued);
         // the server transcribes in the background regardless of whether the app is open.
         guard let endpoint = URL(string: "\(backendURL)/reels/import") else {

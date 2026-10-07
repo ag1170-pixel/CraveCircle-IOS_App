@@ -87,11 +87,11 @@ struct QuickActionsView: View {
             // ── Search bar ──
             Link(destination: URL(string: "cravecircle://home")!) {
                 HStack(spacing: 8) {
-                    // App icon (uses the CraveCircleLogo from the main app's asset catalog)
-                    Image("CraveCircleLogo")
+                    // Brand bowl glyph (di-brand lives in THIS widget's catalog — the app's
+                    // CraveCircleLogo asset isn't visible to the widget bundle).
+                    Image("di-brand")
                         .resizable().scaledToFit()
                         .frame(width: 24, height: 24)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
 
                     Text("Search CraveCircle")
                         .font(.subheadline)
