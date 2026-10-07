@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UserNotifications
+import WidgetKit
 import UIKit
 
 /// Presents local notifications (Recipe Ready, cook-nudge, "shared with you") as banners even while
@@ -155,6 +156,7 @@ struct CraveCircleApp: App {
                     // Cold-launch check: scenePhase is already .active at launch so onChange doesn't fire.
                     environment.checkPendingSharedImport()
                     Task { await environment.importFromSharedURL() }
+                    WidgetCenter.shared.reloadAllTimelines()
                 }
         }
     }
