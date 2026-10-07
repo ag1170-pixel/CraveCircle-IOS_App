@@ -248,3 +248,27 @@ final class SmartSearchTests: XCTestCase {
         XCTAssertFalse(out.isGuess)
     }
 }
+
+// MARK: - Grocery aisle categorization (powders/pastes land in the right section)
+
+final class GroceryAisleTests: XCTestCase {
+    func testPowdersAndMasalasAreSpices() {
+        XCTAssertEqual(GrocerySort.aisle(for: "1 tsp garlic powder"), .spices)
+        XCTAssertEqual(GrocerySort.aisle(for: "Kashmiri chili powder"), .spices)
+        XCTAssertEqual(GrocerySort.aisle(for: "1 tbsp garam masala"), .spices)
+        XCTAssertEqual(GrocerySort.aisle(for: "smoked paprika"), .spices)
+    }
+
+    func testBakingPowderStaysPantry() {
+        XCTAssertEqual(GrocerySort.aisle(for: "10 g baking powder"), .pantry)
+    }
+
+    func testRawProduceStillProduce() {
+        XCTAssertEqual(GrocerySort.aisle(for: "2 onions"), .produce)
+        XCTAssertEqual(GrocerySort.aisle(for: "500g ripe red tomatoes"), .produce)
+    }
+
+    func testPasteToPantry() {
+        XCTAssertEqual(GrocerySort.aisle(for: "1 tbsp ginger-garlic paste"), .pantry)
+    }
+}

@@ -60,8 +60,13 @@ enum GrocerySort {
         if has(["frozen","ice cream","ice-cream"]) { return .frozen }
         if has(["milk","butter","cheese","cream","paneer","yogurt","yoghurt","curd","ghee","egg","mozzarella","parmesan","ricotta"]) { return .dairy }
         if has(["water","juice","soda","wine","beer","tea","coffee","cola","lemonade"]) { return .beverages }
+        // Spice/masala FORMS before produce, so "garlic powder", "chili powder" and "garam masala"
+        // land in Spices rather than Produce (which matches the raw "garlic"/"chili" word).
+        if has(["masala","garam"]) { return .spices }
+        if t.contains("powder"), !t.contains("baking"), !t.contains("custard") { return .spices }
+        if has(["cumin","turmeric","paprika","cinnamon","oregano","cardamom","clove","nutmeg","bay leaf","seasoning","spice","seeds"]) { return .spices }
+        if t.contains("paste"), !t.contains("tomato") { return .pantry }   // ginger-garlic paste etc.
         if has(["onion","garlic","tomato","potato","spinach","lettuce","chilli","chili","ginger","lemon","lime","carrot","cucumber","cilantro","coriander","basil","mint","parsley","avocado","mushroom","broccoli","cauliflower","corn","peas","apple","banana","berry","scallion","spring onion","kale","zucchini","eggplant","capsicum","bell pepper"]) { return .produce }
-        if has(["cumin","turmeric","masala","paprika","cinnamon","oregano","garam","chili powder","chilli powder","cardamom","clove","nutmeg","bay leaf","spice"," powder","seeds"]) { return .spices }
         if has(["flour","rice","pasta","noodle","oil","sugar","salt","sauce","vinegar","lentil","dal","daal","beans","chickpea","stock","broth","oats","honey","ketchup","mayo","canned","paste","coconut milk","soy","syrup","baking"]) { return .pantry }
         return .other
     }
