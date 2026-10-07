@@ -2,30 +2,35 @@
 //  QuickActionsWidget.swift
 //  CookingWidget
 //
-//  Home-screen widget with CraveCircle quick actions — one tap from the home screen to Import a
-//  recipe, Write from scratch, open the Grocery list, or Search. Each tile deep-links into the app.
-//  Warm brand look, adaptive to light/dark, coral accents.
+//  Home-screen widget — Swiggy-style: search bar on top, three bubbly category icons below.
+//  Each icon deep-links into the app. Uses brand art when available, SF Symbol fallback until then.
 //
 
 import WidgetKit
 import SwiftUI
 
+// MARK: - Brand tokens
+
 private enum QA {
-    static let coral = Color(red: 0xEA / 255, green: 0x5A / 255, blue: 0x38 / 255)
+    static let coral  = Color(red: 0xEA / 255, green: 0x5A / 255, blue: 0x38 / 255)
+    static let cream  = Color(red: 0.980, green: 0.972, blue: 0.953)
+    static let dark   = Color(red: 0.086, green: 0.075, blue: 0.059)
 }
 
 private struct QuickAction {
     let title: String
-    let symbol: String
+    let symbol: String      // SF Symbol fallback
+    let asset: String?      // Gemini 3D art asset name (nil = use SF Symbol)
     let url: String
 }
 
 private let quickActions: [QuickAction] = [
-    .init(title: "Import",  symbol: "square.and.arrow.down.fill", url: "cravecircle://add"),
-    .init(title: "Write",   symbol: "square.and.pencil",          url: "cravecircle://new"),
-    .init(title: "Grocery", symbol: "basket.fill",                url: "cravecircle://grocery"),
-    .init(title: "Search",  symbol: "magnifyingglass",            url: "cravecircle://home"),
+    .init(title: "Import",  symbol: "arrow.down.circle.fill", asset: "widget-import",  url: "cravecircle://add"),
+    .init(title: "Write",   symbol: "square.and.pencil",      asset: "widget-write",   url: "cravecircle://new"),
+    .init(title: "Grocery", symbol: "basket.fill",            asset: "widget-grocery", url: "cravecircle://grocery"),
 ]
+
+// MARK: - Timeline (static — never needs refresh)
 
 struct QuickActionsEntry: TimelineEntry { let date: Date }
 
@@ -35,9 +40,11 @@ struct QuickActionsProvider: TimelineProvider {
         completion(.init(date: .now))
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<QuickActionsEntry>) -> Void) {
-        completion(Timeline(entries: [.init(date: .now)], policy: .never))   // static — never needs refresh
+        completion(Timeline(entries: [.init(date: .now)], policy: .never))
     }
 }
+
+// MARK: - Widget
 
 struct QuickActionsWidget: Widget {
     var body: some WidgetConfiguration {
@@ -47,73 +54,99 @@ struct QuickActionsWidget: Widget {
         }
         .configurationDisplayName("CraveCircle")
         .description("Import, cook, and shop in a tap.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemMedium])
     }
 }
+
+// MARK: - Background
 
 private struct QuickActionsBackground: View {
     @Environment(\.colorScheme) private var scheme
     var body: some View {
-        (scheme == .dark ? Color(red: 0.086, green: 0.075, blue: 0.059)
-                         : Color(red: 0.980, green: 0.972, blue: 0.953))
+        (scheme == .dark ? QA.dark : QA.cream)
     }
 }
 
+// MARK: - Main view (Swiggy-style)
+
 struct QuickActionsView: View {
-    @Environment(\.widgetFamily) private var family
     @Environment(\.colorScheme) private var scheme
 
     private var textColor: Color {
-        scheme == .dark ? Color(red: 0.96, green: 0.95, blue: 0.925)
-                        : Color(red: 0.106, green: 0.090, blue: 0.071)
+        scheme == .dark ? QA.cream : QA.dark
+    }
+    private var searchBarBg: Color {
+        scheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.06)
+    }
+    private var tileBg: Color {
+        scheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.04)
     }
 
     var body: some View {
-        if family == .systemSmall {
-            // Small widget supports a single tap target → the primary action (Import).
-            VStack(spacing: 10) {
-                Image(systemName: "square.and.arrow.down.fill")
-                    .font(.system(size: 34, weight: .semibold))
-                    .foregroundStyle(QA.coral)
-                Text("Import a recipe")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(textColor)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .widgetURL(URL(string: "cravecircle://add"))
-        } else {
-            VStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Text("CraveCircle")
-                        .font(.caption.weight(.bold)).foregroundStyle(textColor)
-                    Spacer()
+        VStack(spacing: 10) {
+            // ── Search bar ──
+            Link(destination: URL(string: "cravecircle://home")!) {
+                HStack(spacing: 8) {
+                    // App icon (uses the CraveCircleLogo from the main app's asset catalog)
+                    Image("CraveCircleLogo")
+                        .resizable().scaledToFit()
+                        .frame(width: 24, height: 24)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+                    Text("Search CraveCircle")
+                        .font(.subheadline)
+                        .foregroundStyle(textColor.opacity(0.5))
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(textColor.opacity(0.45))
                 }
-                let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
-                LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(quickActions, id: \.title) { action in
-                        Link(destination: URL(string: action.url)!) { tile(action) }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(searchBarBg, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+
+            // ── Category icons row ──
+            HStack(spacing: 0) {
+                ForEach(quickActions, id: \.title) { action in
+                    Link(destination: URL(string: action.url)!) {
+                        categoryTile(action)
                     }
+                    .frame(maxWidth: .infinity)
                 }
             }
         }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
     }
 
-    private func tile(_ action: QuickAction) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: action.symbol)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(QA.coral)
-                .frame(width: 22)
+    @ViewBuilder
+    private func categoryTile(_ action: QuickAction) -> some View {
+        VStack(spacing: 6) {
+            // ponytail: uses the Gemini 3D art if present in the asset catalog,
+            // otherwise falls back to a coral-tinted SF Symbol in a bubbly circle.
+            ZStack {
+                Circle()
+                    .fill(tileBg)
+                    .frame(width: 58, height: 58)
+
+                if let asset = action.asset, UIImage(named: asset) != nil {
+                    Image(asset)
+                        .resizable().scaledToFit()
+                        .frame(width: 46, height: 46)
+                } else {
+                    Image(systemName: action.symbol)
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(QA.coral)
+                }
+            }
+
             Text(action.title)
-                .font(.subheadline.weight(.semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(textColor)
                 .lineLimit(1)
-            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 11)
-        .background(QA.coral.opacity(scheme == .dark ? 0.16 : 0.10),
-                    in: RoundedRectangle(cornerRadius: 13, style: .continuous))
     }
 }
