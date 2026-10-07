@@ -12,6 +12,7 @@
 		7AD9790A33A7B07FB2348694 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C04660930E4E2FD0277B90E7 /* Foundation.framework */; };
 		8D85F166A34A1ADC07865CDE /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C04660930E4E2FD0277B90E7 /* Foundation.framework */; };
 		9C2577A1EDD646E0E5A875AA /* CookingWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB474169F6A3DC7D08C720A /* CookingWidgetBundle.swift */; };
+		A1C5965EFA48BE72855521E8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AD283A8C955D8588104A2836 /* Assets.xcassets */; };
 		B6FC95F59352FB875DA085DD /* CookingImportActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98577CBFB17090AC8A76AA7D /* CookingImportActivity.swift */; };
 		B8807DE5533E0FC8A709E9F5 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F474FCE780F18081789464D /* ShareViewController.swift */; };
 		BB76E0991DD9258D3CFB1041 /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = E2D3D86C2EDBB6A4ED35F07C /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -69,6 +70,7 @@
 		8521A2941EFCF24A179FFACB /* Signing.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Signing.xcconfig; path = Config/Signing.xcconfig; sourceTree = "<group>"; };
 		8BB474169F6A3DC7D08C720A /* CookingWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CookingWidgetBundle.swift; sourceTree = "<group>"; };
 		98577CBFB17090AC8A76AA7D /* CookingImportActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CookingImportActivity.swift; path = AICookBook/CookingImportActivity.swift; sourceTree = "<group>"; };
+		AD283A8C955D8588104A2836 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = CookingWidget/Assets.xcassets; sourceTree = "<group>"; };
 		BCADE85055928759A7A10D75 /* CookingWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CookingWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C04660930E4E2FD0277B90E7 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		CCD9AB484D1CE9C13CBF453A /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -126,6 +128,7 @@
 				8BB474169F6A3DC7D08C720A /* CookingWidgetBundle.swift */,
 				53BCF7436D2DD79D9E3C668C /* CookingLiveActivity.swift */,
 				CCD9AB484D1CE9C13CBF453A /* Info.plist */,
+				AD283A8C955D8588104A2836 /* Assets.xcassets */,
 			);
 			name = CookingWidget;
 			path = CookingWidget;
@@ -331,6 +334,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1C5965EFA48BE72855521E8 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

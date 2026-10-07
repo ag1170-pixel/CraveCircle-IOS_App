@@ -32,6 +32,39 @@ extension CookingImportAttributes.ContentState.Stage {
         case .failed:       0.0
         }
     }
+
+    /// The brand art frame for this stage (transparent, black-safe). Advances pan → sizzle → plate.
+    var artImage: String? {
+        switch self {
+        case .downloading, .transcribing: "di-pan"
+        case .extracting:                 "di-pan2"
+        case .done:                       "di-plate"
+        case .failed:                     nil   // SF-symbol fallback for errors
+        }
+    }
+}
+
+/// A stage glyph that springs/fades in each time the stage changes — the premium, HIG-legal
+/// "float in" transition (continuous hovering isn't allowed on the Live Activity surface). Uses the
+/// Gemini art, with an SF-Symbol fallback (e.g. the failed state).
+private struct StageGlyph: View {
+    let stage: CookingImportAttributes.ContentState.Stage
+    var size: CGFloat = 40
+
+    var body: some View {
+        Group {
+            if let name = stage.artImage {
+                Image(name).resizable().scaledToFit()
+            } else {
+                Image(systemName: stage.symbol).resizable().scaledToFit()
+                    .foregroundStyle(DI.coral).padding(size * 0.18)
+            }
+        }
+        .frame(width: size, height: size)
+        .id(stage)                               // new identity per stage → the transition fires
+        .transition(.scale(scale: 0.6).combined(with: .opacity))
+        .animation(.spring(response: 0.45, dampingFraction: 0.72), value: stage)
+    }
 }
 
 /// Where a tap goes: the finished recipe when done, otherwise the in-app import progress.
@@ -52,7 +85,7 @@ struct CookingLiveActivity: Widget {
             let s = context.state
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    stageGlyph(s, size: 22, frame: 40)
+                    StageGlyph(stage: s.stage, size: 44)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     if s.stage == .done {
@@ -86,29 +119,27 @@ struct CookingLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                Image(systemName: "fork.knife").foregroundStyle(DI.coral)
+                Image(s.stage.artImage ?? "di-brand").resizable().scaledToFit()
+                    .frame(width: 24, height: 24)
+                    .id(s.stage)
+                    .transition(.scale(scale: 0.5).combined(with: .opacity))
+                    .animation(.spring(response: 0.4, dampingFraction: 0.7), value: s.stage)
             } compactTrailing: {
                 if s.stage == .done {
                     Image(systemName: "checkmark").foregroundStyle(DI.coral)
-                } else {
-                    Image(systemName: s.stage.symbol).foregroundStyle(DI.cream)
+                } else if s.stage != .failed {
+                    Text("\(Int(s.stage.progress * 100))%")
+                        .font(.caption2).monospacedDigit().foregroundStyle(DI.cream.opacity(0.7))
                 }
             } minimal: {
-                Image(systemName: s.stage == .done ? "checkmark" : "fork.knife")
-                    .foregroundStyle(DI.coral)
+                Image(s.stage == .done ? "di-plate" : "di-brand").resizable().scaledToFit()
+                    .frame(width: 22, height: 22)
             }
             .widgetURL(cookingDeepLink(s))
             .keylineTint(DI.coral)
         }
     }
 
-    private func stageGlyph(_ s: CookingImportAttributes.ContentState, size: CGFloat, frame: CGFloat) -> some View {
-        Image(systemName: s.stage.symbol)
-            .font(.system(size: size, weight: .semibold))
-            .foregroundStyle(DI.coral)
-            .frame(width: frame, height: frame)
-            .background(DI.coralSoft, in: Circle())
-    }
 }
 
 // MARK: - Lock Screen / banner card
@@ -118,11 +149,7 @@ struct CookingLockScreenView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: state.stage.symbol)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(DI.coral)
-                .frame(width: 44, height: 44)
-                .background(DI.coralSoft, in: Circle())
+            StageGlyph(stage: state.stage, size: 48)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(state.recipeTitle)
