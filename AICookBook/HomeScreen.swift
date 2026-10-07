@@ -41,6 +41,12 @@ struct HomeScreen: View {
         GridItem(.flexible(), spacing: AppSpacing.md)
     ]
 
+    // Swiggy-style rotating search hints (cycled by CyclingPlaceholder).
+    static let searchHints = [
+        "Search for cake", "Search for paneer", "Search for pizza",
+        "Search for biryani", "Search for something sweet", "Search for a creator"
+    ]
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -160,10 +166,16 @@ struct HomeScreen: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(AppTheme.textTertiary)
-            TextField("Search recipes, creators, ingredients", text: $query)
+            TextField("", text: $query)
                 .font(AppFont.body(16))
                 .foregroundStyle(AppTheme.textPrimary)
                 .autocorrectionDisabled()
+                .overlay(alignment: .leading) {
+                    if query.isEmpty {
+                        CyclingPlaceholder(phrases: Self.searchHints)
+                            .allowsHitTesting(false)
+                    }
+                }
             if !query.isEmpty {
                 Button { query = ""; Haptics.tap() } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(AppTheme.textTertiary)
@@ -398,11 +410,12 @@ struct HomeSectionHeader: View {
                     Haptics.tap()
                     onViewAll?()
                 } label: {
-                    Text("View all")
-                        .font(AppFont.body(13, weight: .semibold))
-                        .foregroundStyle(AppTheme.accentInk)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("View all")
             }
         }
     }
