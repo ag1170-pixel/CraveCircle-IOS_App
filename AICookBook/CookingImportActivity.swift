@@ -51,3 +51,28 @@ struct CookingImportAttributes: ActivityAttributes {
         var message: String?           // failure reason, if any
     }
 }
+
+// Shared by the widget (live activity) and the in-app preview so both render the same design.
+extension CookingImportAttributes.ContentState.Stage {
+    /// Determinate progress per stage (ActivityKit can't animate a ring continuously, so it advances
+    /// on each stage update — honest and brand-tintable).
+    var progress: Double {
+        switch self {
+        case .downloading:  0.20
+        case .transcribing: 0.55
+        case .extracting:   0.85
+        case .done:         1.0
+        case .failed:       0.0
+        }
+    }
+
+    /// The brand art frame for this stage (transparent, black-safe). Advances pan → sizzle → plate.
+    var artImage: String? {
+        switch self {
+        case .downloading, .transcribing: "di-pan"
+        case .extracting:                 "di-pan2"
+        case .done:                       "di-plate"
+        case .failed:                     nil   // SF-symbol fallback for errors
+        }
+    }
+}

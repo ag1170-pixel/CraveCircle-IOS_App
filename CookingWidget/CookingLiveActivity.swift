@@ -20,30 +20,6 @@ private enum DI {
     static let coralSoft = Color(red: 0xEA / 255, green: 0x5A / 255, blue: 0x38 / 255).opacity(0.18)
 }
 
-extension CookingImportAttributes.ContentState.Stage {
-    /// Determinate progress per stage (ActivityKit won't animate a ring continuously, so we advance
-    /// it on each stage update — honest and brand-tintable).
-    var progress: Double {
-        switch self {
-        case .downloading:  0.20
-        case .transcribing: 0.55
-        case .extracting:   0.85
-        case .done:         1.0
-        case .failed:       0.0
-        }
-    }
-
-    /// The brand art frame for this stage (transparent, black-safe). Advances pan → sizzle → plate.
-    var artImage: String? {
-        switch self {
-        case .downloading, .transcribing: "di-pan"
-        case .extracting:                 "di-pan2"
-        case .done:                       "di-plate"
-        case .failed:                     nil   // SF-symbol fallback for errors
-        }
-    }
-}
-
 /// A stage glyph that springs/fades in each time the stage changes — the premium, HIG-legal
 /// "float in" transition (continuous hovering isn't allowed on the Live Activity surface). Uses the
 /// Gemini art, with an SF-Symbol fallback (e.g. the failed state).
