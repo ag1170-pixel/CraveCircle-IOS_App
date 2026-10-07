@@ -11,6 +11,7 @@
 
 import UIKit
 import UniformTypeIdentifiers
+import ActivityKit
 
 final class ShareViewController: UIViewController {
 
@@ -81,6 +82,22 @@ final class ShareViewController: UIViewController {
         guard let urlString, !urlString.isEmpty else {
             return showError("Couldn't find a video link in this share.")
         }
+        
+        if ActivityAuthorizationInfo().areActivitiesEnabled {
+            let attrs = CookingImportAttributes(startedAt: Date())
+            let content = CookingImportAttributes.ContentState(
+                stage: .downloading, recipeTitle: "New recipe", recipeId: nil,
+                estimatedEnd: Date().addingTimeInterval(45), message: nil)
+            do {
+                _ = try Activity.request(
+                    attributes: attrs,
+                    content: ActivityContent(state: content, staleDate: nil),
+                    pushType: .token)
+            } catch {
+                print("Failed to start Live Activity: \(error)")
+            }
+        }
+        
         // Fire the import ON THE SERVER and finish. /reels/import returns immediately (job queued);
         // the server transcribes in the background regardless of whether the app is open.
         guard let endpoint = URL(string: "\(backendURL)/reels/import") else {
