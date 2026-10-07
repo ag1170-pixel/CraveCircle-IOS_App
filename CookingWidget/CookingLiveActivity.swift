@@ -27,9 +27,13 @@ private struct StageGlyph: View {
     let stage: CookingImportAttributes.ContentState.Stage
     var size: CGFloat = 40
 
+    @State private var up = false
+
+    private var floats: Bool { stage != .done && stage != .failed }
+
     var body: some View {
         Group {
-            if let name = stage.artImage {
+            if let name = stage.artImage, UIImage(named: name) != nil {
                 Image(name).resizable().scaledToFit()
             } else {
                 Image(systemName: stage.symbol).resizable().scaledToFit()
@@ -37,9 +41,15 @@ private struct StageGlyph: View {
             }
         }
         .frame(width: size, height: size)
+        // Bob up/down while cooking (held still when Ready). NOTE: the real Live Activity surface
+        // doesn't run continuous animations, so this hovers in the in-app preview and is static on
+        // the actual Dynamic Island — kept for parity.
+        .offset(y: floats ? (up ? -4 : 4) : 0)
+        .animation(floats ? .easeInOut(duration: 0.95).repeatForever(autoreverses: true) : .default, value: up)
         .id(stage)                               // new identity per stage → the transition fires
         .transition(.scale(scale: 0.6).combined(with: .opacity))
         .animation(.spring(response: 0.45, dampingFraction: 0.72), value: stage)
+        .onAppear { if floats { up = true } }
     }
 }
 

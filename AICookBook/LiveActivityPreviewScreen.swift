@@ -130,8 +130,10 @@ struct LiveActivityPreviewScreen: View {
     }
 
     private func glyph(size: CGFloat) -> some View {
-        Group {
-            if let name = stage.artImage {
+        // Float (bob up/down) while cooking; hold still once the dish is Ready.
+        let floats = stage != .done && stage != .failed && !reduceMotion
+        return Group {
+            if let name = stage.artImage, UIImage(named: name) != nil {
                 Image(name).resizable().scaledToFit()
             } else {
                 Image(systemName: stage.symbol).resizable().scaledToFit()
@@ -139,6 +141,7 @@ struct LiveActivityPreviewScreen: View {
             }
         }
         .frame(width: size, height: size)
+        .modifier(FloatingBob(active: floats))
         .id(stage)
         .transition(.scale(scale: 0.6).combined(with: .opacity))
         .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.72), value: stage)
@@ -199,6 +202,19 @@ struct LiveActivityPreviewScreen: View {
                 stage = order[(i + 1) % order.count]
             }
         }
+    }
+}
+
+/// Gentle hover: bobs the view up and down forever while `active`, holding still otherwise.
+private struct FloatingBob: ViewModifier {
+    let active: Bool
+    @State private var up = false
+    func body(content: Content) -> some View {
+        content
+            .offset(y: active ? (up ? -5 : 5) : 0)
+            .animation(active ? .easeInOut(duration: 0.95).repeatForever(autoreverses: true) : .default,
+                       value: up)
+            .onAppear { if active { up = true } }
     }
 }
 

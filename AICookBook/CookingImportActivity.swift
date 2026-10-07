@@ -69,10 +69,11 @@ extension CookingImportAttributes.ContentState.Stage {
     /// The brand art frame for this stage (transparent, black-safe). Advances pan → sizzle → plate.
     var artImage: String? {
         switch self {
-        case .downloading, .transcribing: "di-pan"
-        case .extracting:                 "di-pan2"
-        case .done:                       "di-plate"
-        case .failed:                     nil   // SF-symbol fallback for errors
+        case .downloading:  "di-reel"    // "Grabbing the reel" — its own fancier art (falls back if absent)
+        case .transcribing: "di-pan"
+        case .extracting:   "di-pan2"
+        case .done:         "di-plate"
+        case .failed:       nil          // SF-symbol fallback for errors
         }
     }
 }
