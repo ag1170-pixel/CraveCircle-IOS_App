@@ -178,3 +178,27 @@ final class RecipeTotalTimeTests: XCTestCase {
         XCTAssertEqual(makeRecipe(title: "x", ingredients: [], prep: "a while").totalTimeText, "a while")
     }
 }
+
+// MARK: - Nutrition portioning (servings must not inflate per-serving kcal)
+
+final class NutritionPortionTests: XCTestCase {
+    func testPerServingIsConstantAcrossServings() {
+        // Per serving is the dish's intrinsic value — unchanged whether you plan 1, 2, or 8 servings.
+        XCTAssertEqual(RecipeNutrition.portionMultiplier(servings: 1, whole: false), 1)
+        XCTAssertEqual(RecipeNutrition.portionMultiplier(servings: 8, whole: false), 1)
+    }
+
+    func testWholeRecipeScalesWithServings() {
+        XCTAssertEqual(RecipeNutrition.portionMultiplier(servings: 4, whole: true), 4)
+        XCTAssertEqual(RecipeNutrition.portionMultiplier(servings: 1, whole: true), 1)
+    }
+
+    func testReducingServingsDoesNotInflatePerServingDV() {
+        // Regression: a sane dish must never read >100% of daily per serving just because the user
+        // lowered the serving count (the old fixed-dish model produced "221% of daily").
+        let n = RecipeNutrition(calories: 502, carbsG: 40, proteinG: 28, fatG: 22)
+        let perServingKcal = n.calories * RecipeNutrition.portionMultiplier(servings: 1, whole: false)
+        XCTAssertEqual(perServingKcal, 502)
+        XCTAssertEqual(n.caloriesDVPercent, 25)   // 502 / 2000
+    }
+}

@@ -773,7 +773,7 @@ struct RecipeDetailScreen: View {
                 HStack(spacing: 6) {
                     Image(systemName: "person.2.fill")
                         .font(.system(size: 12, weight: .semibold))
-                    Text("Nutrition split across \(servings) servings — ingredients stay as the recipe.")
+                    Text("Scaled to \(servings) servings — amounts and nutrition adjust together.")
                         .font(AppFont.body(12, weight: .medium))
                     Spacer()
                     Button("Reset") {
@@ -796,10 +796,11 @@ struct RecipeDetailScreen: View {
                     }
                     ForEach(Array(group.items.enumerated()), id: \.offset) { itemIndex, item in
                         let key = "\(groupIndex):\(itemIndex)"
-                        // Model A: the dish is fixed — ingredient amounts are the recipe's own, not
-                        // scaled by the servings stepper (the stepper only re-portions the nutrition).
+                        // The servings stepper scales the batch: ingredient amounts and the
+                        // whole-recipe nutrition move together; per-serving nutrition stays constant.
+                        let shown = IngredientScaler.scale(text: item, from: baseServings, to: servings)
                         VStack(spacing: 0) {
-                            IngredientRow(text: item, checked: checkedIngredients.contains(key)) {
+                            IngredientRow(text: shown, checked: checkedIngredients.contains(key)) {
                                 toggle(&checkedIngredients, key)
                             }
                             if itemIndex < group.items.count - 1 {

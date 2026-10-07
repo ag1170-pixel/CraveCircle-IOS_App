@@ -67,6 +67,15 @@ struct RecipeNutrition: Codable, Hashable {
     // % of the daily-value calorie budget this serving uses.
     var caloriesDVPercent: Int { pct(calories / dailyCalories) }
 
+    /// Portion multiplier for the nutrition card. Per serving is the dish's intrinsic constant
+    /// (×1 — it never inflates when you change the serving count); the whole recipe is that
+    /// per-serving value × the current batch size. This is why reducing servings lowers the whole
+    /// total and leaves per-serving (and its % of daily) unchanged, instead of the old fixed-dish
+    /// model that divided a constant total by fewer servings and blew per-serving kcal up past 100%.
+    static func portionMultiplier(servings: Int, whole: Bool) -> Double {
+        whole ? Double(max(servings, 1)) : 1
+    }
+
     // Macro split = share of THIS meal's calories from each macro (4/4/9 kcal per g).
     private var carbsKcal: Double { carbsG * 4 }
     private var proteinKcal: Double { proteinG * 4 }

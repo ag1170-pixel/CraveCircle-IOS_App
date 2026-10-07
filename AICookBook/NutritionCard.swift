@@ -39,11 +39,10 @@ struct NutritionCard: View {
     private let proteinColor = Color(hex: "E0A02E")
     private let fatColor = Color(hex: "6E93A6")
 
-    // Model A: the dish is fixed. Whole recipe = stored per-serving × baseServings (constant).
-    // Per serving = whole recipe ÷ current servings → drops as you raise the servings stepper.
-    private var perServingScale: Double { Double(max(baseServings, 1)) / Double(max(servings, 1)) }
+    // Per serving is the dish's intrinsic constant; the stepper scales the BATCH, so the whole
+    // recipe = per-serving × current servings. (See RecipeNutrition.portionMultiplier.)
     private var activeMultiplier: Double {
-        showTotal ? Double(max(baseServings, 1)) : perServingScale
+        RecipeNutrition.portionMultiplier(servings: servings, whole: showTotal)
     }
 
     private var activeCalories: Double {
@@ -69,7 +68,9 @@ struct NutritionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Nutrition").sectionLabelStyle(AppTheme.accentInk)
+                Text("Nutrition")
+                    .font(AppFont.display(22, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
                 Spacer()
                 if baseServings > 1 {
                     Button {
@@ -100,12 +101,18 @@ struct NutritionCard: View {
             // Calories + daily-value ring
             HStack(alignment: .center, spacing: AppSpacing.md) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(Int(activeCalories)) kcal")
-                        .font(AppFont.display(28, weight: .bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .monospacedDigit()
-                        .contentTransition(.numericText())
-                        .animation(AppMotion.snappy, value: activeCalories)
+                    // Big, highlighted number; small, quiet unit (distinct type scale).
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text("\(Int(activeCalories))")
+                            .font(AppFont.display(42, weight: .bold))
+                            .foregroundStyle(AppTheme.accentInk)
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                            .animation(AppMotion.snappy, value: activeCalories)
+                        Text("kcal")
+                            .font(AppFont.body(15, weight: .semibold))
+                            .foregroundStyle(AppTheme.textTertiary)
+                    }
                     Text(showTotal ? "Whole Recipe" : "Calories")
                         .font(AppFont.body(14, weight: .medium))
                         .foregroundStyle(AppTheme.textSecondary)
