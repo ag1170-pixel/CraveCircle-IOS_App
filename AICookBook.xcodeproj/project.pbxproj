@@ -9,9 +9,14 @@
 /* Begin PBXBuildFile section */
 		2A303018B560A693360B19EA /* LogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0D5D4D23ACE2F87DB8CF62 /* LogicTests.swift */; };
 		7906A88F190D4EF8293C4F71 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C04660930E4E2FD0277B90E7 /* Foundation.framework */; };
+		7AD9790A33A7B07FB2348694 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C04660930E4E2FD0277B90E7 /* Foundation.framework */; };
 		8D85F166A34A1ADC07865CDE /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C04660930E4E2FD0277B90E7 /* Foundation.framework */; };
+		9C2577A1EDD646E0E5A875AA /* CookingWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB474169F6A3DC7D08C720A /* CookingWidgetBundle.swift */; };
+		B6FC95F59352FB875DA085DD /* CookingImportActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98577CBFB17090AC8A76AA7D /* CookingImportActivity.swift */; };
 		B8807DE5533E0FC8A709E9F5 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F474FCE780F18081789464D /* ShareViewController.swift */; };
 		BB76E0991DD9258D3CFB1041 /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = E2D3D86C2EDBB6A4ED35F07C /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		CB9E0A3F6E2FABC2E742266C /* CookingLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53BCF7436D2DD79D9E3C668C /* CookingLiveActivity.swift */; };
+		E7020FC081FED9CF5DAEF928 /* CookingWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = BCADE85055928759A7A10D75 /* CookingWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -29,6 +34,13 @@
 			remoteGlobalIDString = D36DFA50D3924484ACF1F5FF;
 			remoteInfo = ShareExtension;
 		};
+		EFFE0C57D9CF8FF634BCFDDB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 27945DA92F9F211200B8F8B8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B889C03C791D0847CD5D8050;
+			remoteInfo = CookingWidget;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -39,6 +51,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				BB76E0991DD9258D3CFB1041 /* ShareExtension.appex in Embed App Extensions */,
+				E7020FC081FED9CF5DAEF928 /* CookingWidget.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -50,16 +63,23 @@
 		0F474FCE780F18081789464D /* ShareViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		27945DB12F9F211200B8F8B8 /* AICookBook.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AICookBook.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		31BFCFFA7F646DD91D98B8B4 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		53BCF7436D2DD79D9E3C668C /* CookingLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CookingLiveActivity.swift; sourceTree = "<group>"; };
 		648742CD310234B2E3B7E7A9 /* ShareExtension.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
 		73A2F48234E0160F8976A3AE /* AICookBookTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AICookBookTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8521A2941EFCF24A179FFACB /* Signing.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Signing.xcconfig; path = Config/Signing.xcconfig; sourceTree = "<group>"; };
+		8BB474169F6A3DC7D08C720A /* CookingWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CookingWidgetBundle.swift; sourceTree = "<group>"; };
+		98577CBFB17090AC8A76AA7D /* CookingImportActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CookingImportActivity.swift; path = AICookBook/CookingImportActivity.swift; sourceTree = "<group>"; };
+		BCADE85055928759A7A10D75 /* CookingWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CookingWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C04660930E4E2FD0277B90E7 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		CCD9AB484D1CE9C13CBF453A /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E2D3D86C2EDBB6A4ED35F07C /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		27945DB32F9F211200B8F8B8 /* AICookBook */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = AICookBook;
 			sourceTree = "<group>";
 		};
@@ -70,6 +90,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		462CB48B4F561AD572AB0550 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7AD9790A33A7B07FB2348694 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -92,6 +120,17 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		15DC509C7819CB3CCF1F8CE6 /* CookingWidget */ = {
+			isa = PBXGroup;
+			children = (
+				8BB474169F6A3DC7D08C720A /* CookingWidgetBundle.swift */,
+				53BCF7436D2DD79D9E3C668C /* CookingLiveActivity.swift */,
+				CCD9AB484D1CE9C13CBF453A /* Info.plist */,
+			);
+			name = CookingWidget;
+			path = CookingWidget;
+			sourceTree = "<group>";
+		};
 		212B1176CBF37875E94D506F /* iOS */ = {
 			isa = PBXGroup;
 			children = (
@@ -109,6 +148,8 @@
 				854802F5958545CFB368EE42 /* ShareExtension */,
 				B16461FCBDE3CD33AF28D7A3 /* AICookBookTests */,
 				8521A2941EFCF24A179FFACB /* Signing.xcconfig */,
+				15DC509C7819CB3CCF1F8CE6 /* CookingWidget */,
+				98577CBFB17090AC8A76AA7D /* CookingImportActivity.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -118,6 +159,7 @@
 				27945DB12F9F211200B8F8B8 /* AICookBook.app */,
 				E2D3D86C2EDBB6A4ED35F07C /* ShareExtension.appex */,
 				73A2F48234E0160F8976A3AE /* AICookBookTests.xctest */,
+				BCADE85055928759A7A10D75 /* CookingWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -164,6 +206,7 @@
 			);
 			dependencies = (
 				B272035CBE6B5EF4C08C1194 /* PBXTargetDependency */,
+				930D81ADCBEA09C6B129DC11 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				27945DB32F9F211200B8F8B8 /* AICookBook */,
@@ -190,6 +233,23 @@
 			productName = AICookBookTests;
 			productReference = 73A2F48234E0160F8976A3AE /* AICookBookTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		B889C03C791D0847CD5D8050 /* CookingWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D476CE025D29E766318051D3 /* Build configuration list for PBXNativeTarget "CookingWidget" */;
+			buildPhases = (
+				0294B2750F7C4ABA955521ED /* Sources */,
+				462CB48B4F561AD572AB0550 /* Frameworks */,
+				859DAB28C5347359A9D47468 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CookingWidget;
+			productName = CookingWidget;
+			productReference = BCADE85055928759A7A10D75 /* CookingWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		D36DFA50D3924484ACF1F5FF /* ShareExtension */ = {
 			isa = PBXNativeTarget;
@@ -240,6 +300,7 @@
 				27945DB02F9F211200B8F8B8 /* AICookBook */,
 				D36DFA50D3924484ACF1F5FF /* ShareExtension */,
 				408C4BCA2D3B49978F51C030 /* AICookBookTests */,
+				B889C03C791D0847CD5D8050 /* CookingWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -266,9 +327,26 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		859DAB28C5347359A9D47468 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		0294B2750F7C4ABA955521ED /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9C2577A1EDD646E0E5A875AA /* CookingWidgetBundle.swift in Sources */,
+				CB9E0A3F6E2FABC2E742266C /* CookingLiveActivity.swift in Sources */,
+				B6FC95F59352FB875DA085DD /* CookingImportActivity.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		27945DAD2F9F211200B8F8B8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -300,6 +378,12 @@
 			name = AICookBook;
 			target = 27945DB02F9F211200B8F8B8 /* AICookBook */;
 			targetProxy = 7A3CB1EC279FD876CD6015C1 /* PBXContainerItemProxy */;
+		};
+		930D81ADCBEA09C6B129DC11 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = CookingWidget;
+			target = B889C03C791D0847CD5D8050 /* CookingWidget */;
+			targetProxy = EFFE0C57D9CF8FF634BCFDDB /* PBXContainerItemProxy */;
 		};
 		B272035CBE6B5EF4C08C1194 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -503,6 +587,7 @@
 				INFOPLIST_KEY_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "CraveCircle uses the microphone so you can speak to search recipes and to cook hands-free with voice.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "CraveCircle transcribes cooking-video audio on your device to turn reels into recipes.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg0MzIzMjk1LCJleHAiOjIwOTk2ODMyOTV9.rfoxjE7PA4mov-tN7nebaT_BbdN5fLiiDCJDrE_kJeM";
 				INFOPLIST_KEY_SUPABASE_URL = "http://100.70.151.71:54321";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -543,6 +628,7 @@
 				INFOPLIST_KEY_NSAllowsLocalNetworking = YES;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "CraveCircle uses the microphone so you can speak to search recipes and to cook hands-free with voice.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "CraveCircle transcribes cooking-video audio on your device to turn reels into recipes.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg0MzIzMjk1LCJleHAiOjIwOTk2ODMyOTV9.rfoxjE7PA4mov-tN7nebaT_BbdN5fLiiDCJDrE_kJeM";
 				INFOPLIST_KEY_SUPABASE_URL = "http://100.70.151.71:54321";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -581,6 +667,63 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AICookBook.app/AICookBook";
+			};
+			name = Debug;
+		};
+		C9A6E100444CF2D482C8D4A1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 8521A2941EFCF24A179FFACB /* Signing.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YX9X5TTRA2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CookingWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CookingWidget;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(CRAVE_BUNDLE_ID).CookingWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		CDD1A48A7A243E8E14D64B69 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 8521A2941EFCF24A179FFACB /* Signing.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = YX9X5TTRA2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CookingWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CookingWidget;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(CRAVE_BUNDLE_ID).CookingWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
@@ -638,6 +781,15 @@
 			buildConfigurations = (
 				25110B04B13522A09AE91D94 /* Release */,
 				139371B98F8E18859F439381 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D476CE025D29E766318051D3 /* Build configuration list for PBXNativeTarget "CookingWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C9A6E100444CF2D482C8D4A1 /* Release */,
+				CDD1A48A7A243E8E14D64B69 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

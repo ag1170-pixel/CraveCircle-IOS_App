@@ -3,6 +3,7 @@ import Foundation
 import Combine
 import UserNotifications
 import NaturalLanguage
+import ActivityKit
 
 @MainActor
 final class AppEnvironment: ObservableObject {
@@ -26,7 +27,11 @@ final class AppEnvironment: ObservableObject {
     @AppStorage("deleted_recipe_ids") private var deletedRecipeIdsRaw: String = ""
     @Published private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
     @Published private(set) var selectedRecipe: Recipe?
-    @Published private(set) var importState: ImportFlowState = .idle
+    @Published private(set) var importState: ImportFlowState = .idle {
+        didSet { reflectImportInLiveActivity() }
+    }
+    /// The running "recipe cooking" Live Activity (Dynamic Island + Lock Screen), if any.
+    private var cookingActivity: Activity<CookingImportAttributes>?
     @Published private(set) var groceryItems: [GroceryItem] = [] { didSet { persist(groceryItems, "grocery.json") } }
     @Published var groceryError: String?
     @Published var errorMessage: String?
@@ -1574,6 +1579,64 @@ final class AppEnvironment: ObservableObject {
     func cancelImport() {
         importTask?.cancel()
         importState = .idle
+    }
+
+    // MARK: - Live Activity (Dynamic Island + Lock Screen) for the import
+
+    /// Start / update / end the "recipe cooking" Live Activity to mirror the import state. Driven by
+    /// importState's didSet, so there's one source of truth.
+    private func reflectImportInLiveActivity() {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+
+        // Map ImportFlowState → the Live Activity stage.
+        let stage: CookingImportAttributes.ContentState.Stage
+        var recipeId: String? = nil
+        var message: String? = nil
+        switch importState {
+        case .idle:
+            endCookingActivity(); return
+        case .submitting:
+            stage = .downloading
+        case .polling(_, let status):
+            switch status {
+            case .queued, .downloading: stage = .downloading
+            case .transcribing:         stage = .transcribing
+            case .extracting:           stage = .extracting
+            case .done:                 stage = .done
+            case .error:                stage = .failed
+            }
+        case .done(let id):
+            stage = .done; recipeId = id
+        case .failed(let msg):
+            stage = .failed; message = msg
+        }
+
+        let title = recipeId.flatMap { id in recipes.first { $0.id == id }?.title } ?? "New recipe"
+        let content = CookingImportAttributes.ContentState(
+            stage: stage, recipeTitle: title, recipeId: recipeId,
+            estimatedEnd: Date().addingTimeInterval(45), message: message)
+
+        if let activity = cookingActivity {
+            if stage == .done || stage == .failed {
+                // Keep the final card up briefly so the user can tap it, then auto-dismiss.
+                let after = Date().addingTimeInterval(stage == .done ? 180 : 8)
+                Task { await activity.end(ActivityContent(state: content, staleDate: nil), dismissalPolicy: .after(after)) }
+                cookingActivity = nil
+            } else {
+                Task { await activity.update(ActivityContent(state: content, staleDate: nil)) }
+            }
+        } else if stage != .done && stage != .failed {
+            let attrs = CookingImportAttributes(startedAt: Date())
+            cookingActivity = try? Activity.request(
+                attributes: attrs,
+                content: ActivityContent(state: content, staleDate: nil))
+        }
+    }
+
+    private func endCookingActivity() {
+        guard let activity = cookingActivity else { return }
+        cookingActivity = nil
+        Task { await activity.end(nil, dismissalPolicy: .immediate) }
     }
     
     private func beginPolling(jobId: String) {

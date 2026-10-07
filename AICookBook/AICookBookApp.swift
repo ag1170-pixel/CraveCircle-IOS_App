@@ -90,7 +90,10 @@ struct CraveCircleApp: App {
                     let isUniversalLink = (url.scheme == "https" || url.scheme == "http") && url.host == "cravecircle.cc"
                     guard isCustomScheme || isUniversalLink else { return }
                     if isCustomScheme && url.host == "auth-callback" { return }
-                    
+                    // Tapping the in-progress "cooking" Live Activity just brings the app forward —
+                    // the live import progress UI is already on screen.
+                    if isCustomScheme && url.host == "import" && (url.query ?? "").isEmpty { return }
+
                     let pathComponents = url.pathComponents.filter { $0 != "/" }
                     
                     // Format: cravecircle://recipe/<id> OR https://cravecircle.cc/recipe/<id>
