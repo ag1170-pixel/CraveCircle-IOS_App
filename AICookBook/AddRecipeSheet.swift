@@ -17,6 +17,7 @@ struct AddRecipeSheet: View {
     @State private var link = ""
     @State private var pickedPhoto: PhotosPickerItem?
     @State private var showWrite = false
+    @State private var showLink = false            // paste field is hidden until "Import from social media" is tapped
     @State private var blank = AddRecipeSheet.newBlank()
     @FocusState private var linkFocused: Bool
 
@@ -34,11 +35,13 @@ struct AddRecipeSheet: View {
                     spacing: AppSpacing.sm
                 ) {
                     optionCard("Write from scratch", systemImage: "square.and.pencil") { startWrite() }
-                    optionCard("Import from web", systemImage: "globe") { linkFocused = true }
                     photoCard
                 }
 
-                linkField
+                if showLink {
+                    linkField
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
             .padding(AppSpacing.md)
             .padding(.bottom, AppSpacing.lg)
@@ -89,7 +92,7 @@ struct AddRecipeSheet: View {
     // MARK: Social banner (paste a reel link)
 
     private var socialBanner: some View {
-        Button { Haptics.tap(); linkFocused = true } label: {
+        Button { Haptics.tap(); revealLinkField() } label: {
             VStack(spacing: 8) {
                 HStack(spacing: 14) {
                     Image(systemName: "camera.viewfinder").font(.system(size: 22))
@@ -174,6 +177,14 @@ struct AddRecipeSheet: View {
         .frame(height: 52)
         .background(AppTheme.surface, in: Capsule())
         .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+    }
+
+    // MARK: Reveal + focus the paste-link field (from the social-media option)
+
+    private func revealLinkField() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { showLink = true }
+        // Field is mounted after the state change renders; focus on the next runloop tick so it sticks.
+        DispatchQueue.main.async { linkFocused = true }
     }
 
     // MARK: Blank recipe for "Write from scratch"
