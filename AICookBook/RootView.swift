@@ -264,6 +264,7 @@ struct MainTabView: View {
     @State private var showingImportSheet = false
     @State private var showingAddGrocery = false
     @State private var showingProgressDetail = false
+    @State private var newRecipe: Recipe?          // write-from-scratch editor (from the home widget)
     @State private var tab: AppTab = .home
     @State private var ignoreSwipeFrames: [CGRect] = []
 
@@ -371,6 +372,22 @@ struct MainTabView: View {
             if requested {
                 showingImportSheet = true
                 environment.pendingImportRequest = false
+            }
+        }
+        .onChange(of: environment.pendingNewRecipe) { _, requested in
+            // "Write from scratch" widget tile → open a blank recipe editor.
+            if requested {
+                newRecipe = AddRecipeSheet.newBlank()
+                environment.pendingNewRecipe = false
+            }
+        }
+        .fullScreenCover(item: $newRecipe) { recipe in
+            NavigationStack {
+                RecipeEditScreen(recipe: Binding(get: { newRecipe ?? recipe }, set: { newRecipe = $0 })) { saved in
+                    environment.updateRecipe(saved)
+                    newRecipe = nil
+                }
+                .environmentObject(environment)
             }
         }
         .sheet(isPresented: $showingProgressDetail) {

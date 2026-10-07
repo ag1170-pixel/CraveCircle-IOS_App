@@ -1495,6 +1495,8 @@ final class AppEnvironment: ObservableObject {
     /// Set by onboarding when the user chooses to import their first reel; MainTabView opens the
     /// import sheet in response, then clears it.
     @Published var pendingImportRequest = false
+    /// Set by the "Write from scratch" home-screen widget tile (cravecircle://new) → open a blank editor.
+    @Published var pendingNewRecipe = false
 
     /// Finish onboarding: store the taste picks and refresh the feed against them.
     func completeOnboarding(cuisines: Set<String>) {

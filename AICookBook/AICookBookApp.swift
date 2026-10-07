@@ -94,6 +94,17 @@ struct CraveCircleApp: App {
                     // the live import progress UI is already on screen.
                     if isCustomScheme && url.host == "import" && (url.query ?? "").isEmpty { return }
 
+                    // Home-screen widget quick actions.
+                    if isCustomScheme {
+                        switch url.host {
+                        case "grocery": environment.requestTabSwitch(.groceries); return
+                        case "home":    environment.requestTabSwitch(.home); return
+                        case "add":     environment.requestTabSwitch(.home); environment.pendingImportRequest = true; return
+                        case "new":     environment.requestTabSwitch(.home); environment.pendingNewRecipe = true; return
+                        default: break
+                        }
+                    }
+
                     let pathComponents = url.pathComponents.filter { $0 != "/" }
                     
                     // Format: cravecircle://recipe/<id> OR https://cravecircle.cc/recipe/<id>
