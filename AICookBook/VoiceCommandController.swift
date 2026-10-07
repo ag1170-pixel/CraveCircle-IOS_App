@@ -35,7 +35,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
     private var task: SFSpeechRecognitionTask?
 
     private var lastFireTime: CFTimeInterval = 0
-    private var lastConsumedIndex: Int = 0
+    private var lastProcessedSegments = 0   // how many transcription segments we've already scanned
     private let cooldown: CFTimeInterval = 0.6
 
     /// While true, mic audio is NOT fed to the recognizer — set this during text-to-speech so the
@@ -195,6 +195,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
         req.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
         req.contextualStrings = ["next", "back", "next step", "go back", "previous", "forward"]
         request = req
+        lastProcessedSegments = 0            // fresh transcription → scan from the start
         publish { self.isListening = true }
 
         task = recognizer.recognitionTask(with: req) { [weak self] result, error in
@@ -219,13 +220,6 @@ final class VoiceCommandController: NSObject, ObservableObject {
         }
     }
 
-    /// Restart recognition immediately after firing a command, so the just-heard word is cleared and
-    /// can't fire a second time. The engine is untouched.
-    private func hardRestart() {
-        guard isListening else { return }
-        startRecognition()
-    }
-
     private func teardownAudio() {
         audioEngine.inputNode.removeTap(onBus: 0)
         if audioEngine.isRunning { audioEngine.stop() }
@@ -233,33 +227,38 @@ final class VoiceCommandController: NSObject, ObservableObject {
         task?.cancel()
         task = nil
         request = nil
-        lastConsumedIndex = 0
+        lastProcessedSegments = 0
     }
 
     // MARK: Keyword & Command Matching
 
-    /// Spot a command in the tail of the live transcription. Looking at the last few words (rather
-    /// than tracking segment indices) is far more robust for short "next"/"back" utterances; after a
-    /// hit we hard-restart so the same word can't re-fire. A time cooldown debounces doubles.
+    /// Spot a command in the NEW segments of the live transcription, inside ONE continuous recognition
+    /// task. We don't recreate the task per command — on-device recognition chokes when you cancel +
+    /// restart it rapidly (that's what made it die after the first "next"). Instead we remember how
+    /// many segments we've already scanned and only look at the new ones, so each spoken word fires at
+    /// most once. The task is recreated only when it naturally finalizes (see `restart`).
     private func handle(_ transcription: SFTranscription) {
         guard !suppressed else { return }
-        let now = CACurrentMediaTime()
-        guard now - lastFireTime >= cooldown else { return }
+        let segments = transcription.segments
+        guard segments.count > lastProcessedSegments else { return }
 
-        let words = transcription.formattedString
-            .lowercased()
-            .split { !$0.isLetter }
-            .map(String.init)
-        let tail = Array(words.suffix(3))      // only the most recent words
-        guard !tail.isEmpty else { return }
+        for i in lastProcessedSegments..<segments.count {
+            let word = segments[i].substring.lowercased()
+                .trimmingCharacters(in: .punctuationCharacters)
+            guard !word.isEmpty else { continue }
+            guard CACurrentMediaTime() - lastFireTime >= cooldown else { continue }  // debounce doubles
 
-        if tail.contains(where: { isCommand($0, in: nextWords) }) {
-            fireCommand(.next)
-            hardRestart()
-        } else if tail.contains(where: { isCommand($0, in: backWords) }) {
-            fireCommand(.previous)
-            hardRestart()
+            if isCommand(word, in: nextWords) {
+                lastProcessedSegments = i + 1
+                fireCommand(.next)
+                return
+            } else if isCommand(word, in: backWords) {
+                lastProcessedSegments = i + 1
+                fireCommand(.previous)
+                return
+            }
         }
+        lastProcessedSegments = segments.count
     }
 
     /// Exact match, or within one edit (for words ≥4 chars) to tolerate a single mis-hear.
