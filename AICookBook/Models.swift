@@ -135,6 +135,35 @@ struct Recipe: Codable, Identifiable, Hashable {
         return URL(string: "https://www.instagram.com/\(cleanHandle)/") ?? URL(string: "https://www.instagram.com/reels/")!
     }
 
+    /// One unified time for the header: prep + cook summed into a single figure. Values are free-form
+    /// ("15 min", "1 hr 10 min"), so we pull hours/minutes from each and re-format. Falls back to
+    /// whichever single value exists (unparsed) when neither carries a number.
+    var totalTimeText: String? {
+        let mins = [prepTime, cookTime].compactMap { Recipe.minutes(from: $0) }
+        guard !mins.isEmpty else { return prepTime ?? cookTime }
+        return Recipe.formatMinutes(mins.reduce(0, +))
+    }
+
+    /// Minutes parsed from a free-form duration, or nil if it holds no number. "2 hr 5 min" → 125.
+    static func minutes(from text: String?) -> Int? {
+        guard let t = text?.lowercased() else { return nil }
+        func firstInt(unit: String) -> Int? {
+            guard let re = try? NSRegularExpression(pattern: "(\\d+)\\s*" + unit),
+                  let m = re.firstMatch(in: t, range: NSRange(t.startIndex..., in: t)),
+                  let r = Range(m.range(at: 1), in: t) else { return nil }
+            return Int(t[r])
+        }
+        let h = firstInt(unit: "h"), m = firstInt(unit: "m")
+        guard h != nil || m != nil else { return nil }
+        return (h ?? 0) * 60 + (m ?? 0)
+    }
+
+    static func formatMinutes(_ m: Int) -> String {
+        guard m >= 60 else { return "\(m) min" }
+        let h = m / 60, rem = m % 60
+        return rem == 0 ? "\(h) hr" : "\(h) hr \(rem) min"
+    }
+
     static func isSocialImportURL(_ raw: String?) -> Bool {
         guard let raw, let url = URL(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)),
               let host = url.host?.lowercased()

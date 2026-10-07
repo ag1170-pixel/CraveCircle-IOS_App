@@ -151,3 +151,30 @@ final class RecommendationEngineTests: XCTestCase {
         XCTAssertEqual(reason, "Because you cooked Paneer Tikka")
     }
 }
+
+// MARK: - Recipe total-time parsing (Prep + Cook merged into one figure)
+
+final class RecipeTotalTimeTests: XCTestCase {
+    func testMinutesParsing() {
+        XCTAssertEqual(Recipe.minutes(from: "15 min"), 15)
+        XCTAssertEqual(Recipe.minutes(from: "1 hr"), 60)
+        XCTAssertEqual(Recipe.minutes(from: "2 hr 5 min"), 125)
+        XCTAssertEqual(Recipe.minutes(from: "90 min"), 90)
+        XCTAssertNil(Recipe.minutes(from: "quick"))
+        XCTAssertNil(Recipe.minutes(from: nil))
+    }
+
+    func testFormatMinutes() {
+        XCTAssertEqual(Recipe.formatMinutes(35), "35 min")
+        XCTAssertEqual(Recipe.formatMinutes(60), "1 hr")
+        XCTAssertEqual(Recipe.formatMinutes(95), "1 hr 35 min")
+    }
+
+    func testTotalSumsPrepAndCook() {
+        XCTAssertEqual(makeRecipe(title: "x", ingredients: [], prep: "20 min", cook: "15 min").totalTimeText, "35 min")
+        // only one present → that one
+        XCTAssertEqual(makeRecipe(title: "x", ingredients: [], prep: "10 min").totalTimeText, "10 min")
+        // neither parseable but one exists → unparsed fallback
+        XCTAssertEqual(makeRecipe(title: "x", ingredients: [], prep: "a while").totalTimeText, "a while")
+    }
+}

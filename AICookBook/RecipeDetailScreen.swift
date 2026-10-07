@@ -650,9 +650,7 @@ struct RecipeDetailScreen: View {
 
     private var metaLine: some View {
         HStack(spacing: 10) {
-            if let prep = recipe.prepTime { metaItem("Prep", prep) }
-            if recipe.prepTime != nil && recipe.cookTime != nil { divider }
-            if let cook = recipe.cookTime { metaItem("Cook", cook) }
+            if let total = recipe.totalTimeText { metaItem("Total", total) }
         }
     }
 
