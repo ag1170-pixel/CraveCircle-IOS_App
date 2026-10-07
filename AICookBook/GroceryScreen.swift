@@ -12,9 +12,11 @@ import SwiftUI
 struct GroceryScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var newItem = ""
-    @State private var showFinish = false
     @State private var catHeld = false          // true while dragging the grocery cat → freeze scroll
     @State private var selectedDish: String? = nil   // nil = All; else show only that dish's ingredients
+
+    // Swiggy-style rotating hints for the add field (CyclingPlaceholder).
+    static let addHints = ["Add item to your list", "Add milk", "Add eggs", "Add bananas", "Add coffee"]
 
     private var groups: [(dish: String, items: [GroceryItem])] { GrocerySort.groupedByDish(environment.groceryItems) }
     private var visibleGroups: [(dish: String, items: [GroceryItem])] {
@@ -64,21 +66,6 @@ struct GroceryScreen: View {
                     selectedDish = nil
                 }
             }
-            .confirmationDialog("Finish grocery run", isPresented: $showFinish, titleVisibility: .visible) {
-                Button("Clear checked items") {
-                    withAnimation(AppMotion.smooth) { environment.clearCheckedGroceryItems() }
-                }
-                Button("Clear everything", role: .destructive) {
-                    withAnimation(AppMotion.smooth) {
-                        for item in environment.groceryItems {
-                            environment.removeGroceryItem(id: item.id)
-                        }
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("\(total - checked) unchecked item\(total - checked == 1 ? "" : "s") remaining.")
-            }
         }
         .tint(AppTheme.accentInk)
     }
@@ -99,19 +86,43 @@ struct GroceryScreen: View {
             if total > 0 {
                 ProgressRing(progress: progress, checked: checked, total: total)
                     .frame(width: 52, height: 52)
-                Button {
-                    Haptics.tap(); showFinish = true
-                } label: {
-                    Text("Finish")
-                        .font(AppFont.body(14, weight: .semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(AppTheme.surface, in: Capsule())
-                        .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
-                }
-                .buttonStyle(PressableStyle())
+                listMenu
             }
         }
+    }
+
+    // Osta-style "Share & collaborate" menu (replaces the old Finish button).
+    private var listMenu: some View {
+        Menu {
+            ShareLink(item: shareText) {
+                Label("Invite friend", systemImage: "person.badge.plus")
+            }
+            Button {
+                Haptics.tap(); UIPasteboard.general.string = shareText
+            } label: {
+                Label("Copy to clipboard", systemImage: "doc.on.doc")
+            }
+            Button {
+                Haptics.select()
+                withAnimation(AppMotion.snappy) { environment.markAllGroceryComplete() }
+            } label: {
+                Label("Mark all as complete", systemImage: "checkmark.circle")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .frame(width: 36, height: 36)
+                .background(AppTheme.surface, in: Circle())
+                .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 1))
+        }
+        .accessibilityLabel("List options")
+    }
+
+    /// Plain-text snapshot of the list — shared via "Invite friend" and "Copy to clipboard".
+    private var shareText: String {
+        let lines = environment.groceryItems.map { "• \($0.ingredientName)" }
+        return "My CraveCircle grocery list:\n" + lines.joined(separator: "\n")
     }
 
     // MARK: Dish filter (focus one dish to cook)
@@ -183,7 +194,7 @@ struct GroceryScreen: View {
 
     private var addRow: some View {
         HStack(spacing: AppSpacing.xs) {
-            TextField("Add item to your list…", text: $newItem)
+            TextField("", text: $newItem)
                 .font(AppFont.body(16))
                 .foregroundStyle(AppTheme.textPrimary)
                 .autocorrectionDisabled()
@@ -193,6 +204,13 @@ struct GroceryScreen: View {
                 .frame(height: 46)
                 .background(AppTheme.surface, in: Capsule())
                 .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                .overlay(alignment: .leading) {
+                    if newItem.isEmpty {
+                        CyclingPlaceholder(phrases: Self.addHints)
+                            .padding(.leading, AppSpacing.md)
+                            .allowsHitTesting(false)
+                    }
+                }
             Button {
                 addItem()
             } label: {

@@ -1359,6 +1359,10 @@ final class AppEnvironment: ObservableObject {
         groceryItems.removeAll { $0.checked }
     }
 
+    func markAllGroceryComplete() {
+        for i in groceryItems.indices where !groceryItems[i].checked { groceryItems[i].checked = true }
+    }
+
     // MARK: - Recipe Comments
     func comments(for recipeId: String) -> [RecipeComment] {
         recipeComments[recipeId] ?? []
