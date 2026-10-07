@@ -1618,6 +1618,11 @@ final class AppEnvironment: ObservableObject {
             stage: stage, recipeTitle: title, recipeId: recipeId,
             estimatedEnd: Date().addingTimeInterval(45), message: message)
 
+        // Adopt an existing activity started by the Share Extension if we don't have one yet.
+        if cookingActivity == nil {
+            cookingActivity = Activity<CookingImportAttributes>.activities.first
+        }
+
         if let activity = cookingActivity {
             if stage == .done || stage == .failed {
                 // Keep the final card up briefly so the user can tap it, then auto-dismiss.
@@ -1636,9 +1641,10 @@ final class AppEnvironment: ObservableObject {
     }
 
     private func endCookingActivity() {
-        guard let activity = cookingActivity else { return }
         cookingActivity = nil
-        Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        for activity in Activity<CookingImportAttributes>.activities {
+            Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        }
     }
     
     private func beginPolling(jobId: String) {
