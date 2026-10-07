@@ -302,8 +302,9 @@ struct AddGroceryItemSheet: View {
             }
         }
         .padding(AppSpacing.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(AppTheme.background)
+        .presentationDetents([.height(180)])
         .onAppear { focused = true }
     }
 

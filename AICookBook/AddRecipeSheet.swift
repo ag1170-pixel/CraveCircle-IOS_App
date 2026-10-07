@@ -19,7 +19,13 @@ struct AddRecipeSheet: View {
     @State private var showWrite = false
     @State private var showLink = false            // paste field is hidden until "Import from social media" is tapped
     @State private var blank = AddRecipeSheet.newBlank()
+    @State private var contentHeight: CGFloat = 0  // drives a content-fitted sheet detent (no dead space)
     @FocusState private var linkFocused: Bool
+
+    // Fit the sheet to its content; cap at 90% so a small screen still scrolls. Falls back before measure.
+    private var detentHeight: CGFloat {
+        contentHeight > 0 ? min(contentHeight, UIScreen.main.bounds.height * 0.9) : 440
+    }
 
     private var canImportLink: Bool { ReelURL.isValid(link) }
 
@@ -45,8 +51,10 @@ struct AddRecipeSheet: View {
             }
             .padding(AppSpacing.md)
             .padding(.bottom, AppSpacing.lg)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         }
         .background(AppTheme.background)
+        .presentationDetents([.height(detentHeight)])
         .presentationDragIndicator(.visible)
         .fullScreenCover(isPresented: $showWrite) {
             NavigationStack {

@@ -357,13 +357,11 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showingImportSheet) {
             AddRecipeSheet(showing: $showingImportSheet)
-                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.background)
         }
         .sheet(isPresented: $showingAddGrocery) {
             AddGroceryItemSheet()
-                .presentationDetents([.height(180), .medium])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.background)
         }
