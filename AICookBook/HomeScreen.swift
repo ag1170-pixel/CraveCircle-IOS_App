@@ -26,6 +26,7 @@ struct HomeScreen: View {
     @State private var navigateToLibrary = false
     @State private var showShared = false
     @State private var catHeld = false                   // true while dragging the chef-cat → freeze scroll
+    @StateObject private var voiceSearch = VoiceSearchController()
     @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
     
     private var unreadSharedCount: Int {
@@ -41,11 +42,8 @@ struct HomeScreen: View {
         GridItem(.flexible(), spacing: AppSpacing.md)
     ]
 
-    // Swiggy-style rotating search hints (cycled by CyclingPlaceholder).
-    static let searchHints = [
-        "Search for cake", "Search for paneer", "Search for pizza",
-        "Search for biryani", "Search for something sweet", "Search for a creator"
-    ]
+    // Swiggy-style rotating search terms — only the quoted word cycles ("Search for 'pasta'").
+    static let searchHints = ["pasta", "paneer", "cake", "biryani", "butter chicken", "something sweet"]
 
     var body: some View {
         NavigationStack {
@@ -150,9 +148,10 @@ struct HomeScreen: View {
         !query.trimmingCharacters(in: .whitespaces).isEmpty || filters.isActive
     }
 
-    private var results: [Recipe] {
-        RecipeSearch.apply(environment.recipes, query: query, filters: filters)
+    private var searchResult: RecipeSearch.Result {
+        RecipeSearch.search(environment.recipes, query: query, filters: filters)
     }
+    private var results: [Recipe] { searchResult.recipes }
 
     private var searchSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -172,7 +171,7 @@ struct HomeScreen: View {
                 .autocorrectionDisabled()
                 .overlay(alignment: .leading) {
                     if query.isEmpty {
-                        CyclingPlaceholder(phrases: Self.searchHints)
+                        CyclingPlaceholder(prefix: "Search for ", phrases: Self.searchHints)
                             .allowsHitTesting(false)
                     }
                 }
@@ -182,11 +181,38 @@ struct HomeScreen: View {
                 }.buttonStyle(.plain)
                 .accessibilityLabel("Clear search")
             }
+            micButton
         }
         .padding(.horizontal, AppSpacing.md)
         .frame(height: 48)
         .background(AppTheme.surface, in: Capsule())
-        .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+        .overlay(Capsule().stroke(voiceSearch.isRecording ? AppTheme.accent : AppTheme.hairline,
+                                  lineWidth: voiceSearch.isRecording ? 1.5 : 1))
+        // Live dictation flows straight into the query as the user speaks.
+        .onChange(of: voiceSearch.transcript) { _, t in
+            if !t.isEmpty { query = t }
+        }
+    }
+
+    /// Tap to search by voice; shows a listening state while recording. Routes to Settings if the
+    /// user previously denied mic/speech access.
+    private var micButton: some View {
+        Button {
+            if voiceSearch.permissionDenied {
+                if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                return
+            }
+            voiceSearch.toggle()
+        } label: {
+            Image(systemName: voiceSearch.isRecording ? "waveform" : "mic.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(voiceSearch.isRecording ? AppTheme.accent : AppTheme.textTertiary)
+                .symbolEffect(.variableColor.iterative, isActive: voiceSearch.isRecording)
+                .scaleEffect(voiceSearch.isRecording ? 1.12 : 1)
+                .animation(AppMotion.snappy, value: voiceSearch.isRecording)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(voiceSearch.isRecording ? "Stop voice search" : "Search by voice")
     }
 
     private var filterBar: some View {
@@ -249,18 +275,26 @@ struct HomeScreen: View {
     }
 
     private var searchResultsSection: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            if results.isEmpty {
+        let result = searchResult
+        let recipes = result.recipes
+        return VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            if recipes.isEmpty {
                 noResults
             } else {
-                let n = results.count
-                Text("\(n) \(n == 1 ? "result" : "results")")
-                    .font(AppFont.display(20, weight: .bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                    .padding(.horizontal, AppSpacing.md)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(result.isGuess ? "No exact match" : "\(recipes.count) \(recipes.count == 1 ? "result" : "results")")
+                        .font(AppFont.display(20, weight: .bold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                    if result.isGuess {
+                        Text("Here's what you might be craving instead")
+                            .font(AppFont.body(13))
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
+                }
+                .padding(.horizontal, AppSpacing.md)
                 LazyVGrid(columns: columns, spacing: AppSpacing.md) {
-                    ForEach(results) { recipe in
-                        LibraryCard(recipe: recipe) { environment.selectRecipe(recipe, in: results) }
+                    ForEach(recipes) { recipe in
+                        LibraryCard(recipe: recipe) { environment.selectRecipe(recipe, in: recipes) }
                             .reportsCardFrame(id: "res-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
                     }
                 }

@@ -21,6 +21,39 @@ struct RecipeFilters: Equatable {
 
 enum RecipeSearch {
 
+    /// Ranked search result. `isGuess` is true when nothing matched the query and these are the
+    /// closest-dish best guesses instead — so the UI can label them "you might like" and NEVER show
+    /// an empty screen.
+    struct Result {
+        let recipes: [Recipe]
+        let isGuess: Bool
+    }
+
+    /// Smart, typo-tolerant, keyword-aware search. Applies filters, then ranks by relevance
+    /// (title > ingredients > creator/description, with prefix + fuzzy + synonym matching). When
+    /// no recipe matches, returns the nearest dishes as guesses rather than an empty list.
+    static func search(_ recipes: [Recipe], query: String, filters: RecipeFilters) -> Result {
+        let base = recipes.filter {
+            dietOK($0, filters.diet) && timeOK($0, filters.time) && (!filters.highProtein || isHighProtein($0))
+        }
+        let raw = normalize(query)
+        guard !raw.isEmpty else { return Result(recipes: base, isGuess: false) }
+
+        let terms = expand(tokenize(raw))
+        let scored = base.map { ($0, score($0, terms: terms, raw: raw)) }
+        let hits = scored.filter { $0.1 > 0 }.sorted { $0.1 > $1.1 }
+        if !hits.isEmpty { return Result(recipes: hits.map(\.0), isGuess: false) }
+
+        // Never empty: rank the whole (filtered) set by fuzzy closeness and offer the nearest dishes.
+        let guesses = base
+            .map { ($0, closeness($0, terms: terms)) }
+            .sorted { $0.1 > $1.1 }
+            .prefix(10)
+            .map(\.0)
+        return Result(recipes: Array(guesses), isGuess: !guesses.isEmpty)
+    }
+
+    /// Back-compat filter-only / substring search (used by tests). Prefer `search` in the UI.
     static func apply(_ recipes: [Recipe], query: String, filters: RecipeFilters) -> [Recipe] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
         return recipes.filter { r in
@@ -29,6 +62,99 @@ enum RecipeSearch {
             timeOK(r, filters.time) &&
             (!filters.highProtein || isHighProtein(r))
         }
+    }
+
+    // MARK: - Scoring (ranked, typo-tolerant, keyword-aware)
+
+    private static let stopWords: Set<String> = ["recipe","recipes","with","for","a","an","the","i",
+        "want","to","eat","eating","make","making","some","something","dish","dishes","food","how",
+        "me","my","please","can","cook","cooking","of","and","in","on","that","this"]
+
+    /// Query-term synonyms so "aubergine" finds eggplant, "prawns" finds shrimp, "aloo" finds potato.
+    private static let synonyms: [String: [String]] = [
+        "aubergine": ["eggplant", "brinjal"], "brinjal": ["eggplant"], "eggplant": ["brinjal"],
+        "capsicum": ["pepper", "bell"], "coriander": ["cilantro"], "cilantro": ["coriander"],
+        "curd": ["yogurt", "yoghurt", "dahi"], "dahi": ["curd", "yogurt"],
+        "prawn": ["shrimp"], "prawns": ["shrimp"], "shrimp": ["prawn"],
+        "aloo": ["potato"], "gobi": ["cauliflower"], "chawal": ["rice"], "chana": ["chickpea"],
+        "roti": ["bread", "chapati"], "chapati": ["roti", "bread"], "maggi": ["noodles"],
+        "noodle": ["noodles", "pasta"], "cuppa": ["tea"], "sweet": ["dessert", "mithai"],
+        "nonveg": ["chicken", "mutton", "fish"], "veggie": ["vegetable", "veg"]
+    ]
+
+    private static func normalize(_ s: String) -> String {
+        s.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func tokenize(_ q: String) -> [String] {
+        q.split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .filter { $0.count > 1 && !stopWords.contains($0) }
+    }
+
+    /// Add synonyms + a naive singular so "tomatoes"/"eggs" still match "tomato"/"egg".
+    private static func expand(_ tokens: [String]) -> [String] {
+        var out = Set(tokens)
+        for t in tokens {
+            synonyms[t].map { out.formUnion($0) }
+            if t.count > 3, t.hasSuffix("s") { out.insert(String(t.dropLast())) }
+        }
+        return Array(out)
+    }
+
+    private static func score(_ r: Recipe, terms: [String], raw: String) -> Int {
+        let title = r.title.lowercased()
+        let titleWords = title.split(separator: " ").map(String.init)
+        let ing = ingredientText(r)
+        let creator = r.ownerUsername?.lowercased() ?? ""
+        let desc = r.description?.lowercased() ?? ""
+
+        var s = 0
+        if title.contains(raw) { s += 100 }                 // whole-query title hit = strongest
+        for t in terms {
+            if title.contains(t) { s += 30 }
+            else if titleWords.contains(where: { $0.hasPrefix(t) || t.hasPrefix($0) }) { s += 22 }
+            else if titleWords.contains(where: { fuzzyEqual($0, t) }) { s += 18 }   // typo tolerance
+            if ing.contains(t) { s += 12 }
+            if creator.contains(t) { s += 8 }
+            if desc.contains(t) { s += 5 }
+        }
+        return s
+    }
+
+    /// Fuzzy closeness for the never-empty fallback: higher = title is nearer to the query terms.
+    private static func closeness(_ r: Recipe, terms: [String]) -> Int {
+        let titleWords = r.title.lowercased().split(separator: " ").map(String.init)
+        guard !titleWords.isEmpty, !terms.isEmpty else { return 0 }
+        return terms.reduce(0) { acc, t in
+            let best = titleWords.map { 100 - min(levenshtein($0, t), 100) }.max() ?? 0
+            return acc + best
+        }
+    }
+
+    /// Words count as the "same" when within one edit (handles single typos on words ≥4 chars).
+    private static func fuzzyEqual(_ a: String, _ b: String) -> Bool {
+        if a == b { return true }
+        guard max(a.count, b.count) >= 4, abs(a.count - b.count) <= 1 else { return false }
+        return levenshtein(a, b) <= 1
+    }
+
+    /// Classic Levenshtein edit distance (small strings — fine for a food query).
+    static func levenshtein(_ a: String, _ b: String) -> Int {
+        let x = Array(a), y = Array(b)
+        if x.isEmpty { return y.count }
+        if y.isEmpty { return x.count }
+        var prev = Array(0...y.count)
+        var cur = [Int](repeating: 0, count: y.count + 1)
+        for i in 1...x.count {
+            cur[0] = i
+            for j in 1...y.count {
+                let cost = x[i - 1] == y[j - 1] ? 0 : 1
+                cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+            }
+            swap(&prev, &cur)
+        }
+        return prev[y.count]
     }
 
     // MARK: - Query match (title / creator / description / ingredients)

@@ -15,8 +15,8 @@ struct GroceryScreen: View {
     @State private var catHeld = false          // true while dragging the grocery cat → freeze scroll
     @State private var selectedDish: String? = nil   // nil = All; else show only that dish's ingredients
 
-    // Swiggy-style rotating hints for the add field (CyclingPlaceholder).
-    static let addHints = ["Add item to your list", "Add milk", "Add eggs", "Add bananas", "Add coffee"]
+    // Swiggy-style rotating terms — only the quoted word cycles ("Add 'milk'").
+    static let addHints = ["milk", "eggs", "bananas", "coffee", "paneer"]
 
     private var groups: [(dish: String, items: [GroceryItem])] { GrocerySort.groupedByDish(environment.groceryItems) }
     private var visibleGroups: [(dish: String, items: [GroceryItem])] {
@@ -211,7 +211,7 @@ struct GroceryScreen: View {
                 .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
                 .overlay(alignment: .leading) {
                     if newItem.isEmpty {
-                        CyclingPlaceholder(phrases: Self.addHints)
+                        CyclingPlaceholder(prefix: "Add ", phrases: Self.addHints)
                             .padding(.leading, AppSpacing.md)
                             .allowsHitTesting(false)
                     }
@@ -283,7 +283,7 @@ struct AddGroceryItemSheet: View {
                     .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
                     .overlay(alignment: .leading) {
                         if text.isEmpty {
-                            CyclingPlaceholder(phrases: GroceryScreen.addHints)
+                            CyclingPlaceholder(prefix: "Add ", phrases: GroceryScreen.addHints)
                                 .padding(.leading, AppSpacing.md)
                                 .allowsHitTesting(false)
                         }

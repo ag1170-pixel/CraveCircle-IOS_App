@@ -12,7 +12,9 @@
 import SwiftUI
 
 struct CyclingPlaceholder: View {
-    let phrases: [String]
+    var prefix: String = ""        // static lead-in that never animates, e.g. "Search for "
+    let phrases: [String]          // the cycling terms (the only part that moves)
+    var quoted: Bool = true        // wrap each term in single quotes → Search for 'pasta'
     var font: Font = AppFont.body(16)
     var color: Color = AppTheme.textTertiary
     var interval: TimeInterval = 2.2
@@ -20,17 +22,23 @@ struct CyclingPlaceholder: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var index = 0
 
+    private func term(_ s: String) -> String { quoted ? "'\(s)'" : s }
+
     var body: some View {
-        Group {
-            if reduceMotion || phrases.count <= 1 {
-                Text(phrases.first ?? "")
-            } else {
-                Text(phrases[index % phrases.count])
-                    .id(index)                              // new identity each tick → transition fires
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .bottom).combined(with: .opacity),
-                        removal: .move(edge: .top).combined(with: .opacity)
-                    ))
+        // Prefix is static; only the term view gets a new identity each tick, so just it rises/fades.
+        HStack(spacing: 0) {
+            if !prefix.isEmpty { Text(prefix) }
+            Group {
+                if reduceMotion || phrases.count <= 1 {
+                    Text(term(phrases.first ?? ""))
+                } else {
+                    Text(term(phrases[index % phrases.count]))
+                        .id(index)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .top).combined(with: .opacity)
+                        ))
+                }
             }
         }
         .font(font)
@@ -49,6 +57,6 @@ struct CyclingPlaceholder: View {
 }
 
 #Preview {
-    CyclingPlaceholder(phrases: ["Search for cake", "Search for sweet", "Search for pizza"])
+    CyclingPlaceholder(prefix: "Search for ", phrases: ["pasta", "cake", "paneer"])
         .padding()
 }

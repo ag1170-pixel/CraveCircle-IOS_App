@@ -202,3 +202,49 @@ final class NutritionPortionTests: XCTestCase {
         XCTAssertEqual(n.caloriesDVPercent, 25)   // 502 / 2000
     }
 }
+
+// MARK: - Smart search (ranked, typo-tolerant, synonym-aware, never-empty)
+
+final class SmartSearchTests: XCTestCase {
+    private let recipes = [
+        makeRecipe(id: "p", title: "Paneer Butter Masala", ingredients: ["paneer", "butter", "tomato"]),
+        makeRecipe(id: "c", title: "Chicken Biryani", ingredients: ["chicken", "rice", "spices"]),
+        makeRecipe(id: "e", title: "Baingan Bharta", ingredients: ["eggplant", "onion", "tomato"]),
+        makeRecipe(id: "t", title: "Tomato Pasta", ingredients: ["pasta", "tomato", "garlic"])
+    ]
+
+    func testRanksTitleMatchFirst() {
+        let out = RecipeSearch.search(recipes, query: "pasta", filters: RecipeFilters())
+        XCTAssertFalse(out.isGuess)
+        XCTAssertEqual(out.recipes.first?.id, "t")
+    }
+
+    func testTypoTolerant() {
+        let out = RecipeSearch.search(recipes, query: "chiken", filters: RecipeFilters())
+        XCTAssertFalse(out.isGuess)
+        XCTAssertEqual(out.recipes.first?.id, "c")
+    }
+
+    func testSynonymAubergineFindsEggplant() {
+        let out = RecipeSearch.search(recipes, query: "aubergine", filters: RecipeFilters())
+        XCTAssertFalse(out.isGuess)
+        XCTAssertTrue(out.recipes.contains { $0.id == "e" })
+    }
+
+    func testStopwordsIgnored() {
+        let out = RecipeSearch.search(recipes, query: "i want to eat some pasta", filters: RecipeFilters())
+        XCTAssertEqual(out.recipes.first?.id, "t")
+    }
+
+    func testNeverEmptyShowsGuesses() {
+        let out = RecipeSearch.search(recipes, query: "xylophone", filters: RecipeFilters())
+        XCTAssertTrue(out.isGuess)
+        XCTAssertFalse(out.recipes.isEmpty)
+    }
+
+    func testEmptyQueryReturnsAll() {
+        let out = RecipeSearch.search(recipes, query: "", filters: RecipeFilters())
+        XCTAssertEqual(out.recipes.count, recipes.count)
+        XCTAssertFalse(out.isGuess)
+    }
+}
