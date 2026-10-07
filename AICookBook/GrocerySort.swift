@@ -41,6 +41,12 @@ enum GroceryAisle: String, CaseIterable {
     }
 }
 
+/// How the grocery list is grouped — matches Osta's "By Recipe / By Aisle" sort options.
+enum GrocerySortMode: String, CaseIterable {
+    case recipe, aisle
+    var label: String { self == .recipe ? "By Recipe" : "By Aisle" }
+}
+
 enum GrocerySort {
 
     /// Aisle for an ingredient line, matched most-specific first (meat/fish before produce so

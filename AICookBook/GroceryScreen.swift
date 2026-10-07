@@ -14,6 +14,10 @@ struct GroceryScreen: View {
     @State private var newItem = ""
     @State private var catHeld = false          // true while dragging the grocery cat → freeze scroll
     @State private var selectedDish: String? = nil   // nil = All; else show only that dish's ingredients
+    @State private var showSortOptions = false
+    @AppStorage("grocery_sort_mode") private var sortModeRaw = GrocerySortMode.recipe.rawValue
+
+    private var sortMode: GrocerySortMode { GrocerySortMode(rawValue: sortModeRaw) ?? .recipe }
 
     // Swiggy-style rotating terms — only the quoted word cycles ("Add 'milk'").
     static let addHints = ["milk", "eggs", "bananas", "coffee", "paneer"]
@@ -23,7 +27,10 @@ struct GroceryScreen: View {
         guard let d = selectedDish else { return groups }
         return groups.filter { $0.dish == d }
     }
-    private var shownItems: [GroceryItem] { visibleGroups.flatMap(\.items) }
+    // In aisle mode there's no dish filter, so progress reflects the whole list.
+    private var shownItems: [GroceryItem] {
+        sortMode == .aisle ? environment.groceryItems : visibleGroups.flatMap(\.items)
+    }
 
     // Progress reflects the CURRENT view — cooking just the burger shows the burger's progress.
     private var total: Int { shownItems.count }
@@ -38,8 +45,13 @@ struct GroceryScreen: View {
                     if environment.groceryItems.isEmpty {
                         GroceryEmptyState()
                     } else {
-                        if groups.count > 1 { dishFilter }
-                        list
+                        sortBar
+                        if sortMode == .recipe {
+                            if groups.count > 1 { dishFilter }
+                            list
+                        } else {
+                            aisleList
+                        }
                     }
                     addRow
                 }
@@ -66,8 +78,36 @@ struct GroceryScreen: View {
                     selectedDish = nil
                 }
             }
+            .confirmationDialog("Sort by", isPresented: $showSortOptions, titleVisibility: .visible) {
+                Button("By Recipe") { withAnimation(AppMotion.smooth) { sortModeRaw = GrocerySortMode.recipe.rawValue } }
+                Button("By Aisle") {
+                    withAnimation(AppMotion.smooth) { sortModeRaw = GrocerySortMode.aisle.rawValue; selectedDish = nil }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
         }
         .tint(AppTheme.accentInk)
+    }
+
+    // MARK: Sort bar (By Recipe / By Aisle — Osta-style ⇅ toggle)
+
+    private var sortBar: some View {
+        HStack {
+            Button {
+                Haptics.tap(); showSortOptions = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(sortMode.label)
+                        .font(AppFont.body(14, weight: .semibold))
+                }
+                .foregroundStyle(AppTheme.textSecondary)
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel("Sort list")
+            Spacer()
+        }
     }
 
     // MARK: Header + progress ring
@@ -167,32 +207,51 @@ struct GroceryScreen: View {
         // Smooth cross-fade + settle when the dish filter switches, instead of a hard jump.
         VStack(spacing: AppSpacing.md) {
             ForEach(visibleGroups, id: \.dish) { section in
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 6) {
-                        Image(systemName: section.dish == GrocerySort.handAddedLabel ? "pencil" : "fork.knife")
-                            .font(.system(size: 12, weight: .semibold))
-                        Text(section.dish).font(AppFont.body(12, weight: .bold)).textCase(.uppercase)
-                        Spacer()
-                        Text("\(section.items.filter { !$0.checked }.count)/\(section.items.count)")
-                            .font(AppFont.body(12, weight: .semibold))
-                    }
-                    .foregroundStyle(AppTheme.textTertiary)
-                    .padding(.horizontal, AppSpacing.md).padding(.vertical, 10)
-
-                    ForEach(section.items) { item in
-                        GroceryRow(item: item) { toggle(item) }
-                            .reportsGroceryRow(id: item.id, done: item.checked)
-                        if item.id != section.items.last?.id {
-                            Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.leading, 44)
-                        }
-                    }
-                }
-                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                sectionCard(title: section.dish,
+                            icon: section.dish == GrocerySort.handAddedLabel ? "pencil" : "fork.knife",
+                            items: section.items)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .animation(AppMotion.smooth, value: selectedDish)
+    }
+
+    // MARK: List grouped by aisle/category (masalas, vegetables, dairy…)
+
+    private var aisleList: some View {
+        VStack(spacing: AppSpacing.md) {
+            ForEach(GrocerySort.grouped(environment.groceryItems), id: \.aisle) { section in
+                sectionCard(title: section.aisle.label, icon: section.aisle.icon, items: section.items)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .animation(AppMotion.smooth, value: sortModeRaw)
+    }
+
+    /// One grouped card (shared by the recipe + aisle groupings): a labelled header + its rows.
+    @ViewBuilder
+    private func sectionCard(title: String, icon: String, items: [GroceryItem]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: icon).font(.system(size: 12, weight: .semibold))
+                Text(title).font(AppFont.body(12, weight: .bold)).textCase(.uppercase)
+                Spacer()
+                Text("\(items.filter { !$0.checked }.count)/\(items.count)")
+                    .font(AppFont.body(12, weight: .semibold))
+            }
+            .foregroundStyle(AppTheme.textTertiary)
+            .padding(.horizontal, AppSpacing.md).padding(.vertical, 10)
+
+            ForEach(items) { item in
+                GroceryRow(item: item) { toggle(item) }
+                    .reportsGroceryRow(id: item.id, done: item.checked)
+                if item.id != items.last?.id {
+                    Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.leading, 44)
+                }
+            }
+        }
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
     }
 
     // MARK: Add row
