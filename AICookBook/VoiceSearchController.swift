@@ -47,41 +47,48 @@ final class VoiceSearchController: NSObject, ObservableObject {
     private func begin() {
         guard let recognizer, recognizer.isAvailable else { return }
         transcript = ""
-        do {
-            let s = AVAudioSession.sharedInstance()
-            try s.setCategory(.record, mode: .measurement, options: .duckOthers)
-            try s.setActive(true, options: .notifyOthersOnDeactivation)
-        } catch { return }
-
-        let req = SFSpeechAudioBufferRecognitionRequest()
-        req.shouldReportPartialResults = true
-        req.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition   // privacy: keep audio local
-        request = req
-
-        let node = audioEngine.inputNode
-        node.removeTap(onBus: 0)
-        let format = node.outputFormat(forBus: 0)
-        guard format.sampleRate > 0 else { return }
-        node.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
-            self?.request?.append(buffer)
-        }
-
-        audioEngine.prepare()
-        do { try audioEngine.start() } catch { return }
-        isRecording = true
-        Haptics.tap()
-        armSilenceTimer()
-
-        task = recognizer.recognitionTask(with: req) { [weak self] result, error in
+        // Audio-session + engine setup are synchronous XPC calls that can block the main thread for
+        // hundreds of ms (watchdog hang). Run them OFF-MAIN; @Published state + the timer go to main.
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
-            if let result {
-                DispatchQueue.main.async {
-                    self.transcript = result.bestTranscription.formattedString
-                    self.armSilenceTimer()           // reset the silence countdown while speech flows
-                }
-                if result.isFinal { self.finish() }
+            do {
+                let s = AVAudioSession.sharedInstance()
+                try s.setCategory(.record, mode: .measurement, options: .duckOthers)
+                try s.setActive(true, options: .notifyOthersOnDeactivation)
+            } catch { return }
+
+            let req = SFSpeechAudioBufferRecognitionRequest()
+            req.shouldReportPartialResults = true
+            req.requiresOnDeviceRecognition = false   // reliability for short dictation
+            self.request = req
+
+            let node = self.audioEngine.inputNode
+            node.removeTap(onBus: 0)
+            let format = node.outputFormat(forBus: 0)
+            guard format.sampleRate > 0 else { return }
+            node.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+                self?.request?.append(buffer)
             }
-            if error != nil { self.finish() }
+
+            self.audioEngine.prepare()
+            do { try self.audioEngine.start() } catch { return }
+
+            DispatchQueue.main.async {
+                self.isRecording = true
+                Haptics.tap()
+                self.armSilenceTimer()
+                self.task = recognizer.recognitionTask(with: req) { [weak self] result, error in
+                    guard let self else { return }
+                    if let result {
+                        DispatchQueue.main.async {
+                            self.transcript = result.bestTranscription.formattedString
+                            self.armSilenceTimer()   // reset the silence countdown while speech flows
+                        }
+                        if result.isFinal { self.finish() }
+                    }
+                    if error != nil { self.finish() }
+                }
+            }
         }
     }
 

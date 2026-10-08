@@ -27,9 +27,11 @@ struct GroceryScreen: View {
         guard let d = selectedDish else { return groups }
         return groups.filter { $0.dish == d }
     }
-    // In aisle mode there's no dish filter, so progress reflects the whole list.
     private var shownItems: [GroceryItem] {
-        sortMode == .aisle ? environment.groceryItems : visibleGroups.flatMap(\.items)
+        if sortMode == .recipe { return visibleGroups.flatMap(\.items) }
+        // Aisle mode: still honor the dish filter so you can focus one recipe's items.
+        guard let d = selectedDish else { return environment.groceryItems }
+        return environment.groceryItems.filter { ($0.recipeName ?? GrocerySort.handAddedLabel) == d }
     }
 
     // Progress reflects the CURRENT view — cooking just the burger shows the burger's progress.
@@ -46,8 +48,8 @@ struct GroceryScreen: View {
                         GroceryEmptyState()
                     } else {
                         sortBar
+                        if groups.count > 1 { dishFilter }   // filter by recipe in BOTH modes
                         if sortMode == .recipe {
-                            if groups.count > 1 { dishFilter }
                             list
                         } else {
                             aisleList
@@ -220,8 +222,9 @@ struct GroceryScreen: View {
 
     private var aisleList: some View {
         VStack(spacing: AppSpacing.md) {
-            ForEach(GrocerySort.grouped(environment.groceryItems), id: \.aisle) { section in
-                sectionCard(title: section.aisle.label, icon: section.aisle.icon, items: section.items)
+            ForEach(GrocerySort.grouped(shownItems), id: \.aisle) { section in
+                // showRecipe: in aisle mode each row shows which recipe it came from (lost otherwise).
+                sectionCard(title: section.aisle.label, icon: section.aisle.icon, items: section.items, showRecipe: true)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -230,7 +233,7 @@ struct GroceryScreen: View {
 
     /// One grouped card (shared by the recipe + aisle groupings): a labelled header + its rows.
     @ViewBuilder
-    private func sectionCard(title: String, icon: String, items: [GroceryItem]) -> some View {
+    private func sectionCard(title: String, icon: String, items: [GroceryItem], showRecipe: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 Image(systemName: icon).font(.system(size: 12, weight: .semibold))
@@ -243,7 +246,7 @@ struct GroceryScreen: View {
             .padding(.horizontal, AppSpacing.md).padding(.vertical, 10)
 
             ForEach(items) { item in
-                GroceryRow(item: item) { toggle(item) }
+                GroceryRow(item: item, showRecipe: showRecipe) { toggle(item) }
                     .reportsGroceryRow(id: item.id, done: item.checked)
                 if item.id != items.last?.id {
                     Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.leading, 44)
@@ -402,6 +405,7 @@ struct ProgressRing: View {
 
 struct GroceryRow: View {
     let item: GroceryItem
+    var showRecipe: Bool = false          // show the source recipe as a subtitle (By Aisle mode)
     let toggle: () -> Void
 
     var body: some View {
@@ -412,11 +416,20 @@ struct GroceryRow: View {
                     .font(.system(size: 22))
                     .foregroundStyle(item.checked ? AppTheme.accent : AppTheme.textTertiary)
                     .contentTransition(.symbolEffect(.replace))
-                // Ingredient name on the LEFT.
-                Text(parts.name)
-                    .font(AppFont.body(17))
-                    .foregroundStyle(item.checked ? AppTheme.textTertiary : AppTheme.textPrimary)
-                    .strikethrough(item.checked, color: AppTheme.textTertiary)
+                // Ingredient name on the LEFT (+ which recipe it's for, when grouped by aisle).
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(parts.name)
+                        .font(AppFont.body(17))
+                        .foregroundStyle(item.checked ? AppTheme.textTertiary : AppTheme.textPrimary)
+                        .strikethrough(item.checked, color: AppTheme.textTertiary)
+                    if showRecipe, let recipe = item.recipeName, !recipe.isEmpty {
+                        HStack(spacing: 3) {
+                            Image(systemName: "fork.knife").font(.system(size: 9, weight: .semibold))
+                            Text(recipe).font(AppFont.body(11, weight: .medium)).lineLimit(1)
+                        }
+                        .foregroundStyle(AppTheme.accentInk)
+                    }
+                }
                 Spacer(minLength: AppSpacing.sm)
                 // Quantity on the RIGHT, muted.
                 if !parts.qty.isEmpty {

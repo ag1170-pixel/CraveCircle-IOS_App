@@ -386,7 +386,7 @@ struct MainTabView: View {
             if requested { showFeedback = true; environment.pendingFeedback = false }
         }
         .sheet(isPresented: $showFeedback) {
-            FeedbackFormView()
+            CEOMessageScreen()
                 .environmentObject(environment)
         }
         .fullScreenCover(item: $newRecipe) { recipe in

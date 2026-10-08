@@ -26,7 +26,6 @@ struct RecipeReelScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("reel_autoplay")        private var autoplay = false
-    @AppStorage("reel_fit_mode")        private var fitMode = false
     @AppStorage("reel_interested_ids")  private var interestedCSV = ""
 
     @State private var currentID: String?
@@ -50,7 +49,7 @@ struct RecipeReelScreen: View {
                                  size: geo.size,
                                  topInset: geo.safeAreaInsets.top,
                                  bottomInset: geo.safeAreaInsets.bottom,
-                                 fitMode: fitMode,
+                                 fitMode: true,   // always fit (the recipe photo is never cropped)
                                  onInterested: { logTaste(r, interested: true); advance(from: r.id) },
                                  onNotInterested: { logTaste(r, interested: false); advance(from: r.id) })
                         .frame(width: geo.size.width,
@@ -86,37 +85,28 @@ struct RecipeReelScreen: View {
         }
     }
 
-    // MARK: - Top chrome (Auto 6s + Fit toggles)
+    // MARK: - Top chrome (a single bubbly play/pause control for auto-advance)
 
     private func topChrome(topInset: CGFloat) -> some View {
-        VStack(alignment: .trailing, spacing: 6) {
-            chromePill(icon: autoplay ? "pause.fill" : "play.fill", label: "Auto 6s", on: autoplay) {
+        HStack {
+            Spacer()
+            Button {
                 Haptics.select()
                 withAnimation(AppMotion.snappy) { autoplay.toggle(); autoplayTick &+= 1 }
+            } label: {
+                Image(systemName: autoplay ? "pause.fill" : "play.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .overlay(Circle().strokeBorder(.white.opacity(0.22), lineWidth: 0.5))
+                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
             }
-            chromePill(icon: fitMode ? "arrow.up.left.and.arrow.down.right"
-                                     : "arrow.down.right.and.arrow.up.left",
-                       label: fitMode ? "Fit" : "Fill", on: fitMode) {
-                Haptics.select()
-                withAnimation(AppMotion.smooth) { fitMode.toggle() }
-            }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel(autoplay ? "Pause auto-advance" : "Play — auto-advance reels")
         }
-        .frame(maxWidth: .infinity, alignment: .trailing)
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 14)
         .padding(.top, topInset + 10)
-    }
-
-    private func chromePill(icon: String, label: String, on: Bool, _ tap: @escaping () -> Void) -> some View {
-        Button(action: tap) {
-            HStack(spacing: 5) {
-                Image(systemName: icon).font(.system(size: 11, weight: .bold))
-                Text(label).font(AppFont.body(10, weight: .semibold))
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 9).padding(.vertical, 5)
-            .background((on ? Color(hex: "EA5A38") : .black.opacity(0.42)), in: Capsule())
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Advancement + taste
