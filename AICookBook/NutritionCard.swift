@@ -65,131 +65,7 @@ struct NutritionCard: View {
         Int(((activeCalories / nutrition.dailyCalories) * 100).rounded())
     }
 
-    // ponytail: TEMPORARY test UI (per 2026-10-08 design variant). The orange hero + daily ring
-    // replaces the old layout; "Calorie Breakdown" reveals the SAME macro breakdown we already had
-    // (tap a macro for the per-ingredient detail). To revert, delete `body`/`heroCard`/`dailyRing`
-    // below and un-comment `legacyBody`, then rename it back to `body`.
-    @State private var showBreakdownSection = false
-
-    // Dark "variant 3" palette from the reference mock.
-    private let heroBG = Color(hex: "2E2824")
-    private let heroOrange = Color(hex: "F4A620")
-    private let heroOrangeInk = Color(hex: "3D2C0E")
-    private let ringCream = Color(hex: "F6E7E2")
-    private let ringTrack = Color(hex: "6E6763")
-
-    private var caloriesText: String {
-        let n = Int(activeCalories.rounded())
-        let f = NumberFormatter(); f.numberStyle = .decimal
-        return f.string(from: NSNumber(value: n)) ?? "\(n)"
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            heroCard
-            if showBreakdownSection {
-                // Reuse the existing breakdown: the 3 macro rings (tap one for the detail panel).
-                VStack(alignment: .leading, spacing: AppSpacing.md) {
-                    HStack(spacing: AppSpacing.sm) {
-                        macroButton(.carbs, grams: activeCarbsG, percent: nutrition.carbsPercent, color: carbsColor)
-                        macroButton(.protein, grams: activeProteinG, percent: nutrition.proteinPercent, color: proteinColor)
-                        macroButton(.fat, grams: activeFatG, percent: nutrition.fatPercent, color: fatColor)
-                    }
-                    if hasBreakdown && selectedMacro == nil {
-                        Text("Tap a macro to see what it comes from")
-                            .font(AppFont.body(11))
-                            .foregroundStyle(AppTheme.textTertiary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                    }
-                    breakdownPanel
-                }
-                .padding(AppSpacing.md)
-                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-    }
-
-    private var heroCard: some View {
-        HStack(alignment: .center, spacing: AppSpacing.md) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Nutrition")
-                    .font(AppFont.serif(22, weight: .bold))
-                    .tracking(2)
-                    .textCase(.uppercase)
-                    .foregroundStyle(.white)
-
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(caloriesText)
-                        .font(AppFont.display(44, weight: .bold))
-                        .foregroundStyle(.white)
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .contentTransition(.numericText())
-                        .animation(AppMotion.snappy, value: activeCalories)
-                    Text("kcal")
-                        .font(AppFont.body(18, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.75))
-                        .fixedSize()
-                }
-
-                Capsule().fill(.white).frame(width: 150, height: 5)
-                    .padding(.vertical, 2)
-
-                Button {
-                    Haptics.tap()
-                    withAnimation(AppMotion.snappy) { showBreakdownSection.toggle() }
-                } label: {
-                    HStack(spacing: 8) {
-                        Text("Calorie Breakdown")
-                            .font(AppFont.display(16, weight: .bold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                        Image(systemName: showBreakdownSection ? "arrow.down.right" : "arrow.up.right")
-                            .font(.system(size: 15, weight: .bold))
-                    }
-                    .foregroundStyle(heroOrangeInk)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 13)
-                    .background(heroOrange, in: Capsule())
-                }
-                .buttonStyle(PressableStyle())
-            }
-            .layoutPriority(1)
-            Spacer(minLength: AppSpacing.sm)
-            dailyRing
-        }
-        .padding(AppSpacing.lg)
-        .frame(maxWidth: .infinity)
-        .background(heroBG, in: RoundedRectangle(cornerRadius: AppRadius.card + 8, style: .continuous))
-    }
-
-    private var dailyRing: some View {
-        ZStack {
-            Circle().stroke(ringTrack, lineWidth: 12)
-            Circle()
-                .trim(from: 0, to: min(Double(activeDVPercent) / 100, 1))
-                .stroke(ringCream, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .animation(AppMotion.snappy, value: activeDVPercent)
-            VStack(spacing: 2) {
-                Text("\(activeDVPercent)%")
-                    .font(AppFont.display(26, weight: .bold))
-                    .foregroundStyle(.white)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                Text("of daily")
-                    .font(AppFont.body(13, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.6))
-            }
-        }
-        .frame(width: 108, height: 108)
-    }
-
-    /* LEGACY nutrition layout — kept for an easy revert of the temp test UI above.
-    var legacyBody: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Nutrition")
@@ -274,7 +150,6 @@ struct NutritionCard: View {
         .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
     }
-    */
 
     private var dvBar: some View {
         GeometryReader { geo in
