@@ -57,6 +57,7 @@ struct ProfileScreen: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .tint(AppTheme.accentInk)
+        .onAppear { environment.advanceDoodleIfDue() }   // new wallpaper only if 30s since last change
         // Mirror the Recipe Language into the App Group so the Share Extension (separate process)
         // imports shared reels in this language instead of always English.
         .onChange(of: langCode) { _, newValue in

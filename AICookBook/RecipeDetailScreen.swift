@@ -69,7 +69,7 @@ struct RecipeDetailScreen: View {
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.top, safeTopInset())
         }
-        .background(AppTheme.background.ignoresSafeArea())
+        .doodleScreenBackground(cell: environment.doodleCell)   // FIXED wallpaper behind the scroll
         .ignoresSafeArea(edges: .top)
         .coordinateSpace(.named("detail"))
         .simultaneousGesture(
@@ -169,6 +169,7 @@ struct RecipeDetailScreen: View {
         }
         .onAppear {
             viewStartTime = Date()
+            environment.advanceDoodleIfDue()   // new wallpaper only if 30s since the last change
         }
         .onDisappear {
             if let start = viewStartTime {
@@ -535,6 +536,11 @@ struct RecipeDetailScreen: View {
             .animation(AppMotion.smooth, value: tab)
             .contentShape(Rectangle())
             .clipped()
+            // Opaque box so the ingredients/directions sit ON the wallpaper, not inside it.
+            .padding(AppSpacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
 
             Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.top, AppSpacing.sm)
 
@@ -544,15 +550,8 @@ struct RecipeDetailScreen: View {
         }
         .padding(.horizontal, AppSpacing.md)
         .padding(.top, AppSpacing.lg)
-        .background(
-            // The doodle wallpaper lives on the content SHEET (which covers the photo as it scrolls
-            // up) so it shows consistently across the whole recipe page — not just a strip at the
-            // bottom overscroll. The base inside DoodleWallpaper keeps it opaque over the photo.
-            DoodleWallpaper(cell: environment.doodleCell)
-                .clipShape(.rect(topLeadingRadius: AppRadius.sheet, topTrailingRadius: AppRadius.sheet))
-                .ignoresSafeArea(edges: .bottom)
-                .offset(y: -AppSpacing.lg)
-        )
+        // Transparent: the FIXED doodle wallpaper (applied at the root) shows behind the text and the
+        // gaps between the opaque section boxes, and stays put while the content scrolls over it.
     }
 
     private var followGate: some View {
@@ -755,7 +754,7 @@ struct RecipeDetailScreen: View {
             .background(AppTheme.surface, in: Capsule())
             .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
 
-            PillButton(title: "Add to Grocery", systemImage: "basket.fill", kind: .outlined) {
+            PillButton(title: "Add to Grocery", systemImage: "basket.fill", kind: .surface) {
                 Haptics.success()
                 let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
                 addedGroceryCount = count

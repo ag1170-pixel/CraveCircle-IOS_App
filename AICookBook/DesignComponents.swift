@@ -13,7 +13,7 @@ import UIKit
 
 /// The food-doodle art (`DoodleBG`, 2578×1716) treated as a 4×3 board of 12 cells. `cell` (0..<12)
 /// picks one and fills the screen with just that patch, so each screen shows a different slice; the
-/// app reshuffles `cell` on every navigation (see `AppEnvironment.shuffleDoodle`). Dark-theme art
+/// app advances `cell` on navigation, 30s-gated (see `AppEnvironment.advanceDoodleIfDue`). Dark-theme art
 /// only — light mode falls back to the plain app background (a light wallpaper can be added later).
 /// Purely decorative and never interactive.
 struct DoodleWallpaper: View {
@@ -61,8 +61,7 @@ struct DoodleWallpaper: View {
             Image("DoodleBG")
                 .resizable()
                 .frame(width: sw, height: sh)
-                .offset(x: -ox * fx, y: -oy * fy)
-                .animation(.easeInOut(duration: 1.2), value: cell)   // slow drift on the 30s tick
+                .offset(x: -ox * fx, y: -oy * fy)   // static — only changes on navigation, no drift
         }
     }
 }
@@ -145,7 +144,7 @@ enum Haptics {
 // MARK: - Pill button
 
 struct PillButton: View {
-    enum Kind { case filled, outlined, glass }
+    enum Kind { case filled, outlined, glass, surface }
 
     let title: String
     var systemImage: String? = nil
@@ -177,7 +176,7 @@ struct PillButton: View {
     private var foreground: Color {
         switch kind {
         case .filled: return AppTheme.onAccent
-        case .outlined, .glass: return AppTheme.textPrimary
+        case .outlined, .glass, .surface: return AppTheme.textPrimary
         }
     }
 
@@ -186,12 +185,15 @@ struct PillButton: View {
         case .filled: Capsule().fill(AppTheme.accent)
         case .outlined: Capsule().fill(.clear)
         case .glass: Capsule().fill(.ultraThinMaterial)
+        case .surface: Capsule().fill(AppTheme.surface)   // opaque — hides the wallpaper behind it
         }
     }
 
     @ViewBuilder private var border: some View {
         if kind == .outlined {
             Capsule().stroke(AppTheme.hairline, lineWidth: 1.5)
+        } else if kind == .surface {
+            Capsule().stroke(AppTheme.hairline, lineWidth: 1)
         }
     }
 }

@@ -437,7 +437,6 @@ struct MainTabView: View {
             environment.pendingTabSwitch = nil
         }
         .onAppear {
-            environment.startDoodleRotation()   // advance the shared wallpaper every 30s
             // A quick action fired before this view mounted (cold launch) sets pendingTabSwitch
             // before onChange is observing it — so consume it here too. Without this, the Grocery
             // quick action lands on Home (the default tab) because its switch was missed.

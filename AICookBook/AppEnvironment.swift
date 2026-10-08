@@ -449,23 +449,17 @@ final class AppEnvironment: ObservableObject {
         pendingTabSwitch = tab
     }
 
-    /// Which cell of the 4×3 doodle board every screen shows as its wallpaper. It's the SAME on every
-    /// screen at any moment (so navigating never recomputes it — no lag) and advances to the next cell
-    /// on a slow timer, not per-navigation. See `DoodleWallpaper`.
+    /// Which cell of the 4×3 doodle board the wallpaper shows. It stays fixed while you're on a page
+    /// (no change even for an hour); it only advances when you NAVIGATE to a wallpaper page (recipe or
+    /// profile) AND at least 30s have passed since the last change. See `DoodleWallpaper`.
     @Published var doodleCell: Int = Int.random(in: 0..<12)
-    private var doodleTimer: Timer?
+    private var lastDoodleChange = Date.distantPast
 
-    /// Advance the wallpaper to the next cell every 30s — static between ticks, same across screens.
-    func startDoodleRotation() {
-        guard doodleTimer == nil else { return }
-        doodleTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.shuffleDoodle() }
-        }
-    }
-
-    func shuffleDoodle() {
-        // Step by a non-zero amount (mod 12) → guaranteed a different cell than the current one.
-        doodleCell = (doodleCell + Int.random(in: 1..<12)) % 12
+    /// Call when arriving at a wallpaper page. Advances to a new cell only if the 30s cooldown is up.
+    func advanceDoodleIfDue() {
+        guard Date().timeIntervalSince(lastDoodleChange) >= 30 else { return }
+        lastDoodleChange = Date()
+        doodleCell = (doodleCell + Int.random(in: 1..<12)) % 12   // non-zero step → a different cell
     }
 
     func dismissRecipeDetail() {
