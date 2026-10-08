@@ -265,6 +265,7 @@ struct MainTabView: View {
     @State private var showingAddGrocery = false
     @State private var showingProgressDetail = false
     @State private var newRecipe: Recipe?          // write-from-scratch editor (from the home widget)
+    @State private var showFeedback = false        // "Write to CEO" app-icon quick action
     @State private var tab: AppTab = .home
     @State private var ignoreSwipeFrames: [CGRect] = []
 
@@ -380,6 +381,13 @@ struct MainTabView: View {
                 newRecipe = AddRecipeSheet.newBlank()
                 environment.pendingNewRecipe = false
             }
+        }
+        .onChange(of: environment.pendingFeedback) { _, requested in
+            if requested { showFeedback = true; environment.pendingFeedback = false }
+        }
+        .sheet(isPresented: $showFeedback) {
+            FeedbackFormView()
+                .environmentObject(environment)
         }
         .fullScreenCover(item: $newRecipe) { recipe in
             NavigationStack {

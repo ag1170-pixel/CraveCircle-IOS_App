@@ -35,3 +35,4 @@ Config/Local.xcconfig
 /patch*.py
 /test_*.swift
 /fix_*.py
+*.tailspin

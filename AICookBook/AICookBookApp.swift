@@ -33,10 +33,48 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
 /// `registerForRemoteNotifications()` simply calls `didFailToRegister` on the simulator / free team,
 /// which we swallow quietly. Nothing else in the app depends on it.
 final class AppDelegate: NSObject, UIApplicationDelegate {
+    /// A quick action chosen at cold launch, applied once the app is active (env is ready).
+    static var pendingShortcut: String?
+
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
+        application.shortcutItems = Self.shortcutItems()
+        if let item = launchOptions?[.shortcutItem] as? UIApplicationShortcutItem {
+            Self.pendingShortcut = item.type
+        }
         return true
+    }
+
+    // Home-screen quick actions (long-press the app icon): Write to CEO · Search · Grocery.
+    static func shortcutItems() -> [UIApplicationShortcutItem] {
+        [
+            UIApplicationShortcutItem(type: "writeCEO", localizedTitle: "Write to CEO",
+                                      localizedSubtitle: nil, icon: UIApplicationShortcutIcon(systemImageName: "envelope.fill")),
+            UIApplicationShortcutItem(type: "search", localizedTitle: "Search",
+                                      localizedSubtitle: nil, icon: UIApplicationShortcutIcon(systemImageName: "magnifyingglass")),
+            UIApplicationShortcutItem(type: "grocery", localizedTitle: "Grocery",
+                                      localizedSubtitle: nil, icon: UIApplicationShortcutIcon(systemImageName: "basket.fill")),
+        ]
+    }
+
+    func application(_ application: UIApplication, performActionFor shortcutItem: UIApplicationShortcutItem,
+                     completionHandler: @escaping (Bool) -> Void) {
+        Self.handleShortcut(shortcutItem.type)
+        completionHandler(true)
+    }
+
+    /// Route a quick action into the app via the existing pending-action flags.
+    static func handleShortcut(_ type: String) {
+        Task { @MainActor in
+            guard let env = AppEnvironment.shared else { pendingShortcut = type; return }
+            switch type {
+            case "search":   env.requestTabSwitch(.home)
+            case "grocery":  env.requestTabSwitch(.groceries)
+            case "writeCEO": env.pendingFeedback = true
+            default: break
+            }
+        }
     }
 
     func application(_ application: UIApplication,
@@ -141,6 +179,11 @@ struct CraveCircleApp: App {
                     // ~90s so it appears on its own without the user pulling to refresh.
                     if phase == .active {
                         if environment.appState == .signedIn { requestPushAuthorization() }
+                        // Apply a quick action chosen at cold launch (app wasn't running yet).
+                        if let s = AppDelegate.pendingShortcut {
+                            AppDelegate.pendingShortcut = nil
+                            AppDelegate.handleShortcut(s)
+                        }
                         environment.checkPendingSharedImport()   // resume a share's server job (paid-team App Group)
                         Task {
                             await environment.importFromSharedURL()

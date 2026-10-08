@@ -1497,6 +1497,8 @@ final class AppEnvironment: ObservableObject {
     @Published var pendingImportRequest = false
     /// Set by the "Write from scratch" home-screen widget tile (cravecircle://new) → open a blank editor.
     @Published var pendingNewRecipe = false
+    /// Set by the "Write to CEO" app-icon quick action → open the feedback form.
+    @Published var pendingFeedback = false
 
     /// Finish onboarding: store the taste picks and refresh the feed against them.
     func completeOnboarding(cuisines: Set<String>) {

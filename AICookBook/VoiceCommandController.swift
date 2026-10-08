@@ -33,6 +33,9 @@ final class VoiceCommandController: NSObject, ObservableObject {
     private let audioEngine = AVAudioEngine()
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
+    /// All audio-session + engine + recognition setup runs here, OFF the main thread — those are
+    /// synchronous XPC calls that can block the UI for hundreds of ms (watchdog hang).
+    private let audioQueue = DispatchQueue(label: "com.cravecircle.voice.audio", qos: .userInitiated)
 
     private var lastFireTime: CFTimeInterval = 0
     private var lastProcessedSegments = 0   // how many transcription segments we've already scanned
@@ -44,14 +47,17 @@ final class VoiceCommandController: NSObject, ObservableObject {
     func suppress(_ on: Bool) {
         guard suppressed != on else { return }
         suppressed = on
-        if on {
-            // Kill the recognition task so it can't time out from audio starvation during TTS.
-            task?.cancel(); task = nil
-            request?.endAudio(); request = nil
-        } else {
-            // TTS finished — spin a fresh recognition session. The engine tap is still running.
-            lastFireTime = CACurrentMediaTime()   // cooldown so a tail word can't fire late
-            if isListening { startRecognition() }
+        audioQueue.async { [weak self] in
+            guard let self else { return }
+            if on {
+                // Kill the recognition task so it can't time out from audio starvation during TTS.
+                self.task?.cancel(); self.task = nil
+                self.request?.endAudio(); self.request = nil
+            } else {
+                // TTS finished — spin a fresh recognition session. The engine tap is still running.
+                self.lastFireTime = CACurrentMediaTime()   // cooldown so a tail word can't fire late
+                if self.isListening { self.startRecognition() }
+            }
         }
     }
 
@@ -126,8 +132,10 @@ final class VoiceCommandController: NSObject, ObservableObject {
     func stop() {
         isListening = false
         lastHeard = ""
-        teardownAudio()
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        audioQueue.async { [weak self] in
+            self?.teardownAudio()
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
 
     // MARK: Session Setup with Noise Cancellation
@@ -140,20 +148,22 @@ final class VoiceCommandController: NSObject, ObservableObject {
             }
             return
         }
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .voiceChat,
-                                    options: [.duckOthers, .defaultToSpeaker, .allowBluetoothA2DP])
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-        } catch {
-            publish {
-                self.available = false
-                self.lastHeard = "Audio error"
+        // setCategory/setActive + audioEngine.start are blocking XPC calls — run them OFF-MAIN so the
+        // UI never freezes (fixes the ~659ms watchdog hang). @Published state publishes back to main.
+        audioQueue.async { [weak self] in
+            guard let self else { return }
+            do {
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.playAndRecord, mode: .voiceChat,
+                                        options: [.duckOthers, .defaultToSpeaker, .allowBluetoothA2DP])
+                try session.setActive(true, options: .notifyOthersOnDeactivation)
+            } catch {
+                self.publish { self.available = false; self.lastHeard = "Audio error" }
+                return
             }
-            return
+            guard self.startEngine() else { return }
+            self.startRecognition()
         }
-        guard startEngine() else { return }
-        startRecognition()
     }
 
     /// Start the mic engine ONCE and keep it running for the whole session. The tap feeds whatever
@@ -191,8 +201,11 @@ final class VoiceCommandController: NSObject, ObservableObject {
 
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
-        // Privacy: keep recognition on-device so the mic audio never leaves the phone.
-        req.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
+        // Use the system's best recognition (server when available) for the tiny command words — it's
+        // far more reliable than forcing on-device, which was often producing no partials on device.
+        // (Only "next"/"back" audio; the recipe IMPORT transcription stays on-device.)
+        req.requiresOnDeviceRecognition = false
+        req.taskHint = .search
         req.contextualStrings = ["next", "back", "next step", "go back", "previous", "forward"]
         request = req
         lastProcessedSegments = 0            // fresh transcription → scan from the start
@@ -213,8 +226,8 @@ final class VoiceCommandController: NSObject, ObservableObject {
 
     private func restart() {
         guard isListening, !suppressed else { return }
-        // Engine stays up — just spin a fresh recognition request after a tiny debounce.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+        // Engine stays up — just spin a fresh recognition request (off-main) after a tiny debounce.
+        audioQueue.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self, self.isListening, !self.suppressed else { return }
             self.startRecognition()
         }
