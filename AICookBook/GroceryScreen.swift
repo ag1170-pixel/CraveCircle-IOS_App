@@ -60,7 +60,7 @@ struct GroceryScreen: View {
                 .padding(.top, AppSpacing.xs)
                 .padding(.bottom, AppSpacing.xl)
             }
-            .doodleScreenBackground(cell: environment.doodleCell)
+            .background(AppTheme.background.ignoresSafeArea())
             .overlayPreferenceValue(GRowKey.self) { rows in
                 GroceryCat(rows: rows, catHeld: $catHeld)   // fishes the list; draggable like the Home cat
             }

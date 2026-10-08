@@ -66,7 +66,7 @@ struct HomeScreen: View {
                 }
                 .padding(.bottom, AppSpacing.xl)
             }
-            .doodleScreenBackground(cell: environment.doodleCell)
+            .background(AppTheme.background.ignoresSafeArea())
             .overlayPreferenceValue(CardFramesKey.self) { frames in
                 CatCompanion(cardFrames: frames, catHeld: $catHeld)   // peeks, walks, and is draggable
             }
