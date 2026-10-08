@@ -51,7 +51,7 @@ struct ProfileScreen: View {
                 .padding(.top, AppSpacing.lg)
                 .padding(.bottom, AppSpacing.xl)
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .doodleScreenBackground(cell: environment.doodleCell)
             .scrollIndicators(.hidden)
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)

@@ -449,6 +449,16 @@ final class AppEnvironment: ObservableObject {
         pendingTabSwitch = tab
     }
 
+    /// Which cell of the 4×3 doodle board every screen currently shows as its wallpaper. Reshuffled
+    /// on each navigation (tab switch / detail push) so the background is never the same two screens
+    /// in a row. See `DoodleWallpaper`.
+    @Published var doodleCell: Int = Int.random(in: 0..<12)
+
+    func shuffleDoodle() {
+        // Step by a non-zero amount (mod 12) → guaranteed a different cell than the current one.
+        doodleCell = (doodleCell + Int.random(in: 1..<12)) % 12
+    }
+
     func dismissRecipeDetail() {
         selectedRecipe = nil
         recipeSwipeContext = nil

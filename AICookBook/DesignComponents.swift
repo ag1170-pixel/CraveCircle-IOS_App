@@ -9,6 +9,60 @@
 import SwiftUI
 import UIKit
 
+// MARK: - Randomized doodle wallpaper
+
+/// The food-doodle art (`DoodleBG`, 2578×1716) treated as a 4×3 board of 12 cells. `cell` (0..<12)
+/// picks one and fills the screen with just that patch, so each screen shows a different slice; the
+/// app reshuffles `cell` on every navigation (see `AppEnvironment.shuffleDoodle`). Dark-theme art
+/// only — light mode falls back to the plain app background (a light wallpaper can be added later).
+/// Purely decorative and never interactive.
+struct DoodleWallpaper: View {
+    var cell: Int
+
+    private let cols = 4, rows = 3
+    private let imgW: CGFloat = 2578, imgH: CGFloat = 1716
+
+    var body: some View {
+        ZStack {
+            AppTheme.background
+            GeometryReader { geo in
+                let cw = geo.size.width, ch = geo.size.height
+                // Fill the screen with the (dense) art, then PAN to 1 of 12 positions — panning keeps
+                // every position dense, unlike cropping a single grid cell (which zooms into the gaps).
+                // The extra `zoom` over the fill scale buys pan room on BOTH axes for a 4×3 grid.
+                let fill = max(cw / imgW, ch / imgH)
+                let zoom = fill * 1.25
+                let sw = imgW * zoom, sh = imgH * zoom
+                let ox = max(sw - cw, 0), oy = max(sh - ch, 0)   // how far we can pan on each axis
+                let n = cols * rows
+                let c = ((cell % n) + n) % n
+                let col = CGFloat(c % cols), row = CGFloat(c / cols)
+                let fx = cols > 1 ? col / CGFloat(cols - 1) : 0.5   // 0…1 across the overflow
+                let fy = rows > 1 ? row / CGFloat(rows - 1) : 0.5
+                ZStack(alignment: .topLeading) {
+                    Color.clear
+                    Image("DoodleBG")
+                        .resizable()
+                        .frame(width: sw, height: sh)
+                        .offset(x: -ox * fx, y: -oy * fy)
+                }
+                .frame(width: cw, height: ch)
+                .clipped()
+                .opacity(0.85)   // wallpaper strength; cards/text sit on their own surfaces above
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+}
+
+extension View {
+    /// Screen wallpaper: a random doodle slice in dark mode, the plain app background in light mode.
+    func doodleScreenBackground(cell: Int) -> some View {
+        background(DoodleWallpaper(cell: cell))
+    }
+}
+
 // MARK: - Recipe Cover Image Helper
 
 struct RecipeCoverImage: View {

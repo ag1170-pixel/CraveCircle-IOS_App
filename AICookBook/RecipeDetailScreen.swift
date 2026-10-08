@@ -69,7 +69,7 @@ struct RecipeDetailScreen: View {
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.top, safeTopInset())
         }
-        .background(AppTheme.background.ignoresSafeArea())
+        .doodleScreenBackground(cell: environment.doodleCell)
         .ignoresSafeArea(edges: .top)
         .coordinateSpace(.named("detail"))
         .simultaneousGesture(
@@ -169,6 +169,7 @@ struct RecipeDetailScreen: View {
         }
         .onAppear {
             viewStartTime = Date()
+            environment.shuffleDoodle()   // opening a recipe reshuffles the wallpaper slice too
         }
         .onDisappear {
             if let start = viewStartTime {
