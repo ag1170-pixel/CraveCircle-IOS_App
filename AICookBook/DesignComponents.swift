@@ -20,24 +20,24 @@ struct DoodleWallpaper: View {
     var cell: Int
 
     private let cols = 4, rows = 3
-    private let imgW: CGFloat = 2578, imgH: CGFloat = 1716
+    private let imgW: CGFloat = 10272, imgH: CGFloat = 6864   // "Background(2)" dense doodle tile
 
     var body: some View {
         ZStack {
             AppTheme.background
             GeometryReader { geo in
                 let cw = geo.size.width, ch = geo.size.height
-                // Fill the screen with the (dense) art, then PAN to 1 of 12 positions — panning keeps
-                // every position dense, unlike cropping a single grid cell (which zooms into the gaps).
-                // The extra `zoom` over the fill scale buys pan room on BOTH axes for a 4×3 grid.
+                // Zoomed-out, dense art (small doodles). Fill the screen then PAN to 1 of 12
+                // positions so each screen shows a different patch; the small extra `zoom` over
+                // the fill scale buys pan room on both axes for the 4×3 grid.
                 let fill = max(cw / imgW, ch / imgH)
-                let zoom = fill * 1.25
+                let zoom = fill * 1.15
                 let sw = imgW * zoom, sh = imgH * zoom
-                let ox = max(sw - cw, 0), oy = max(sh - ch, 0)   // how far we can pan on each axis
+                let ox = max(sw - cw, 0), oy = max(sh - ch, 0)
                 let n = cols * rows
                 let c = ((cell % n) + n) % n
                 let col = CGFloat(c % cols), row = CGFloat(c / cols)
-                let fx = cols > 1 ? col / CGFloat(cols - 1) : 0.5   // 0…1 across the overflow
+                let fx = cols > 1 ? col / CGFloat(cols - 1) : 0.5
                 let fy = rows > 1 ? row / CGFloat(rows - 1) : 0.5
                 ZStack(alignment: .topLeading) {
                     Color.clear
@@ -48,7 +48,8 @@ struct DoodleWallpaper: View {
                 }
                 .frame(width: cw, height: ch)
                 .clipped()
-                .opacity(0.14)   // faint texture (matches the Figma reference), never competes with content
+                .saturation(0)      // drop the green → a neutral light line that matches the app
+                .opacity(0.07)      // whisper-faint, like WhatsApp's chat wallpaper
             }
         }
         .ignoresSafeArea()
@@ -118,6 +119,7 @@ enum Haptics {
     static func tap() { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
     static func select() { UISelectionFeedbackGenerator().selectionChanged() }
     static func success() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
+    static func warning() { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
     static func toggle(_ on: Bool) {
         UIImpactFeedbackGenerator(style: on ? .medium : .soft).impactOccurred()
     }
