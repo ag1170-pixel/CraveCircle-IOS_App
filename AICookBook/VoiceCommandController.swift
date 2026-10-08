@@ -15,7 +15,7 @@ import QuartzCore
 import Combine
 
 final class VoiceCommandController: NSObject, ObservableObject {
-    enum Command { case next, previous }
+    enum Command { case next, previous, startTimer }
 
     @Published private(set) var isListening = false
     @Published private(set) var available = true
@@ -68,6 +68,10 @@ final class VoiceCommandController: NSObject, ObservableObject {
     ]
     private let backWords: Set<String> = [
         "back", "previous", "prev", "last", "reverse", "return", "repeat", "beck", "pack", "bag", "black"
+    ]
+    // "start timer" / "start the timer" / "start clock" — trigger on the distinctive noun.
+    private let timerWords: Set<String> = [
+        "timer", "clock", "timers", "times", "timmer"
     ]
 
     // MARK: Lifecycle
@@ -206,7 +210,8 @@ final class VoiceCommandController: NSObject, ObservableObject {
         // (Only "next"/"back" audio; the recipe IMPORT transcription stays on-device.)
         req.requiresOnDeviceRecognition = false
         req.taskHint = .search
-        req.contextualStrings = ["next", "back", "next step", "go back", "previous", "forward"]
+        req.contextualStrings = ["next", "back", "next step", "go back", "previous", "forward",
+                                 "start timer", "start the timer", "start clock", "timer", "clock"]
         request = req
         lastProcessedSegments = 0            // fresh transcription → scan from the start
         publish { self.isListening = true }
@@ -269,6 +274,10 @@ final class VoiceCommandController: NSObject, ObservableObject {
                 lastProcessedSegments = i + 1
                 fireCommand(.previous)
                 return
+            } else if isCommand(word, in: timerWords) {
+                lastProcessedSegments = i + 1
+                fireCommand(.startTimer)
+                return
             }
         }
         lastProcessedSegments = segments.count
@@ -284,7 +293,11 @@ final class VoiceCommandController: NSObject, ObservableObject {
     private func fireCommand(_ cmd: Command) {
         lastFireTime = CACurrentMediaTime()
         publish {
-            self.lastHeard = cmd == .next ? "Next" : "Back"
+            switch cmd {
+            case .next:       self.lastHeard = "Next"
+            case .previous:   self.lastHeard = "Back"
+            case .startTimer: self.lastHeard = "Timer"
+            }
             Haptics.tap()
             self.onCommand?(cmd)
         }
@@ -293,7 +306,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak self] in
             guard let self, self.wakeActive else { return }
             self.publish {
-                if self.lastHeard == "Next" || self.lastHeard == "Back" {
+                if ["Next", "Back", "Timer"].contains(self.lastHeard) {
                     self.lastHeard = ""
                 }
             }
