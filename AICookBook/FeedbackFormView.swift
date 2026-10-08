@@ -1,43 +1,41 @@
 import SwiftUI
 
+/// Swiggy-style "Write a letter to our CEO" — a single warm compose box. Envelope mark, a short
+/// invitation, one big text field (max 2000 chars with a live counter), and a "Share message" CTA.
+/// Brand: cream background, coral CTA, charcoal text.
 struct FeedbackFormView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var environment: AppEnvironment
-    
-    @State private var currentPage = 0
-    @State private var disappointmentSelection: Int? = nil
-    @State private var fansCommonality: String = ""
-    @State private var improvements: String = ""
-    @State private var additionalFeedback: String = ""
-    
+
+    @State private var message = ""
     @State private var isSubmitting = false
     @State private var showThankYou = false
-    
+    @FocusState private var editorFocused: Bool
+
+    private let limit = 2000
+    private let coral = AppTheme.brand
+
+    private var trimmed: String { message.trimmingCharacters(in: .whitespacesAndNewlines) }
+
     var body: some View {
         NavigationStack {
             ZStack {
                 AppTheme.background.ignoresSafeArea()
-                
-                TabView(selection: $currentPage) {
-                    disappointmentCard.tag(0)
-                    commonalityCard.tag(1)
-                    improvementsCard.tag(2)
-                    additionalCard.tag(3)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppSpacing.lg) {
+                        header
+                        editor
+                    }
+                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.top, AppSpacing.lg)
+                    .padding(.bottom, 120)
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.easeInOut, value: currentPage)
-                .ignoresSafeArea(.keyboard)
-                
-                // Progress indicator at top
-                VStack {
-                    ProgressView(value: Double(currentPage + 1), total: 4.0)
-                        .tint(AppTheme.accent)
-                        .padding(.horizontal, 40)
-                        .padding(.top, 20)
-                    Spacer()
-                }
+                .scrollDismissesKeyboard(.interactively)
+
+                if showThankYou { thankYouOverlay }
             }
-            .navigationTitle("Feedback")
+            .safeAreaInset(edge: .bottom) { shareButton }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -46,197 +44,106 @@ struct FeedbackFormView: View {
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Done") {
-                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                    }
-                    .font(AppFont.body(16, weight: .bold))
-                    .foregroundStyle(AppTheme.accent)
+                    Button("Done") { editorFocused = false }
+                        .font(AppFont.body(16, weight: .bold))
+                        .foregroundStyle(coral)
                 }
             }
-            .overlay {
-                if showThankYou {
-                    thankYouOverlay
+            .tint(AppTheme.accentInk)
+        }
+    }
+
+    // MARK: - Pieces
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Image(systemName: "envelope.fill")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(coral)
+                .frame(width: 60, height: 60)
+                .background(coral.opacity(0.12), in: Circle())
+
+            Text("Write a letter to our CEO")
+                .font(AppFont.display(26, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+
+            Text("No thought is too small. We're here to listen. We read every word, and we care ❤️")
+                .font(AppFont.body(16))
+                .foregroundStyle(AppTheme.textSecondary)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var editor: some View {
+        ZStack(alignment: .topLeading) {
+            if message.isEmpty {
+                Text("Share your thoughts...")
+                    .font(AppFont.body(17))
+                    .foregroundStyle(AppTheme.textTertiary)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 20)
+                    .allowsHitTesting(false)
+            }
+            TextEditor(text: $message)
+                .font(AppFont.body(17))
+                .foregroundStyle(AppTheme.textPrimary)
+                .focused($editorFocused)
+                .scrollContentBackground(.hidden)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .frame(minHeight: 220)
+                // Cap input at the limit so the counter can never exceed it.
+                .onChange(of: message) { _, new in
+                    if new.count > limit { message = String(new.prefix(limit)) }
                 }
-            }
         }
-    }
-    
-    // MARK: - Cards
-    
-    private var disappointmentCard: some View {
-        cardContainer {
-            Text("How would you feel if you could never use CraveCircle again?")
-                .font(AppFont.display(24, weight: .bold))
-                .foregroundStyle(AppTheme.textPrimary)
-                .multilineTextAlignment(.center)
-            
-            VStack(spacing: 16) {
-                selectionPill(id: 0, text: "Very disappointed", emoji: "😭")
-                selectionPill(id: 1, text: "Somewhat disappointed", emoji: "😕")
-                selectionPill(id: 2, text: "Not disappointed", emoji: "🤷‍♂️")
-            }
-            .padding(.top, 24)
-            
-            Spacer()
-            nextButton(disabled: disappointmentSelection == nil)
-        }
-    }
-    
-    private var commonalityCard: some View {
-        cardContainer {
-            Text("What kind of person would love this app the most?")
-                .font(AppFont.display(24, weight: .bold))
-                .foregroundStyle(AppTheme.textPrimary)
-                .multilineTextAlignment(.center)
-            
-            TextEditor(text: $fansCommonality)
-                .font(AppFont.body(18))
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .stroke(editorFocused ? coral.opacity(0.6) : AppTheme.hairline,
+                        lineWidth: editorFocused ? 1.5 : 1)
+        )
+        .overlay(alignment: .bottomTrailing) {
+            Text("\(message.count)/\(limit)")
+                .font(AppFont.body(13))
+                .foregroundStyle(AppTheme.textTertiary)
                 .padding(12)
-                .frame(maxHeight: 200)
-                .background(AppTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: AppRadius.card))
-                .overlay(RoundedRectangle(cornerRadius: AppRadius.card).stroke(AppTheme.accent.opacity(0.3), lineWidth: 2))
-                .padding(.top, 24)
-            
-            Spacer()
-            nextButton(disabled: fansCommonality.trimmingCharacters(in: .whitespaces).isEmpty)
         }
     }
-    
-    private var improvementsCard: some View {
-        cardContainer {
-            Text("What is one thing we could change to make this app perfect for you?")
-                .font(AppFont.display(24, weight: .bold))
-                .foregroundStyle(AppTheme.textPrimary)
-                .multilineTextAlignment(.center)
-            
-            TextEditor(text: $improvements)
-                .font(AppFont.body(18))
-                .padding(12)
-                .frame(maxHeight: 200)
-                .background(AppTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: AppRadius.card))
-                .overlay(RoundedRectangle(cornerRadius: AppRadius.card).stroke(AppTheme.accent.opacity(0.3), lineWidth: 2))
-                .padding(.top, 24)
-            
-            Spacer()
-            nextButton(disabled: improvements.trimmingCharacters(in: .whitespaces).isEmpty)
-        }
-    }
-    
-    private var additionalCard: some View {
-        cardContainer {
-            Text("Any other thoughts you want to share with us?")
-                .font(AppFont.display(24, weight: .bold))
-                .foregroundStyle(AppTheme.textPrimary)
-                .multilineTextAlignment(.center)
-            
-            TextEditor(text: $additionalFeedback)
-                .font(AppFont.body(18))
-                .padding(12)
-                .frame(maxHeight: 200)
-                .background(AppTheme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: AppRadius.card))
-                .overlay(RoundedRectangle(cornerRadius: AppRadius.card).stroke(AppTheme.hairline, lineWidth: 1))
-                .padding(.top, 24)
-            
-            Spacer()
-            
-            Button {
-                submitFeedback()
-            } label: {
-                HStack {
-                    if isSubmitting {
-                        ProgressView().tint(AppTheme.onAccent)
-                    }
-                    Text("Submit Feedback")
-                        .font(AppFont.body(18, weight: .bold))
-                }
-                .foregroundStyle(AppTheme.onAccent)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(AppTheme.accent)
-                .clipShape(Capsule())
-                .shadow(color: AppTheme.accent.opacity(0.3), radius: 8, y: 4)
-            }
-            .disabled(isSubmitting)
-            .padding(.bottom, 20)
-        }
-    }
-    
-    // MARK: - Components
-    
-    private func cardContainer<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        VStack(spacing: 0) {
-            Spacer().frame(height: 60)
-            content()
-        }
-        .padding(32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-    
-    private func selectionPill(id: Int, text: String, emoji: String) -> some View {
+
+    private var shareButton: some View {
         Button {
-            Haptics.select()
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                disappointmentSelection = id
-            }
-            // Auto-advance after short delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                withAnimation { currentPage += 1 }
-            }
+            submit()
         } label: {
-            HStack(spacing: 16) {
-                Text(emoji).font(.system(size: 28))
-                Text(text)
-                    .font(AppFont.body(18, weight: .semibold))
-                    .foregroundStyle(disappointmentSelection == id ? AppTheme.onAccent : AppTheme.textPrimary)
-                Spacer()
-                if disappointmentSelection == id {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(AppTheme.onAccent)
-                }
+            HStack(spacing: 8) {
+                if isSubmitting { ProgressView().tint(AppTheme.onBrand) }
+                Text("Share message")
+                    .font(AppFont.body(17, weight: .bold))
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 18)
-            .background(disappointmentSelection == id ? AppTheme.accent : AppTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(disappointmentSelection == id ? .clear : AppTheme.hairline, lineWidth: 1))
-            .scaleEffect(disappointmentSelection == id ? 1.02 : 1.0)
+            .foregroundStyle(AppTheme.onBrand)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(trimmed.isEmpty ? coral.opacity(0.4) : coral,
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
+        .disabled(trimmed.isEmpty || isSubmitting)
+        .padding(.horizontal, AppSpacing.md)
+        .padding(.bottom, AppSpacing.sm)
+        .background(.ultraThinMaterial)
     }
-    
-    private func nextButton(disabled: Bool) -> some View {
-        Button {
-            withAnimation { currentPage += 1 }
-        } label: {
-            Text("Next")
-                .font(AppFont.body(18, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(disabled ? Color.gray.opacity(0.5) : Color.black)
-                .clipShape(Capsule())
-        }
-        .disabled(disabled)
-        .padding(.bottom, 20)
-    }
-    
+
     private var thankYouOverlay: some View {
         ZStack {
             AppTheme.background.ignoresSafeArea()
-            
-            VStack(spacing: 24) {
-                Text("🎉")
-                    .font(.system(size: 80))
-                Text("You're a legend.")
-                    .font(AppFont.display(32, weight: .bold))
+            VStack(spacing: 20) {
+                Text("💌").font(.system(size: 72))
+                Text("Message on its way.")
+                    .font(AppFont.display(28, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
-                Text("Your feedback went straight to our vault.\nWe'll use it to make CraveCircle even better.")
-                    .font(AppFont.body(18))
+                Text("Thank you for writing to us.\nEvery word reaches our team.")
+                    .font(AppFont.body(17))
                     .foregroundStyle(AppTheme.textSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
@@ -244,34 +151,23 @@ struct FeedbackFormView: View {
         }
         .transition(.opacity.combined(with: .scale(scale: 0.95)))
     }
-    
-    private func submitFeedback() {
+
+    private func submit() {
+        editorFocused = false
         isSubmitting = true
         Haptics.success()
-        
-        let content = """
-        Disappointment: \(disappointmentSelection ?? -1)
-        Commonality: \(fansCommonality)
-        Improvements: \(improvements)
-        Additional: \(additionalFeedback)
-        """
-        
         Task {
             do {
-                try await environment.submitFeedback(type: "survey", content: content, handle: environment.currentUser?.username)
+                try await environment.submitFeedback(type: "ceo_letter", content: trimmed,
+                                                     handle: environment.currentUser?.username)
                 await MainActor.run {
-                    withAnimation(.spring()) {
-                        showThankYou = true
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                        dismiss()
-                    }
+                    withAnimation(.spring()) { showThankYou = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { dismiss() }
                 }
             } catch {
-                await MainActor.run {
-                    isSubmitting = false
-                    print("Error submitting feedback: \(error)")
-                }
+                // Keep the message so the user can retry — never silently drop what they wrote.
+                print("Error submitting CEO letter: \(error)")
+                await MainActor.run { isSubmitting = false }
             }
         }
     }

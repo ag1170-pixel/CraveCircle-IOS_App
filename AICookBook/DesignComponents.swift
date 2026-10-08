@@ -160,6 +160,35 @@ struct GlassIconButton: View {
 
 // MARK: - Custom lime segmented control
 
+/// Apple-style glassy switch. Same brand tint as the system toggle (never green), but the track and
+/// knob are rendered with translucent material so the control reads as frosted glass. Drop-in via
+/// `.toggleStyle(GlassToggleStyle())`.
+struct GlassToggleStyle: ToggleStyle {
+    var onColor: Color = AppTheme.accent
+
+    func makeBody(configuration: Configuration) -> some View {
+        let on = configuration.isOn
+        return HStack {
+            configuration.label
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay(Capsule().fill(onColor.opacity(on ? 0.9 : 0)))
+                .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
+                .frame(width: 51, height: 31)
+                .overlay(alignment: on ? .trailing : .leading) {
+                    Circle()
+                        .fill(.white)
+                        .padding(2)
+                        .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
+                        .overlay(Circle().fill(.ultraThinMaterial).opacity(0.001)) // keep crisp on glass
+                }
+                .animation(AppMotion.snappy, value: on)
+                .onTapGesture { Haptics.select(); configuration.isOn.toggle() }
+                .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+        }
+    }
+}
+
 struct LimeSegmentedControl: View {
     let segments: [String]
     @Binding var selection: Int

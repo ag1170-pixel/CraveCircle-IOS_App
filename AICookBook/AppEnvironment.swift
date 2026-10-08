@@ -367,8 +367,11 @@ final class AppEnvironment: ObservableObject {
     @AppStorage("guest_recipes_viewed") private var guestRecipesViewed = 0
     @Published var showGuestPaywall = false
 
+    /// ponytail: TEMPORARY testing bypass — set to false to restore the 10-recipe guest cap.
+    private let guestPaywallDisabled = true
+
     func canViewRecipe() -> Bool {
-        if isGuest {
+        if isGuest && !guestPaywallDisabled {
             if guestRecipesViewed >= 10 {
                 showGuestPaywall = true
                 return false
@@ -437,6 +440,10 @@ final class AppEnvironment: ObservableObject {
     /// Set by a pushed screen (e.g. Library, once it's cycled past its own last filter tab) to ask
     /// the root tab bar to switch main tabs. MainTabView observes this and clears it after acting.
     @Published var pendingTabSwitch: AppTab?
+
+    /// Set by the "Search" Home-screen quick action: switch to Home AND focus the search field so the
+    /// user lands straight on the keyboard-ready search box. HomeScreen observes and clears it.
+    @Published var pendingSearchFocus = false
 
     func requestTabSwitch(_ tab: AppTab) {
         pendingTabSwitch = tab

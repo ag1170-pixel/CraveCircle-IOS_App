@@ -36,10 +36,14 @@ struct RecipeEditScreen: View {
                     }
                 }
                 Section("Details") {
-                    TextField("Title", text: $draft.title)
-                    TextField("Prep time (e.g. 12 min)", text: $draft.prepTime.orEmpty())
-                    TextField("Cook time (e.g. 8 min)", text: $draft.cookTime.orEmpty())
+                    TextField("Recipe Name", text: $draft.title)
                     Stepper("Servings: \(draft.servings ?? 1)", value: servingsBinding, in: 1...30)
+                }
+                Section("Prep time") {
+                    DurationWheel(minutes: minutesBinding(for: $draft.prepTime))
+                }
+                Section("Cook time") {
+                    DurationWheel(minutes: minutesBinding(for: $draft.cookTime))
                 }
                 
                 // Community Visibility section intentionally removed for now (per 2026-10-07 UI batch).
@@ -151,6 +155,15 @@ struct RecipeEditScreen: View {
         Binding(get: { draft.servings ?? 1 }, set: { draft.servings = $0 })
     }
 
+    /// Bridge the stored free-text duration ("1 hr 20 min") to total minutes for the wheel, writing
+    /// back a tidy formatted string (nil when 0 so an unset time stays unset).
+    private func minutesBinding(for field: Binding<String?>) -> Binding<Int> {
+        Binding(
+            get: { Recipe.minutes(from: field.wrappedValue) ?? 0 },
+            set: { field.wrappedValue = $0 == 0 ? nil : Recipe.formatMinutes($0) }
+        )
+    }
+
     private func save() {
         Haptics.success()
         // Trim + drop empty entries, renumber steps.
@@ -173,6 +186,38 @@ struct RecipeEditScreen: View {
         recipe = draft
         onSave(draft)
         dismiss()
+    }
+}
+
+/// A Clock-alarm-style hour + minute wheel for entering a duration in minutes. Two `.wheel` pickers
+/// side by side (0–23 hr, 0–59 min) so the user spins a time instead of typing "12 min".
+private struct DurationWheel: View {
+    @Binding var minutes: Int
+
+    private var hours: Binding<Int> {
+        Binding(get: { minutes / 60 }, set: { minutes = $0 * 60 + minutes % 60 })
+    }
+    private var mins: Binding<Int> {
+        Binding(get: { minutes % 60 }, set: { minutes = (minutes / 60) * 60 + $0 })
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            wheel(value: hours, range: 0...23, unit: "hr")
+            wheel(value: mins, range: 0...59, unit: "min")
+        }
+        .frame(maxHeight: 130)
+    }
+
+    private func wheel(value: Binding<Int>, range: ClosedRange<Int>, unit: String) -> some View {
+        Picker(unit, selection: value) {
+            ForEach(Array(range), id: \.self) { n in
+                Text("\(n) \(unit)").tag(n)
+            }
+        }
+        .pickerStyle(.wheel)
+        .frame(maxWidth: .infinity)
+        .clipped()
     }
 }
 

@@ -14,7 +14,6 @@ struct GroceryScreen: View {
     @State private var newItem = ""
     @State private var catHeld = false          // true while dragging the grocery cat → freeze scroll
     @State private var selectedDish: String? = nil   // nil = All; else show only that dish's ingredients
-    @State private var showSortOptions = false
     @AppStorage("grocery_sort_mode") private var sortModeRaw = GrocerySortMode.recipe.rawValue
 
     private var sortMode: GrocerySortMode { GrocerySortMode(rawValue: sortModeRaw) ?? .recipe }
@@ -80,12 +79,9 @@ struct GroceryScreen: View {
                     selectedDish = nil
                 }
             }
-            .confirmationDialog("Sort by", isPresented: $showSortOptions, titleVisibility: .visible) {
-                Button("By Recipe") { withAnimation(AppMotion.smooth) { sortModeRaw = GrocerySortMode.recipe.rawValue } }
-                Button("By Aisle") {
-                    withAnimation(AppMotion.smooth) { sortModeRaw = GrocerySortMode.aisle.rawValue; selectedDish = nil }
-                }
-                Button("Cancel", role: .cancel) {}
+            // When switching to By Aisle, the per-dish filter no longer applies — reset to All.
+            .onChange(of: sortModeRaw) { _, mode in
+                if mode == GrocerySortMode.aisle.rawValue { selectedDish = nil }
             }
         }
         .tint(AppTheme.accentInk)
@@ -95,21 +91,21 @@ struct GroceryScreen: View {
 
     private var sortBar: some View {
         HStack {
-            Button {
-                Haptics.tap(); showSortOptions = true
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.up.arrow.down")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text(sortMode.label)
-                        .font(AppFont.body(14, weight: .semibold))
+            Picker("Sort by", selection: sortModeBinding) {
+                ForEach(GrocerySortMode.allCases, id: \.self) { mode in
+                    Text(mode.label).tag(mode)
                 }
-                .foregroundStyle(AppTheme.textSecondary)
             }
-            .buttonStyle(PressableStyle())
+            .pickerStyle(.menu)
+            .tint(AppTheme.textSecondary)
             .accessibilityLabel("Sort list")
             Spacer()
         }
+    }
+
+    private var sortModeBinding: Binding<GrocerySortMode> {
+        Binding(get: { sortMode },
+                set: { newMode in withAnimation(AppMotion.smooth) { sortModeRaw = newMode.rawValue } })
     }
 
     // MARK: Header + progress ring

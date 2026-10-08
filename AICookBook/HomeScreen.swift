@@ -27,6 +27,7 @@ struct HomeScreen: View {
     @State private var showShared = false
     @State private var catHeld = false                   // true while dragging the chef-cat → freeze scroll
     @StateObject private var voiceSearch = VoiceSearchController()
+    @FocusState private var searchFocused: Bool
     @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
     
     private var unreadSharedCount: Int {
@@ -79,6 +80,13 @@ struct HomeScreen: View {
                 if environment.suggestedRecipes.isEmpty {
                     await environment.fetchSuggestedFeed()
                 }
+            }
+            // The "Search" quick action lands here and asks for the search box to be keyboard-ready.
+            .onChange(of: environment.pendingSearchFocus) { _, want in
+                if want { focusSearchSoon() }
+            }
+            .onAppear {
+                if environment.pendingSearchFocus { focusSearchSoon() }
             }
             .navigationDestination(isPresented: $navigateToLibrary) {
                 LibraryScreen()
@@ -148,6 +156,13 @@ struct HomeScreen: View {
         !query.trimmingCharacters(in: .whitespaces).isEmpty || filters.isActive
     }
 
+    /// Focus the search box after the Home tab has settled on screen (focus set during the tab
+    /// switch gets dropped), scrolling the field into view by clearing any active search first.
+    private func focusSearchSoon() {
+        environment.pendingSearchFocus = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { searchFocused = true }
+    }
+
     private var searchResult: RecipeSearch.Result {
         RecipeSearch.search(environment.recipes, query: query, filters: filters)
     }
@@ -169,6 +184,7 @@ struct HomeScreen: View {
                 .font(AppFont.body(16))
                 .foregroundStyle(AppTheme.textPrimary)
                 .autocorrectionDisabled()
+                .focused($searchFocused)
                 .overlay(alignment: .leading) {
                     if query.isEmpty {
                         CyclingPlaceholder(prefix: "Search for ", phrases: Self.searchHints)

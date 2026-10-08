@@ -80,7 +80,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         Task { @MainActor in
             guard let env = AppEnvironment.shared else { pendingShortcut = type; return }
             switch type {
-            case "search":   env.requestTabSwitch(.home)
+            case "search":   env.requestTabSwitch(.home); env.pendingSearchFocus = true
             case "grocery":  env.requestTabSwitch(.groceries)
             case "writeCEO": env.pendingFeedback = true
             default: break

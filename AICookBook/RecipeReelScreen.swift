@@ -249,10 +249,14 @@ private struct ReelCell: View {
 
     // MARK: Backdrop (photo + taps)
 
+    // Portrait fits the photo (never cropped); landscape would shrink that fit to a thin strip
+    // (fitPhotoHeight collapses when height < width), so landscape fills the screen instead.
+    private var useFit: Bool { fitMode && size.height >= size.width }
+
     private var backdrop: some View {
         ZStack {
             Color.black.frame(width: size.width, height: cellHeight)
-            if fitMode {
+            if useFit {
                 RecipeCoverImage(urlString: recipe.thumbnailUrl)
                     .scaledToFit()
                     .frame(width: size.width, height: fitPhotoHeight)

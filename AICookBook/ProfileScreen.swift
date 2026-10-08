@@ -236,7 +236,7 @@ struct ProfileScreen: View {
                         .font(AppFont.body(16, weight: .medium))
                         .foregroundStyle(AppTheme.textPrimary)
                     Spacer()
-                    Toggle("", isOn: $kitchenCatEnabled).labelsHidden().tint(AppTheme.accent)
+                    Toggle("", isOn: $kitchenCatEnabled).labelsHidden().toggleStyle(GlassToggleStyle())
                 }
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.vertical, 13)
