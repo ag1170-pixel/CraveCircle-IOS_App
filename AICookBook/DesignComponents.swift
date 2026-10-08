@@ -48,7 +48,7 @@ struct DoodleWallpaper: View {
                 }
                 .frame(width: cw, height: ch)
                 .clipped()
-                .opacity(0.85)   // wallpaper strength; cards/text sit on their own surfaces above
+                .opacity(0.14)   // faint texture (matches the Figma reference), never competes with content
             }
         }
         .ignoresSafeArea()
