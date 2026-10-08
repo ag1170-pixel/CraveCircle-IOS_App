@@ -449,10 +449,19 @@ final class AppEnvironment: ObservableObject {
         pendingTabSwitch = tab
     }
 
-    /// Which cell of the 4×3 doodle board every screen currently shows as its wallpaper. Reshuffled
-    /// on each navigation (tab switch / detail push) so the background is never the same two screens
-    /// in a row. See `DoodleWallpaper`.
+    /// Which cell of the 4×3 doodle board every screen shows as its wallpaper. It's the SAME on every
+    /// screen at any moment (so navigating never recomputes it — no lag) and advances to the next cell
+    /// on a slow timer, not per-navigation. See `DoodleWallpaper`.
     @Published var doodleCell: Int = Int.random(in: 0..<12)
+    private var doodleTimer: Timer?
+
+    /// Advance the wallpaper to the next cell every 30s — static between ticks, same across screens.
+    func startDoodleRotation() {
+        guard doodleTimer == nil else { return }
+        doodleTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.shuffleDoodle() }
+        }
+    }
 
     func shuffleDoodle() {
         // Step by a non-zero amount (mod 12) → guaranteed a different cell than the current one.

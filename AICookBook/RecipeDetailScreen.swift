@@ -169,7 +169,6 @@ struct RecipeDetailScreen: View {
         }
         .onAppear {
             viewStartTime = Date()
-            environment.shuffleDoodle()   // opening a recipe reshuffles the wallpaper slice too
         }
         .onDisappear {
             if let start = viewStartTime {

@@ -328,8 +328,6 @@ struct MainTabView: View {
         // Osta-style: Import is a floating round button, not a tab (keeps the glassy 4-icon bar).
         // Import FAB everywhere EXCEPT Discover — the reel is immersive and the FAB would cover the rail.
         .overlay(alignment: .bottomTrailing) { if tab != .discover { importFAB } }
-        // New tab → new random doodle wallpaper slice (so the background is never static).
-        .onChange(of: tab) { _, _ in environment.shuffleDoodle() }
         .tabBarMinimizeBehavior(.onScrollDown)
         .onPreferenceChange(HorizontalScrollFrameKey.self) { frames in
             // Keep track of horizontal scroll areas (like carousels on HomeScreen)
@@ -439,6 +437,7 @@ struct MainTabView: View {
             environment.pendingTabSwitch = nil
         }
         .onAppear {
+            environment.startDoodleRotation()   // advance the shared wallpaper every 30s
             // A quick action fired before this view mounted (cold launch) sets pendingTabSwitch
             // before onChange is observing it — so consume it here too. Without this, the Grocery
             // quick action lands on Home (the default tab) because its switch was missed.
