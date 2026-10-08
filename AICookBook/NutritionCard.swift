@@ -144,15 +144,15 @@ struct NutritionCard: View {
                 } label: {
                     HStack(spacing: 8) {
                         Text("Calorie Breakdown")
-                            .font(AppFont.display(18, weight: .bold))
+                            .font(AppFont.display(16, weight: .bold))
                             .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+                            .minimumScaleFactor(0.7)
                         Image(systemName: showBreakdownSection ? "arrow.down.right" : "arrow.up.right")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.system(size: 15, weight: .bold))
                     }
                     .foregroundStyle(heroOrangeInk)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 14)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 13)
                     .background(heroOrange, in: Capsule())
                 }
                 .buttonStyle(PressableStyle())
