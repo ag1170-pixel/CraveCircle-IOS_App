@@ -18,13 +18,14 @@ import UIKit
 /// Purely decorative and never interactive.
 struct DoodleWallpaper: View {
     var cell: Int
+    @Environment(\.colorScheme) private var scheme
 
     private let cols = 4, rows = 3
     private let imgW: CGFloat = 10272, imgH: CGFloat = 6864   // "Background(2)" dense doodle tile
 
     var body: some View {
         ZStack {
-            AppTheme.background
+            AppTheme.background   // base (dark in dark mode, cream in light) — never inverted
             GeometryReader { geo in
                 let cw = geo.size.width, ch = geo.size.height
                 // Zoomed-out, dense art (small doodles). Fill the screen then PAN to 1 of 12
@@ -39,22 +40,37 @@ struct DoodleWallpaper: View {
                 let col = CGFloat(c % cols), row = CGFloat(c / cols)
                 let fx = cols > 1 ? col / CGFloat(cols - 1) : 0.5
                 let fy = rows > 1 ? row / CGFloat(rows - 1) : 0.5
-                ZStack(alignment: .topLeading) {
-                    Color.clear
-                    Image("DoodleBG")
-                        .resizable()
-                        .frame(width: sw, height: sh)
-                        .offset(x: -ox * fx, y: -oy * fy)
-                        .animation(.easeInOut(duration: 1.2), value: cell)   // slow drift on the 30s tick
-                }
-                .frame(width: cw, height: ch)
-                .clipped()
-                .saturation(0)      // drop the green → a neutral light line that matches the app
-                .opacity(0.16)      // subtle but visible, like WhatsApp's chat wallpaper
+                doodle(sw: sw, sh: sh, ox: ox, oy: oy, fx: fx, fy: fy)
+                    .frame(width: cw, height: ch)
+                    .clipped()
+                    .saturation(0)       // drop the green → neutral line
+                    // Light mode: the art is light-on-dark, so invert it to dark-on-light (WhatsApp's
+                    // light chat wallpaper). Dark mode uses it as-is.
+                    .colorInvert(if: scheme == .light)
+                    .opacity(scheme == .dark ? 0.16 : 0.12)
             }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
+    }
+
+    private func doodle(sw: CGFloat, sh: CGFloat, ox: CGFloat, oy: CGFloat,
+                        fx: CGFloat, fy: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            Color.clear
+            Image("DoodleBG")
+                .resizable()
+                .frame(width: sw, height: sh)
+                .offset(x: -ox * fx, y: -oy * fy)
+                .animation(.easeInOut(duration: 1.2), value: cell)   // slow drift on the 30s tick
+        }
+    }
+}
+
+private extension View {
+    /// Apply `.colorInvert()` only when `condition` is true (keeps a single view branch).
+    @ViewBuilder func colorInvert(if condition: Bool) -> some View {
+        if condition { self.colorInvert() } else { self }
     }
 }
 

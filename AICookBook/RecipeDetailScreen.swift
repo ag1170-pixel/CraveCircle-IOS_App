@@ -69,7 +69,7 @@ struct RecipeDetailScreen: View {
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.top, safeTopInset())
         }
-        .doodleScreenBackground(cell: environment.doodleCell)
+        .background(AppTheme.background.ignoresSafeArea())
         .ignoresSafeArea(edges: .top)
         .coordinateSpace(.named("detail"))
         .simultaneousGesture(
@@ -545,7 +545,10 @@ struct RecipeDetailScreen: View {
         .padding(.horizontal, AppSpacing.md)
         .padding(.top, AppSpacing.lg)
         .background(
-            AppTheme.background
+            // The doodle wallpaper lives on the content SHEET (which covers the photo as it scrolls
+            // up) so it shows consistently across the whole recipe page — not just a strip at the
+            // bottom overscroll. The base inside DoodleWallpaper keeps it opaque over the photo.
+            DoodleWallpaper(cell: environment.doodleCell)
                 .clipShape(.rect(topLeadingRadius: AppRadius.sheet, topTrailingRadius: AppRadius.sheet))
                 .ignoresSafeArea(edges: .bottom)
                 .offset(y: -AppSpacing.lg)
