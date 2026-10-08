@@ -516,12 +516,9 @@ struct RecipeDetailScreen: View {
                 showCook = true
             }
 
-            Picker("", selection: $tab) {
-                Text("Ingredients").tag(0)
-                Text("Directions").tag(1)
-            }
-            .pickerStyle(.segmented)
-            .padding(.top, 2)
+            // Segmented picker in the house style: white selected pill, black text, original size.
+            LimeSegmentedControl(segments: ["Ingredients", "Directions"], selection: $tab)
+                .padding(.top, 2)
 
             // Smooth horizontal slide for the Ingredients ⇄ Directions switch (tracks the swipe
             // direction) instead of a crossfade — reads like a real tab transition.
