@@ -66,7 +66,7 @@ struct HomeScreen: View {
                 }
                 .padding(.bottom, AppSpacing.xl)
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .doodleScreenBackground(cell: environment.doodleCell)   // behind text/gaps; cards stay opaque
             .overlayPreferenceValue(CardFramesKey.self) { frames in
                 CatCompanion(cardFrames: frames, catHeld: $catHeld)   // peeks, walks, and is draggable
             }
@@ -86,6 +86,7 @@ struct HomeScreen: View {
                 if want { focusSearchSoon() }
             }
             .onAppear {
+                environment.advanceDoodleIfDue()   // new wallpaper only if 30s since the last change
                 if environment.pendingSearchFocus { focusSearchSoon() }
             }
             .navigationDestination(isPresented: $navigateToLibrary) {
