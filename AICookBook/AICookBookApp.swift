@@ -36,6 +36,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     /// A quick action chosen at cold launch, applied once the app is active (env is ready).
     static var pendingShortcut: String?
 
+    /// App orientation lock. The app is portrait everywhere EXCEPT the hands-free flashcard cook
+    /// screen, which forces landscape (see `FlashcardCookScreen`). Updated by that screen.
+    static var orientationLock: UIInterfaceOrientationMask = .portrait
+
+    func application(_ application: UIApplication,
+                     supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        Self.orientationLock
+    }
+
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
@@ -225,6 +234,10 @@ struct CraveCircleApp: App {
                 }
                 .onAppear {
                     // Cold-launch check: scenePhase is already .active at launch so onChange doesn't fire.
+                    if let s = AppDelegate.pendingShortcut {
+                        AppDelegate.pendingShortcut = nil
+                        AppDelegate.handleShortcut(s)   // apply a quick action that cold-launched the app
+                    }
                     environment.checkPendingSharedImport()
                     Task { await environment.importFromSharedURL() }
                     WidgetCenter.shared.reloadAllTimelines()
