@@ -203,10 +203,10 @@ struct AddRecipeSheet: View {
         Recipe(
             id: "draft-\(UUID().uuidString.prefix(8))",
             ownerId: AppEnvironment.shared?.currentUser?.id ?? "local-chef",
-            title: "New Recipe",
+            title: "",            // empty → the "Recipe Name" placeholder shows instead of pre-filled text
             description: "",
-            prepTime: "15 min",
-            cookTime: "20 min",
+            prepTime: nil,
+            cookTime: nil,
             servings: 2,
             ingredients: [IngredientGroup(groupName: nil, items: [""])],
             directions: [DirectionStep(stepIndex: 1, text: "")],
