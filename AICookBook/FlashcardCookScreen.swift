@@ -92,30 +92,36 @@ struct FlashcardCookScreen: View {
 
     var body: some View {
         ZStack {
+            // Whole-screen background = the CENTERED step's colour; it animates as the wheel settles
+            // on a new step.
             color(for: index).bg.ignoresSafeArea()
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: index)
 
-            // Vertical paging: swipe UP for the next step, DOWN for the previous — like scrolling a
-            // feed. Each card fills the screen and carries its own colour so the swap reads clearly.
+            // A picker-WHEEL of steps (like the Clock alarm hour/minute wheel): one step per row, the
+            // centred step big and the neighbours faint above/below. Scrolling moves one STEP at a
+            // time with a smooth transition — not a whole 3-step page.
             GeometryReader { geo in
+                let rowH = geo.size.height * 0.52
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 0) {
                         ForEach(cards.indices, id: \.self) { i in
-                            CardContent(card: cards[i],
-                                        stepCount: stepCount,
-                                        ink: color(for: i).ink,
-                                        prev: contextText(at: i - 1),
-                                        next: contextText(at: i + 1))
+                            CardContent(card: cards[i], stepCount: stepCount, ink: color(for: index).ink)
                                 .padding(.horizontal, 48)
-                                .frame(width: geo.size.width, height: geo.size.height)
-                                .background(color(for: i).bg)
+                                .frame(width: geo.size.width, height: rowH)
+                                .scrollTransition(axis: .vertical) { content, phase in
+                                    // Centre (identity) = full; neighbours fade & shrink → wheel feel.
+                                    content
+                                        .opacity(1 - min(abs(phase.value), 1) * 0.72)
+                                        .scaleEffect(1 - min(abs(phase.value), 1) * 0.18)
+                                }
                                 .id(i)
                         }
                     }
                     .scrollTargetLayout()
                 }
-                // Continuous vertical scroll (a feed), NOT slide-style paging — the colored cards
-                // flow into each other as you scroll down. scrollPosition still tracks the top card.
-                .scrollPosition(id: scrollBinding, anchor: .top)
+                .scrollTargetBehavior(.viewAligned)
+                .scrollPosition(id: scrollBinding, anchor: .center)
+                .contentMargins(.vertical, (geo.size.height - rowH) / 2, for: .scrollContent)
             }
             .ignoresSafeArea()
 
@@ -190,15 +196,6 @@ struct FlashcardCookScreen: View {
         timer.toggle(minutes: minutes)
     }
 
-    /// Short context line for the card above/below (what the cook just did / will do next).
-    private func contextText(at i: Int) -> String? {
-        guard cards.indices.contains(i) else { return nil }
-        switch cards[i] {
-        case .ingredients:            return "Ingredients"
-        case .step(let n, let t):     return "Step \(n): \(t)"
-        case .finish:                 return "Finish 🎉"
-        }
-    }
 
     // MARK: Orientation
 
@@ -431,36 +428,24 @@ func stepDurationMinutes(_ text: String) -> Int? {
     return (h ?? 0) * 60 + (m ?? 0)
 }
 
+/// One step = one wheel row. Renders just this step's content, centred vertically and left-aligned;
+/// the wheel itself shows the neighbouring steps (faint) above and below.
 private struct CardContent: View {
     let card: FlashCard
     let stepCount: Int
     let ink: Color
-    let prev: String?
-    let next: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Previous step, faint
-            Text(prev ?? " ")
-                .font(AppFont.body(15, weight: .semibold))
-                .foregroundStyle(ink.opacity(0.45))
-                .lineLimit(2)
-
-            Spacer(minLength: 4)
-            center
-            Spacer(minLength: 4)
-
-            // Next step, faint
-            Text(next ?? " ")
-                .font(AppFont.body(15, weight: .semibold))
-                .foregroundStyle(ink.opacity(0.45))
-                .lineLimit(2)
+        VStack {
+            Spacer(minLength: 0)
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .padding(.vertical, 54)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    @ViewBuilder private var center: some View {
+    @ViewBuilder private var content: some View {
         switch card {
         case .ingredients(let items):
             VStack(alignment: .leading, spacing: 10) {
@@ -486,18 +471,18 @@ private struct CardContent: View {
                     .font(AppFont.label(13, weight: .bold)).tracking(1.5)
                     .foregroundStyle(ink.opacity(0.7))
                 Text(text)
-                    .font(AppFont.display(34, weight: .bold))
+                    .font(AppFont.display(30, weight: .bold))
                     .foregroundStyle(ink)
                     .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(0.6)
             }
 
         case .finish(let recipeTitle):
             VStack(alignment: .leading, spacing: 8) {
                 Text("🎉").font(.system(size: 44))
                 Text("Enjoy your meal!")
-                    .font(AppFont.display(34, weight: .bold)).foregroundStyle(ink)
+                    .font(AppFont.display(32, weight: .bold)).foregroundStyle(ink)
                 Text("You finished \(recipeTitle). Bon appétit, chef!")
                     .font(AppFont.body(17, weight: .medium)).foregroundStyle(ink.opacity(0.8))
             }

@@ -45,11 +45,12 @@ struct DoodleWallpaper: View {
                         .resizable()
                         .frame(width: sw, height: sh)
                         .offset(x: -ox * fx, y: -oy * fy)
+                        .animation(.easeInOut(duration: 1.2), value: cell)   // slow drift on the 30s tick
                 }
                 .frame(width: cw, height: ch)
                 .clipped()
                 .saturation(0)      // drop the green → a neutral light line that matches the app
-                .opacity(0.07)      // whisper-faint, like WhatsApp's chat wallpaper
+                .opacity(0.16)      // subtle but visible, like WhatsApp's chat wallpaper
             }
         }
         .ignoresSafeArea()
