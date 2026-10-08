@@ -58,10 +58,21 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         ]
     }
 
+    // Fallback for the (rare) no-scene case.
     func application(_ application: UIApplication, performActionFor shortcutItem: UIApplicationShortcutItem,
                      completionHandler: @escaping (Bool) -> Void) {
         Self.handleShortcut(shortcutItem.type)
         completionHandler(true)
+    }
+
+    // SwiftUI apps are scene-based: a quick action on a RUNNING app is delivered to the SCENE
+    // delegate (not the app delegate). Attach our own scene delegate so those actions get handled.
+    func application(_ application: UIApplication,
+                     configurationForConnecting connectingSceneSession: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let config = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        config.delegateClass = ShortcutSceneDelegate.self
+        return config
     }
 
     /// Route a quick action into the app via the existing pending-action flags.
@@ -91,6 +102,23 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                      didFailToRegisterForRemoteNotificationsWithError error: Error) {
         // Expected on the simulator and on a free signing team (no aps-environment entitlement).
         print("ℹ️ Remote notifications unavailable: \(error.localizedDescription)")
+    }
+}
+
+/// Minimal scene delegate that only handles Home-screen quick actions. It does NOT create a window,
+/// so SwiftUI's WindowGroup still drives the UI.
+final class ShortcutSceneDelegate: UIResponder, UIWindowSceneDelegate {
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession,
+               options connectionOptions: UIScene.ConnectionOptions) {
+        if let item = connectionOptions.shortcutItem {   // cold-launch via a quick action
+            AppDelegate.pendingShortcut = item.type
+        }
+    }
+
+    func windowScene(_ windowScene: UIWindowScene, performActionFor shortcutItem: UIApplicationShortcutItem,
+                     completionHandler: @escaping (Bool) -> Void) {
+        AppDelegate.handleShortcut(shortcutItem.type)   // quick action while the app is running/backgrounded
+        completionHandler(true)
     }
 }
 
