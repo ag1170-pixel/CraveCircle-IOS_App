@@ -42,6 +42,7 @@ struct RecipeDetailScreen: View {
     @State private var viewStartTime: Date? = nil
     @State private var galleryIndex = 0
     @State private var galleryFrame: CGRect = .zero   // hero gallery's rect (in "detail" space)
+    @State private var segmentFrame: CGRect = .zero   // Ingredients/Directions box rect (in "detail" space)
 
     private let heroHeight: CGFloat = 380
 
@@ -77,16 +78,19 @@ struct RecipeDetailScreen: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 25, coordinateSpace: .named("detail"))
                 .onEnded { value in
-                    // Swipes that start on the photo gallery page the photos — don't also toggle tabs.
+                    // Swipes that start on the photo gallery page the photos — don't toggle/switch.
                     if galleryFrame.contains(value.startLocation) { return }
                     guard abs(value.translation.width) > abs(value.translation.height) * 1.3,
                           abs(value.translation.width) > 50 else { return }
-                    // Clamped 2-tab toggle: Ingredients ⇄ Directions only. At either end a further
-                    // swipe does nothing — the window never shifts past the edge (no recipe switching).
-                    let next = value.translation.width < 0 ? 1 : 0
-                    guard next != tab else { return }
-                    withAnimation(AppMotion.snappy) { tab = next }
-                    Haptics.select()
+                    let dir = value.translation.width < 0 ? 1 : -1   // left = next, right = previous
+                    if segmentFrame.contains(value.startLocation) {
+                        // On the Ingredients/Directions box → toggle those two.
+                        let next = dir > 0 ? 1 : 0
+                        if next != tab { withAnimation(AppMotion.snappy) { tab = next }; Haptics.select() }
+                    } else {
+                        // Anywhere else on the page → previous / next recipe.
+                        onSwitchRecipe?(dir)
+                    }
                 }
         )
         .leadingEdgeBack { environment.dismissRecipeDetail() }
@@ -574,6 +578,8 @@ struct RecipeDetailScreen: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+            // Swipes that start on this box toggle Ingredients⇄Directions; swipes elsewhere change recipe.
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("detail")) } action: { segmentFrame = $0 }
 
             Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.top, AppSpacing.sm)
 
