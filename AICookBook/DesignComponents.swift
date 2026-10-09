@@ -11,10 +11,9 @@ import UIKit
 
 // MARK: - Randomized doodle wallpaper
 
-/// The dense food-doodle art (`DoodleBG`) as a single, STATIC, faint full-page wallpaper. The art is
-/// rotated 90° so it binds by its long edge — the doodles render smaller while still fully covering the
-/// page (never a half-covered "cut"). Light mode inverts it to dark-on-cream (WhatsApp's light chat
-/// wallpaper). Purely decorative, never interactive, and never changes.
+/// The dense food-doodle art (`DoodleBG`) as a single, STATIC, faint full-page wallpaper. `scaledToFill`
+/// gives WhatsApp-size doodles with full-page coverage (never a half-covered "cut"). Light mode inverts
+/// it to dark-on-cream (WhatsApp's light chat wallpaper). Purely decorative, never interactive.
 struct DoodleWallpaper: View {
     @Environment(\.colorScheme) private var scheme
 
@@ -22,18 +21,15 @@ struct DoodleWallpaper: View {
         ZStack {
             AppTheme.background   // base (dark in dark mode, cream in light) — never inverted
             GeometryReader { geo in
-                let w = geo.size.width, h = geo.size.height
                 Image("DoodleBG")
                     .resizable()
-                    .scaledToFill()
-                    .frame(width: h, height: w)        // fill the screen rotated (long edge binds)…
-                    .rotationEffect(.degrees(90))       // …then rotate upright → smaller doodles, full cover
-                    .frame(width: w, height: h)
+                    .scaledToFill()                     // WhatsApp-size doodles, full-page coverage
+                    .frame(width: geo.size.width, height: geo.size.height)
                     .clipped()
                     .saturation(0)                      // drop the green → neutral line
                     // Light mode: the art is light-on-dark, so invert to dark-on-cream.
                     .colorInvert(if: scheme == .light)
-                    .opacity(scheme == .dark ? 0.10 : 0.07)
+                    .opacity(scheme == .dark ? 0.16 : 0.12)
             }
         }
         .ignoresSafeArea()
