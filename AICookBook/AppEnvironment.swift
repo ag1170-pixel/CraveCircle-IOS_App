@@ -1593,14 +1593,21 @@ final class AppEnvironment: ObservableObject {
             preferredCuisines: preferredCuisines,
             limit: 8
         )
+        // Show on-device picks INSTANTLY (never wait on a slow/offline backend for first content)…
+        if suggestedRecipes.isEmpty { setSuggestions(local) }
+        // …then upgrade to the cross-user server feed if/when it responds.
         if let remote = await supabase.suggestedRecipes(limit: 8), !remote.isEmpty {
-            suggestedRecipes = remote
-        } else {
-            suggestedRecipes = local
+            setSuggestions(remote)
+        } else if suggestedRecipes.isEmpty {
+            setSuggestions(local)
         }
-        // Explain each suggestion: behavior first, else the cuisine picked at onboarding.
+    }
+
+    /// Publish a suggestions list + its per-item "why" reasons (behavior first, else onboarding cuisine).
+    private func setSuggestions(_ list: [Recipe]) {
+        suggestedRecipes = list
         var reasons: [String: String] = [:]
-        for r in suggestedRecipes {
+        for r in list {
             if let why = RecommendationEngine.reason(for: r, history: interactionHistory, allRecipes: recipes) {
                 reasons[r.id] = why
             } else if let why = RecommendationEngine.cuisineReason(for: r, preferredCuisines: preferredCuisines) {

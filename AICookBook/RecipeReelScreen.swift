@@ -44,6 +44,14 @@ struct RecipeReelScreen: View {
         }
     }
 
+    /// Append a fresh shuffled batch that isn't already in the reel (endless scroll).
+    private func appendMoreToReel() {
+        let have = Set(reel.map(\.id))
+        let more = environment.discoveryReel().filter { !have.contains($0.id) }
+        guard !more.isEmpty else { return }
+        reel.append(contentsOf: more)
+    }
+
     var body: some View {
         GeometryReader { geo in
             ScrollView(.vertical, showsIndicators: false) {
@@ -71,12 +79,23 @@ struct RecipeReelScreen: View {
             .overlay(alignment: .top) { topChrome(topInset: geo.safeAreaInsets.top) }
         }
         .task {
-            if environment.suggestedRecipes.isEmpty { await environment.fetchSuggestedFeed() }
+            // Build the reel from local data FIRST so it appears instantly, even when the backend is
+            // slow/offline. Then refresh the personalized feed in the background and rebuild if empty.
             if reel.isEmpty { rebuildReel() }
+            if environment.suggestedRecipes.isEmpty {
+                await environment.fetchSuggestedFeed()
+                if reel.isEmpty { rebuildReel() }
+            }
         }
         .onChange(of: currentID) { _, id in
-            if let id, let r = reel.first(where: { $0.id == id }) {
+            guard let id else { return }
+            if let r = reel.first(where: { $0.id == id }) {
                 environment.logInteraction(recipeId: r.id, eventType: "view")
+            }
+            // Instagram-style endless reel: nearing the end appends more recipes so scrolling never
+            // dead-ends. New batches re-run the recommender + shuffle (unseen first).
+            if let idx = reel.firstIndex(where: { $0.id == id }), idx >= reel.count - 2 {
+                appendMoreToReel()
             }
         }
         .task(id: "\(autoplay)-\(autoplayTick)") {

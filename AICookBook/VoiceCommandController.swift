@@ -64,10 +64,12 @@ final class VoiceCommandController: NSObject, ObservableObject {
     // Words that trigger navigation (+ common mis-hears, since on-device recognition of a single
     // short word is imperfect).
     private let nextWords: Set<String> = [
-        "next", "forward", "skip", "continue", "advance", "nex", "neck", "necks", "nest", "nixed"
+        "next", "forward", "forwards", "front", "skip", "continue", "advance",
+        "nex", "neck", "necks", "nest", "nixed", "forwarded"
     ]
     private let backWords: Set<String> = [
-        "back", "previous", "prev", "last", "reverse", "return", "repeat", "beck", "pack", "bag", "black"
+        "back", "backward", "backwards", "previous", "prev", "last", "reverse", "return", "repeat",
+        "beck", "pack", "bag", "black", "backwood"
     ]
     // "start timer" / "start the timer" / "start clock" — trigger on the distinctive noun.
     private let timerWords: Set<String> = [
@@ -210,8 +212,9 @@ final class VoiceCommandController: NSObject, ObservableObject {
         // (Only "next"/"back" audio; the recipe IMPORT transcription stays on-device.)
         req.requiresOnDeviceRecognition = false
         req.taskHint = .search
-        req.contextualStrings = ["next", "back", "next step", "go back", "previous", "forward",
-                                 "start timer", "start the timer", "start clock", "timer", "clock"]
+        req.contextualStrings = ["next", "forward", "back", "backward", "previous", "front",
+                                 "next step", "go back", "start timer", "start the timer",
+                                 "start clock", "timer", "clock"]
         request = req
         lastProcessedSegments = 0            // fresh transcription → scan from the start
         publish { self.isListening = true }

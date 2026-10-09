@@ -125,7 +125,7 @@ struct FloatingVoiceAssistantView: View {
             return "Enable in Settings > CraveCircle"
         }
         if voice.wakeActive {
-            return "Say “Next” or “Back”"
+            return "Say “Forward” or “Backward”"
         }
         return "Say “Hey Crave” to activate"
     }

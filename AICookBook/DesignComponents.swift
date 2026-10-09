@@ -11,27 +11,29 @@ import UIKit
 
 // MARK: - Randomized doodle wallpaper
 
-/// The dense food-doodle art (`DoodleBG`) as a single, STATIC, faint full-page wallpaper. `scaledToFill`
-/// gives WhatsApp-size doodles with full-page coverage (never a half-covered "cut"). Light mode inverts
-/// it to dark-on-cream (WhatsApp's light chat wallpaper). Purely decorative, never interactive.
+/// Static, faint, full-page food-doodle wallpaper. Both source images are dark-ink-on-white line art,
+/// so: LIGHT mode shows the warm (orange) art as-is on cream; DARK mode inverts the art so the lines
+/// become light on near-black. `scaledToFill` guarantees full-page coverage (never a half-covered
+/// "cut"). Purely decorative, never interactive.
 struct DoodleWallpaper: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         ZStack {
-            AppTheme.background   // base (dark in dark mode, cream in light) — never inverted
+            AppTheme.background   // base (dark in dark mode, cream in light)
             GeometryReader { geo in
-                Image("DoodleBG")
+                Image(scheme == .dark ? "DoodleDark" : "DoodleLight")
                     .resizable()
-                    .scaledToFill()                     // WhatsApp-size doodles, full-page coverage
+                    .scaledToFill()                     // full-page coverage
                     .frame(width: geo.size.width, height: geo.size.height)
                     .clipped()
-                    .saturation(0)                      // drop the green → neutral line
-                    // Light mode: the art is light-on-dark, so invert to dark-on-cream.
-                    .colorInvert(if: scheme == .light)
-                    .opacity(scheme == .dark ? 0.16 : 0.12)
+                    // Dark mode: the art is dark-on-white → invert to light-on-dark.
+                    .colorInvert(if: scheme == .dark)
+                    .opacity(scheme == .dark ? 0.14 : 0.10)
             }
+            .blendMode(scheme == .dark ? .screen : .multiply)   // let the base show through cleanly
         }
+        .compositingGroup()   // keep the blend inside the wallpaper, not with content behind it
         .ignoresSafeArea()
         .allowsHitTesting(false)
     }

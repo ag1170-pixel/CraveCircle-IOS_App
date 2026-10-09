@@ -271,7 +271,7 @@ struct FlashcardCookScreen: View {
     private var voiceStatusText: String {
         if !voiceOn { return "Voice off" }
         if voice.permissionDenied { return "Enable mic & speech" }
-        if voice.isListening { return "Say “Next” · “Start timer”" }
+        if voice.isListening { return "Say “Forward” · “Backward” · “Start timer”" }
         return "Starting…"
     }
 
