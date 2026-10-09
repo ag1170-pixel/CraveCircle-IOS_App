@@ -449,18 +449,6 @@ final class AppEnvironment: ObservableObject {
         pendingTabSwitch = tab
     }
 
-    /// Which cell of the 4×3 doodle board the wallpaper shows. It stays fixed while you're on a page
-    /// (no change even for an hour); it only advances when you NAVIGATE to a wallpaper page (recipe or
-    /// profile) AND at least 30s have passed since the last change. See `DoodleWallpaper`.
-    @Published var doodleCell: Int = Int.random(in: 0..<12)
-    private var lastDoodleChange = Date.distantPast
-
-    /// Call when arriving at a wallpaper page. Advances to a new cell only if the 30s cooldown is up.
-    func advanceDoodleIfDue() {
-        guard Date().timeIntervalSince(lastDoodleChange) >= 30 else { return }
-        lastDoodleChange = Date()
-        doodleCell = (doodleCell + Int.random(in: 1..<12)) % 12   // non-zero step → a different cell
-    }
 
     func dismissRecipeDetail() {
         selectedRecipe = nil
@@ -1569,6 +1557,28 @@ final class AppEnvironment: ObservableObject {
                 }
             }
         }
+    }
+
+    /// The Discovery reel: personalized (same recommender as "Suggested for you"), with recipes the
+    /// user has already VIEWED removed, returned in RANDOM order. Falls back to all discoverable
+    /// recipes (still shuffled) once everything's been seen, so the reel is never empty.
+    func discoveryReel() -> [Recipe] {
+        let seen = Set(interactionHistory.filter { $0.eventType == "view" }.map(\.recipeId))
+        let own = Set(recipes.filter { isOwner(of: $0) }.map(\.id))
+        let excluded = seen.union(own)
+        var picks = RecommendationEngine.suggestions(
+            from: recipes,
+            history: interactionHistory,
+            excluding: excluded,
+            preferredCuisines: preferredCuisines,
+            limit: 60
+        )
+        if picks.isEmpty {
+            // Seen everything the recommender would pick — show the rest (unseen first), still shuffled.
+            let unseen = recipes.filter { !own.contains($0.id) && !seen.contains($0.id) }
+            picks = unseen.isEmpty ? recipes.filter { !own.contains($0.id) } : unseen
+        }
+        return picks.shuffled()
     }
 
     /// Personalized suggestions. Prefers the server RPC (cross-user, dwell-weighted) when signed in;

@@ -31,13 +31,17 @@ struct RecipeReelScreen: View {
     @State private var currentID: String?
     @State private var autoplayTick = 0
 
-    private var reel: [Recipe] {
-        let suggested = environment.suggestedRecipes
-        let seen = Set(suggested.map(\.id))
-        let extras = environment.recipes.filter {
-            !seen.contains($0.id) && !environment.isOwner(of: $0) && !$0.isImportedFromSocial
+    // A STABLE, randomized snapshot of the personalized unseen feed. Built on appear / refresh only
+    // (not recomputed while scrolling — logging a "view" marks a recipe seen, which must not yank it
+    // out from under the user mid-scroll). See `AppEnvironment.discoveryReel()`.
+    @State private var reel: [Recipe] = []
+
+    private func rebuildReel() {
+        let next = environment.discoveryReel()
+        reel = next
+        if currentID == nil || !next.contains(where: { $0.id == currentID }) {
+            currentID = next.first?.id
         }
-        return suggested + extras
     }
 
     var body: some View {
@@ -61,14 +65,14 @@ struct RecipeReelScreen: View {
             }
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: $currentID)
-            .refreshable { await environment.fetchSuggestedFeed() }     // Instagram-style pull-to-refresh
+            .refreshable { await environment.fetchSuggestedFeed(); rebuildReel() }   // pull to reshuffle
             .ignoresSafeArea()
             .background(.black)
             .overlay(alignment: .top) { topChrome(topInset: geo.safeAreaInsets.top) }
         }
         .task {
             if environment.suggestedRecipes.isEmpty { await environment.fetchSuggestedFeed() }
-            if currentID == nil { currentID = reel.first?.id }
+            if reel.isEmpty { rebuildReel() }
         }
         .onChange(of: currentID) { _, id in
             if let id, let r = reel.first(where: { $0.id == id }) {
