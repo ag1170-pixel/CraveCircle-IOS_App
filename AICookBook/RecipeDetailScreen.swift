@@ -69,7 +69,7 @@ struct RecipeDetailScreen: View {
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.top, safeTopInset())
         }
-        .doodleScreenBackground(cell: environment.doodleCell)   // FIXED wallpaper behind the scroll
+        .doodleScreenBackground()   // static wallpaper behind the scroll
         .ignoresSafeArea(edges: .top)
         .coordinateSpace(.named("detail"))
         .simultaneousGesture(
@@ -169,7 +169,6 @@ struct RecipeDetailScreen: View {
         }
         .onAppear {
             viewStartTime = Date()
-            environment.advanceDoodleIfDue()   // new wallpaper only if 30s since the last change
         }
         .onDisappear {
             if let start = viewStartTime {

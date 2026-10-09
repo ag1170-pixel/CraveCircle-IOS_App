@@ -11,58 +11,33 @@ import UIKit
 
 // MARK: - Randomized doodle wallpaper
 
-/// The food-doodle art (`DoodleBG`, 2578×1716) treated as a 4×3 board of 12 cells. `cell` (0..<12)
-/// picks one and fills the screen with just that patch, so each screen shows a different slice; the
-/// app advances `cell` on navigation, 30s-gated (see `AppEnvironment.advanceDoodleIfDue`). Dark-theme art
-/// only — light mode falls back to the plain app background (a light wallpaper can be added later).
-/// Purely decorative and never interactive.
+/// The dense food-doodle art (`DoodleBG`) as a single, STATIC, faint full-page wallpaper. The art is
+/// rotated 90° so it binds by its long edge — the doodles render smaller while still fully covering the
+/// page (never a half-covered "cut"). Light mode inverts it to dark-on-cream (WhatsApp's light chat
+/// wallpaper). Purely decorative, never interactive, and never changes.
 struct DoodleWallpaper: View {
-    var cell: Int
     @Environment(\.colorScheme) private var scheme
-
-    private let cols = 4, rows = 3
-    private let imgW: CGFloat = 10272, imgH: CGFloat = 6864   // "Background(2)" dense doodle tile
 
     var body: some View {
         ZStack {
             AppTheme.background   // base (dark in dark mode, cream in light) — never inverted
             GeometryReader { geo in
-                let cw = geo.size.width, ch = geo.size.height
-                // Zoomed-out, dense art (small doodles). Fill the screen then PAN to 1 of 12
-                // positions so each screen shows a different patch; the small extra `zoom` over
-                // the fill scale buys pan room on both axes for the 4×3 grid.
-                let fill = max(cw / imgW, ch / imgH)
-                let zoom = fill * 1.15
-                let sw = imgW * zoom, sh = imgH * zoom
-                let ox = max(sw - cw, 0), oy = max(sh - ch, 0)
-                let n = cols * rows
-                let c = ((cell % n) + n) % n
-                let col = CGFloat(c % cols), row = CGFloat(c / cols)
-                let fx = cols > 1 ? col / CGFloat(cols - 1) : 0.5
-                let fy = rows > 1 ? row / CGFloat(rows - 1) : 0.5
-                doodle(sw: sw, sh: sh, ox: ox, oy: oy, fx: fx, fy: fy)
-                    .frame(width: cw, height: ch)
+                let w = geo.size.width, h = geo.size.height
+                Image("DoodleBG")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: h, height: w)        // fill the screen rotated (long edge binds)…
+                    .rotationEffect(.degrees(90))       // …then rotate upright → smaller doodles, full cover
+                    .frame(width: w, height: h)
                     .clipped()
-                    .saturation(0)       // drop the green → neutral line
-                    // Light mode: the art is light-on-dark, so invert it to dark-on-light (WhatsApp's
-                    // light chat wallpaper). Dark mode uses it as-is.
+                    .saturation(0)                      // drop the green → neutral line
+                    // Light mode: the art is light-on-dark, so invert to dark-on-cream.
                     .colorInvert(if: scheme == .light)
-                    .opacity(scheme == .dark ? 0.16 : 0.12)
+                    .opacity(scheme == .dark ? 0.10 : 0.07)
             }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
-    }
-
-    private func doodle(sw: CGFloat, sh: CGFloat, ox: CGFloat, oy: CGFloat,
-                        fx: CGFloat, fy: CGFloat) -> some View {
-        ZStack(alignment: .topLeading) {
-            Color.clear
-            Image("DoodleBG")
-                .resizable()
-                .frame(width: sw, height: sh)
-                .offset(x: -ox * fx, y: -oy * fy)   // static — only changes on navigation, no drift
-        }
     }
 }
 
@@ -74,9 +49,9 @@ private extension View {
 }
 
 extension View {
-    /// Screen wallpaper: a random doodle slice in dark mode, the plain app background in light mode.
-    func doodleScreenBackground(cell: Int) -> some View {
-        background(DoodleWallpaper(cell: cell))
+    /// Static food-doodle wallpaper behind this screen's content.
+    func doodleScreenBackground() -> some View {
+        background(DoodleWallpaper())
     }
 }
 

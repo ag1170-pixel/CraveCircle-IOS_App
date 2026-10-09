@@ -66,7 +66,7 @@ struct HomeScreen: View {
                 }
                 .padding(.bottom, AppSpacing.xl)
             }
-            .doodleScreenBackground(cell: environment.doodleCell)   // behind text/gaps; cards stay opaque
+            .doodleScreenBackground()   // static wallpaper behind text/gaps; cards stay opaque
             .overlayPreferenceValue(CardFramesKey.self) { frames in
                 CatCompanion(cardFrames: frames, catHeld: $catHeld)   // peeks, walks, and is draggable
             }
@@ -86,7 +86,6 @@ struct HomeScreen: View {
                 if want { focusSearchSoon() }
             }
             .onAppear {
-                environment.advanceDoodleIfDue()   // new wallpaper only if 30s since the last change
                 if environment.pendingSearchFocus { focusSearchSoon() }
             }
             .navigationDestination(isPresented: $navigateToLibrary) {
@@ -124,8 +123,7 @@ struct HomeScreen: View {
         }
         .padding(.horizontal, AppSpacing.md)
         .padding(.vertical, AppSpacing.sm)
-        // Match the app background so the brand sits on the app's own color, not a lighter panel.
-        .background(AppTheme.background)
+        // Transparent so the wallpaper runs uniformly behind the brand bar too (no opaque strip "cut").
     }
 
     private func iconButton(_ symbol: String, label: String, badgeCount: Int? = nil, action: @escaping () -> Void) -> some View {

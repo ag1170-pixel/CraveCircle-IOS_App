@@ -60,7 +60,7 @@ struct GroceryScreen: View {
                 .padding(.top, AppSpacing.xs)
                 .padding(.bottom, AppSpacing.xl)
             }
-            .doodleScreenBackground(cell: environment.doodleCell)   // behind text/gaps; item boxes stay opaque
+            .doodleScreenBackground()   // static wallpaper behind text/gaps; item boxes stay opaque
             .overlayPreferenceValue(GRowKey.self) { rows in
                 GroceryCat(rows: rows, catHeld: $catHeld)   // fishes the list; draggable like the Home cat
             }
@@ -68,7 +68,6 @@ struct GroceryScreen: View {
             .scrollDisabled(catHeld)          // don't let the page scroll (and cancel the drag) while held
             .navigationTitle("Grocery")
             .navigationBarTitleDisplayMode(.inline)
-            .onAppear { environment.advanceDoodleIfDue() }   // new wallpaper only if 30s since last change
             .task {
                 if environment.groceryItems.isEmpty {
                     await environment.loadGroceryList()
