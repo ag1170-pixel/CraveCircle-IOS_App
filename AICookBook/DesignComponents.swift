@@ -60,6 +60,11 @@ struct RecipeCoverImage: View {
         if let s = urlString, !s.isEmpty {
             if let img = UIImage(named: s) {
                 Image(uiImage: img).resizable()
+            } else if let bundled = Self.bundledAsset(from: s) {
+                // The remote URL's filename matches an image we ship (e.g. a seeded recipe whose
+                // `…/thumbnails/recipe_hot_honey_chicken.jpg` host is down) → use the bundled asset,
+                // no network needed.
+                Image(uiImage: bundled).resizable()
             } else if let url = Self.remoteURL(from: s) {
                 AsyncImage(url: url) { phase in
                     switch phase {
@@ -86,6 +91,16 @@ struct RecipeCoverImage: View {
         } else {
             RecipeImagePlaceholder(isBuffering: false, size: 28)
         }
+    }
+
+    /// A shipped image asset matching the thumbnail's filename, if any. Seeded recipes carry a remote
+    /// URL like `…/thumbnails/recipe_hot_honey_chicken.jpg`; the basename `recipe_hot_honey_chicken`
+    /// is an asset we bundle, so we can render it offline when the host is down. Returns nil for
+    /// filenames we don't ship (e.g. raw Instagram CDN URLs from reel imports).
+    static func bundledAsset(from s: String) -> UIImage? {
+        let base = ((s as NSString).lastPathComponent as NSString).deletingPathExtension
+        guard base.hasPrefix("recipe_") else { return nil }   // only our own seeded thumbnails
+        return UIImage(named: base)
     }
 
     /// Resolve a thumbnail string into a loadable remote URL:
