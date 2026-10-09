@@ -118,6 +118,7 @@ struct Recipe: Codable, Identifiable, Hashable {
     var ingredients: [IngredientGroup]
     var directions: [DirectionStep]
     var thumbnailUrl: String?
+    var galleryUrls: [String]? = nil   // up to 6 dish photos; the cover stays `thumbnailUrl` (= first)
     var ownerUsername: String?
     var sourceLanguage: String?   // BCP-47 code of the reel's original language, if translated
     var nutrition: RecipeNutrition?   // per-serving; server-computed from ingredients, else estimated
@@ -126,6 +127,14 @@ struct Recipe: Codable, Identifiable, Hashable {
 
     /// True only when this recipe was imported from a social reel (Instagram / TikTok / YouTube / Facebook).
     var isImportedFromSocial: Bool { Self.isSocialImportURL(sourceUrl) }
+
+    /// Every image for the detail gallery: the extra gallery photos if present, else just the cover.
+    var galleryImages: [String] {
+        let g = (galleryUrls ?? []).filter { !$0.isEmpty }
+        if !g.isEmpty { return g }
+        if let t = thumbnailUrl, !t.isEmpty { return [t] }
+        return []
+    }
 
     var reelUrl: URL {
         if let sourceUrl, let url = URL(string: sourceUrl) {

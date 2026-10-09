@@ -17,8 +17,11 @@ struct RecipeEditScreen: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var environment: AppEnvironment
     @State private var draft: Recipe
-    @State private var pickedItem: PhotosPickerItem?
-    @State private var pickedImage: UIImage?
+    @State private var pickedItems: [PhotosPickerItem] = []
+    @State private var photos: [UIImage] = []           // the working gallery (max 6; first = cover)
+    @State private var loadedExisting = false
+
+    private let maxPhotos = 6
 
     init(recipe: Binding<Recipe>, onSave: @escaping (Recipe) -> Void) {
         _recipe = recipe
@@ -29,11 +32,20 @@ struct RecipeEditScreen: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Photo") {
-                    photoPreview
-                    PhotosPicker(selection: $pickedItem, matching: .images) {
-                        Label("Change photo", systemImage: "photo")
+                Section {
+                    photoStrip
+                    if photos.count < maxPhotos {
+                        PhotosPicker(selection: $pickedItems,
+                                     maxSelectionCount: maxPhotos - photos.count,
+                                     matching: .images) {
+                            Label(photos.isEmpty ? "Add photos" : "Add more",
+                                  systemImage: "photo.on.rectangle.angled")
+                        }
                     }
+                } header: {
+                    Text("Photos")
+                } footer: {
+                    Text("Add up to \(maxPhotos). The first is the cover.")
                 }
                 Section("Details") {
                     TextField("Recipe Name", text: $draft.title)
@@ -115,40 +127,116 @@ struct RecipeEditScreen: View {
                 }
             }
             .tint(AppTheme.accentInk)
-            .onChange(of: pickedItem) { _, item in
-                Task {
-                    if let data = try? await item?.loadTransferable(type: Data.self),
-                       let ui = UIImage(data: data) {
-                        pickedImage = ui
+            .onChange(of: pickedItems) { _, items in loadPicked(items) }
+            .task { loadExistingPhotos() }
+        }
+    }
+
+    @ViewBuilder private var photoStrip: some View {
+        if photos.isEmpty {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(AppTheme.surface)
+                .frame(height: 120)
+                .overlay(
+                    VStack(spacing: 6) {
+                        Image(systemName: "photo.on.rectangle.angled").font(.system(size: 24))
+                        Text("No photos yet").font(AppFont.body(13))
+                    }.foregroundStyle(AppTheme.textTertiary)
+                )
+                .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(photos.indices, id: \.self) { i in
+                        Image(uiImage: photos[i])
+                            .resizable().scaledToFill()
+                            .frame(width: 110, height: 110)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(alignment: .topTrailing) {
+                                Button {
+                                    Haptics.tap(); photos.remove(at: i)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundStyle(.white, .black.opacity(0.5))
+                                        .padding(5)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Remove photo")
+                            }
+                            .overlay(alignment: .bottomLeading) {
+                                if i == 0 {
+                                    Text("Cover").font(AppFont.label(10, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 6).padding(.vertical, 2)
+                                        .background(AppTheme.brand, in: Capsule())
+                                        .padding(6)
+                                }
+                            }
                     }
                 }
+                .padding(.vertical, 4)
+            }
+            .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+        }
+    }
+
+    /// Load newly-picked items into the working gallery (capped at `maxPhotos`).
+    private func loadPicked(_ items: [PhotosPickerItem]) {
+        guard !items.isEmpty else { return }
+        Task {
+            var added: [UIImage] = []
+            for item in items {
+                if photos.count + added.count >= maxPhotos { break }
+                if let data = try? await item.loadTransferable(type: Data.self), let ui = UIImage(data: data) {
+                    added.append(ui)
+                }
+            }
+            await MainActor.run {
+                photos.append(contentsOf: added)
+                pickedItems = []
             }
         }
     }
 
-    @ViewBuilder private var photoPreview: some View {
-        Group {
-            if let pickedImage {
-                Image(uiImage: pickedImage).resizable().scaledToFill()
-            } else {
-                RecipeCoverImage(urlString: draft.thumbnailUrl)
-                    .scaledToFill()
+    /// Load the recipe's existing images into the editor once (so editing keeps/reorders them).
+    private func loadExistingPhotos() {
+        guard !loadedExisting else { return }
+        loadedExisting = true
+        let refs = draft.galleryImages
+        guard !refs.isEmpty else { return }
+        Task {
+            var loaded: [UIImage] = []
+            for s in refs where loaded.count < maxPhotos {
+                if let img = await Self.loadImage(s) { loaded.append(img) }
             }
+            await MainActor.run { if photos.isEmpty { photos = loaded } }
         }
-        .frame(height: 150)
-        .frame(maxWidth: .infinity)
-        .clipped()
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
     }
 
-    /// Persist a picked photo to the caches dir and point the recipe at it (file:// URL).
-    private func persistPickedImage() {
-        guard let img = pickedImage, let out = ImageEncoder.encode(img, quality: 0.85) else { return }
+    private static func loadImage(_ s: String) async -> UIImage? {
+        if let img = UIImage(named: s) { return img }
+        if let bundled = RecipeCoverImage.bundledAsset(from: s) { return bundled }
+        if let url = RecipeCoverImage.remoteURL(from: s) {
+            if let (data, _) = try? await URLSession.shared.data(from: url) { return UIImage(data: data) }
+            return nil
+        }
+        let filename = s.hasPrefix("file://") ? (URL(string: s)?.lastPathComponent ?? s) : s
+        return UIImage(contentsOfFile: LocalStore.url(filename).path)
+    }
+
+    /// Persist every gallery photo to the caches dir; set galleryUrls + cover (first).
+    private func persistPhotos() {
         let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        let url = dir.appendingPathComponent("recipe-\(draft.id)-\(Int(Date().timeIntervalSince1970)).\(out.ext)")
-        try? out.data.write(to: url)
-        draft.thumbnailUrl = url.absoluteString
+        var urls: [String] = []
+        for (i, img) in photos.enumerated() {
+            guard let out = ImageEncoder.encode(img, quality: 0.85) else { continue }
+            let stamp = Int(Date().timeIntervalSince1970)
+            let url = dir.appendingPathComponent("recipe-\(draft.id)-\(stamp)-\(i).\(out.ext)")
+            if (try? out.data.write(to: url)) != nil { urls.append(url.absoluteString) }
+        }
+        draft.galleryUrls = urls.isEmpty ? nil : urls
+        draft.thumbnailUrl = urls.first ?? draft.thumbnailUrl
     }
 
     private var servingsBinding: Binding<Int> {
@@ -180,7 +268,7 @@ struct RecipeEditScreen: View {
         }
         draft.directions = steps
 
-        persistPickedImage()
+        persistPhotos()
         draft.nutrition = nil   // ingredients may have changed → recompute kcal from them on next render
 
         recipe = draft

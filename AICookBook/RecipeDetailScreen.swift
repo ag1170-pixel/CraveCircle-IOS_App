@@ -40,6 +40,8 @@ struct RecipeDetailScreen: View {
     @State private var showOriginalRecipeInfo = false
     @State private var showReportSheet = false
     @State private var viewStartTime: Date? = nil
+    @State private var galleryIndex = 0
+    @State private var galleryFrame: CGRect = .zero   // hero gallery's rect (in "detail" space)
 
     private let heroHeight: CGFloat = 380
 
@@ -75,6 +77,8 @@ struct RecipeDetailScreen: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 25, coordinateSpace: .named("detail"))
                 .onEnded { value in
+                    // Swipes that start on the photo gallery page the photos — don't also toggle tabs.
+                    if galleryFrame.contains(value.startLocation) { return }
                     guard abs(value.translation.width) > abs(value.translation.height) * 1.3,
                           abs(value.translation.width) > 50 else { return }
                     // Clamped 2-tab toggle: Ingredients ⇄ Directions only. At either end a further
@@ -238,8 +242,38 @@ struct RecipeDetailScreen: View {
     }
 
     @ViewBuilder private var heroImage: some View {
-        RecipeCoverImage(urlString: recipe.thumbnailUrl)
-            .scaledToFill()
+        let imgs = recipe.galleryImages
+        if imgs.count > 1 {
+            ZStack(alignment: .top) {
+                TabView(selection: $galleryIndex) {
+                    ForEach(imgs.indices, id: \.self) { i in
+                        RecipeCoverImage(urlString: imgs[i])
+                            .scaledToFill()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
+                            .tag(i)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                // Page dots at the top (clear of the creator footer at the bottom).
+                HStack(spacing: 6) {
+                    ForEach(imgs.indices, id: \.self) { i in
+                        Capsule()
+                            .fill(.white.opacity(i == galleryIndex ? 1 : 0.45))
+                            .frame(width: i == galleryIndex ? 18 : 6, height: 6)
+                            .animation(AppMotion.snappy, value: galleryIndex)
+                    }
+                }
+                .padding(.top, safeTopInset() + 10)
+                .shadow(color: .black.opacity(0.3), radius: 3)
+            }
+            // Report the gallery's rect so the screen-level swipe (Ingredients⇄Directions) ignores
+            // swipes that start here — they page the photos instead of switching the tab.
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("detail")) } action: { galleryFrame = $0 }
+        } else {
+            RecipeCoverImage(urlString: imgs.first ?? recipe.thumbnailUrl)
+                .scaledToFill()
+        }
     }
 
     private var heroFooter: some View {

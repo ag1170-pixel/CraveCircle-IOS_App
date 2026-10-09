@@ -187,6 +187,10 @@ struct SupabaseData {
         for i in rows.indices {
             rows[i]["owner_id"] = ownerId
             rows[i].removeValue(forKey: "reel_url")   // computed on the client; not a column
+            // ponytail: multi-image gallery is local-only until the DB gains a `gallery_urls` column;
+            // strip it so publishing doesn't 400. The cover (thumbnail_url) still syncs. Upgrade: add
+            // the column (text[]), then remove this line to sync galleries cross-device.
+            rows[i].removeValue(forKey: "gallery_urls")
         }
         guard let body = try? JSONSerialization.data(withJSONObject: rows) else { return false }
         req.httpBody = body
