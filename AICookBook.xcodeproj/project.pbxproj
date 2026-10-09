@@ -8,7 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		07461873BB92CE6DCEE50617 /* CookingImportActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98577CBFB17090AC8A76AA7D /* CookingImportActivity.swift */; };
+		0930EB154EE6099EFCDAFF9F /* Lottie.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 83C43B45DF0B2CEF2564DED4 /* Lottie.xcframework */; };
 		2A303018B560A693360B19EA /* LogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0D5D4D23ACE2F87DB8CF62 /* LogicTests.swift */; };
+		601F4BF5076DBEBBA5034119 /* Lottie.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 83C43B45DF0B2CEF2564DED4 /* Lottie.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		7906A88F190D4EF8293C4F71 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C04660930E4E2FD0277B90E7 /* Foundation.framework */; };
 		7AD9790A33A7B07FB2348694 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C04660930E4E2FD0277B90E7 /* Foundation.framework */; };
 		89CB308293320E9D4B13D4E4 /* QuickActionsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9189F5948181ABDFBC2BDE98 /* QuickActionsWidget.swift */; };
@@ -59,6 +61,17 @@
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		DEAF16AA3470E42925D0A7D3 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				601F4BF5076DBEBBA5034119 /* Lottie.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -69,6 +82,7 @@
 		53BCF7436D2DD79D9E3C668C /* CookingLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CookingLiveActivity.swift; sourceTree = "<group>"; };
 		648742CD310234B2E3B7E7A9 /* ShareExtension.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
 		73A2F48234E0160F8976A3AE /* AICookBookTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AICookBookTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		83C43B45DF0B2CEF2564DED4 /* Lottie.xcframework */ = {isa = PBXFileReference; expectedSignature = "SelfSigned:892F1B43047B50538F2F46EAD92900DD3D4811F3582178C061A5FB20F111CB26"; includeInIndex = 1; lastKnownFileType = wrapper.xcframework; path = Lottie.xcframework; sourceTree = "<group>"; };
 		8521A2941EFCF24A179FFACB /* Signing.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Signing.xcconfig; path = Config/Signing.xcconfig; sourceTree = "<group>"; };
 		8BB474169F6A3DC7D08C720A /* CookingWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CookingWidgetBundle.swift; sourceTree = "<group>"; };
 		9189F5948181ABDFBC2BDE98 /* QuickActionsWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickActionsWidget.swift; sourceTree = "<group>"; };
@@ -93,6 +107,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0930EB154EE6099EFCDAFF9F /* Lottie.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -172,6 +187,7 @@
 			isa = PBXGroup;
 			children = (
 				212B1176CBF37875E94D506F /* iOS */,
+				83C43B45DF0B2CEF2564DED4 /* Lottie.xcframework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -205,6 +221,7 @@
 				27945DAE2F9F211200B8F8B8 /* Frameworks */,
 				27945DAF2F9F211200B8F8B8 /* Resources */,
 				8AFA48623A656F57B0E044DB /* Embed App Extensions */,
+				DEAF16AA3470E42925D0A7D3 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);

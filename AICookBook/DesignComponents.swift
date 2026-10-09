@@ -555,9 +555,8 @@ struct RecipeImagePlaceholder: View {
                 endPoint: .bottomTrailing
             )
             if isBuffering {
-                ProgressView()
-                    .tint(AppTheme.accent)
-                    .scaleEffect(1.1)
+                LottieView(name: "Flow_4")
+                    .frame(width: 44, height: 44)
             } else {
                 ChefHatLogo(size: size ?? 32)
                     .opacity(0.45)

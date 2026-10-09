@@ -8,8 +8,8 @@ struct RootView: View {
     var body: some View {
         Group {
             if environment.appState == .loading {
-                ProgressView("Loading CraveCircle...")
-                    .tint(AppTheme.textPrimary)
+                LottieView(name: "Flow_4")
+                    .frame(width: 140, height: 140)
                     .foregroundStyle(AppTheme.textPrimary)
             } else if environment.appState == .signedOut {
                 LoginView()
@@ -563,9 +563,8 @@ struct ImportToastBanner: View {
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(noContent(msg) ? AppTheme.textSecondary : AppTheme.destructive)
         default:
-            ProgressView()
-                .tint(AppTheme.accentInk)
-                .scaleEffect(0.9)
+            LottieView(name: "Flow_4")
+                .frame(width: 50, height: 50)
         }
     }
 
