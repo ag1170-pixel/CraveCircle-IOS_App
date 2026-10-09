@@ -309,12 +309,4 @@ private struct DurationWheel: View {
     }
 }
 
-extension Binding where Value == String? {
-    /// Bridge an optional-string model field to a plain-string TextField.
-    func orEmpty() -> Binding<String> {
-        Binding<String>(
-            get: { wrappedValue ?? "" },
-            set: { wrappedValue = $0.isEmpty ? nil : $0 }
-        )
-    }
-}
+// `Binding<String?>.orEmpty()` lives in Binding+OrEmpty.swift.

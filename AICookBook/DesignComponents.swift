@@ -37,19 +37,9 @@ struct DoodleWallpaper: View {
     }
 }
 
-private extension View {
-    /// Apply `.colorInvert()` only when `condition` is true (keeps a single view branch).
-    @ViewBuilder func colorInvert(if condition: Bool) -> some View {
-        if condition { self.colorInvert() } else { self }
-    }
-}
-
-extension View {
-    /// Static food-doodle wallpaper behind this screen's content.
-    func doodleScreenBackground() -> some View {
-        background(DoodleWallpaper())
-    }
-}
+// View helpers extracted to their own files:
+//   colorInvert(if:)        → View+ConditionalInvert.swift
+//   doodleScreenBackground() → View+DoodleBackground.swift
 
 // MARK: - Recipe Cover Image Helper
 
@@ -620,11 +610,7 @@ struct LeadingEdgeBackModifier: ViewModifier {
     }
 }
 
-extension View {
-    func leadingEdgeBack(_ onBack: @escaping () -> Void) -> some View {
-        modifier(LeadingEdgeBackModifier(onBack: onBack))
-    }
-}
+// `leadingEdgeBack(_:)` lives in View+LeadingEdgeBack.swift.
 
 
 struct GuestWallView: View {

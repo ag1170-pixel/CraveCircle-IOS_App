@@ -15,28 +15,7 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Adaptive color helper
-
-extension Color {
-    /// Resolves differently in light vs dark appearance — full theme parity.
-    init(light: Color, dark: Color) {
-        self = Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark ? UIColor(dark) : UIColor(light)
-        })
-    }
-
-    init(hex: String) {
-        let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: cleaned).scanHexInt64(&int)
-        let r, g, b: UInt64
-        switch cleaned.count {
-        case 6: (r, g, b) = (int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        default: (r, g, b) = (255, 255, 255)
-        }
-        self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255, opacity: 1)
-    }
-}
+// Color helpers (init(light:dark:) / init(hex:)) live in Color+Theme.swift.
 
 // MARK: - Theme tokens  (light-first warm/cream + coral; dark parity)
 
@@ -128,13 +107,4 @@ enum AppMotion {
     static let gentle = Animation.easeOut(duration: 0.28)
 }
 
-// MARK: - Section label modifier
-
-extension View {
-    func sectionLabelStyle(_ color: Color = AppTheme.textSecondary) -> some View {
-        self.font(AppFont.label(13, weight: .semibold))
-            .textCase(.uppercase)
-            .tracking(1.4)
-            .foregroundStyle(color)
-    }
-}
+// Section-label modifier (`sectionLabelStyle`) lives in View+SectionLabel.swift.

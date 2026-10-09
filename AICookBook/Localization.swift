@@ -90,9 +90,4 @@ enum LanguagePrefs {
     static let `default` = AppLanguage.english
 }
 
-/// Convenience @AppStorage binding for the preferred recipe language.
-extension AppStorage where Value == String {
-    init(recipeLanguage _: Void = ()) {
-        self.init(wrappedValue: LanguagePrefs.default.rawValue, LanguagePrefs.key)
-    }
-}
+// The @AppStorage(recipeLanguage:) convenience init lives in AppStorage+RecipeLanguage.swift.
