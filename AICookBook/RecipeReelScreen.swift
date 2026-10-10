@@ -280,12 +280,12 @@ private struct ReelCell: View {
         ZStack {
             Color.black.frame(width: size.width, height: cellHeight)
             if useFit {
-                RecipeCoverImage(urlString: recipe.thumbnailUrl, recipeId: recipe.id)
+                RecipeCoverImage(recipe: recipe)
                     .scaledToFit()
                     .frame(width: size.width, height: fitPhotoHeight)
                     .clipped()
             } else {
-                RecipeCoverImage(urlString: recipe.thumbnailUrl, recipeId: recipe.id)
+                RecipeCoverImage(recipe: recipe)
                     .scaledToFill()
                     .frame(width: size.width, height: cellHeight)
                     .clipped()

@@ -614,7 +614,7 @@ struct FreshCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Fixed frame + scaledToFill + clip — no GeometryReader (a grid of them is slow to render).
-            RecipeCoverImage(urlString: recipe.thumbnailUrl, recipeId: recipe.id)
+            RecipeCoverImage(recipe: recipe)
                 .scaledToFill()
                 .frame(width: Self.cardWidth, height: Self.cardWidth * 0.78)
                 .clipShape(RoundedRectangle(cornerRadius: AppRadius.tile, style: .continuous))
@@ -672,7 +672,7 @@ struct LibraryCard: View {
             Color.clear
                 .frame(maxWidth: .infinity)
                 .aspectRatio(1.1, contentMode: .fit)
-                .overlay { RecipeCoverImage(urlString: recipe.thumbnailUrl, recipeId: recipe.id).scaledToFill() }
+                .overlay { RecipeCoverImage(recipe: recipe).scaledToFill() }
                 .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
                 .overlay(alignment: .bottomLeading) {
                     Circle()
@@ -741,7 +741,7 @@ struct LibraryCard: View {
 @ViewBuilder
 func cover(_ recipe: Recipe) -> some View {
     GeometryReader { geo in
-        RecipeCoverImage(urlString: recipe.thumbnailUrl, recipeId: recipe.id)
+        RecipeCoverImage(recipe: recipe)
             .scaledToFill()
             .frame(width: geo.size.width, height: geo.size.height)
             .clipped()

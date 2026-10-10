@@ -46,8 +46,21 @@ struct DoodleWallpaper: View {
 // MARK: - Recipe Cover Image Helper
 
 struct RecipeCoverImage: View {
-    let urlString: String?
+    var urlString: String?
     var recipeId: String? = nil
+    var title: String? = nil
+    
+    init(urlString: String?, recipeId: String? = nil, title: String? = nil) {
+        self.urlString = urlString
+        self.recipeId = recipeId
+        self.title = title
+    }
+    
+    init(recipe: Recipe) {
+        self.urlString = recipe.thumbnailUrl
+        self.recipeId = recipe.id
+        self.title = recipe.title
+    }
     
     private var localImage: UIImage? {
         // 1. Check direct filename or relative thumbnail path
@@ -89,93 +102,101 @@ struct RecipeCoverImage: View {
         return nil
     }
     
+    private var contextHint: String {
+        [title, recipeId, urlString].compactMap { $0 }.joined(separator: " ")
+    }
+    
     var body: some View {
         if let local = localImage {
             // Priority 1: On-device stored cover (0ms latency, 100% offline-ready, immune to CDN expiry)
             Image(uiImage: local).resizable()
-        } else if let s = urlString, !s.isEmpty {
-            if let img = UIImage(named: s) {
-                Image(uiImage: img).resizable()
-            } else if let bundled = Self.bundledAsset(from: s) {
-                Image(uiImage: bundled).resizable()
-            } else if let fallback = Self.categoryFallback(for: s) {
-                Image(uiImage: fallback).resizable()
-            } else if let url = Self.remoteURL(from: s) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable()
-                    case .failure:
-                        // On network failure or expired Instagram CDN URL, check local or category fallback
-                        if let fallback = localImage ?? Self.categoryFallback(for: s) {
-                            Image(uiImage: fallback).resizable()
-                        } else {
-                            RecipeImagePlaceholder(isBuffering: false, size: 28)
-                        }
-                    case .empty:
-                        RecipeImagePlaceholder(isBuffering: true, size: 28)
-                    @unknown default:
-                        RecipeImagePlaceholder(isBuffering: false, size: 28)
-                    }
+        } else if let s = urlString, !s.isEmpty, let bundled = UIImage(named: s) ?? Self.bundledAsset(from: s) {
+            // Priority 2: Shipped high-res asset bundled in app (instant, offline)
+            Image(uiImage: bundled).resizable()
+        } else if let url = Self.remoteURL(from: urlString, recipeId: recipeId) {
+            // Priority 3: Cloud asset from Supabase Storage / CDN (with buffering shimmer & graceful fallback)
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable()
+                case .failure:
+                    // On network failure or offline, use smart authentic category fallback
+                    Image(uiImage: Self.categoryFallback(for: contextHint)).resizable()
+                case .empty:
+                    RecipeImagePlaceholder(isBuffering: true, size: 28)
+                @unknown default:
+                    Image(uiImage: Self.categoryFallback(for: contextHint)).resizable()
                 }
-            } else {
-                RecipeImagePlaceholder(isBuffering: false, size: 28)
             }
         } else {
-            RecipeImagePlaceholder(isBuffering: false, size: 28)
+            // Priority 4: Category fallback based on title, slug, or cuisine keywords (NEVER black card)
+            Image(uiImage: Self.categoryFallback(for: contextHint)).resizable()
         }
     }
 
     /// Authentic high-res food image fallback for dishes when an exact matching image asset is not yet available
-    static func categoryFallback(for s: String) -> UIImage? {
-        let base = ((s as NSString).lastPathComponent as NSString).deletingPathExtension.lowercased()
+    static func categoryFallback(for raw: String) -> UIImage {
+        let base = raw.lowercased()
         
         // Chaat, street food, snacks
-        if base.contains("pani_puri") || base.contains("chaat") || base.contains("bhel") || base.contains("vada_pav") || base.contains("tikki") || base.contains("kulcha") {
-            return UIImage(named: "recipe_samosa_chaat")
+        if base.contains("pani_puri") || base.contains("chaat") || base.contains("bhel") || base.contains("vada_pav") || base.contains("tikki") || base.contains("kulcha") || base.contains("samosa") {
+            if let img = UIImage(named: "recipe_samosa_chaat") { return img }
         }
         
         // Soups, lentils, broths
-        if base.contains("rasam") || base.contains("tadka") || base.contains("dal") || base.contains("sambar") {
-            return UIImage(named: "recipe_dal_tadka") ?? UIImage(named: "recipe_dal_makhani")
+        if base.contains("rasam") || base.contains("tadka") || base.contains("dal") || base.contains("sambar") || base.contains("lentil") {
+            if let img = UIImage(named: "recipe_dal_tadka") ?? UIImage(named: "recipe_dal_makhani") { return img }
         }
         
         // Rice dishes
-        if base.contains("rice") || base.contains("bath") || base.contains("pulihora") || base.contains("biryani") {
-            return UIImage(named: "recipe_biryani")
+        if base.contains("rice") || base.contains("bath") || base.contains("pulihora") || base.contains("biryani") || base.contains("pulao") {
+            if let img = UIImage(named: "recipe_biryani") { return img }
         }
         
         // South Indian crepes & fritters
-        if base.contains("dosa") || base.contains("vada") || base.contains("appam") || base.contains("uttapam") || base.contains("pesarattu") || base.contains("stew") {
-            return UIImage(named: "recipe_masala_dosa")
+        if base.contains("dosa") || base.contains("vada") || base.contains("appam") || base.contains("uttapam") || base.contains("pesarattu") || base.contains("idli") || base.contains("stew") {
+            if let img = UIImage(named: "recipe_masala_dosa") { return img }
         }
         
         // Paneer & rich vegetarian curries
-        if base.contains("korma") || base.contains("malai") || base.contains("kofta") || base.contains("shahi") || base.contains("matar_paneer") {
-            return UIImage(named: "recipe_shahi_paneer") ?? UIImage(named: "recipe_paneer_butter_masala")
+        if base.contains("korma") || base.contains("malai") || base.contains("kofta") || base.contains("shahi") || base.contains("matar_paneer") || base.contains("paneer") {
+            if let img = UIImage(named: "recipe_shahi_paneer") ?? UIImage(named: "recipe_paneer_butter_masala") { return img }
+        }
+        
+        // Potato & cauliflower dishes (Dum Aloo, Aloo Gobi, etc.)
+        if base.contains("aloo") || base.contains("dum") || base.contains("potato") || base.contains("gobi") {
+            if let img = UIImage(named: "recipe_aloo_gobi") { return img }
         }
         
         // Greens & vegetable dishes
-        if base.contains("saag") || base.contains("palak") || base.contains("bharta") || base.contains("bhindi") || base.contains("avial") || base.contains("gobi") {
-            return UIImage(named: "recipe_palak_paneer") ?? UIImage(named: "recipe_aloo_gobi")
+        if base.contains("saag") || base.contains("palak") || base.contains("bharta") || base.contains("bhindi") || base.contains("avial") || base.contains("baingan") {
+            if let img = UIImage(named: "recipe_palak_paneer") ?? UIImage(named: "recipe_aloo_gobi") { return img }
         }
         
-        // Chicken, meat, rich gravies
-        if base.contains("keema") || base.contains("chicken") || base.contains("kadai") || base.contains("meat") || base.contains("vindaloo") || base.contains("curry") || base.contains("jhol") {
-            return UIImage(named: "recipe_kadai_chicken") ?? UIImage(named: "recipe_butter_chicken")
+        // Chicken, meat, seafood, rich gravies
+        if base.contains("keema") || base.contains("chicken") || base.contains("kadai") || base.contains("meat") || base.contains("vindaloo") || base.contains("curry") || base.contains("jhol") || base.contains("fish") || base.contains("pork") || base.contains("shrimp") || base.contains("chingri") {
+            if let img = UIImage(named: "recipe_kadai_chicken") ?? UIImage(named: "recipe_butter_chicken") { return img }
         }
         
         // Beans, chickpeas
         if base.contains("chana") || base.contains("rajma") || base.contains("chole") {
-            return UIImage(named: "recipe_chana_masala") ?? UIImage(named: "recipe_rajma_masala")
+            if let img = UIImage(named: "recipe_chana_masala") ?? UIImage(named: "recipe_rajma_masala") { return img }
         }
         
         // Sweets & desserts
-        if base.contains("jamun") || base.contains("cake") || base.contains("dessert") || base.contains("sweet") {
-            return UIImage(named: "recipe_gulab_jamun")
+        if base.contains("jamun") || base.contains("cake") || base.contains("dessert") || base.contains("sweet") || base.contains("tiramisu") {
+            if let img = UIImage(named: "recipe_gulab_jamun") { return img }
         }
         
-        return nil
+        // Pasta & Italian
+        if base.contains("pasta") || base.contains("rigatoni") || base.contains("pizza") || base.contains("risotto") {
+            if let img = UIImage(named: "recipe_tomato_rigatoni") ?? UIImage(named: "recipe_margherita_pizza") { return img }
+        }
+        
+        // Guaranteed authentic fallback: NEVER nil, NEVER black placeholder card
+        return UIImage(named: "recipe_aloo_gobi")
+            ?? UIImage(named: "recipe_butter_chicken")
+            ?? UIImage(named: "recipe_biryani")!
     }
 
     /// A shipped image asset matching the thumbnail's filename, if any. Seeded recipes carry a remote
@@ -189,14 +210,35 @@ struct RecipeCoverImage: View {
     }
 
     /// Resolve a thumbnail string into a loadable remote URL:
-    /// absolute http(s) as-is; a server-relative path ("/reels/media/…" from the import backend,
-    /// "/media/…" from the media API) gets the right host prepended. Returns nil for local filenames.
-    static func remoteURL(from s: String) -> URL? {
-        if s.hasPrefix("http://") || s.hasPrefix("https://") { return URL(string: s) }
-        guard s.hasPrefix("/") else { return nil }
-        let host = s.hasPrefix("/media/") ? "https://api.cravecircle.cc"
-                                          : AppConfig.current.apiBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        return URL(string: host + s)
+    /// Handles full URLs, relative paths, Supabase Storage URLs, and recipe slugs.
+    static func remoteURL(from s: String?, recipeId: String? = nil) -> URL? {
+        if let s, !s.isEmpty {
+            if s.hasPrefix("https://db.cravecircle.cc/storage/") {
+                return URL(string: s)
+            }
+            if s.hasPrefix("http://") || s.hasPrefix("https://") {
+                // If it's not an expired fbcdn/instagram CDN URL
+                if !s.contains("fbcdn.net") && !s.contains("instagram.") {
+                    return URL(string: s)
+                }
+            }
+            if s.hasPrefix("/") {
+                let host = s.hasPrefix("/media/") ? "https://api.cravecircle.cc"
+                                                  : AppConfig.current.apiBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                return URL(string: host + s)
+            }
+            if s.hasPrefix("recipe_") {
+                let slug = s.replacingOccurrences(of: ".jpg", with: "").replacingOccurrences(of: ".png", with: "")
+                return URL(string: "https://db.cravecircle.cc/storage/v1/object/public/recipe-thumbnails/\(slug).jpg")
+            }
+        }
+        
+        if let rid = recipeId, rid.hasPrefix("recipe-") {
+            let slug = rid.replacingOccurrences(of: "-", with: "_")
+            return URL(string: "https://db.cravecircle.cc/storage/v1/object/public/recipe-thumbnails/\(slug).jpg")
+        }
+        
+        return nil
     }
 }
 

@@ -143,8 +143,19 @@ final class AppEnvironment: ObservableObject {
         hydrateLocal()   // load the persisted library (recipes/collections/grocery) before anything else
 
         guard tokenStore.readAccessToken() != nil else {
+            if !guestUserId.isEmpty {
+                continueAsGuest()
+                Task { await refreshRecipes() }
+                return
+            }
+            #if DEBUG
+            continueAsGuest()
+            Task { await refreshRecipes() }
+            return
+            #else
             appState = .signedOut
             return
+            #endif
         }
 
         // Prefer the real Supabase profile (id = auth uid, correct role) so admin/creator persists
@@ -310,12 +321,7 @@ final class AppEnvironment: ObservableObject {
     /// True when this recipe belongs to the user's personal on-device library (imported reels or user-created recipes).
     /// These are protected from being overwritten or clobbered by remote public feed syncs.
     func isUserLibraryRecipe(_ recipe: Recipe) -> Bool {
-        recipe.isImportedFromSocial
-            || recipe.sourceUrl != nil
-            || recipe.ownerId == currentUser?.id
-            || recipe.ownerId == "you"
-            || recipe.ownerId == "local-user"
-            || unsyncedRecipeIds.contains(recipe.id)
+        isOwner(of: recipe) || unsyncedRecipeIds.contains(recipe.id)
     }
 
     func refreshRecipes() async {
@@ -583,8 +589,13 @@ final class AppEnvironment: ObservableObject {
     }
 
     /// True when the signed-in user owns this recipe (edit/delete are owner-only).
+    /// Includes imported reels and on-device recipes so they always belong to the user's personal library.
     func isOwner(of recipe: Recipe) -> Bool {
-        currentUser?.id == recipe.ownerId
+        if recipe.ownerId == currentUser?.id { return true }
+        if recipe.ownerId == "you" || recipe.ownerId == "local-user" { return true }
+        if let gid = currentUser?.id, gid.hasPrefix("guest_"), recipe.ownerId.hasPrefix("guest_") { return true }
+        if recipe.isImportedFromSocial || recipe.sourceUrl != nil { return true }
+        return false
     }
 
     /// Instagram rule: you can delete your own library reel, never someone else's.
@@ -1032,8 +1043,8 @@ final class AppEnvironment: ObservableObject {
         recipe = await translateToPreferredLanguage(recipe)
         if Task.isCancelled { return }
         if let data = image.jpegData(compressionQuality: 0.8),
-           let file = LocalStore.saveData(ImageDownscale.jpeg(from: data, maxPixel: 720, quality: 0.6) ?? data, to: "thumb-\(recipe.id).jpg") {
-            recipe.thumbnailUrl = file.absoluteString
+           let _ = LocalStore.saveData(ImageDownscale.jpeg(from: data, maxPixel: 720, quality: 0.6) ?? data, to: "thumb-\(recipe.id).jpg") {
+            recipe.thumbnailUrl = "thumb-\(recipe.id).jpg"
         }
         recipes.insert(recipe, at: 0)
         markRecipeDirty(recipe.id)
