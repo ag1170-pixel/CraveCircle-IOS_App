@@ -331,10 +331,13 @@ final class AppEnvironment: ObservableObject {
         }
 
         // Fast cloud sync from Supabase (sub-250ms via Cloudflare edge)
-        if let remote = await supabase.fetchRecipes(limit: recipePageSize, offset: 0) {
+        if let remote = await supabase.fetchRecipes(limit: 50, offset: 0) {
             let localDeleted = deletedRecipeIds
-            var merged = recipes
-            var changed = false
+            let remoteIds = Set(remote.map(\.id))
+            let sampleIds = Set(Recipe.placeholderRecipes.map(\.id))
+            // Prune deleted remote recipes while strictly protecting user library & static samples
+            var merged = recipes.filter { isUserLibraryRecipe($0) || remoteIds.contains($0.id) || sampleIds.contains($0.id) }
+            var changed = (merged.count != recipes.count)
             for r in remote where !unsyncedRecipeIds.contains(r.id) && !localDeleted.contains(r.id) {
                 if let i = merged.firstIndex(where: { $0.id == r.id }) {
                     // PROTECT: Do not overwrite user-imported or personal recipes with remote rows
@@ -343,13 +346,13 @@ final class AppEnvironment: ObservableObject {
                     }
                     if merged[i] != r { merged[i] = r; changed = true }
                 } else {
-                    merged.insert(r, at: 0)
+                    merged.append(r)
                     changed = true
                 }
             }
             if changed { recipes = merged }
             recipePage = 1
-            hasMoreRecipes = remote.count >= recipePageSize
+            hasMoreRecipes = remote.count >= 50
         }
 
         // Layer newly published cloud recipes on top + push any local edits.
@@ -511,11 +514,13 @@ final class AppEnvironment: ObservableObject {
     func syncRecipes() async {
         // PULL — merge remote recipes in (add new, refresh existing that aren't locally dirty).
         if let remote = await supabase.fetchRecipes() {
-            // Build the merged list locally, then assign ONCE — a per-iteration mutation would fire
-            // the recipes didSet (persist) on every remote recipe.
             let localDeleted = deletedRecipeIds
-            var merged = recipes
-            var added = 0, changed = false
+            let remoteIds = Set(remote.map(\.id))
+            let sampleIds = Set(Recipe.placeholderRecipes.map(\.id))
+            // Prune deleted remote recipes while strictly protecting user personal library recipes
+            var merged = recipes.filter { isUserLibraryRecipe($0) || remoteIds.contains($0.id) || sampleIds.contains($0.id) }
+            var changed = (merged.count != recipes.count)
+            var added = 0
             for r in remote where !unsyncedRecipeIds.contains(r.id) && !localDeleted.contains(r.id) {
                 if let i = merged.firstIndex(where: { $0.id == r.id }) {
                     if isUserLibraryRecipe(merged[i]) {

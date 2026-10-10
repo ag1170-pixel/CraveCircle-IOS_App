@@ -57,10 +57,12 @@ struct HomeScreen: View {
                     if isSearching {
                         searchResultsSection
                     } else {
-                        librarySection
                         freshSection
                         if !environment.suggestedRecipes.isEmpty {
                             suggestedSection
+                        }
+                        if !libraryGridRecipes.isEmpty {
+                            librarySection
                         }
                     }
                 }
@@ -335,9 +337,67 @@ struct HomeScreen: View {
     // saved. Both key off ownership, not `canDelete` (a moderation check that's true for any imported
     // recipe, which leaked other creators' recipes into your library and drained the Circle feed).
     private var freshFeedRecipes: [Recipe] {
-        // Only curated / creator-published content — NEVER other users' social imports (personal-use
-        // rule + it avoids redistributing scraped reels with dead Instagram thumbnails).
-        environment.recipes.filter { !environment.isOwner(of: $0) && !$0.isImportedFromSocial }
+        let pool = environment.recipes.filter { !environment.isOwner(of: $0) && !$0.isImportedFromSocial }
+        return Self.interleaveForDiscovery(pool)
+    }
+
+    /// High-diversity carousel ordering: ensures adjacent dishes NEVER share the same category,
+    /// so the user experiences an authentic, mouth-watering mix (e.g. curry -> snack -> Italian -> rice -> dessert -> breakfast).
+    static func interleaveForDiscovery(_ list: [Recipe]) -> [Recipe] {
+        guard list.count > 1 else { return list }
+        
+        enum Bucket: Int, CaseIterable {
+            case poultryMeat   // Butter chicken, burger, wings, tacos, rogan josh
+            case vegetarian    // Dal makhani, palak paneer, shahi paneer, chole
+            case streetSnack   // Samosa chaat, pav bhaji, gyoza, falafel
+            case riceGrains    // Biryani, risotto, udon, bibimbap
+            case breakfastDosa // Masala dosa, pancakes, avocado toast
+            case continental   // Pizza, rigatoni, pasta, salmon, summer rolls
+            case sweetDessert  // Gulab jamun, tiramisu, lava cake
+            
+            static func category(for r: Recipe) -> Bucket {
+                let s = "\(r.title) \(r.description ?? "")".lowercased()
+                if s.contains("dosa") || s.contains("pancake") || s.contains("toast") || s.contains("waffle") || s.contains("crepe") { return .breakfastDosa }
+                if s.contains("jamun") || s.contains("cake") || s.contains("tiramisu") || s.contains("dessert") || s.contains("sweet") { return .sweetDessert }
+                if s.contains("biryani") || s.contains("rice") || s.contains("risotto") || s.contains("udon") || s.contains("bibimbap") || s.contains("pulao") { return .riceGrains }
+                if s.contains("chaat") || s.contains("samosa") || s.contains("pav bhaji") || s.contains("gyoza") || s.contains("falafel") || s.contains("bhel") { return .streetSnack }
+                if s.contains("pizza") || s.contains("rigatoni") || s.contains("pasta") || s.contains("salmon") || s.contains("summer roll") || s.contains("shrimp") || s.contains("soup") { return .continental }
+                if s.contains("chicken") || s.contains("burger") || s.contains("wing") || s.contains("taco") || s.contains("beef") || s.contains("meat") || s.contains("rogan") || s.contains("pork") { return .poultryMeat }
+                return .vegetarian
+            }
+        }
+        
+        var buckets: [Bucket: [Recipe]] = [:]
+        for r in list {
+            let cat = Bucket.category(for: r)
+            buckets[cat, default: []].append(r)
+        }
+        
+        var result: [Recipe] = []
+        result.reserveCapacity(list.count)
+        
+        var remainingBuckets = Bucket.allCases.filter { buckets[$0]?.isEmpty == false }
+        var lastBucket: Bucket? = nil
+        
+        while !remainingBuckets.isEmpty {
+            let candidates = remainingBuckets.filter { $0 != lastBucket }
+            guard let next = candidates.first ?? remainingBuckets.first else { break }
+            
+            if var items = buckets[next], !items.isEmpty {
+                result.append(items.removeFirst())
+                if items.isEmpty {
+                    buckets.removeValue(forKey: next)
+                    remainingBuckets.removeAll(where: { $0 == next })
+                } else {
+                    buckets[next] = items
+                }
+                lastBucket = next
+            } else {
+                remainingBuckets.removeAll(where: { $0 == next })
+            }
+        }
+        
+        return result
     }
 
     private var libraryGridRecipes: [Recipe] {
