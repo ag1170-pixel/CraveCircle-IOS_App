@@ -301,75 +301,49 @@ final class AppEnvironment: ObservableObject {
 
     
 
-    /// Background loading of the extended recipe dataset from a bundled JSON,
-    /// keeping the main thread fast (hero recipes load instantly from memory).
-    private func loadBundledDataset() async {
-        guard let url = Bundle.main.url(forResource: "BundledRecipes", withExtension: "json") else { return }
-        do {
-            let data = try Data(contentsOf: url)
-            let decoded = try JSONDecoder().decode([Recipe].self, from: data)
-            let existingIds = Set(self.recipes.map(\.id))
-            let fresh = decoded.filter { !existingIds.contains($0.id) }
-            if !fresh.isEmpty {
-                await MainActor.run {
-                    self.recipes.append(contentsOf: fresh)
-                }
-            }
-        } catch {
-            print("Failed to decode BundledRecipes.json: \(error)")
-        }
-    }
-
     func refreshRecipes() async {
-        do {
-            let fetched = try await apiClient.fetchRecipes(limit: 20, offset: 0)
-            if !fetched.isEmpty {
-                // MERGE, don't replace: keep every recipe already in the library (imports, on-device,
-                // saved) and add any new ones from the feed. Replacing here was wiping freshly
-                // imported reels out of the library on the next refresh/foreground.
-                let localDeleted = deletedRecipeIds
-                var merged = recipes
-                for r in fetched where !merged.contains(where: { $0.id == r.id }) && !localDeleted.contains(r.id) {
-                    merged.insert(r, at: 0)
-                }
-                recipes = merged
-            
-            } else if recipes.isEmpty {
-                recipes = Recipe.placeholderRecipes
-                await loadBundledDataset()
-            }
-
-        } catch {
-            // The homelab feed is OPTIONAL (unreachable off-Tailscale / on cellular). Keep the local
-            // library; seed samples only if we have nothing. Cloud recipes layer on via syncRecipes.
-            // No modal error — this is an expected, recoverable miss, not something the user must act on.
-            
-            if recipes.isEmpty { 
-                recipes = Recipe.placeholderRecipes 
-                await loadBundledDataset()
-            }
-
+        // Instant day-0 fallback: seed with static samples if local store is empty
+        if recipes.isEmpty {
+            recipes = Recipe.placeholderRecipes
         }
+
+        // Fast cloud sync from Supabase (sub-250ms via Cloudflare edge)
+        if let remote = await supabase.fetchRecipes(limit: recipePageSize, offset: 0) {
+            let localDeleted = deletedRecipeIds
+            var merged = recipes
+            var changed = false
+            for r in remote where !unsyncedRecipeIds.contains(r.id) && !localDeleted.contains(r.id) {
+                if let i = merged.firstIndex(where: { $0.id == r.id }) {
+                    if merged[i] != r { merged[i] = r; changed = true }
+                } else {
+                    merged.insert(r, at: 0)
+                    changed = true
+                }
+            }
+            if changed { recipes = merged }
+            recipePage = 1
+            hasMoreRecipes = remote.count >= recipePageSize
+        }
+
         // Layer newly published cloud recipes on top + push any local edits.
         await syncRecipes()
     }
 
-    /// Infinite scroll: append the next page of recipes as the user nears the end of the list.
-    /// Pages from the backend when reachable; on error/empty it simply stops (local set stands),
-    /// so there's no runaway loop offline. Recipe rows are tiny JSON; images are bounded by URLCache.
+    /// Infinite scroll: append the next page of recipes from Supabase cloud as the user nears the end.
+    /// Pages from Supabase; on error/empty it simply stops gracefully without UI freezes.
     func loadMoreRecipes() async {
         guard !isLoadingMore, hasMoreRecipes else { return }
         isLoadingMore = true
         defer { isLoadingMore = false }
-        do {
-            let next = try await apiClient.fetchRecipes(limit: recipePageSize, offset: recipePage * recipePageSize)
+        if let next = await supabase.fetchRecipes(limit: recipePageSize, offset: recipePage * recipePageSize) {
             if next.count < recipePageSize { hasMoreRecipes = false }
             let existing = Set(recipes.map(\.id))
-            let fresh = next.filter { !existing.contains($0.id) }
+            let localDeleted = deletedRecipeIds
+            let fresh = next.filter { !existing.contains($0.id) && !localDeleted.contains($0.id) }
             if !fresh.isEmpty { recipes.append(contentsOf: fresh) }
             recipePage += 1
-        } catch {
-            hasMoreRecipes = false   // no backend / offline → stop paging
+        } else {
+            hasMoreRecipes = false
         }
     }
 

@@ -157,8 +157,8 @@ struct SupabaseData {
     /// Pull recipes the current viewer is allowed to see. Works signed-out too — RLS still returns
     /// every `visibility = 'everyone'` recipe, which is how newly published creator/developer recipes
     /// show up in the app. Returns nil on failure so the caller keeps its local library untouched.
-    func fetchRecipes(limit: Int = 200) async -> [Recipe]? {
-        guard let req = request(path: "rest/v1/recipes?select=*&order=updated_at.desc&limit=\(limit)", method: "GET") else { return nil }
+    func fetchRecipes(limit: Int = 50, offset: Int = 0) async -> [Recipe]? {
+        guard let req = request(path: "rest/v1/recipes?select=*&order=updated_at.desc&limit=\(limit)&offset=\(offset)", method: "GET") else { return nil }
         guard let (data, resp) = try? await URLSession.shared.data(for: req),
               let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
         return try? SupabaseRecipeDecoder.decode(data)
