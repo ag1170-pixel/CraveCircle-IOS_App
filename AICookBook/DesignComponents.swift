@@ -556,7 +556,7 @@ struct RecipeImagePlaceholder: View {
             )
             if isBuffering {
                 LottieView(name: "Flow_4")
-                    .frame(width: 44, height: 44)
+                    .frame(width: 28, height: 28)
             } else {
                 ChefHatLogo(size: size ?? 32)
                     .opacity(0.45)

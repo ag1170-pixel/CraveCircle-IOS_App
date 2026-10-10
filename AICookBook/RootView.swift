@@ -9,7 +9,7 @@ struct RootView: View {
         Group {
             if environment.appState == .loading {
                 LottieView(name: "Flow_4")
-                    .frame(width: 140, height: 140)
+                    .frame(width: 80, height: 80)
                     .foregroundStyle(AppTheme.textPrimary)
             } else if environment.appState == .signedOut {
                 LoginView()
@@ -564,7 +564,7 @@ struct ImportToastBanner: View {
                 .foregroundStyle(noContent(msg) ? AppTheme.textSecondary : AppTheme.destructive)
         default:
             LottieView(name: "Flow_4")
-                .frame(width: 50, height: 50)
+                .frame(width: 32, height: 32)
         }
     }
 
