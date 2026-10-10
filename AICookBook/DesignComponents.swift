@@ -47,15 +47,56 @@ struct DoodleWallpaper: View {
 
 struct RecipeCoverImage: View {
     let urlString: String?
+    var recipeId: String? = nil
+    
+    private var localImage: UIImage? {
+        // 1. Check direct filename or relative thumbnail path
+        if let s = urlString, !s.isEmpty {
+            if s.hasPrefix("thumb-") || !s.contains("://") {
+                let filename = s.hasPrefix("file://") ? (URL(string: s)?.lastPathComponent ?? s) : s
+                if let img = UIImage(contentsOfFile: LocalStore.url(filename).path) {
+                    return img
+                }
+            } else if s.hasPrefix("file://") {
+                let filename = URL(string: s)?.lastPathComponent ?? s
+                if let img = UIImage(contentsOfFile: LocalStore.url(filename).path) {
+                    return img
+                }
+            }
+        }
+        
+        // 2. If recipeId provided, check standard on-device thumbnail names
+        if let rid = recipeId, !rid.isEmpty {
+            for ext in ["jpg", "jpeg", "heic", "png"] {
+                let file = LocalStore.url("thumb-\(rid).\(ext)")
+                if let img = UIImage(contentsOfFile: file.path) {
+                    return img
+                }
+            }
+        }
+        
+        // 3. Extract recipe ID from urlString if it matches thumb-<id> pattern
+        if let s = urlString, let range = s.range(of: "thumb-[^/.]+", options: .regularExpression) {
+            let thumbBase = String(s[range])
+            for ext in ["jpg", "jpeg", "heic", "png"] {
+                let file = LocalStore.url("\(thumbBase).\(ext)")
+                if let img = UIImage(contentsOfFile: file.path) {
+                    return img
+                }
+            }
+        }
+        
+        return nil
+    }
     
     var body: some View {
-        if let s = urlString, !s.isEmpty {
+        if let local = localImage {
+            // Priority 1: On-device stored cover (0ms latency, 100% offline-ready, immune to CDN expiry)
+            Image(uiImage: local).resizable()
+        } else if let s = urlString, !s.isEmpty {
             if let img = UIImage(named: s) {
                 Image(uiImage: img).resizable()
             } else if let bundled = Self.bundledAsset(from: s) {
-                // The remote URL's filename matches an image we ship (e.g. a seeded recipe whose
-                // `…/thumbnails/recipe_hot_honey_chicken.jpg` host is down) → use the bundled asset,
-                // no network needed.
                 Image(uiImage: bundled).resizable()
             } else if let url = Self.remoteURL(from: s) {
                 AsyncImage(url: url) { phase in
@@ -63,7 +104,12 @@ struct RecipeCoverImage: View {
                     case .success(let image):
                         image.resizable()
                     case .failure:
-                        RecipeImagePlaceholder(isBuffering: false, size: 28)
+                        // On network failure or expired Instagram CDN URL, check local fallback
+                        if let fallback = localImage {
+                            Image(uiImage: fallback).resizable()
+                        } else {
+                            RecipeImagePlaceholder(isBuffering: false, size: 28)
+                        }
                     case .empty:
                         RecipeImagePlaceholder(isBuffering: true, size: 28)
                     @unknown default:
@@ -71,14 +117,7 @@ struct RecipeCoverImage: View {
                     }
                 }
             } else {
-                // Local file: handle both legacy absolute `file://` URLs and direct filenames
-                let filename = s.hasPrefix("file://") ? (URL(string: s)?.lastPathComponent ?? s) : s
-                let fileUrl = LocalStore.url(filename)
-                if let uiImage = UIImage(contentsOfFile: fileUrl.path) {
-                    Image(uiImage: uiImage).resizable()
-                } else {
-                    RecipeImagePlaceholder(isBuffering: false, size: 28)
-                }
+                RecipeImagePlaceholder(isBuffering: false, size: 28)
             }
         } else {
             RecipeImagePlaceholder(isBuffering: false, size: 28)

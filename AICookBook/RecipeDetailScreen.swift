@@ -275,7 +275,7 @@ struct RecipeDetailScreen: View {
             // swipes that start here — they page the photos instead of switching the tab.
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("detail")) } action: { galleryFrame = $0 }
         } else {
-            RecipeCoverImage(urlString: imgs.first ?? recipe.thumbnailUrl)
+            RecipeCoverImage(urlString: imgs.first ?? recipe.thumbnailUrl, recipeId: recipe.id)
                 .scaledToFill()
         }
     }

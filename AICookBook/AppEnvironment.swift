@@ -101,6 +101,12 @@ final class AppEnvironment: ObservableObject {
         let saved = LocalStore.load([Recipe].self, from: "recipes.json") ?? []
         let localDeleted = deletedRecipeIds
         var merged = saved.filter { !localDeleted.contains($0.id) }
+        // Auto-heal local covers: clean legacy file:// URLs to relative filenames so container UUID migrations never break covers
+        for i in merged.indices {
+            if let t = merged[i].thumbnailUrl, t.hasPrefix("file://"), let name = URL(string: t)?.lastPathComponent {
+                merged[i].thumbnailUrl = name
+            }
+        }
         for (i, r) in merged.enumerated() {
             if let fresh = Recipe.placeholderRecipes.first(where: { $0.id == r.id }) {
                 merged[i] = fresh
@@ -301,6 +307,17 @@ final class AppEnvironment: ObservableObject {
 
     
 
+    /// True when this recipe belongs to the user's personal on-device library (imported reels or user-created recipes).
+    /// These are protected from being overwritten or clobbered by remote public feed syncs.
+    func isUserLibraryRecipe(_ recipe: Recipe) -> Bool {
+        recipe.isImportedFromSocial
+            || recipe.sourceUrl != nil
+            || recipe.ownerId == currentUser?.id
+            || recipe.ownerId == "you"
+            || recipe.ownerId == "local-user"
+            || unsyncedRecipeIds.contains(recipe.id)
+    }
+
     func refreshRecipes() async {
         // Instant day-0 fallback: seed with static samples if local store is empty
         if recipes.isEmpty {
@@ -314,6 +331,10 @@ final class AppEnvironment: ObservableObject {
             var changed = false
             for r in remote where !unsyncedRecipeIds.contains(r.id) && !localDeleted.contains(r.id) {
                 if let i = merged.firstIndex(where: { $0.id == r.id }) {
+                    // PROTECT: Do not overwrite user-imported or personal recipes with remote rows
+                    if isUserLibraryRecipe(merged[i]) {
+                        continue
+                    }
                     if merged[i] != r { merged[i] = r; changed = true }
                 } else {
                     merged.insert(r, at: 0)
@@ -491,6 +512,9 @@ final class AppEnvironment: ObservableObject {
             var added = 0, changed = false
             for r in remote where !unsyncedRecipeIds.contains(r.id) && !localDeleted.contains(r.id) {
                 if let i = merged.firstIndex(where: { $0.id == r.id }) {
+                    if isUserLibraryRecipe(merged[i]) {
+                        continue
+                    }
                     if merged[i] != r { merged[i] = r; changed = true }
                 } else {
                     merged.append(r); added += 1; changed = true
@@ -1123,15 +1147,15 @@ final class AppEnvironment: ObservableObject {
         //    (We avoid using the external Instagram thumbnail URL because those CDN links expire 
         //    and block hotlinking, causing them to fail to load).
         if let thumb = await VideoThumbnail.frame(from: url),
-           let file = LocalStore.saveData(thumb.data, to: "thumb-\(recipe.id).\(thumb.ext)") {
-            recipe.thumbnailUrl = file.absoluteString
+           let _ = LocalStore.saveData(thumb.data, to: "thumb-\(recipe.id).\(thumb.ext)") {
+            recipe.thumbnailUrl = "thumb-\(recipe.id).\(thumb.ext)"
         } else if let remote = thumbnailUrl, let rurl = URL(string: remote),
                   rurl.scheme?.hasPrefix("http") == true,
                   let (data, _) = try? await URLSession.shared.data(from: rurl),
-                  let file = LocalStore.saveData(data, to: "thumb-\(recipe.id).jpg") {
+                  let _ = LocalStore.saveData(data, to: "thumb-\(recipe.id).jpg") {
             // Frame grab failed (e.g. a VP9 clip iOS can't decode) — fall back to the reel's own
             // thumbnail, downloaded now while the CDN link is fresh and stored locally so it persists.
-            recipe.thumbnailUrl = file.absoluteString
+            recipe.thumbnailUrl = "thumb-\(recipe.id).jpg"
         }
         if Task.isCancelled { return }
 
