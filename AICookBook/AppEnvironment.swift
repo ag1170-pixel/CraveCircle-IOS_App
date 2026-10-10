@@ -299,6 +299,27 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
+    
+
+    /// Background loading of the extended recipe dataset from a bundled JSON,
+    /// keeping the main thread fast (hero recipes load instantly from memory).
+    private func loadBundledDataset() async {
+        guard let url = Bundle.main.url(forResource: "BundledRecipes", withExtension: "json") else { return }
+        do {
+            let data = try Data(contentsOf: url)
+            let decoded = try JSONDecoder().decode([Recipe].self, from: data)
+            let existingIds = Set(self.recipes.map(\.id))
+            let fresh = decoded.filter { !existingIds.contains($0.id) }
+            if !fresh.isEmpty {
+                await MainActor.run {
+                    self.recipes.append(contentsOf: fresh)
+                }
+            }
+        } catch {
+            print("Failed to decode BundledRecipes.json: \(error)")
+        }
+    }
+
     func refreshRecipes() async {
         do {
             let fetched = try await apiClient.fetchRecipes(limit: 20, offset: 0)
@@ -312,14 +333,22 @@ final class AppEnvironment: ObservableObject {
                     merged.insert(r, at: 0)
                 }
                 recipes = merged
+            
             } else if recipes.isEmpty {
                 recipes = Recipe.placeholderRecipes
+                await loadBundledDataset()
             }
+
         } catch {
             // The homelab feed is OPTIONAL (unreachable off-Tailscale / on cellular). Keep the local
             // library; seed samples only if we have nothing. Cloud recipes layer on via syncRecipes.
             // No modal error — this is an expected, recoverable miss, not something the user must act on.
-            if recipes.isEmpty { recipes = Recipe.placeholderRecipes }
+            
+            if recipes.isEmpty { 
+                recipes = Recipe.placeholderRecipes 
+                await loadBundledDataset()
+            }
+
         }
         // Layer newly published cloud recipes on top + push any local edits.
         await syncRecipes()

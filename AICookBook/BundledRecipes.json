@@ -1,0 +1,29 @@
+[
+  {
+    "id": "recipe-bhindi-masala",
+    "ownerId": "creator-aditya",
+    "title": "Punjabi Bhindi Masala",
+    "description": "Dry, spiced okra stir-fry with onions and tomatoes.",
+    "prepTime": "15 min",
+    "cookTime": "20 min",
+    "servings": 4,
+    "ingredients": [
+      {
+        "groupName": "Main",
+        "items": [
+          "500g okra (bhindi), chopped",
+          "2 onions, sliced",
+          "1 tomato, chopped",
+          "1 tsp cumin seeds"
+        ]
+      }
+    ],
+    "directions": [
+      { "stepIndex": 1, "text": "Wash and completely dry the okra before chopping to prevent sliminess." },
+      { "stepIndex": 2, "text": "Fry okra in oil until slightly crispy. Remove and set aside." },
+      { "stepIndex": 3, "text": "Sauté onions, tomatoes, and spices. Add okra back in and cook for 5 mins." }
+    ],
+    "thumbnailUrl": "recipe_chipotle_bowl",
+    "ownerUsername": "@Aditya.Gupta"
+  }
+]
