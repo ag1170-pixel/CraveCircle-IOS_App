@@ -98,14 +98,16 @@ struct RecipeCoverImage: View {
                 Image(uiImage: img).resizable()
             } else if let bundled = Self.bundledAsset(from: s) {
                 Image(uiImage: bundled).resizable()
+            } else if let fallback = Self.categoryFallback(for: s) {
+                Image(uiImage: fallback).resizable()
             } else if let url = Self.remoteURL(from: s) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):
                         image.resizable()
                     case .failure:
-                        // On network failure or expired Instagram CDN URL, check local fallback
-                        if let fallback = localImage {
+                        // On network failure or expired Instagram CDN URL, check local or category fallback
+                        if let fallback = localImage ?? Self.categoryFallback(for: s) {
                             Image(uiImage: fallback).resizable()
                         } else {
                             RecipeImagePlaceholder(isBuffering: false, size: 28)
@@ -122,6 +124,58 @@ struct RecipeCoverImage: View {
         } else {
             RecipeImagePlaceholder(isBuffering: false, size: 28)
         }
+    }
+
+    /// Authentic high-res food image fallback for dishes when an exact matching image asset is not yet available
+    static func categoryFallback(for s: String) -> UIImage? {
+        let base = ((s as NSString).lastPathComponent as NSString).deletingPathExtension.lowercased()
+        
+        // Chaat, street food, snacks
+        if base.contains("pani_puri") || base.contains("chaat") || base.contains("bhel") || base.contains("vada_pav") || base.contains("tikki") || base.contains("kulcha") {
+            return UIImage(named: "recipe_samosa_chaat")
+        }
+        
+        // Soups, lentils, broths
+        if base.contains("rasam") || base.contains("tadka") || base.contains("dal") || base.contains("sambar") {
+            return UIImage(named: "recipe_dal_tadka") ?? UIImage(named: "recipe_dal_makhani")
+        }
+        
+        // Rice dishes
+        if base.contains("rice") || base.contains("bath") || base.contains("pulihora") || base.contains("biryani") {
+            return UIImage(named: "recipe_biryani")
+        }
+        
+        // South Indian crepes & fritters
+        if base.contains("dosa") || base.contains("vada") || base.contains("appam") || base.contains("uttapam") || base.contains("pesarattu") || base.contains("stew") {
+            return UIImage(named: "recipe_masala_dosa")
+        }
+        
+        // Paneer & rich vegetarian curries
+        if base.contains("korma") || base.contains("malai") || base.contains("kofta") || base.contains("shahi") || base.contains("matar_paneer") {
+            return UIImage(named: "recipe_shahi_paneer") ?? UIImage(named: "recipe_paneer_butter_masala")
+        }
+        
+        // Greens & vegetable dishes
+        if base.contains("saag") || base.contains("palak") || base.contains("bharta") || base.contains("bhindi") || base.contains("avial") || base.contains("gobi") {
+            return UIImage(named: "recipe_palak_paneer") ?? UIImage(named: "recipe_aloo_gobi")
+        }
+        
+        // Chicken, meat, rich gravies
+        if base.contains("keema") || base.contains("chicken") || base.contains("kadai") || base.contains("meat") || base.contains("vindaloo") || base.contains("curry") || base.contains("jhol") {
+            return UIImage(named: "recipe_kadai_chicken") ?? UIImage(named: "recipe_butter_chicken")
+        }
+        
+        // Beans, chickpeas
+        if base.contains("chana") || base.contains("rajma") || base.contains("chole") {
+            return UIImage(named: "recipe_chana_masala") ?? UIImage(named: "recipe_rajma_masala")
+        }
+        
+        // Sweets & desserts
+        if base.contains("jamun") || base.contains("cake") || base.contains("dessert") || base.contains("sweet") {
+            return UIImage(named: "recipe_gulab_jamun")
+        }
+        
+        return nil
     }
 
     /// A shipped image asset matching the thumbnail's filename, if any. Seeded recipes carry a remote
