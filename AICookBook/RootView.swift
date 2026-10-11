@@ -268,6 +268,7 @@ struct MainTabView: View {
     @State private var showFeedback = false        // "Write to CEO" app-icon quick action
     @State private var tab: AppTab = .home
     @State private var ignoreSwipeFrames: [CGRect] = []
+    @State private var discoverEpoch = 0
 
     /// Osta-style floating + button, bottom-right. Context-aware: on the Grocery tab it opens
     /// "Add item to your list"; everywhere else it opens Add-a-recipe.
@@ -308,6 +309,7 @@ struct MainTabView: View {
                 // Discover is now the full-screen recipe reel (Instagram/TikTok style, Hinge swipes).
                 // The old SearchScreen stays in the repo — search lives on Home now.
                 RecipeReelScreen()
+                    .id(discoverEpoch)
             } label: {
                 Image(systemName: AppTab.discover.icon)
                     .accessibilityLabel(AppTab.discover.title)
@@ -329,6 +331,9 @@ struct MainTabView: View {
         // Import FAB everywhere EXCEPT Discover — the reel is immersive and the FAB would cover the rail.
         .overlay(alignment: .bottomTrailing) { if tab != .discover { importFAB } }
         .tabBarMinimizeBehavior(.onScrollDown)
+        .onChange(of: tab) { _, newTab in
+            if newTab == .discover { discoverEpoch += 1 }
+        }
         .onPreferenceChange(HorizontalScrollFrameKey.self) { frames in
             // Keep track of horizontal scroll areas (like carousels on HomeScreen)
             ignoreSwipeFrames = frames
@@ -564,7 +569,8 @@ struct ImportToastBanner: View {
                 .foregroundStyle(noContent(msg) ? AppTheme.textSecondary : AppTheme.destructive)
         default:
             LottieView(name: "Flow_4")
-                .frame(width: 32, height: 32)
+                .frame(width: 22, height: 22)
+                .clipped()
         }
     }
 

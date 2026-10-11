@@ -240,7 +240,7 @@ private struct StageRow: View {
     }
 
     private var connectorHeight: CGFloat {
-        stage == .transcribe && state == .active ? 62 : 30
+        stage == .transcribe && state == .active ? 36 : 22
     }
 
     private var titleColor: Color {
@@ -285,11 +285,13 @@ private struct PulsingDot: View {
         ZStack {
             Circle().fill(AppTheme.accent.opacity(0.22))
                 .frame(width: 30, height: 30)
-                .scaleEffect(reduceMotion ? 1 : (pulse ? 1.5 : 1))
+                .scaleEffect(reduceMotion ? 1 : (pulse ? 1.15 : 1))
                 .opacity(reduceMotion ? 1 : (pulse ? 0 : 0.9))
             Circle().fill(AppTheme.accent).frame(width: 30, height: 30)
             Image(systemName: icon).font(.system(size: 13, weight: .bold)).foregroundStyle(AppTheme.onAccent)
         }
+        .frame(width: 32, height: 32)
+        .clipped()
         .onAppear {
             guard !reduceMotion else { return }
             withAnimation(.easeOut(duration: 1.1).repeatForever(autoreverses: false)) { pulse = true }
@@ -316,7 +318,7 @@ private struct ChunkBar: View {
                     .animation(.easeInOut(duration: 0.3), value: active)
             }
         }
-        .frame(maxWidth: 220)
+        .frame(maxWidth: 140)
         .task {
             guard !reduceMotion else { active = count - 1; return }
             while !Task.isCancelled {

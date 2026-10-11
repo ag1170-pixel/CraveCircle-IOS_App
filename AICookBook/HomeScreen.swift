@@ -397,7 +397,30 @@ struct HomeScreen: View {
             }
         }
         
-        return result
+        return spreadLookalikes(result)
+    }
+
+    /// Keep dishes that read as the same plate (dosa, rice, paneer…) from sitting next to each other.
+    static func spreadLookalikes(_ list: [Recipe]) -> [Recipe] {
+        func family(_ r: Recipe) -> String {
+            let s = r.title.lowercased()
+            for key in ["dosa", "idli", "rice", "biryani", "pulao", "paneer", "chicken", "pasta", "cake", "dal"] {
+                if s.contains(key) { return key }
+            }
+            return "other-\(r.id)"
+        }
+        var pool = list
+        var out: [Recipe] = []
+        out.reserveCapacity(list.count)
+        while !pool.isEmpty {
+            let last = out.last.map(family)
+            if let i = pool.firstIndex(where: { family($0) != last }) {
+                out.append(pool.remove(at: i))
+            } else {
+                out.append(pool.removeFirst())
+            }
+        }
+        return out
     }
 
     private var libraryGridRecipes: [Recipe] {

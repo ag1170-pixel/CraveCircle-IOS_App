@@ -8,6 +8,7 @@
 
 import SwiftUI
 import UIKit
+import CryptoKit
 
 // MARK: - Randomized doodle wallpaper
 
@@ -114,20 +115,7 @@ struct RecipeCoverImage: View {
             // Priority 2: Shipped high-res asset bundled in app (instant, offline)
             Image(uiImage: bundled).resizable()
         } else if let url = Self.remoteURL(from: urlString, recipeId: recipeId) {
-            // Priority 3: Cloud asset from Supabase Storage / CDN (with buffering shimmer & graceful fallback)
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable()
-                case .failure:
-                    // On network failure or offline, use smart authentic category fallback
-                    Image(uiImage: Self.categoryFallback(for: contextHint)).resizable()
-                case .empty:
-                    RecipeImagePlaceholder(isBuffering: true, size: 28)
-                @unknown default:
-                    Image(uiImage: Self.categoryFallback(for: contextHint)).resizable()
-                }
-            }
+            CachedRemoteCover(url: url, fallback: Self.categoryFallback(for: contextHint))
         } else {
             // Priority 4: Category fallback based on title, slug, or cuisine keywords (NEVER black card)
             Image(uiImage: Self.categoryFallback(for: contextHint)).resizable()
@@ -148,14 +136,18 @@ struct RecipeCoverImage: View {
             if let img = UIImage(named: "recipe_dal_tadka") ?? UIImage(named: "recipe_dal_makhani") { return img }
         }
         
-        // Rice dishes
+        // Rice dishes — spread across distinct plated photos so jeera / curd / plain rice don't share one frame.
         if base.contains("rice") || base.contains("bath") || base.contains("pulihora") || base.contains("biryani") || base.contains("pulao") {
-            if let img = UIImage(named: "recipe_biryani") { return img }
+            if let img = pick(from: ["recipe_biryani", "recipe_korean_bibimbap", "recipe_mushroom_risotto", "recipe_chipotle_bowl", "recipe_falafel_bowl", "recipe_thai_basil_chicken"], salt: base) {
+                return img
+            }
         }
         
-        // South Indian crepes & fritters
+        // South Indian crepes & fritters — dosa variants must not all render as masala dosa.
         if base.contains("dosa") || base.contains("vada") || base.contains("appam") || base.contains("uttapam") || base.contains("pesarattu") || base.contains("idli") || base.contains("stew") {
-            if let img = UIImage(named: "recipe_masala_dosa") { return img }
+            if let img = pick(from: ["recipe_masala_dosa", "recipe_souffle_pancakes", "recipe_avocado_toast", "recipe_chole_bhature", "recipe_pav_bhaji"], salt: base) {
+                return img
+            }
         }
         
         // Paneer & rich vegetarian curries
@@ -194,9 +186,18 @@ struct RecipeCoverImage: View {
         }
         
         // Guaranteed authentic fallback: NEVER nil, NEVER black placeholder card
-        return UIImage(named: "recipe_aloo_gobi")
-            ?? UIImage(named: "recipe_butter_chicken")
-            ?? UIImage(named: "recipe_biryani")!
+        return pick(from: ["recipe_aloo_gobi", "recipe_butter_chicken", "recipe_biryani", "recipe_palak_paneer", "recipe_dal_makhani"], salt: base)
+            ?? UIImage(named: "recipe_biryani")
+            ?? UIImage()
+    }
+
+    /// Stable pick so two different dish names in the same family don't share one photo.
+    private static func pick(from names: [String], salt: String) -> UIImage? {
+        let imgs = names.compactMap { UIImage(named: $0) }
+        guard !imgs.isEmpty else { return nil }
+        var hash: UInt = 0
+        for byte in salt.utf8 { hash = hash &* 31 &+ UInt(byte) }
+        return imgs[Int(hash % UInt(imgs.count))]
     }
 
     /// A shipped image asset matching the thumbnail's filename, if any. Seeded recipes carry a remote
@@ -239,6 +240,98 @@ struct RecipeCoverImage: View {
         }
         
         return nil
+    }
+}
+
+// MARK: - Disk-backed cover cache
+// AsyncImage only keeps URLCache for the process, and many storage responses are not reusable
+// across launches. Covers are written under Caches/cover-cache and shown from disk on the next open.
+
+enum CoverDiskCache {
+    private static let memory: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 120
+        return cache
+    }()
+
+    private static func directory() -> URL {
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("cover-cache", isDirectory: true)
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        return base
+    }
+
+    /// Drop the query string so a refreshed signed URL still matches the file we already saved.
+    private static func stableKey(_ url: URL) -> String {
+        var parts = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        parts?.query = nil
+        parts?.fragment = nil
+        let raw = parts?.string ?? url.absoluteString
+        let digest = SHA256.hash(data: Data(raw.utf8))
+        return digest.prefix(12).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func file(for url: URL) -> URL {
+        directory().appendingPathComponent(stableKey(url) + ".jpg")
+    }
+
+    static func memoryImage(for url: URL) -> UIImage? {
+        memory.object(forKey: stableKey(url) as NSString)
+    }
+
+    static func loadDisk(for url: URL) -> UIImage? {
+        let path = file(for: url)
+        guard let data = try? Data(contentsOf: path), let image = UIImage(data: data) else { return nil }
+        memory.setObject(image, forKey: stableKey(url) as NSString)
+        return image
+    }
+
+    static func download(_ url: URL) async -> UIImage? {
+        if let hit = memoryImage(for: url) { return hit }
+        var request = URLRequest(url: url)
+        request.cachePolicy = .returnCacheDataElseLoad
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let image = UIImage(data: data) else { return nil }
+        if let jpeg = image.jpegData(compressionQuality: 0.82) {
+            try? jpeg.write(to: file(for: url), options: .atomic)
+        }
+        memory.setObject(image, forKey: stableKey(url) as NSString)
+        return image
+    }
+}
+
+private struct CachedRemoteCover: View {
+    let url: URL
+    let fallback: UIImage
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image).resizable()
+            } else {
+                RecipeImagePlaceholder(isBuffering: true, size: 28)
+            }
+        }
+        .task(id: url.absoluteString) {
+            if let cached = CoverDiskCache.memoryImage(for: url) {
+                image = cached
+                return
+            }
+            let disk = await Task.detached(priority: .userInitiated) {
+                CoverDiskCache.loadDisk(for: url)
+            }.value
+            if let disk {
+                image = disk
+                return
+            }
+            if let fresh = await CoverDiskCache.download(url) {
+                image = fresh
+            } else if image == nil {
+                image = fallback
+            }
+        }
     }
 }
 

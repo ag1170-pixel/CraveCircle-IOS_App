@@ -79,13 +79,10 @@ struct RecipeReelScreen: View {
             .overlay(alignment: .top) { topChrome(topInset: geo.safeAreaInsets.top) }
         }
         .task {
-            // Build the reel from local data FIRST so it appears instantly, even when the backend is
-            // slow/offline. Then refresh the personalized feed in the background and rebuild if empty.
-            if reel.isEmpty { rebuildReel() }
-            if environment.suggestedRecipes.isEmpty {
-                await environment.fetchSuggestedFeed()
-                if reel.isEmpty { rebuildReel() }
-            }
+            // Fresh random order every time this screen is created (tab visit bumps its identity).
+            rebuildReel()
+            await environment.fetchSuggestedFeed()
+            rebuildReel()
         }
         .onChange(of: currentID) { _, id in
             guard let id else { return }
@@ -112,6 +109,20 @@ struct RecipeReelScreen: View {
 
     private func topChrome(topInset: CGFloat) -> some View {
         HStack {
+            Button {
+                Haptics.select()
+                rebuildReel()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .overlay(Circle().strokeBorder(.white.opacity(0.22), lineWidth: 0.5))
+                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel("Refresh recipes")
             Spacer()
             Button {
                 Haptics.select()
@@ -165,6 +176,7 @@ private struct ReelCell: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showHeart = false       // Instagram-style burst on double-tap
     @State private var showComments = false    // bottom sheet with comments
+    @State private var pendingOpen: DispatchWorkItem?
     // Horizontal page: 0 = NOT INTERESTED (shown when swiping finger RIGHT → content shifts LEFT),
     //                  1 = recipe (default),  2 = INTERESTED (shown when swiping LEFT).
     // Nested horizontal ScrollView with .paging + .scrollPosition — SwiftUI arbitrates with the outer
@@ -294,8 +306,22 @@ private struct ReelCell: View {
         }
         .frame(width: size.width, height: cellHeight)
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) { doubleTapLike() }
-        .onTapGesture { environment.selectRecipe(recipe) }
+        .onTapGesture(count: 2) {
+            pendingOpen?.cancel()
+            pendingOpen = nil
+            doubleTapLike()
+        }
+        .onTapGesture(count: 1) {
+            pendingOpen?.cancel()
+            let open = DispatchWorkItem { environment.selectRecipe(recipe) }
+            pendingOpen = open
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28, execute: open)
+        }
+        .overlay(alignment: .bottom) {
+            AppTheme.heroScrim
+                .frame(height: 220)
+                .allowsHitTesting(false)
+        }
     }
 
     // MARK: Caption + meta
@@ -316,6 +342,10 @@ private struct ReelCell: View {
             HStack(spacing: 6) {
                 if let p = recipe.prepTime { metaPill(icon: "clock", text: p) }
                 if let k = recipe.nutrition?.calories { metaPill(icon: "flame", text: "\(Int(k)) kcal") }
+            }
+            HStack(spacing: 8) {
+                tasteButton(title: "Not for me", icon: "hand.thumbsdown.fill", fill: Color(hex: "C7362A"), action: onNotInterested)
+                tasteButton(title: "Interested", icon: "hand.thumbsup.fill", fill: Color(hex: "1F7A4D"), action: onInterested)
             }
         }
         .padding(.leading, 14)
@@ -351,6 +381,18 @@ private struct ReelCell: View {
             .buttonStyle(PressableStyle())
             .contentTransition(.opacity)
         }
+    }
+
+    private func tasteButton(title: String, icon: String, fill: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(AppFont.body(12, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(fill, in: Capsule())
+        }
+        .buttonStyle(PressableStyle())
     }
 
     private func metaPill(icon: String, text: String) -> some View {
