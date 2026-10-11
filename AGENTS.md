@@ -28,3 +28,15 @@ Rules:
 - Mark deliberate simplifications that cut a real corner with a known ceiling (global lock, O(n²) scan, naive heuristic) with a `ponytail:` comment naming the ceiling and upgrade path.
 
 Not lazy about: understanding the problem (read it fully and trace the real flow before picking a rung, a small diff you don't understand is just laziness dressed up as efficiency), input validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs (the platform is never the spec ideal, a clock drifts, a sensor reads off), anything explicitly requested. Lazy code without its check is unfinished: non-trivial logic leaves ONE runnable check behind, the smallest thing that fails if the logic breaks (an assert-based demo/self-check or one small test file; no frameworks, no fixtures). Trivial one-liners need no test.
+
+## Cursor Cloud specific instructions
+
+Cloud Agents run on Linux. The SwiftUI app in `AICookBook/` needs Xcode on macOS, so this environment does not build or launch the iOS app or the Simulator.
+
+The service that runs here is `whisper-transcriber/` (FastAPI local backend).
+
+- `python3`, `pip`, and `uvicorn` on `PATH` use the virtualenv at `/opt/cravecircle-whisper`.
+- Boot starts that API on port 8009 (`WHISPER_DEVICE=cpu`, model `small`). Check it with `curl -s localhost:8009/health`.
+- Logic check that does not need the network or a Whisper model: `cd whisper-transcriber && python3 test_translate.py`.
+- `ffmpeg` and `tesseract` are installed for audio decode and on-screen OCR.
+- The first transcription downloads the Whisper `small` weights into `/opt/cravecircle-whisper/hf`.
