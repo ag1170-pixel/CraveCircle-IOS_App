@@ -106,7 +106,8 @@ struct FlashcardCookScreen: View {
                     LazyVStack(spacing: 0) {
                         ForEach(cards.indices, id: \.self) { i in
                             CardContent(card: cards[i], stepCount: stepCount, ink: color(for: index).ink)
-                                .padding(.horizontal, 48)
+                                .padding(.leading, 48)
+                                .padding(.trailing, 72)
                                 .frame(width: geo.size.width, height: rowH)
                                 .scrollTransition(axis: .vertical) { content, phase in
                                     // Centre (identity) = full; neighbours fade & shrink → wheel feel.
@@ -145,10 +146,10 @@ struct FlashcardCookScreen: View {
                 if voiceOn && voice.wakeActive {
                     FloatingVoiceAssistantView(voice: voice)
                         .transition(.scale(scale: 0.7).combined(with: .opacity))
-                        .padding(.bottom, 10)
+                        .padding(.bottom, 18)
                 }
-                bottomBar
             }
+            .overlay(alignment: .trailing) { stepRail }
             .animation(.spring(response: 0.45, dampingFraction: 0.75), value: voice.wakeActive)
             .animation(.easeInOut(duration: 0.25), value: voice.permissionDenied)
             .animation(reduceMotion ? nil : AppMotion.snappy, value: timer.running)
@@ -289,17 +290,20 @@ struct FlashcardCookScreen: View {
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 
-    private var bottomBar: some View {
+    /// Step position, top → bottom on the right (landscape). Active card is the tall mark.
+    private var stepRail: some View {
         let ink = color(for: index).ink
-        return HStack(spacing: 6) {
+        return VStack(spacing: 6) {
             ForEach(cards.indices, id: \.self) { i in
                 Capsule()
                     .fill(i == index ? ink : ink.opacity(0.3))
-                    .frame(width: i == index ? 22 : 7, height: 7)
+                    .frame(width: 7, height: i == index ? 22 : 7)
                     .animation(reduceMotion ? nil : AppMotion.snappy, value: index)
             }
         }
-        .padding(.bottom, 18)
+        .padding(.trailing, 8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Card \(index + 1) of \(cards.count)")
     }
 }
 
