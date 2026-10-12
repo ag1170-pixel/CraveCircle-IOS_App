@@ -21,6 +21,18 @@
 import SwiftUI
 import Combine
 
+/// Head card after an explicit Discovery refresh.
+/// `.scrollPosition` stays pinned if the on-screen id is still in the shuffle, so a multi-item
+/// list that still contains `currentID` must land on a different id. A missing id, or a one-card
+/// list, keeps the first (only) item — first appear must not use this, or it jumps off card one.
+enum DiscoveryReelRefresh {
+    static func nextHead(currentID: String?, ids: [String]) -> String? {
+        guard let first = ids.first else { return nil }
+        guard let currentID, ids.count > 1, ids.contains(currentID) else { return first }
+        return first == currentID ? ids[1] : first
+    }
+}
+
 struct RecipeReelScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -34,12 +46,35 @@ struct RecipeReelScreen: View {
     // out from under the user mid-scroll). See `AppEnvironment.discoveryReel()`.
     @State private var reel: [Recipe] = []
 
+    /// First appear only. Stays on the current card when that id is still in the new shuffle.
     private func rebuildReel() {
         let next = environment.discoveryReel()
         reel = next
         if currentID == nil || !next.contains(where: { $0.id == currentID }) {
             currentID = next.first?.id
         }
+    }
+
+    /// Reload button and pull-to-refresh. `discoveryReel()` reads `recipes`,
+    /// so a suggested-feed fetch does not change the reel by itself — the visible change is a new head.
+    private func refreshReel() {
+        var next = environment.discoveryReel()
+        let ids = next.map(\.id)
+        let head = DiscoveryReelRefresh.nextHead(currentID: currentID, ids: ids)
+        if let head, ids.first != head {
+            next.append(next.removeFirst())
+        }
+        reel = next
+        guard let head else {
+            currentID = nil
+            return
+        }
+        guard head != currentID else { return }
+        currentID = nil
+        // ponytail: a paging ScrollView drops a scrollPosition write in the same turn as replacing
+        // ForEach data. Nil, then set the head next run loop. Upgrade path: assign `currentID = head`
+        // directly if that write starts sticking.
+        DispatchQueue.main.async { currentID = head }
     }
 
     /// Append a fresh shuffled batch that isn't already in the reel (endless scroll).
@@ -69,7 +104,7 @@ struct RecipeReelScreen: View {
             }
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: $currentID)
-            .refreshable { await environment.fetchSuggestedFeed(); rebuildReel() }   // pull to reshuffle
+            .refreshable { await environment.fetchSuggestedFeed(); refreshReel() }
             .ignoresSafeArea()
             .background(.black)
             .overlay(alignment: .top) { topChrome(topInset: geo.safeAreaInsets.top) }
@@ -105,20 +140,6 @@ struct RecipeReelScreen: View {
 
     private func topChrome(topInset: CGFloat) -> some View {
         HStack {
-            Button {
-                Haptics.select()
-                rebuildReel()
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay(Circle().strokeBorder(.white.opacity(0.22), lineWidth: 0.5))
-                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-            }
-            .buttonStyle(PressableStyle())
-            .accessibilityLabel("Refresh recipes")
             Spacer()
             Button {
                 Haptics.select()
@@ -288,22 +309,38 @@ private struct ReelCell: View {
             .overlay(Circle().stroke(.white, lineWidth: 1.5))
     }
 
-    /// Follow / Following toggle (bigger pill — owner feedback 2026-10-03).
+    /// Same Follow control as the recipe page hero (`RecipeDetailScreen` creator row).
     @ViewBuilder private var followPill: some View {
         if let h = recipe.ownerUsername {
             Button {
-                Haptics.tap()
-                withAnimation(AppMotion.snappy) { environment.toggleFollow(creatorHandle: h) }
+                Haptics.select()
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
+                    environment.toggleFollow(creatorHandle: h)
+                }
             } label: {
-                Text(following ? "Following" : "Follow")
-                    .font(AppFont.body(13, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16).padding(.vertical, 7)
-                    .background(following ? Color.white.opacity(0.18) : Color(hex: "EA5A38"), in: Capsule())
-                    .overlay(Capsule().stroke(.white.opacity(following ? 0.6 : 0), lineWidth: 1))
+                HStack(spacing: 5) {
+                    Image(systemName: following ? "checkmark" : "person.badge.plus")
+                        .font(.system(size: 12, weight: .bold))
+                        .contentTransition(.symbolEffect(.replace))
+                    Text(following ? "Following" : "Follow")
+                        .font(AppFont.body(13, weight: .bold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .frame(height: 34)
+                .background(
+                    following
+                        ? AnyShapeStyle(.ultraThinMaterial)
+                        : AnyShapeStyle(Color(hex: "1877F2")),
+                    in: Capsule()
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(.white.opacity(following ? 0.35 : 0.25), lineWidth: 0.8)
+                )
+                .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 2)
             }
             .buttonStyle(PressableStyle())
-            .contentTransition(.opacity)
         }
     }
 

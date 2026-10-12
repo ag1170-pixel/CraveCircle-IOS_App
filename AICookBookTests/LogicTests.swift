@@ -272,3 +272,23 @@ final class GroceryAisleTests: XCTestCase {
         XCTAssertEqual(GrocerySort.aisle(for: "1 tbsp ginger-garlic paste"), .pantry)
     }
 }
+
+// MARK: - Discovery refresh head (pager must leave the card on screen)
+
+final class DiscoveryReelRefreshTests: XCTestCase {
+    func testHeadDiffersWhenCurrentIsInAMultiItemList() {
+        let ids = ["a", "b", "c"]
+        for current in ids {
+            let head = DiscoveryReelRefresh.nextHead(currentID: current, ids: ids)
+            XCTAssertNotEqual(head, current)
+            XCTAssertTrue(ids.contains(head ?? ""))
+        }
+    }
+
+    func testHeadIsFirstWhenCurrentIsAbsentOrListHasOneItem() {
+        XCTAssertEqual(DiscoveryReelRefresh.nextHead(currentID: "missing", ids: ["a", "b"]), "a")
+        XCTAssertEqual(DiscoveryReelRefresh.nextHead(currentID: nil, ids: ["a", "b"]), "a")
+        XCTAssertEqual(DiscoveryReelRefresh.nextHead(currentID: "only", ids: ["only"]), "only")
+        XCTAssertNil(DiscoveryReelRefresh.nextHead(currentID: "a", ids: []))
+    }
+}
