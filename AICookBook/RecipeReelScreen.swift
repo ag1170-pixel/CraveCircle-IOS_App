@@ -3,9 +3,8 @@
 //  CraveCircle (AICookBook)
 //
 //  Discover = full-screen vertical reel of recipes (one per screen, swipe up/down to page), Instagram
-//  styled: bottom-right rail (like / comment / share / save), bottom-left creator lockup. Hinge-style
-//  horizontal swipes track taste — RIGHT = INTERESTED, LEFT = NOT INTERESTED — logged via
-//  `environment.logInteraction(...)` so the recommendation engine learns. Pull-to-refresh at the top.
+//  styled: bottom-right rail (like / comment / share / save), bottom-left creator lockup.
+//  Pull-to-refresh at the top.
 //
 //  No cat here — the chef-cat lives on Home + Grocery; Discover stays focused on the reel.
 //
@@ -26,7 +25,6 @@ struct RecipeReelScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("reel_autoplay")        private var autoplay = false
-    @AppStorage("reel_interested_ids")  private var interestedCSV = ""
 
     @State private var currentID: String?
     @State private var autoplayTick = 0
@@ -61,9 +59,7 @@ struct RecipeReelScreen: View {
                                  size: geo.size,
                                  topInset: geo.safeAreaInsets.top,
                                  bottomInset: geo.safeAreaInsets.bottom,
-                                 fitMode: true,   // always fit (the recipe photo is never cropped)
-                                 onInterested: { logTaste(r, interested: true); advance(from: r.id) },
-                                 onNotInterested: { logTaste(r, interested: false); advance(from: r.id) })
+                                 fitMode: true)   // always fit (the recipe photo is never cropped)
                         .frame(width: geo.size.width,
                                height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom)
                         .id(r.id)
@@ -143,20 +139,11 @@ struct RecipeReelScreen: View {
         .padding(.top, topInset + 10)
     }
 
-    // MARK: - Advancement + taste
+    // MARK: - Advancement
 
     private func advance(from id: String) {
         if let idx = reel.firstIndex(where: { $0.id == id }), idx + 1 < reel.count {
             withAnimation(AppMotion.smooth) { currentID = reel[idx + 1].id }
-        }
-    }
-
-    private func logTaste(_ r: Recipe, interested: Bool) {
-        Haptics.toggle(interested)
-        environment.logInteraction(recipeId: r.id, eventType: interested ? "interested" : "not_interested")
-        if interested {
-            var ids = interestedCSV.split(separator: ",").map(String.init)
-            if !ids.contains(r.id) { ids.append(r.id); interestedCSV = ids.joined(separator: ",") }
         }
     }
 }
@@ -169,19 +156,12 @@ private struct ReelCell: View {
     let topInset: CGFloat
     let bottomInset: CGFloat
     let fitMode: Bool
-    let onInterested: () -> Void
-    let onNotInterested: () -> Void
 
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showHeart = false       // Instagram-style burst on double-tap
     @State private var showComments = false    // bottom sheet with comments
     @State private var pendingOpen: DispatchWorkItem?
-    // Horizontal page: 0 = NOT INTERESTED (shown when swiping finger RIGHT → content shifts LEFT),
-    //                  1 = recipe (default),  2 = INTERESTED (shown when swiping LEFT).
-    // Nested horizontal ScrollView with .paging + .scrollPosition — SwiftUI arbitrates with the outer
-    // vertical pager natively, so we don't need a DragGesture that would block vertical scrolling.
-    @State private var hPage: Int? = 1
 
     private var liked: Bool  { environment.isLiked(recipeId: recipe.id) }
     private var saved: Bool  { environment.isSaved(recipeId: recipe.id) }
@@ -195,10 +175,7 @@ private struct ReelCell: View {
     private var fitPhotoHeight: CGFloat { min(size.width, cellHeight - 260) }
 
     var body: some View {
-        // Just the recipe content — no nested horizontal paging wrapper. The horizontal
-        // interested/not-interested swipe is commented out below (owner's call 2026-10-03): the
-        // nested `.scrollTargetBehavior(.paging)` was fighting the outer vertical pager and causing
-        // vertical scrolling to hang between recipes. Vertical paging is smooth without it.
+        // No nested horizontal pager: it fought the outer vertical pager and hung scrolling.
         recipeContent
             .sheet(isPresented: $showComments) {
                 NavigationStack {
@@ -219,38 +196,6 @@ private struct ReelCell: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
-        /*  ---- COMMENTED OUT (owner, 2026-10-03): horizontal swipe for interested / not-interested.
-            Re-enable by replacing the `recipeContent` call above with this block. Note it causes
-            vertical paging to hang (nested paging ScrollViews fight each other).
-
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
-                tastePage(label: "NOT FOR ME", icon: "hand.thumbsdown.fill", color: .red).id(0)
-                recipeContent.id(1)
-                tastePage(label: "INTERESTED", icon: "hand.thumbsup.fill", color: .green).id(2)
-            }
-            .scrollTargetLayout()
-        }
-        .scrollTargetBehavior(.paging)
-        .scrollPosition(id: $hPage, anchor: .center)
-        .defaultScrollAnchor(.center)
-        .scrollIndicators(.hidden)
-        .frame(width: size.width, height: cellHeight)
-        .onChange(of: hPage) { _, new in
-            guard let new else { return }
-            if new == 0 {
-                onNotInterested()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                    withAnimation(AppMotion.smooth) { hPage = 1 }
-                }
-            } else if new == 2 {
-                onInterested()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                    withAnimation(AppMotion.smooth) { hPage = 1 }
-                }
-            }
-        }
-        */
     }
 
     // MARK: - Recipe content
@@ -261,23 +206,6 @@ private struct ReelCell: View {
             captionBlock
             rail
             heartBurst
-        }
-        .frame(width: size.width, height: cellHeight)
-    }
-
-    // MARK: - Taste page (swipe-reveal green / red overlay)
-
-    private func tastePage(label: String, icon: String, color: Color) -> some View {
-        ZStack {
-            color.opacity(0.92)
-            VStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 72, weight: .bold))
-                    .foregroundStyle(.white)
-                Text(label)
-                    .font(AppFont.display(24, weight: .bold))
-                    .foregroundStyle(.white)
-            }
         }
         .frame(width: size.width, height: cellHeight)
     }
@@ -343,10 +271,6 @@ private struct ReelCell: View {
                 if let p = recipe.prepTime { metaPill(icon: "clock", text: p) }
                 if let k = recipe.nutrition?.calories { metaPill(icon: "flame", text: "\(Int(k)) kcal") }
             }
-            HStack(spacing: 8) {
-                tasteButton(title: "Not for me", icon: "hand.thumbsdown.fill", fill: Color(hex: "C7362A"), action: onNotInterested)
-                tasteButton(title: "Interested", icon: "hand.thumbsup.fill", fill: Color(hex: "1F7A4D"), action: onInterested)
-            }
         }
         .padding(.leading, 14)
         .padding(.trailing, 70)
@@ -381,18 +305,6 @@ private struct ReelCell: View {
             .buttonStyle(PressableStyle())
             .contentTransition(.opacity)
         }
-    }
-
-    private func tasteButton(title: String, icon: String, fill: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: icon)
-                .font(AppFont.body(12, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(fill, in: Capsule())
-        }
-        .buttonStyle(PressableStyle())
     }
 
     private func metaPill(icon: String, text: String) -> some View {
