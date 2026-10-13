@@ -10,6 +10,8 @@ import SwiftUI
 
 struct FloatingVoiceAssistantView: View {
     @ObservedObject var voice: VoiceCommandController
+    /// True only on a flashcard that shows the clock, so "Start" is mentioned just then.
+    var showsStartHint = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var isWinking = false
@@ -23,13 +25,13 @@ struct FloatingVoiceAssistantView: View {
             ZStack {
                 Circle()
                     .fill(Color.white)
-                    .frame(width: 52, height: 52)
+                    .frame(width: 40, height: 40)
                     .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 3)
 
                 Image(isWinking ? "ChefAssistantWink" : "ChefAssistantOpen")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 48, height: 48)
+                    .frame(width: 36, height: 36)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(voice.wakeActive ? AppTheme.accent : Color.white, lineWidth: voice.wakeActive ? 2 : 1))
 
@@ -37,7 +39,7 @@ struct FloatingVoiceAssistantView: View {
                 if voice.wakeActive {
                     Circle()
                         .stroke(AppTheme.accent.opacity(0.6), lineWidth: 3)
-                        .frame(width: 58, height: 58)
+                        .frame(width: 46, height: 46)
                         .scaleEffect(isBobbing ? 1.15 : 1.0)
                         .opacity(isBobbing ? 0.3 : 0.8)
                 }
@@ -108,8 +110,8 @@ struct FloatingVoiceAssistantView: View {
         if voice.permissionDenied {
             return "Mic / Speech Off"
         }
-        if !voice.lastHeard.isEmpty && (voice.lastHeard == "Next" || voice.lastHeard == "Back") {
-            return "\(voice.lastHeard) Step! ✨"
+        if !voice.lastHeard.isEmpty && (voice.lastHeard == "Next" || voice.lastHeard == "Back" || voice.lastHeard == "Timer") {
+            return voice.lastHeard == "Timer" ? "Timer started" : "\(voice.lastHeard) Step!"
         }
         if voice.wakeActive {
             return "I'm listening!"
@@ -125,7 +127,9 @@ struct FloatingVoiceAssistantView: View {
             return "Enable in Settings > CraveCircle"
         }
         if voice.wakeActive {
-            return "Say “Forward” or “Backward”"
+            return showsStartHint
+                ? "Say “Forward”, “Backward”, or “Start”"
+                : "Say “Forward” or “Backward”"
         }
         return "Say “Hey Crave” to activate"
     }

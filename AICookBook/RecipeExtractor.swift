@@ -92,9 +92,9 @@ enum RecipeExtractor {
     @available(iOS 26, *)
     @Generable
     struct GGroup {
-        @Guide(description: "A section label like \"Sauce\" or \"Marinade\", or an empty string.")
+        @Guide(description: "A section label like \"Sauce\" or \"Marinade\", or an empty string. Never a quantity or an ingredient line.")
         var name: String
-        @Guide(description: "Ingredient lines with quantities, e.g. \"200g paneer\", \"1 tbsp oil\".")
+        @Guide(description: "Ingredient lines with quantities, e.g. \"200g paneer\", \"1 tbsp oil\". Never hashtags or social-tag lists.")
         var items: [String]
     }
 
@@ -127,7 +127,9 @@ enum RecipeExtractor {
         transcript, the caption, and the ON-SCREEN TEXT read off the video frames — any of them may
         be empty. On-screen text is often the ingredient list and step captions, so use it fully.
         Only include ingredients and steps that actually appear in the sources. Keep quantities and
-        units. Never invent ingredients, amounts, or steps that aren't in the source.\(languageRule)
+        units. Ignore hashtags and parenthetical tag lists at the end of a caption. Never invent
+        ingredients, amounts, or
+        steps that aren't in the source.\(languageRule)
         """)
         var prompt = "Extract the recipe.\n"
         if let caption, !caption.isEmpty { prompt += "CAPTION:\n\(caption)\n\n" }

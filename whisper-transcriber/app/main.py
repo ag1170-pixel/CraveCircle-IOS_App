@@ -337,6 +337,40 @@ def _strip_marker(line: str) -> str:
     return line.strip()
 
 
+# Caption tag dumps: "(panerecipe, viralreels, foodporn, ...)". Kitchen notes like
+# "(optional)" or "(finely chopped)" are not dumps.
+_SOCIAL_TAG = ("recipe", "reel", "viral", "blogger", "foodporn", "shorts", "foodie")
+
+
+def _is_social_tag_dump(line: str) -> bool:
+    s = line.strip()
+    if s.count("#") >= 2:
+        return True
+    wrapped = len(s) >= 2 and s.startswith("(") and s.endswith(")")
+    body = s[1:-1].strip() if wrapped else s
+    parts = [p.strip() for p in body.split(",") if p.strip()]
+    # A real ingredient has a space ("1 onion, chopped"). Tag dumps are smashed single words.
+    single = [p for p in parts if " " not in p and not any(c.isdigit() for c in p)]
+    if not parts or len(single) != len(parts):
+        return False
+    hits = sum(1 for p in parts if any(tok in p.lower() for tok in _SOCIAL_TAG))
+    if hits >= 2 and len(parts) >= 4:
+        return True
+    return len(parts) >= 8 and (wrapped or hits >= 1)
+
+
+def _without_tag_dump(line: str) -> str:
+    """Drop a tag-dump row, or cut a trailing (...) dump off a real ingredient."""
+    s = line.strip()
+    if not s or _is_social_tag_dump(s):
+        return ""
+    if s.endswith(")") and "(" in s:
+        inner = s[s.rfind("("):]
+        if _is_social_tag_dump(inner):
+            return s[:s.rfind("(")].strip(" -–—,;")
+    return s
+
+
 # ---------------------------------------------------------------------------
 # Nutrition helpers (Phase 1): USDA-backed macros, robust grams, real servings.
 # ---------------------------------------------------------------------------
@@ -760,6 +794,8 @@ def _parse_structured_lines(text: str, capture_title: bool) -> tuple[str, list[d
         line = raw.strip()
         if not line or not _is_latin(line) or line.startswith(("#", "[", "(tags", "tag:")):
             continue
+        if _is_social_tag_dump(line):
+            continue
         if _CTA.search(line) or line.startswith(("http://", "https://", "►", "• http")):
             continue
         if _END_SECTIONS.match(line):
@@ -792,7 +828,7 @@ def _parse_structured_lines(text: str, capture_title: bool) -> tuple[str, list[d
                 cur = {"group_name": line[:-1].strip(), "items": []}
                 groups.append(cur)
                 continue
-            item = _strip_marker(line)
+            item = _without_tag_dump(_strip_marker(line))
             if item and not item.startswith(("http://", "https://")):
                 if cur is None:
                     cur = {"group_name": "Main Ingredients", "items": []}
@@ -814,8 +850,8 @@ def _extract_from_ocr(ocr_text: str) -> tuple[list[str], list[str]]:
     seen_i: set[str] = set()
     seen_d: set[str] = set()
     for raw in ocr_text.splitlines():
-        line = _strip_marker(raw.strip())
-        if len(line) < 3 or not _is_latin(line) or _CTA.search(line):
+        line = _without_tag_dump(_strip_marker(raw.strip()))
+        if len(line) < 3 or not _is_latin(line) or _CTA.search(line) or _is_social_tag_dump(line):
             continue
         low = line.lower()
         if _QTY_LINE.search(line) and len(line) <= 70:

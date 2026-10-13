@@ -83,6 +83,11 @@ actor APIClient {
         let _: [String: String] = try await request(path: "feedback", method: "POST", body: payload)
     }
 
+    /// Admin inbox. Recipe reports use type `recipe_report`; `content` is the user's note plus the recipe.
+    func fetchFeedback() async throws -> [AdminFeedback] {
+        try await request(path: "admin/feedback")
+    }
+
     func submitImport(url: String, targetLanguage: String) async throws -> ImportSubmitResponse {
         // target_language: the user's preferred recipe language — the pipeline transcribes
         // the reel, detects the source language, and translates into this before storing.
@@ -209,6 +214,15 @@ actor APIClient {
             return false
         }
     }
+}
+
+struct AdminFeedback: Decodable, Identifiable, Hashable {
+    let id: Int
+    let type: String
+    let userHandle: String?
+    let content: String?
+    let email: String?
+    let createdAt: String?
 }
 
 private struct AnyEncodable: Encodable {

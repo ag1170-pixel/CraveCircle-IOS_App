@@ -162,7 +162,7 @@ struct RecipeDetailScreen: View {
         }
         .sheet(isPresented: $showReportSheet) {
             ReportIssueSheet(recipe: recipe)
-                .presentationDetents([.medium])
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
         .alert("Delete this recipe?", isPresented: $showDeleteConfirm) {
@@ -305,20 +305,20 @@ struct RecipeDetailScreen: View {
                         environment.toggleFollow(creatorHandle: handle)
                     }
                 } label: {
-                    HStack(spacing: 5) {
+                    HStack(spacing: 4) {
                         Image(systemName: following ? "checkmark" : "person.badge.plus")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.system(size: 11, weight: .bold))
                             .contentTransition(.symbolEffect(.replace))
                         Text(following ? "Following" : "Follow")
-                            .font(AppFont.body(13, weight: .bold))
+                            .font(AppFont.body(12, weight: .bold))
                     }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .frame(height: 34)
+                    .foregroundStyle(AppTheme.onBrand)
+                    .padding(.horizontal, 11)
+                    .frame(height: 28)
                     .background(
-                        following 
-                            ? AnyShapeStyle(.ultraThinMaterial) 
-                            : AnyShapeStyle(Color(hex: "1877F2")),
+                        following
+                            ? AnyShapeStyle(.ultraThinMaterial)
+                            : AnyShapeStyle(AppTheme.brand),
                         in: Capsule()
                     )
                     .overlay(
@@ -432,31 +432,27 @@ struct RecipeDetailScreen: View {
 
     private var topControls: some View {
         HStack {
-            GlassIconButton(systemImage: "chevron.left", label: "Back") { environment.dismissRecipeDetail() }
+            GlassIconButton(systemImage: "chevron.left", size: 40, label: "Back") { environment.dismissRecipeDetail() }
             Spacer()
             HStack(spacing: 10) {
-                // Instagram-style Like Button
                 let isLiked = environment.isLiked(recipeId: recipe.id)
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                         environment.toggleLikeRecipe(id: recipe.id)
                     }
-                    if !isLiked {
-                        triggerHeartBurst()
-                    }
+                    if !isLiked { triggerHeartBurst() }
                 } label: {
                     Image(systemName: isLiked ? "heart.fill" : "heart")
-                        .font(.system(size: 17, weight: .bold))
+                        .font(.system(size: 40 * 0.42, weight: .semibold))
                         .foregroundStyle(isLiked ? Color(hex: "FF2D55") : .white)
                         .frame(width: 40, height: 40)
                         .background(.ultraThinMaterial, in: Circle())
-                        .overlay(Circle().stroke(.white.opacity(0.25), lineWidth: 0.8))
-                        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                        .overlay(Circle().stroke(.white.opacity(0.14), lineWidth: 0.5))
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityLabel(isLiked ? "Unlike recipe" : "Like recipe")
 
-                GlassIconButton(systemImage: "square.and.arrow.up", label: "Share recipe") {
+                GlassIconButton(systemImage: "square.and.arrow.up", size: 40, label: "Share recipe") {
                     Haptics.tap()
                     showShareSheet = true
                 }
@@ -470,7 +466,7 @@ struct RecipeDetailScreen: View {
                         }
                     }
 
-                    if environment.isOwner(of: recipe) {
+                    if environment.isOwner(of: recipe) || environment.isAdmin {
                         Button {
                             Haptics.tap()
                             showEdit = true
@@ -514,12 +510,11 @@ struct RecipeDetailScreen: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: 40 * 0.42, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(width: 40, height: 40)
                         .background(.ultraThinMaterial, in: Circle())
-                        .overlay(Circle().stroke(.white.opacity(0.25), lineWidth: 0.8))
-                        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                        .overlay(Circle().stroke(.white.opacity(0.14), lineWidth: 0.5))
                 }
                 .accessibilityLabel("More options")
             }
@@ -793,7 +788,7 @@ struct RecipeDetailScreen: View {
             .background(AppTheme.surface, in: Capsule())
             .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
 
-            PillButton(title: "Add to Grocery", systemImage: "basket.fill", kind: .surface) {
+            PillButton(title: "Add to Grocery", systemImage: "basket.fill", kind: .surface, fullWidth: true) {
                 Haptics.success()
                 let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
                 addedGroceryCount = count
@@ -802,7 +797,7 @@ struct RecipeDetailScreen: View {
                     withAnimation { showGroceryBanner = false }
                 }
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity)
         }
     }
 

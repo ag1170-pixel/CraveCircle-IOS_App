@@ -185,6 +185,79 @@ struct Recipe: Codable, Identifiable, Hashable {
 struct IngredientGroup: Codable, Hashable {
     var groupName: String?
     var items: [String]
+
+    init(groupName: String?, items: [String]) {
+        let cleaned = IngredientListFormat.normalize(groupName: groupName, items: items)
+        self.groupName = cleaned.groupName
+        self.items = cleaned.items
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let name = try c.decodeIfPresent(String.self, forKey: .groupName)
+        let items = try c.decodeIfPresent([String].self, forKey: .items) ?? []
+        self.init(groupName: name, items: items)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(groupName, forKey: .groupName)
+        try c.encode(items, forKey: .items)
+    }
+
+    private enum CodingKeys: String, CodingKey { case groupName, items }
+}
+
+/// Drops the parenthetical caption-tag block creators paste under a recipe.
+/// A real note such as "(optional)" or "(finely chopped)" stays on its ingredient.
+enum IngredientListFormat {
+    private static let socialTokens = ["recipe", "reel", "viral", "blogger", "foodporn", "shorts", "foodie"]
+
+    static func normalize(groupName: String?, items: [String]) -> (groupName: String?, items: [String]) {
+        let name = groupName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let keptName = (name?.isEmpty == true || (name != nil && isTagDump(name!))) ? nil : name
+        let rows = items.compactMap { cleanedItem($0) }
+        return (keptName, rows)
+    }
+
+    /// nil when the whole row is a tag dump. Otherwise the ingredient, with a trailing tag block removed.
+    static func cleanedItem(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return raw }
+        if isTagDump(trimmed) { return nil }
+        let stripped = strippingTrailingTagDump(trimmed).trimmingCharacters(in: .whitespacesAndNewlines)
+        if stripped.isEmpty || isTagDump(stripped) { return nil }
+        return stripped
+    }
+
+    /// A caption tag dump: a comma-list of social tokens, a long one-word tag run, or a #hashtag line.
+    /// Short kitchen notes are not dumps.
+    static func isTagDump(_ raw: String) -> Bool {
+        let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if line.filter({ $0 == "#" }).count >= 2 { return true }
+        let wrapped = line.hasPrefix("(") && line.hasSuffix(")")
+        let body = wrapped
+            ? String(line.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+            : line
+        let parts = body.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        // A real ingredient has a space ("1 onion, chopped", "Chopped coriander (...)").
+        // Tag dumps are a comma-list of single smashed words.
+        let single = parts.filter { !$0.contains(" ") && $0.rangeOfCharacter(from: .decimalDigits) == nil }
+        guard !parts.isEmpty, single.count == parts.count else { return false }
+        let hits = parts.filter { part in
+            let lower = part.lowercased()
+            return socialTokens.contains { lower.contains($0) }
+        }.count
+        if hits >= 2 && parts.count >= 4 { return true }
+        return parts.count >= 8 && (wrapped || hits >= 1)
+    }
+
+    private static func strippingTrailingTagDump(_ line: String) -> String {
+        guard line.hasSuffix(")"), let open = line.lastIndex(of: "(") else { return line }
+        let inner = line[line.index(after: open)..<line.index(before: line.endIndex)]
+        guard isTagDump("(\(inner))") else { return line }
+        return String(line[..<open]).trimmingCharacters(in: CharacterSet(charactersIn: " -–—,;"))
+    }
 }
 
 struct GroceryItem: Codable, Identifiable, Equatable {

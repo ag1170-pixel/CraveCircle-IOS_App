@@ -291,4 +291,55 @@ final class DiscoveryReelRefreshTests: XCTestCase {
         XCTAssertEqual(DiscoveryReelRefresh.nextHead(currentID: "only", ids: ["only"]), "only")
         XCTAssertNil(DiscoveryReelRefresh.nextHead(currentID: "a", ids: []))
     }
+
+    func testUnseenPoolDropsCardsAlreadyOnScreen() {
+        XCTAssertEqual(DiscoveryReelRefresh.unseenPool(shown: ["a", "b"], candidates: ["b", "c", "d"]), ["c", "d"])
+        XCTAssertEqual(DiscoveryReelRefresh.unseenPool(shown: ["a"], candidates: ["a"]), ["a"])
+    }
+}
+
+// MARK: - Ingredient list format
+
+final class IngredientListFormatTests: XCTestCase {
+    func testCaptionTagBlockIsDroppedAndSectionNameStays() {
+        let dump = "(panerecipe, panerrecipes, butterpaneer, shahipaneer, paneermakhni, paneermakhani, reels, viralreels, viralshorts, food, foodporn, paneerlover, foodblogger, recipeoftheday, RecipeVideo, paneertikka, foodshorts, ComfortFood, indianrecipes, lunchrecipe, dinner)"
+        let group = IngredientGroup(groupName: "2-3 cloves", items: [
+            "1 onion, chopped",
+            "Chopped coriander",
+            dump
+        ])
+        XCTAssertEqual(group.groupName, "2-3 cloves")
+        XCTAssertEqual(group.items, ["1 onion, chopped", "Chopped coriander"])
+    }
+
+    func testKitchenNotesStay() {
+        let group = IngredientGroup(groupName: nil, items: [
+            "1 onion (finely chopped)",
+            "butter (or ghee)",
+            "kasuri methi (optional)"
+        ])
+        XCTAssertEqual(group.items, [
+            "1 onion (finely chopped)",
+            "butter (or ghee)",
+            "kasuri methi (optional)"
+        ])
+    }
+
+    func testTrailingTagBlockIsCutOffTheIngredient() {
+        let line = "Chopped coriander (panerecipe, viralreels, foodporn, foodblogger, recipeoftheday)"
+        XCTAssertEqual(IngredientListFormat.cleanedItem(line), "Chopped coriander")
+    }
+}
+
+final class RecipeReportTests: XCTestCase {
+    func testReportKeepsTheNoteAndTheRecipe() {
+        let recipe = makeRecipe(id: "paneer-1", title: "Paneer Butter Masala", ingredients: ["200g paneer", "1 onion, chopped"])
+        let content = RecipeReport.content(note: "Missed the cream", reporter: "@anas", reporterId: "user-1", recipe: recipe)
+        let parsed = RecipeReport.parse(content)
+        XCTAssertEqual(parsed?.note, "Missed the cream")
+        XCTAssertEqual(parsed?.reporter, "@anas")
+        XCTAssertEqual(parsed?.recipe.id, "paneer-1")
+        XCTAssertEqual(parsed?.recipe.title, "Paneer Butter Masala")
+        XCTAssertEqual(parsed?.recipe.ingredients.first?.items, ["200g paneer", "1 onion, chopped"])
+    }
 }

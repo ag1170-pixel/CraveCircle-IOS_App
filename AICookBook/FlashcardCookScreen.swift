@@ -130,7 +130,7 @@ struct FlashcardCookScreen: View {
             if timer.running || currentDuration != nil {
                 ClockRingView(timer: timer,
                               idleMinutes: currentDuration ?? 0,
-                              tint: color(for: index).ink) {
+                              tint: Color(hex: "1B1712")) {
                     toggleTimer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
@@ -144,7 +144,7 @@ struct FlashcardCookScreen: View {
                 if voice.permissionDenied { permissionBanner }
                 Spacer()
                 if voiceOn && voice.wakeActive {
-                    FloatingVoiceAssistantView(voice: voice)
+                    FloatingVoiceAssistantView(voice: voice, showsStartHint: currentDuration != nil)
                         .transition(.scale(scale: 0.7).combined(with: .opacity))
                         .padding(.bottom, 18)
                 }
@@ -176,7 +176,7 @@ struct FlashcardCookScreen: View {
         switch cmd {
         case .next:       move(by: 1)
         case .previous:   move(by: -1)
-        case .startTimer: toggleTimer()
+        case .startTimer: startTimer()
         }
     }
 
@@ -185,6 +185,13 @@ struct FlashcardCookScreen: View {
         guard next >= 0, next < cards.count else { return }
         withAnimation(reduceMotion ? nil : AppMotion.smooth) { index = next }
         Haptics.select()
+    }
+
+    /// Voice "start" only begins a countdown, and only on a step that shows the clock.
+    private func startTimer() {
+        guard let minutes = currentDuration, minutes > 0, !timer.running else { return }
+        Haptics.tap()
+        timer.toggle(minutes: minutes)
     }
 
     private func toggleTimer() {
@@ -226,7 +233,7 @@ struct FlashcardCookScreen: View {
                 Haptics.tap(); readAloud.toggle()
                 if readAloud { speakCurrentCard() } else { reader.stop() }
             }
-            voicePill
+            voiceButton
         }
         .padding(.horizontal, 24)
         .padding(.top, 14)
@@ -246,8 +253,11 @@ struct FlashcardCookScreen: View {
         .accessibilityLabel(label)
     }
 
-    private var voicePill: some View {
+    /// Mic only — the spoken commands live on the chef, not in this control.
+    private var voiceButton: some View {
         let ink = color(for: index).ink
+        let symbol = voice.permissionDenied ? "mic.slash.fill"
+            : (voiceOn ? (voice.wakeActive ? "waveform.badge.mic" : "mic.fill") : "mic.slash.fill")
         return Button {
             if voice.permissionDenied {
                 if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
@@ -256,24 +266,15 @@ struct FlashcardCookScreen: View {
             voiceOn.toggle(); Haptics.tap()
             if voiceOn { voice.start() } else { voice.stop() }
         } label: {
-            HStack(spacing: 7) {
-                Image(systemName: voiceOn ? (voice.wakeActive ? "waveform.badge.mic" : "mic.fill") : "mic.slash.fill")
-                    .font(.system(size: 13, weight: .bold))
-                Text(voiceStatusText).font(AppFont.body(13, weight: .semibold))
-            }
-            .foregroundStyle(ink)
-            .padding(.horizontal, 14).padding(.vertical, 9)
-            .background(ink.opacity(0.14), in: Capsule())
-            .overlay(Capsule().stroke(ink.opacity(0.25), lineWidth: 1))
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(ink)
+                .frame(width: 38, height: 38)
+                .background(ink.opacity(0.12), in: Circle())
+                .overlay(Circle().stroke(ink.opacity(0.25), lineWidth: 1))
         }
         .buttonStyle(PressableStyle())
-    }
-
-    private var voiceStatusText: String {
-        if !voiceOn { return "Voice off" }
-        if voice.permissionDenied { return "Enable mic & speech" }
-        if voice.isListening { return "Say “Forward” · “Backward” · “Start timer”" }
-        return "Starting…"
+        .accessibilityLabel(voiceOn ? "Turn off voice" : "Turn on voice")
     }
 
     private var permissionBanner: some View {
@@ -329,8 +330,10 @@ final class CookTimer: ObservableObject {
         guard total > 0 else { return }
         running = true
         ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            if self.remaining <= 1 { self.finish() } else { self.remaining -= 1 }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if self.remaining <= 1 { self.finish() } else { self.remaining -= 1 }
+            }
         }
     }
 

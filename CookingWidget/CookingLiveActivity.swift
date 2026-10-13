@@ -5,8 +5,8 @@
 //  The "recipe cooking" Live Activity — Dynamic Island (compact / minimal / expanded) + Lock Screen.
 //  Brand-styled for the island's always-black surface: cream text + CraveCircle coral accent
 //  (charcoal, the app's action color, is invisible here, so coral carries the identity). Minimal,
-//  iOS-native. Stage-based: each import stage swaps the glyph, label and progress — ActivityKit
-//  can't run continuous animations, so this is the lively-but-legal approach.
+//  iOS-native. The left logo bobs while cooking on the compact island, the expanded island, and
+//  the Lock Screen. Live Activities ignore repeatForever, so the bob is sampled from TimelineView.
 //
 
 import SwiftUI
@@ -20,18 +20,28 @@ private enum DI {
     static let coralSoft = Color(red: 0xEA / 255, green: 0x5A / 255, blue: 0x38 / 255).opacity(0.18)
 }
 
-/// A stage glyph that springs/fades in each time the stage changes — the premium, HIG-legal
-/// "float in" transition (continuous hovering isn't allowed on the Live Activity surface). Uses the
-/// Gemini art, with an SF-Symbol fallback (e.g. the failed state).
+/// Stage art on the left of the island and Lock Screen. Bobs up and down while cooking
+/// (held still when Ready or failed). `repeatForever` never runs on a Live Activity, so the
+/// offset is a sine of the system clock via `TimelineView`.
 private struct StageGlyph: View {
     let stage: CookingImportAttributes.ContentState.Stage
     var size: CGFloat = 40
-
-    @State private var up = false
+    var amplitude: CGFloat = 4
 
     private var floats: Bool { stage != .done && stage != .failed }
 
     var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !floats)) { context in
+            glyph
+                .frame(width: size, height: size)
+                .offset(y: bob(at: context.date))
+        }
+        .id(stage)
+        .transition(.scale(scale: 0.6).combined(with: .opacity))
+        .animation(.spring(response: 0.45, dampingFraction: 0.72), value: stage)
+    }
+
+    private var glyph: some View {
         Group {
             if let name = stage.artImage, UIImage(named: name) != nil {
                 Image(name).resizable().scaledToFit()
@@ -40,16 +50,12 @@ private struct StageGlyph: View {
                     .foregroundStyle(DI.coral).padding(size * 0.18)
             }
         }
-        .frame(width: size, height: size)
-        // Bob up/down while cooking (held still when Ready). NOTE: the real Live Activity surface
-        // doesn't run continuous animations, so this hovers in the in-app preview and is static on
-        // the actual Dynamic Island — kept for parity.
-        .offset(y: floats ? (up ? -4 : 4) : 0)
-        .animation(floats ? .easeInOut(duration: 0.95).repeatForever(autoreverses: true) : .default, value: up)
-        .id(stage)                               // new identity per stage → the transition fires
-        .transition(.scale(scale: 0.6).combined(with: .opacity))
-        .animation(.spring(response: 0.45, dampingFraction: 0.72), value: stage)
-        .onAppear { if floats { up = true } }
+    }
+
+    private func bob(at date: Date) -> CGFloat {
+        guard floats else { return 0 }
+        let t = date.timeIntervalSinceReferenceDate
+        return CGFloat(sin(t / 0.95 * .pi * 2)) * amplitude
     }
 }
 
@@ -105,11 +111,7 @@ struct CookingLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                Image(s.stage.artImage ?? "di-brand").resizable().scaledToFit()
-                    .frame(width: 24, height: 24)
-                    .id(s.stage)
-                    .transition(.scale(scale: 0.5).combined(with: .opacity))
-                    .animation(.spring(response: 0.4, dampingFraction: 0.7), value: s.stage)
+                StageGlyph(stage: s.stage, size: 24, amplitude: 2.5)
             } compactTrailing: {
                 if s.stage == .done {
                     Image(systemName: "checkmark").foregroundStyle(DI.coral)

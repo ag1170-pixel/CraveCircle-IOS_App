@@ -3,8 +3,7 @@
 //  CraveCircle (AICookBook)
 //
 //  Browse surface, matched to the Figma "Main Dashboard": serif wordmark top bar,
-//  a "Following" creators row, "Fresh in your Circle" horizontal cards, and a
-//  "Your Library" grid — cards carry title/creator/meta below the image.
+//  then Your Library grid, Fresh in your Circle, and Suggested for You last.
 //  Light-first warm/coral, full dark parity.
 //
 
@@ -57,12 +56,12 @@ struct HomeScreen: View {
                     if isSearching {
                         searchResultsSection
                     } else {
+                        if !libraryGridRecipes.isEmpty {
+                            librarySection
+                        }
                         freshSection
                         if !environment.suggestedRecipes.isEmpty {
                             suggestedSection
-                        }
-                        if !libraryGridRecipes.isEmpty {
-                            librarySection
                         }
                     }
                 }

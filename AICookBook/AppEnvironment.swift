@@ -1844,6 +1844,13 @@ final class AppEnvironment: ObservableObject {
     func submitFeedback(type: String, content: String, email: String? = nil, handle: String? = nil) async throws {
         try await apiClient.submitFeedback(type: type, content: content, email: email, handle: handle)
     }
+
+    /// Recipe-issue reports, newest first.
+    func fetchRecipeReports() async throws -> [AdminFeedback] {
+        guard isAdmin else { return [] }
+        let rows = try await apiClient.fetchFeedback()
+        return rows.filter { $0.type == "recipe_report" }
+    }
 }
 
 enum ImportFlowState: Equatable {

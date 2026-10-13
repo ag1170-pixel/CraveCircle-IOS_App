@@ -299,6 +299,29 @@ struct ProfileScreen: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                    NavigationLink {
+                        AdminRecipeReportsScreen()
+                    } label: {
+                        HStack(spacing: AppSpacing.sm) {
+                            Image(systemName: "exclamationmark.bubble.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 30, height: 30)
+                                .background(AppTheme.brand, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            Text("Recipe Reports")
+                                .font(AppFont.body(16, weight: .medium))
+                                .foregroundStyle(AppTheme.textPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(AppTheme.textTertiary)
+                        }
+                        .padding(.horizontal, AppSpacing.md)
+                        .padding(.vertical, 13)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))

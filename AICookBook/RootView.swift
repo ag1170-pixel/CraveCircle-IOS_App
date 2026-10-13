@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Root
 
@@ -268,7 +269,9 @@ struct MainTabView: View {
     @State private var showFeedback = false        // "Write to CEO" app-icon quick action
     @State private var tab: AppTab = .home
     @State private var ignoreSwipeFrames: [CGRect] = []
-    @State private var discoverEpoch = 0
+    @State private var discoverSignal = DiscoverTabSignal()
+    @State private var discoverReel: [Recipe] = []
+    @State private var discoverCurrentID: String?
 
     /// Osta-style floating + button, bottom-right. Context-aware: on the Grocery tab it opens
     /// "Add item to your list"; everywhere else it opens Add-a-recipe.
@@ -308,8 +311,7 @@ struct MainTabView: View {
             Tab(value: AppTab.discover) {
                 // Discover is now the full-screen recipe reel (Instagram/TikTok style, Hinge swipes).
                 // The old SearchScreen stays in the repo — search lives on Home now.
-                RecipeReelScreen()
-                    .id(discoverEpoch)
+                RecipeReelScreen(tabSignal: discoverSignal, reel: $discoverReel, currentID: $discoverCurrentID)
             } label: {
                 Image(systemName: AppTab.discover.icon)
                     .accessibilityLabel(AppTab.discover.title)
@@ -331,8 +333,14 @@ struct MainTabView: View {
         // Import FAB everywhere EXCEPT Discover — the reel is immersive and the FAB would cover the rail.
         .overlay(alignment: .bottomTrailing) { if tab != .discover { importFAB } }
         .tabBarMinimizeBehavior(.onScrollDown)
-        .onChange(of: tab) { _, newTab in
-            if newTab == .discover { discoverEpoch += 1 }
+        .background {
+            DiscoverTabTapCatcher(
+                onDoubleTap: {
+                    guard tab == .discover else { return }
+                    Haptics.select()
+                    discoverSignal.token += 1
+                }
+            )
         }
         .onPreferenceChange(HorizontalScrollFrameKey.self) { frames in
             // Keep track of horizontal scroll areas (like carousels on HomeScreen)
@@ -449,6 +457,102 @@ struct MainTabView: View {
                 tab = requested
                 environment.pendingTabSwitch = nil
             }
+        }
+    }
+}
+
+/// Hears a double-tap on the Discover tab icon without stealing it from the system tab bar.
+/// Only fires when Discover was already selected — switching onto the tab keeps the current card.
+private struct DiscoverTabTapCatcher: UIViewControllerRepresentable {
+    var onDoubleTap: () -> Void
+
+    func makeUIViewController(context: Context) -> Catcher {
+        let catcher = Catcher()
+        catcher.onDoubleTap = onDoubleTap
+        return catcher
+    }
+
+    func updateUIViewController(_ catcher: Catcher, context: Context) {
+        catcher.onDoubleTap = onDoubleTap
+    }
+
+    final class Catcher: UIViewController, UIGestureRecognizerDelegate {
+        var onDoubleTap: (() -> Void)?
+        /// Latched from the first touch of a double-tap. A tap that switches onto Discover
+        /// must not reload — Instagram keeps your place.
+        private var alreadyOnDiscover = false
+        private var sampledAt = Date.distantPast
+        private weak var watched: UITabBar?
+        private weak var tabController: UITabBarController?
+        private var recognizers: [UIGestureRecognizer] = []
+        private var discoverIndex: Int { AppTab.allCases.firstIndex(of: .discover) ?? 1 }
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            attach()
+        }
+
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
+            attach()
+        }
+
+        deinit { detach() }
+
+        private func attach() {
+            guard watched == nil else { return }
+            let controller = tabBarController ?? findTab(view.window?.rootViewController)
+            guard let controller else { return }
+            let bar = controller.tabBar
+            let double = UITapGestureRecognizer(target: self, action: #selector(didDouble))
+            double.numberOfTapsRequired = 2
+            double.cancelsTouchesInView = false
+            double.delaysTouchesEnded = false
+            double.delegate = self
+            bar.addGestureRecognizer(double)
+            recognizers = [double]
+            watched = bar
+            tabController = controller
+        }
+
+        private func findTab(_ vc: UIViewController?) -> UITabBarController? {
+            guard let vc else { return nil }
+            if let tab = vc as? UITabBarController { return tab }
+            for child in vc.children {
+                if let found = findTab(child) { return found }
+            }
+            return findTab(vc.presentedViewController)
+        }
+
+        private func detach() {
+            guard let bar = watched else { return }
+            recognizers.forEach { bar.removeGestureRecognizer($0) }
+            recognizers.removeAll()
+            watched = nil
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            let now = Date()
+            if now.timeIntervalSince(sampledAt) > 0.45 {
+                alreadyOnDiscover = tabController?.selectedIndex == discoverIndex
+                sampledAt = now
+            }
+            return true
+        }
+
+        @objc private func didDouble(_ gesture: UITapGestureRecognizer) {
+            guard alreadyOnDiscover, isDiscover(gesture) else { return }
+            onDoubleTap?()
+        }
+
+        private func isDiscover(_ gesture: UIGestureRecognizer) -> Bool {
+            guard let bar = gesture.view as? UITabBar else { return false }
+            let count = bar.items?.count ?? 0
+            guard count > 0, bar.bounds.width > 0 else { return false }
+            let index = Int(gesture.location(in: bar).x / (bar.bounds.width / CGFloat(count)))
+            return index == discoverIndex && tabController?.selectedIndex == discoverIndex
         }
     }
 }

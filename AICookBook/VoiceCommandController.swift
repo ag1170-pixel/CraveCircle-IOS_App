@@ -71,9 +71,9 @@ final class VoiceCommandController: NSObject, ObservableObject {
         "back", "backward", "backwards", "previous", "prev", "last", "reverse", "return", "repeat",
         "beck", "pack", "bag", "black", "backwood"
     ]
-    // "start timer" / "start the timer" / "start clock" — trigger on the distinctive noun.
+    // "start" on a clock card, plus "start timer" / "start clock".
     private let timerWords: Set<String> = [
-        "timer", "clock", "timers", "times", "timmer"
+        "start", "starts", "timer", "clock", "timers", "timmer"
     ]
 
     // MARK: Lifecycle
@@ -213,7 +213,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
         req.requiresOnDeviceRecognition = false
         req.taskHint = .search
         req.contextualStrings = ["next", "forward", "back", "backward", "previous", "front",
-                                 "next step", "go back", "start timer", "start the timer",
+                                 "next step", "go back", "start", "start timer", "start the timer",
                                  "start clock", "timer", "clock"]
         request = req
         lastProcessedSegments = 0            // fresh transcription → scan from the start

@@ -31,20 +31,34 @@ enum DiscoveryReelRefresh {
         guard let currentID, ids.count > 1, ids.contains(currentID) else { return first }
         return first == currentID ? ids[1] : first
     }
+
+    /// Cards not already in the on-screen stack. Falls back to `candidates` when every one was shown.
+    static func unseenPool(shown: [String], candidates: [String]) -> [String] {
+        let shownSet = Set(shown)
+        let fresh = candidates.filter { !shownSet.contains($0) }
+        return fresh.isEmpty ? candidates : fresh
+    }
+}
+
+/// Bumped only by a double-tap on the Discover tab while that tab is already selected.
+struct DiscoverTabSignal: Equatable {
+    var token = 0
 }
 
 struct RecipeReelScreen: View {
+    var tabSignal: DiscoverTabSignal = DiscoverTabSignal()
+    /// Owned by the tab bar so leaving Discover and coming back shows the same card.
+    @Binding var reel: [Recipe]
+    @Binding var currentID: String?
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("reel_autoplay")        private var autoplay = false
 
-    @State private var currentID: String?
     @State private var autoplayTick = 0
 
-    // A STABLE, randomized snapshot of the personalized unseen feed. Built on appear / refresh only
-    // (not recomputed while scrolling — logging a "view" marks a recipe seen, which must not yank it
-    // out from under the user mid-scroll). See `AppEnvironment.discoveryReel()`.
-    @State private var reel: [Recipe] = []
+    // A STABLE snapshot of the feed. Built once, then only on an explicit Discover-tab double-tap.
+    // Reappearing the tab must not reshuffle — a viewed card would drop out from under the user.
+    // See `AppEnvironment.discoveryReel()`.
 
     /// First appear only. Stays on the current card when that id is still in the new shuffle.
     private func rebuildReel() {
@@ -55,10 +69,15 @@ struct RecipeReelScreen: View {
         }
     }
 
-    /// Reload button and pull-to-refresh. `discoveryReel()` reads `recipes`,
-    /// so a suggested-feed fetch does not change the reel by itself — the visible change is a new head.
-    private func refreshReel() {
+    /// Pull-to-refresh, or a second Discover-tab tap. `discoveryReel()` reads `recipes`.
+    /// `excludingShown` drops the cards already in this stack so the new pile is unseen.
+    private func refreshReel(excludingShown: Bool = false) {
         var next = environment.discoveryReel()
+        if excludingShown {
+            let fresh = DiscoveryReelRefresh.unseenPool(shown: reel.map(\.id), candidates: next.map(\.id))
+            let byID = Dictionary(next.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            next = fresh.compactMap { byID[$0] }
+        }
         let ids = next.map(\.id)
         let head = DiscoveryReelRefresh.nextHead(currentID: currentID, ids: ids)
         if let head, ids.first != head {
@@ -110,10 +129,11 @@ struct RecipeReelScreen: View {
             .overlay(alignment: .top) { topChrome(topInset: geo.safeAreaInsets.top) }
         }
         .task {
-            // Fresh random order every time this screen is created (tab visit bumps its identity).
+            // `.task` restarts every time this tab appears. Only build a reel when there isn't one.
+            guard reel.isEmpty else { return }
             rebuildReel()
             await environment.fetchSuggestedFeed()
-            rebuildReel()
+            if reel.isEmpty { rebuildReel() }
         }
         .onChange(of: currentID) { _, id in
             guard let id else { return }
@@ -125,6 +145,10 @@ struct RecipeReelScreen: View {
             if let idx = reel.firstIndex(where: { $0.id == id }), idx >= reel.count - 2 {
                 appendMoreToReel()
             }
+        }
+        .onChange(of: tabSignal.token) { _, _ in
+            guard tabSignal.token > 0 else { return }
+            refreshReel(excludingShown: true)
         }
         .task(id: "\(autoplay)-\(autoplayTick)") {
             guard autoplay, !reduceMotion else { return }
@@ -318,20 +342,20 @@ private struct ReelCell: View {
                     environment.toggleFollow(creatorHandle: h)
                 }
             } label: {
-                HStack(spacing: 5) {
+                HStack(spacing: 4) {
                     Image(systemName: following ? "checkmark" : "person.badge.plus")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 11, weight: .bold))
                         .contentTransition(.symbolEffect(.replace))
                     Text(following ? "Following" : "Follow")
-                        .font(AppFont.body(13, weight: .bold))
+                        .font(AppFont.body(12, weight: .bold))
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14)
-                .frame(height: 34)
+                .foregroundStyle(AppTheme.onBrand)
+                .padding(.horizontal, 11)
+                .frame(height: 28)
                 .background(
                     following
                         ? AnyShapeStyle(.ultraThinMaterial)
-                        : AnyShapeStyle(Color(hex: "1877F2")),
+                        : AnyShapeStyle(AppTheme.brand),
                     in: Capsule()
                 )
                 .overlay(
