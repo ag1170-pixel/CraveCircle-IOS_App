@@ -450,10 +450,13 @@ final class AppEnvironment: ObservableObject {
             let computed = NutritionEstimator.estimate(for: recipe)   // offline USDA-backed
             await MainActor.run {
                 guard let self else { return }
-                if let i = self.recipes.firstIndex(where: { $0.id == recipe.id }) {
+                if let i = self.recipes.firstIndex(where: { $0.id == recipe.id }),
+                   self.recipes[i].nutrition == nil {
                     self.recipes[i].nutrition = computed
                 }
-                if self.selectedRecipe?.id == recipe.id { self.selectedRecipe?.nutrition = computed }
+                if self.selectedRecipe?.id == recipe.id, self.selectedRecipe?.nutrition == nil {
+                    self.selectedRecipe?.nutrition = computed
+                }
             }
         }
     }
@@ -893,50 +896,62 @@ final class AppEnvironment: ObservableObject {
 
     private func _startImport(from instagramURL: String) async {
         do {
-            // 1) Fetch reel info and server-cached mp4 link
-            let reel = try await apiClient.downloadReel(url: instagramURL)
-            if Task.isCancelled { return }
-            let downloadPath = reel.downloadUrl.starts(with: "http")
-                ? reel.downloadUrl
-                : config.apiBaseURL.appending(path: reel.downloadUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/"))).absoluteString
+            // Audio only, so listening starts without a 720p file. One frame is downloaded after.
+            importState = .polling(jobId: "link", status: .downloading)
+            let (localAudio, reel) = try await downloadServerMedia(from: instagramURL, audioOnly: true)
+            if Task.isCancelled { try? FileManager.default.removeItem(at: localAudio); return }
 
-            guard let downloadUrl = URL(string: downloadPath) else {
-                throw URLError(.badURL)
-            }
-
-            // 2) Download video file to local temporary storage on iPhone
-            importState = .polling(jobId: reel.mediaId, status: .downloading)
-            let (tempFileUrl, _) = try await URLSession.shared.download(from: downloadUrl)
-            if Task.isCancelled { try? FileManager.default.removeItem(at: tempFileUrl); return }
-
-            let localMp4 = FileManager.default.temporaryDirectory.appendingPathComponent("\(reel.mediaId).mp4")
-            if FileManager.default.fileExists(atPath: localMp4.path) {
-                try? FileManager.default.removeItem(at: localMp4)
-            }
-            try FileManager.default.moveItem(at: tempFileUrl, to: localMp4)
-
-            // 3) Hand off to the fast on-device pipeline (Apple Neural Engine + Vision).
-            //    Resolve the thumbnail (the server returns a relative /reels/media/… path for its
-            //    ffmpeg frame; the reel's own poster image comes as a full http URL).
-            let resolvedThumb: String?
-            if let t = reel.thumbnail, !t.isEmpty {
-                resolvedThumb = t.starts(with: "http")
-                    ? t
-                    : config.apiBaseURL.appending(path: t.trimmingCharacters(in: CharacterSet(charactersIn: "/"))).absoluteString
-            } else {
-                resolvedThumb = nil
-            }
-            // Same task → cancellation propagates into the on-device pipeline.
-            await _importFromVideo(localMp4, caption: reel.caption, title: reel.title, thumbnailUrl: resolvedThumb)
-
-            // Clean up
-            try? FileManager.default.removeItem(at: localMp4)
-
+            let resolvedThumb = Self.absoluteMediaURL(reel.thumbnail, apiBase: config.apiBaseURL)
+            // Start the poster download now, while the CDN link is fresh, overlapping the listen.
+            let coverTask = Task { await Self.fetchCover(resolvedThumb) }
+            await _importFromVideo(
+                localAudio, caption: reel.caption, title: reel.title, thumbnailUrl: resolvedThumb,
+                reelLink: instagramURL, coverTask: coverTask)
+            try? FileManager.default.removeItem(at: localAudio)
         } catch {
             if Task.isCancelled { return }   // a cancelled request throws — don't show "failed"
             print("❌ startImport error: \(error)")
             importState = .failed(message: friendlyImportError(error))
         }
+    }
+
+    /// Server file for a reel link. `audioOnly` is the listen step; video is the later picture step.
+    private func downloadServerMedia(from instagramURL: String, audioOnly: Bool) async throws -> (file: URL, reel: APIClient.ReelDownloadResult) {
+        let reel = try await apiClient.downloadReel(url: instagramURL, audioOnly: audioOnly)
+        if Task.isCancelled { throw CancellationError() }
+        guard let downloadUrl = Self.absoluteMediaURL(reel.downloadUrl, apiBase: config.apiBaseURL).flatMap(URL.init(string:)) else {
+            throw URLError(.badURL)
+        }
+        let (tempFileUrl, _) = try await URLSession.shared.download(from: downloadUrl)
+        if Task.isCancelled {
+            try? FileManager.default.removeItem(at: tempFileUrl)
+            throw CancellationError()
+        }
+        let ext = downloadUrl.pathExtension.lowercased()
+        let fileExt = ext.isEmpty ? (audioOnly ? "m4a" : "mp4") : ext
+        let local = FileManager.default.temporaryDirectory.appendingPathComponent("\(reel.mediaId).\(fileExt)")
+        if FileManager.default.fileExists(atPath: local.path) {
+            try? FileManager.default.removeItem(at: local)
+        }
+        try FileManager.default.moveItem(at: tempFileUrl, to: local)
+        return (local, reel)
+    }
+
+    private static func absoluteMediaURL(_ path: String?, apiBase: URL) -> String? {
+        guard let path, !path.isEmpty else { return nil }
+        if path.starts(with: "http") { return path }
+        return apiBase.appending(path: path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))).absoluteString
+    }
+
+    /// Reel poster, saved while the link still works. Nil when the CDN refuses or the body isn't an image.
+    private static func fetchCover(_ urlString: String?) async -> Data? {
+        guard let urlString, let url = URL(string: urlString), url.scheme?.hasPrefix("http") == true else { return nil }
+        var request = URLRequest(url: url)
+        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              !data.isEmpty, UIImage(data: data) != nil else { return nil }
+        return data
     }
 
     /// Turn raw network errors into something a cook understands — and always point at the on-device
@@ -1069,23 +1084,41 @@ final class AppEnvironment: ObservableObject {
         await task.value
     }
 
-    private func _importFromVideo(_ url: URL, caption: String? = nil, title: String? = nil, thumbnailUrl: String? = nil) async {
+    private func _importFromVideo(
+        _ url: URL, caption: String? = nil, title: String? = nil, thumbnailUrl: String? = nil,
+        reelLink: String? = nil, coverTask: Task<Data?, Never>? = nil
+    ) async {
         guard await OnDeviceTranscriber.ensureAuthorized() else {
             if Task.isCancelled { return }
             importState = .failed(message: "Enable Speech Recognition in Settings to import on device.")
             return
         }
         if Task.isCancelled { return }
-        importState = .polling(jobId: "on-device", status: .transcribing)
+
+        // A link import passes audio. A picked video passes the file itself (export + frame stay here).
+        var videoFile: URL? = reelLink == nil ? url : nil
+        var ownedVideo: URL?
+        var serverFrame: String?
+        defer { if let ownedVideo { try? FileManager.default.removeItem(at: ownedVideo) } }
 
         // 1) Transcribe narration. A silent / music-only clip just yields an empty string here —
         //    that's expected, not a failure, so we fall through to on-screen text.
         //    Auto-detect the spoken language from the caption/title (captions usually match the
         //    audio) so an English reel isn't transcribed by a Tamil recognizer and vice-versa —
         //    the recipe's OUTPUT language is handled separately by translateToPreferredLanguage().
+        //    The speech model should already be on the phone from language selection. If it isn't,
+        //    install it under its own status so that wait isn't labeled as the listen.
         var transcript = ""
         do {
             let locale = await Self.speechLocale(forHint: [title, caption].compactMap { $0 }.joined(separator: " "))
+            if await OnDeviceTranscriber.isAssetInstalled(localeID: locale) {
+                importState = .polling(jobId: "on-device", status: .transcribing)
+            } else {
+                importState = .polling(jobId: "on-device", status: .preparing)
+                try await OnDeviceTranscriber.installAssetIfNeeded(localeID: locale)
+                if Task.isCancelled { return }
+                importState = .polling(jobId: "on-device", status: .transcribing)
+            }
             let out = try await OnDeviceTranscriber.transcribe(url: url, localeID: locale)
             transcript = out.text
             print("🎙️ On-device transcription (\(locale)) succeeded. Characters: \(transcript.count)")
@@ -1094,13 +1127,30 @@ final class AppEnvironment: ObservableObject {
         }
         if Task.isCancelled { return }
 
+        let coverBytes = await coverTask?.value
+        let hasCover = coverBytes?.isEmpty == false
+
         // 2) Little or no narration => read the ON-SCREEN text with Vision OCR (many reels put the
-        //    whole recipe on screen with no voiceover and no caption).
+        //    whole recipe on screen with no voiceover and no caption). A complete caption skips
+        //    this download. The cover frame is fetched afterwards either way.
         var onScreen = ""
-        if transcript.count < 40 {
-            importState = .polling(jobId: "on-device", status: .extracting)
-            onScreen = await VideoTextOCR.recognizeText(url: url)
-            if Task.isCancelled { return }
+        let context = [title, caption, transcript].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
+        let skipVideo = reelLink != nil && !TranscriptListen.needsVideoDownload(
+            transcriptCount: transcript.count, context: context, hasCover: hasCover)
+        if transcript.count < 40 && !skipVideo {
+            if videoFile == nil, let reelLink {
+                importState = .polling(jobId: "on-device", status: .downloading)
+                if let got = try? await downloadServerMedia(from: reelLink, audioOnly: false) {
+                    videoFile = got.file
+                    ownedVideo = got.file
+                    if let t = got.reel.thumbnail, t.hasPrefix("/") { serverFrame = t }
+                }
+            }
+            if let videoFile {
+                importState = .polling(jobId: "on-device", status: .extracting)
+                onScreen = await VideoTextOCR.recognizeText(url: videoFile)
+                if Task.isCancelled { return }
+            }
         }
 
         // 3) MULTILINGUAL BRIDGE: the heuristic extractor and food gate only understand English
@@ -1133,6 +1183,11 @@ final class AppEnvironment: ObservableObject {
             transcript: transcript, caption: fullCaption.isEmpty ? nil : fullCaption, ownerId: currentUser?.id ?? "you",
             sourceLanguage: nil, onScreenText: onScreen, targetLanguage: AppLanguage.preferred
         )
+        // Caption is still in hand here. A stated per-serving line must not be replaced by the USDA fill-in.
+        let captionSource = [fullCaption, onScreen].filter { !$0.isEmpty }.joined(separator: "\n")
+        if let stated = NutritionEstimator.statedPerServing(in: captionSource) {
+            recipe.nutrition = stated
+        }
         if Task.isCancelled { return }
 
         // 4) Nothing readable anywhere (no audio, no caption, no on-screen text) => fail with a
@@ -1158,20 +1213,40 @@ final class AppEnvironment: ObservableObject {
         recipe = await translateToPreferredLanguage(recipe)
         if Task.isCancelled { return }
 
-        // 5) Give it a real cover: grab a representative frame from the video and store it locally,
-        //    so the imported recipe looks like a real recipe instead of the generic fallback.
-        //    (We avoid using the external Instagram thumbnail URL because those CDN links expire 
-        //    and block hotlinking, causing them to fail to load).
-        if let thumb = await VideoThumbnail.frame(from: url),
-           let _ = LocalStore.saveData(thumb.data, to: "thumb-\(recipe.id).\(thumb.ext)") {
+        // 5) Cover is one frame of this reel, after listening. Poster only if that grab fails.
+        var covered = false
+        if videoFile == nil, let reelLink {
+            importState = .polling(jobId: "on-device", status: .downloading)
+            if let got = try? await downloadServerMedia(from: reelLink, audioOnly: false) {
+                videoFile = got.file
+                ownedVideo = got.file
+                if let t = got.reel.thumbnail, t.hasPrefix("/") { serverFrame = t }
+            }
+            if Task.isCancelled { return }
+        }
+        if let frameURL = videoFile,
+           let thumb = await VideoThumbnail.frame(from: frameURL),
+           LocalStore.saveData(thumb.data, to: "thumb-\(recipe.id).\(thumb.ext)") != nil {
             recipe.thumbnailUrl = "thumb-\(recipe.id).\(thumb.ext)"
-        } else if let remote = thumbnailUrl, let rurl = URL(string: remote),
-                  rurl.scheme?.hasPrefix("http") == true,
-                  let (data, _) = try? await URLSession.shared.data(from: rurl),
-                  let _ = LocalStore.saveData(data, to: "thumb-\(recipe.id).jpg") {
-            // Frame grab failed (e.g. a VP9 clip iOS can't decode) — fall back to the reel's own
-            // thumbnail, downloaded now while the CDN link is fresh and stored locally so it persists.
+            covered = true
+        }
+        if !covered, let serverFrame,
+           let data = await Self.fetchCover(Self.absoluteMediaURL(serverFrame, apiBase: config.apiBaseURL)),
+           LocalStore.saveData(data, to: "thumb-\(recipe.id).jpg") != nil {
             recipe.thumbnailUrl = "thumb-\(recipe.id).jpg"
+            covered = true
+        }
+        if !covered, let data = coverBytes, !data.isEmpty,
+           LocalStore.saveData(data, to: "thumb-\(recipe.id).jpg") != nil {
+            recipe.thumbnailUrl = "thumb-\(recipe.id).jpg"
+            covered = true
+        }
+        if !covered, let remote = thumbnailUrl, let rurl = URL(string: remote),
+           rurl.scheme?.hasPrefix("http") == true,
+           let (data, _) = try? await URLSession.shared.data(from: rurl),
+           LocalStore.saveData(data, to: "thumb-\(recipe.id).jpg") != nil {
+            recipe.thumbnailUrl = "thumb-\(recipe.id).jpg"
+            covered = true
         }
         if Task.isCancelled { return }
 
@@ -1181,6 +1256,28 @@ final class AppEnvironment: ObservableObject {
         // Do NOT auto-set selectedRecipe here.
         importState = .done(recipeId: recipe.id)
         notifyImportDone(recipeTitle: recipe.title)
+    }
+
+    /// Copy the server cover onto this phone. That file is a frame of the reel; Instagram's
+    /// poster only if the frame grab failed. A CDN link expires and was being replaced by a
+    /// bundled dish photo. A local `thumb-<id>.jpg` does not, and the card shows it first.
+    private func storeCoverLocally(_ recipe: Recipe) async -> Recipe {
+        guard let raw = recipe.thumbnailUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return recipe }
+        if !raw.contains("://") && !raw.hasPrefix("/") { return recipe }
+        let absolute = raw.hasPrefix("/")
+            ? config.apiBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + raw
+            : raw
+        guard let remote = URL(string: absolute) else { return recipe }
+        var request = URLRequest(url: remote)
+        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              UIImage(data: data) != nil else { return recipe }
+        let name = "thumb-\(recipe.id).jpg"
+        guard LocalStore.saveData(data, to: name) != nil else { return recipe }
+        var copy = recipe
+        copy.thumbnailUrl = name
+        return copy
     }
 
     /// True when an extracted recipe actually has ingredients or steps.
@@ -1430,7 +1527,7 @@ final class AppEnvironment: ObservableObject {
                 let core = GrocerySort.coreName(trimmed)
                 if !core.isEmpty, seen.contains(core) { continue }   // de-dupe within this dish
                 if !core.isEmpty { seen.insert(core) }
-                let scaledText = IngredientScaler.scale(text: trimmed, from: baseServings, to: targetServings)
+                let scaledText = IngredientListFormat.scaledLine(trimmed, from: baseServings, to: targetServings)
                 groceryItems.append(GroceryItem(id: UUID().uuidString, ingredientName: scaledText, checked: false, recipeName: dish))
                 added += 1
             }
@@ -1602,9 +1699,9 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
-    /// The Discovery reel: personalized (same recommender as "Suggested for you"), with recipes the
-    /// user has already VIEWED removed, returned in RANDOM order. Falls back to all discoverable
-    /// recipes (still shuffled) once everything's been seen, so the reel is never empty.
+    /// The Discovery reel: personalized suggestions (viewed and owned ids excluded, same as before)
+    /// mixed with Home's library — owned or saved — then shuffled. Owned library cards stay in
+    /// the mix after a view so that exclusion can't empty Discover of recipes the user already has.
     func discoveryReel() -> [Recipe] {
         let seen = Set(interactionHistory.filter { $0.eventType == "view" }.map(\.recipeId))
         let own = Set(recipes.filter { isOwner(of: $0) }.map(\.id))
@@ -1617,11 +1714,17 @@ final class AppEnvironment: ObservableObject {
             limit: 60
         )
         if picks.isEmpty {
-            // Seen everything the recommender would pick — show the rest (unseen first), still shuffled.
+            // Seen everything the recommender would pick — show the rest (unseen first).
             let unseen = recipes.filter { !own.contains($0.id) && !seen.contains($0.id) }
             picks = unseen.isEmpty ? recipes.filter { !own.contains($0.id) } : unseen
         }
-        return picks.shuffled()
+        let library = recipes.filter { isOwner(of: $0) || isSaved(recipeId: $0.id) }
+        return DiscoveryReelRefresh.mixedReel(
+            library: library,
+            suggestions: picks,
+            ownedIDs: own,
+            viewedIDs: seen
+        )
     }
 
     /// Personalized suggestions. Prefers the server RPC (cross-user, dwell-weighted) when signed in;
@@ -1683,7 +1786,7 @@ final class AppEnvironment: ObservableObject {
             stage = .downloading
         case .polling(_, let status):
             switch status {
-            case .queued, .downloading: stage = .downloading
+            case .queued, .downloading, .preparing: stage = .downloading
             case .transcribing:         stage = .transcribing
             case .extracting:           stage = .extracting
             case .done:                 stage = .done
@@ -1779,6 +1882,7 @@ final class AppEnvironment: ObservableObject {
                         // translation is best-effort). Ensure the user's chosen Recipe Language on the
                         // app side too — no-op if the server already delivered it in the target.
                         recipe = await self.translateToPreferredLanguage(recipe)
+                        recipe = await self.storeCoverLocally(recipe)
                         await MainActor.run {
                             if let index = self.recipes.firstIndex(where: { $0.id == recipe.id }) {
                                 self.recipes[index] = recipe

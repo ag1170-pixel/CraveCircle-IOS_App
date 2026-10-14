@@ -31,7 +31,7 @@ struct CookModeScreen: View {
         let base = recipe.servings ?? 2
         return recipe.ingredients.enumerated().flatMap { g, group in
             group.items.enumerated().map { i, item in
-                let scaled = IngredientScaler.scale(text: item, from: base, to: servings)
+                let scaled = IngredientListFormat.scaledLine(item, from: base, to: servings)
                 return ("\(g):\(i)", scaled)
             }
         }
@@ -44,32 +44,37 @@ struct CookModeScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            ScrollView {
-                VStack(alignment: .leading, spacing: AppSpacing.xl) {
-                    section("Ingredients") {
-                        ForEach(Array(ingredientKeys.enumerated()), id: \.offset) { idx, pair in
-                            CookRow(text: pair.text, checked: checkedIngredients.contains(pair.key)) {
-                                toggle(&checkedIngredients, pair.key)
-                            }
-                            if idx < ingredientKeys.count - 1 { rowDivider }
+            List {
+                Section("Ingredients") {
+                    ForEach(ingredientKeys, id: \.key) { pair in
+                        ChecklistRow(title: ingredientLine(pair.text, size: 17), minHeight: 56, checkLeading: true, checked: checkedIngredients.contains(pair.key)) {
+                            toggleChecklistItem(&checkedIngredients, pair.key)
                         }
+                        .listRowBackground(AppTheme.surface)
                     }
-                    section("Steps") {
-                        ForEach(Array(steps.enumerated()), id: \.offset) { idx, step in
-                            CookRow(number: idx + 1, text: step.text, checked: checkedSteps.contains(step.stepIndex)) {
-                                toggle(&checkedSteps, step.stepIndex)
-                            }
-                            if idx < steps.count - 1 { rowDivider }
+                }
+                Section {
+                    ForEach(Array(steps.enumerated()), id: \.element.stepIndex) { index, step in
+                        ChecklistRow(
+                            title: AttributedString("\(index + 1). \(step.text)"),
+                            minHeight: 56,
+                            checked: checkedSteps.contains(step.stepIndex)
+                        ) {
+                            toggleChecklistItem(&checkedSteps, step.stepIndex)
                         }
+                        .listRowBackground(AppTheme.surface)
                     }
+                } header: {
+                    Text("Steps")
+                } footer: {
                     resetNote
                 }
-                .padding(.horizontal, AppSpacing.md)
-                .padding(.top, AppSpacing.lg)
-                .padding(.bottom, AppSpacing.xxl)
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
         }
         .background(AppTheme.background.ignoresSafeArea())
+        .tint(AppTheme.accentInk)
         .leadingEdgeBack { dismiss() }
     }
 
@@ -146,73 +151,12 @@ struct CookModeScreen: View {
 
     // MARK: Sections
 
-    private func section(_ title: String, @ViewBuilder _ rows: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title).sectionLabelStyle().padding(.bottom, AppSpacing.xs)
-            VStack(spacing: 0) { rows() }
-        }
-    }
-
-    private var rowDivider: some View {
-        Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.leading, 44)
-    }
-
     private var resetNote: some View {
         Label("Checklist resets daily at midnight", systemImage: "clock.arrow.circlepath")
             .font(AppFont.body(13))
             .foregroundStyle(AppTheme.textTertiary)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.top, AppSpacing.sm)
-    }
-
-    private func toggle<T: Hashable>(_ set: inout Set<T>, _ value: T) {
-        let willCheck = !set.contains(value)
-        Haptics.toggle(willCheck)
-        if willCheck { set.insert(value) } else { set.remove(value) }
-    }
-}
-
-// MARK: - Large cook row (kitchen tap target)
-
-private struct CookRow: View {
-    var number: Int? = nil
-    let text: String
-    let checked: Bool
-    let toggle: () -> Void
-
-    var body: some View {
-        Button(action: toggle) {
-            HStack(spacing: AppSpacing.md) {
-                ZStack {
-                    Circle()
-                        .fill(checked ? AppTheme.accent : Color.clear)
-                        .frame(width: 30, height: 30)
-                    Circle()
-                        .strokeBorder(checked ? Color.clear : AppTheme.textTertiary, lineWidth: 2)
-                        .frame(width: 30, height: 30)
-                    if checked {
-                        Image(systemName: "checkmark").font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(AppTheme.onAccent)
-                    }
-                }
-
-                if let number {
-                    Text(String(format: "%02d", number))
-                        .font(AppFont.mono(15, weight: .bold))
-                        .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.accentInk)
-                }
-
-                Text(text)
-                    .font(AppFont.body(18, weight: .medium))
-                    .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.textPrimary)
-                    .strikethrough(checked, color: AppTheme.textTertiary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.vertical, 16)
-            .frame(minHeight: 60)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 }
 

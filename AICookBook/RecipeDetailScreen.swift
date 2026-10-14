@@ -4,7 +4,7 @@
 //
 //  The hero screen. Fusion direction: full-bleed food photography leads, editorial
 //  oversized title, HIG-native controls underneath. Stretchy parallax header, glass
-//  overlay buttons, a custom lime segmented control, checkable rows with haptics.
+//  overlay buttons, the house segmented control, and checkable ingredient and direction rows.
 //  Full light + dark parity; honors Reduce Motion.
 //
 
@@ -548,7 +548,7 @@ struct RecipeDetailScreen: View {
                 showCook = true
             }
 
-            // Segmented picker in the house style: white selected pill, black text, original size.
+            // Segmented picker in the house style: cream selected pill, dark text, readable unselected label.
             LimeSegmentedControl(segments: ["Ingredients", "Directions"], selection: $tab)
                 .padding(.top, 2)
 
@@ -573,6 +573,7 @@ struct RecipeDetailScreen: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+            .tint(AppTheme.accentInk)
             // Swipes that start on this box toggle Ingredients⇄Directions; swipes elsewhere change recipe.
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("detail")) } action: { segmentFrame = $0 }
 
@@ -687,7 +688,7 @@ struct RecipeDetailScreen: View {
 
     private var metaLine: some View {
         HStack(spacing: 10) {
-            if let total = recipe.totalTimeText { metaItem("Total", total) }
+            if let cook = recipe.totalTimeText { metaItem("Cook", cook) }
         }
     }
 
@@ -833,12 +834,10 @@ struct RecipeDetailScreen: View {
                     }
                     ForEach(Array(group.items.enumerated()), id: \.offset) { itemIndex, item in
                         let key = "\(groupIndex):\(itemIndex)"
-                        // The servings stepper scales the batch: ingredient amounts and the
-                        // whole-recipe nutrition move together; per-serving nutrition stays constant.
-                        let shown = IngredientScaler.scale(text: item, from: baseServings, to: servings)
+                        let shown = IngredientListFormat.scaledLine(item, from: baseServings, to: servings)
                         VStack(spacing: 0) {
-                            IngredientRow(text: shown, checked: checkedIngredients.contains(key)) {
-                                toggle(&checkedIngredients, key)
+                            ChecklistRow(title: ingredientLine(shown, size: 17), checkLeading: true, checked: checkedIngredients.contains(key)) {
+                                toggleChecklistItem(&checkedIngredients, key)
                             }
                             if itemIndex < group.items.count - 1 {
                                 Rectangle().fill(AppTheme.separator).frame(height: 1)
@@ -853,21 +852,21 @@ struct RecipeDetailScreen: View {
     // MARK: Directions
 
     private var directionsList: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            let steps = recipe.directions.sorted { $0.stepIndex < $1.stepIndex }
-            ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
-                DirectionRow(index: i + 1, text: step.text, checked: checkedSteps.contains(step.stepIndex)) {
-                    toggle(&checkedSteps, step.stepIndex)
+        let steps = recipe.directions.sorted { $0.stepIndex < $1.stepIndex }
+        return VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(steps.enumerated()), id: \.element.stepIndex) { i, step in
+                let parsed = DirectionStepParser.parse(step.text)
+                ChecklistRow(
+                    title: AttributedString(parsed.headline),
+                    subtitle: parsed.detail.flatMap { $0.isEmpty ? nil : boldQuantities($0, size: 15) },
+                    stepNumber: i + 1,
+                    chips: parsed.badges,
+                    checked: checkedSteps.contains(step.stepIndex)
+                ) {
+                    toggleChecklistItem(&checkedSteps, step.stepIndex)
                 }
             }
         }
-    }
-
-    // MARK: Helpers
-
-    private func toggle<T: Hashable>(_ set: inout Set<T>, _ value: T) {
-        Haptics.select()
-        if set.contains(value) { set.remove(value) } else { set.insert(value) }
     }
 
     private func safeTopInset() -> CGFloat {

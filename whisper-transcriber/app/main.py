@@ -99,6 +99,14 @@ def _norm_lang(code: Optional[str]) -> str:
     return (code or "")[:2].lower()
 
 
+def recipe_text_lang(transcript: str, source_lang: str) -> str:
+    """Language of the text we are about to save."""
+    # ponytail: this import always calls Whisper with task=translate, so a non-empty
+    # transcript is English even when source_lang is the spoken language. If that call
+    # switches to task=transcribe, detect the transcript instead of assuming English.
+    return "en" if (transcript or "").strip() else (source_lang or "")
+
+
 def translate_recipe(parsed: dict, source_lang: str, target_lang: str) -> dict:
     """Translate title/description/times/ingredient items/direction texts into target_lang.
     Preserves structure and array lengths. Returns parsed unchanged when translation isn't
@@ -593,6 +601,57 @@ def _parse_servings(*texts: str) -> int:
     return 2
 
 
+_PER_SERVING_MARK = re.compile(r"per\s+serv(?:e|ing)s?|/\s*servings?", re.I)
+_KCAL_HEADLINE = re.compile(
+    r"\d+(?:\.\d+)?\s*(?:kcal|calories|cals)\s*(?:per\s+serv(?:e|ing)s?|/\s*servings?)",
+    re.I,
+)
+
+
+def _is_kcal_serving_headline(text: str) -> bool:
+    """True when the whole line is only a kcal-per-serving headline ('370 Kcal per Serving')."""
+    clean = re.sub(r"[^\w\s/]", " ", text or "", flags=re.UNICODE)
+    clean = re.sub(r"\s+", " ", clean).strip()
+    return _KCAL_HEADLINE.fullmatch(clean) is not None
+
+
+def _macro_grams(line: str, name: str) -> float | None:
+    m = re.search(rf"(\d+(?:\.\d+)?)\s*g(?:rams?)?\s*(?:of\s+)?(?:{name})\b", line, re.I)
+    if not m:
+        m = re.search(rf"\b(?:{name})\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*g(?:rams?)?\b", line, re.I)
+    return float(m.group(1)) if m else None
+
+
+def _stated_per_serving_nutrition(*texts: str) -> dict | None:
+    """One caption line that states kcal and protein, carbs, and fat, marked per serving.
+
+    Stored as written. Do not divide by the recipe's serving count — the card multiplies
+    for the whole recipe. A lone kcal headline is not enough to override the chart.
+    """
+    for text in texts:
+        if not text:
+            continue
+        for raw in text.splitlines():
+            line = raw.strip()
+            if not line or not _PER_SERVING_MARK.search(line):
+                continue
+            kcal = re.search(r"(\d+(?:\.\d+)?)\s*(?:kcal|calories|cals)\b", line, re.I)
+            protein = _macro_grams(line, r"proteins?")
+            carbs = _macro_grams(line, r"carbohydrates?|carbs?")
+            fat = _macro_grams(line, r"fats?")
+            if not kcal or protein is None or carbs is None or fat is None:
+                continue
+            return {
+                "calories": float(kcal.group(1)),
+                "carbs_g": float(carbs),
+                "protein_g": float(protein),
+                "fat_g": float(fat),
+                "daily_calories": 2000.0,
+                "estimated": False,
+            }
+    return None
+
+
 def estimate_nutrition(ingredients: list[dict], servings: int = 2) -> dict:
     """Whole-recipe nutrition → per serving. Each ingredient's grams come from _parse_grams and its
     per-100g macros from USDA FoodData Central (with the built-in table as an offline fallback)."""
@@ -800,6 +859,9 @@ def _parse_structured_lines(text: str, capture_title: bool) -> tuple[str, list[d
             continue
         if _END_SECTIONS.match(line):
             mode = None
+            continue
+        # A kcal-per-serving headline is not the dish name, and a full macro line is not one either.
+        if _is_kcal_serving_headline(line) or _stated_per_serving_nutrition(line):
             continue
 
         if capture_title and not title:
@@ -1030,6 +1092,8 @@ def _ocr_video_frames(media_path: str, tmp: str, max_frames: int = 14) -> str:
 def _caption_extract(caption: str, video_title: str) -> tuple[str, list, list]:
     """Extract (title, ingredient-groups, steps) from a caption — headers or header-less."""
     title = video_title.strip() if (video_title and not video_title.startswith("Video by")) else ""
+    if _is_kcal_serving_headline(title):
+        title = ""
     cap_title, groups, directions = _parse_structured_lines(caption, capture_title=not title)
     title = title or cap_title
     if caption.strip() and (not groups or not directions):
@@ -1127,17 +1191,39 @@ def assemble_recipe(caption: str, transcript: str, ocr_text: str, has_speech: bo
     directions = split_dirs
 
     serving_count = _parse_servings(caption, video_title, " ".join(directions))
-    nutrition = estimate_nutrition(groups, servings=serving_count)
+    # A stated per-serving macro line wins. Otherwise keep the ingredient estimate.
+    nutrition = _stated_per_serving_nutrition(caption) or estimate_nutrition(groups, servings=serving_count)
     return {
         "title": title,
         "description": f"Extracted from @{author}'s cooking reel." if author else "Freshly extracted cooking reel recipe.",
-        "prep_time": "10 min",
+        "prep_time": "",
         "cook_time": "15 min",
         "servings": serving_count,
         "ingredients": groups,
         "directions": [{"step_index": i + 1, "text": t} for i, t in enumerate(directions)],
         "nutrition": nutrition,
     }
+
+
+def _check_caption_macros_stay_per_serving() -> None:
+    """Fails if a stated per-serving line is replaced by the ingredient estimate or divided by servings."""
+    caption = (
+        "370 Kcal per Serving\n"
+        "Garlic Chicken Bowl\n"
+        "370 kcal | 14g protein | 52g carbs | 13g fat per Serving\n"
+        "Makes 4 Servings\n"
+    )
+    parsed = assemble_recipe(caption, "", "", False, video_title="370 Kcal per Serving")
+    n = parsed["nutrition"]
+    assert n["calories"] == 370 and n["protein_g"] == 14 and n["carbs_g"] == 52 and n["fat_g"] == 13, n
+    assert n["estimated"] is False, n
+    assert n["calories"] not in (140, 370 / 4), n
+    assert parsed["servings"] == 4
+    assert parsed["title"] == "Garlic Chicken Bowl", parsed["title"]
+    assert _stated_per_serving_nutrition("370 Kcal per Serving") is None
+
+
+_check_caption_macros_stay_per_serving()
 
 
 def _send_apns_push(recipe_id: str, recipe_title: str, user_id: Optional[str] = None) -> None:
@@ -1160,6 +1246,35 @@ def _send_apns_push(recipe_id: str, recipe_title: str, user_id: Optional[str] = 
         print(f"🌟 [APNs Stub] Pushing 'Recipe Ready: {recipe_title}' to {uid} at {token} ({env})")
         # DORMANT: Requires Apple Developer Program (.p8 key) to send actual HTTP/2 pushes
         # payload = {"aps": {"alert": {"title": "Recipe Ready! 🍳", "body": f"Your imported reel '{recipe_title}' is ready."}, "sound": "default"}, "recipe_id": recipe_id}
+
+def _save_reel_cover(recipe_id: str, poster_url: Optional[str], video_path: Optional[str]) -> Optional[str]:
+    """Write one JPEG the app can keep. Prefer a frame from the reel, else Instagram's own cover."""
+    os.makedirs(MEDIA_CACHE_DIR, exist_ok=True)
+    dest = os.path.join(MEDIA_CACHE_DIR, f"{recipe_id}.jpg")
+    if video_path and os.path.isfile(video_path):
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-ss", "1", "-i", video_path, "-frames:v", "1",
+                 "-vf", "scale='min(800,iw)':-2", "-q:v", "3", dest],
+                check=True, capture_output=True, timeout=30,
+            )
+            if os.path.isfile(dest) and os.path.getsize(dest) > 0:
+                return f"/reels/media/{recipe_id}.jpg"
+        except Exception:
+            pass
+    if poster_url and poster_url.startswith("http"):
+        try:
+            req = urllib.request.Request(poster_url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                data = resp.read()
+            if data:
+                with open(dest, "wb") as f:
+                    f.write(data)
+                return f"/reels/media/{recipe_id}.jpg"
+        except Exception:
+            pass
+    return None
+
 
 def _process_reel_import(job_id: str, url: str, target_language: str, user_id: Optional[str] = None) -> None:
     JOBS[job_id]["status"] = "downloading"
@@ -1211,21 +1326,25 @@ def _process_reel_import(job_id: str, url: str, target_language: str, user_id: O
             parsed = assemble_recipe(caption, transcript, "", has_speech,
                                      video_title=video_title, author=author)
 
-            # 4) Still thin → grab the video and OCR the on-screen text (silent recipe overlays).
-            if not _recipe_is_complete(parsed):
-                video_out = os.path.join(tmp, "video.%(ext)s")
-                try:
-                    _run_ytdlp(["-f", "best[height<=720]/best", "-o", video_out], url)
-                    vids = [f for f in glob.glob(os.path.join(tmp, "video.*")) if not f.endswith(".json")]
-                    if vids:
+            # 4) The card photo is a frame of this reel, so fetch the video after audio
+            #    (never before listening). OCR that same file only when the recipe is still thin.
+            cover_video = None
+            need_ocr = not _recipe_is_complete(parsed)
+            video_out = os.path.join(tmp, "video.%(ext)s")
+            try:
+                _run_ytdlp(["-f", "best[height<=720]/best", "-o", video_out], url)
+                vids = [f for f in glob.glob(os.path.join(tmp, "video.*")) if not f.endswith(".json")]
+                if vids:
+                    cover_video = vids[0]
+                    if need_ocr:
                         ocr_text = _ocr_video_frames(vids[0], tmp)
                         if ocr_text.strip():
                             t_ocr = translate_texts([ocr_text], "en")
                             if t_ocr: ocr_text = t_ocr[0]
                             parsed = assemble_recipe(caption, transcript, ocr_text, has_speech,
                                                      video_title=video_title, author=author)
-                except Exception:
-                    pass
+            except Exception:
+                pass
 
             # Truly nothing usable (no audio, no caption, no readable on-screen text) =>
             # fail gracefully with a clear reason instead of storing an empty recipe.
@@ -1244,16 +1363,21 @@ def _process_reel_import(job_id: str, url: str, target_language: str, user_id: O
                     "reels into recipes — try one where someone's making a dish."
                 )
 
-            # 5) Deliver into the user's preferred language. Whisper detected the source;
-            #    if the user picked a different target (e.g. reel is English, user picked
-            #    Tamil), translate the user-facing text via the Homelab LLM. source_language
-            #    stays the DETECTED one so the iOS "Translated from …" badge lights up.
-            if _norm_lang(target_language) and _norm_lang(target_language) != _norm_lang(source_lang):
+            # 5) Deliver into the user's preferred language. Whisper task=translate already
+            #    wrote English, so compare against that text, not the spoken-language tag.
+            #    A reel that is actually in another language (no English transcript yet)
+            #    still goes through the LLM. source_language stays the DETECTED one so the
+            #    iOS "Translated from …" badge lights up.
+            text_lang = recipe_text_lang(transcript, source_lang)
+            if _norm_lang(target_language) and _norm_lang(target_language) != _norm_lang(text_lang):
                 JOBS[job_id]["status"] = "extracting"
-                parsed = translate_recipe(parsed, source_lang, target_language)
+                parsed = translate_recipe(parsed, text_lang, target_language)
 
 
             recipe_id = f"recipe-{uuid.uuid4().hex[:8]}"
+            # Frame of the reel (ffmpeg). Instagram's poster only if that grab failed.
+            # The phone copies this file locally so the card is not a bundled dish photo.
+            thumbnail = _save_reel_cover(recipe_id, thumbnail, cover_video) or thumbnail
             recipe_obj = {
                 "id": recipe_id,
                 "owner_id": f"creator-{author}",
@@ -1369,6 +1493,8 @@ def _clean_old_media():
 
 class ReelDownloadRequest(BaseModel):
     url: str
+    # Phone listens to audio first. Video is a second call, only for OCR or a cover frame.
+    audio_only: bool = True
 
 class ReelDownloadResponse(BaseModel):
     media_id: str
@@ -1395,41 +1521,47 @@ def download_reel(req: ReelDownloadRequest, bg: BackgroundTasks):
     thumbnail = meta.get("thumbnail")
 
     try:
-        _run_ytdlp([
-            # Prefer H.264 (avc1) video + AAC audio: iOS AVFoundation can't decode VP9/AV1, so a VP9
-            # download transcribes fine (AAC audio) but can't yield a thumbnail frame. Fall back to
-            # any format only if H.264 isn't available.
-            "-f", ("bestvideo[vcodec^=avc1][height<=720]+bestaudio[ext=m4a]/"
-                   "best[vcodec^=avc1][height<=720]/"
-                   "bestvideo[height<=720]+bestaudio/best[height<=720]/best"),
-            "--merge-output-format", "mp4",
-            "-o", out_template
-        ], req.url)
+        if req.audio_only:
+            # Audio only — the phone listens to this. Do not merge a 720p picture.
+            _run_ytdlp(["-f", "bestaudio[ext=m4a]/bestaudio", "-o", out_template], req.url)
+        else:
+            # Picture, only when the phone still needs frames. H.264 so iOS can decode a still.
+            _run_ytdlp([
+                "-f", ("bestvideo[vcodec^=avc1][height<=720]+bestaudio[ext=m4a]/"
+                       "best[vcodec^=avc1][height<=720]/"
+                       "bestvideo[height<=720]+bestaudio/best[height<=720]/best"),
+                "--merge-output-format", "mp4",
+                "-o", out_template
+            ], req.url)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to download video: {e}")
+        kind = "audio" if req.audio_only else "video"
+        raise HTTPException(status_code=400, detail=f"Failed to download {kind}: {e}")
 
-    candidates = glob.glob(os.path.join(MEDIA_CACHE_DIR, f"{media_id}.*"))
+    skip_ext = {".jpg", ".jpeg", ".json", ".part"}
+    candidates = [
+        c for c in glob.glob(os.path.join(MEDIA_CACHE_DIR, f"{media_id}.*"))
+        if os.path.splitext(c)[1].lower() not in skip_ext
+    ]
     if not candidates:
-        raise HTTPException(status_code=500, detail="Video downloaded but file not found on disk")
-        
+        raise HTTPException(status_code=500, detail="Download finished but file not found on disk")
+
     actual_file = candidates[0]
     filename = os.path.basename(actual_file)
 
-    # Server-side cover frame (priority 2): ffmpeg decodes VP9/AV1 that iOS AVFoundation can't, so a
-    # real frame is available for every reel regardless of codec. Prefer this over the reel's poster
-    # image; if ffmpeg fails, keep the reel's own thumbnail (priority 3). The app tries its own
-    # on-device frame first (priority 1) and only downloads this when that fails.
-    thumb_file = os.path.join(MEDIA_CACHE_DIR, f"{media_id}.jpg")
-    try:
-        subprocess.run(
-            ["ffmpeg", "-y", "-ss", "1", "-i", actual_file, "-frames:v", "1",
-             "-vf", "scale='min(800,iw)':-2", "-q:v", "3", thumb_file],
-            check=True, capture_output=True, timeout=30,
-        )
-        if os.path.exists(thumb_file) and os.path.getsize(thumb_file) > 0:
-            thumbnail = f"/reels/media/{media_id}.jpg"
-    except Exception:
-        pass  # fall back to the reel's own poster image (already in `thumbnail`)
+    # Audio-only is the listen step. The phone asks for the video afterwards and keeps this
+    # ffmpeg frame; the poster stays only when that grab fails.
+    if not req.audio_only:
+        thumb_file = os.path.join(MEDIA_CACHE_DIR, f"{media_id}.jpg")
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-ss", "1", "-i", actual_file, "-frames:v", "1",
+                 "-vf", "scale='min(800,iw)':-2", "-q:v", "3", thumb_file],
+                check=True, capture_output=True, timeout=30,
+            )
+            if os.path.exists(thumb_file) and os.path.getsize(thumb_file) > 0:
+                thumbnail = f"/reels/media/{media_id}.jpg"
+        except Exception:
+            pass
 
     bg.add_task(_clean_old_media)
 
@@ -1448,7 +1580,18 @@ def get_reel_media(filename: str):
     file_path = os.path.join(MEDIA_CACHE_DIR, safe_name)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Media file expired or not found")
-    return FileResponse(file_path, media_type="video/mp4", filename=safe_name)
+    ext = os.path.splitext(safe_name)[1].lower()
+    audio_types = {
+        ".m4a": "audio/mp4", ".aac": "audio/aac", ".mp3": "audio/mpeg",
+        ".wav": "audio/wav", ".webm": "audio/webm", ".opus": "audio/opus",
+    }
+    if ext in (".jpg", ".jpeg"):
+        media_type = "image/jpeg"
+    elif ext in audio_types:
+        media_type = audio_types[ext]
+    else:
+        media_type = "video/mp4"
+    return FileResponse(file_path, media_type=media_type, filename=safe_name)
 
 @app.get("/health")
 def health() -> dict:

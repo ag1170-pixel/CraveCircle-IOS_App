@@ -44,6 +44,7 @@ struct UserProfile: Codable, Identifiable {
 enum ImportStatus: String, Codable {
     case queued
     case downloading
+    case preparing
     case transcribing
     case extracting
     case done
@@ -53,6 +54,7 @@ enum ImportStatus: String, Codable {
         switch self {
         case .queued: return "Queued"
         case .downloading: return "Downloading reel"
+        case .preparing: return "Getting ready to listen"
         case .transcribing: return "Transcribing audio"
         case .extracting: return "Extracting recipe"
         case .done: return "Done"
@@ -144,13 +146,12 @@ struct Recipe: Codable, Identifiable, Hashable {
         return URL(string: "https://www.instagram.com/\(cleanHandle)/") ?? URL(string: "https://www.instagram.com/reels/")!
     }
 
-    /// One unified time for the header: prep + cook summed into a single figure. Values are free-form
-    /// ("15 min", "1 hr 10 min"), so we pull hours/minutes from each and re-format. Falls back to
-    /// whichever single value exists (unparsed) when neither carries a number.
+    /// Header duration is cook time only. `prepTime` stays on the model so older saves still decode,
+    /// but it is never added or shown. Free-form cook values ("15 min", "1 hr 10 min") are re-formatted.
     var totalTimeText: String? {
-        let mins = [prepTime, cookTime].compactMap { Recipe.minutes(from: $0) }
-        guard !mins.isEmpty else { return prepTime ?? cookTime }
-        return Recipe.formatMinutes(mins.reduce(0, +))
+        guard let cook = cookTime?.trimmingCharacters(in: .whitespacesAndNewlines), !cook.isEmpty else { return nil }
+        if let mins = Recipe.minutes(from: cook) { return Recipe.formatMinutes(mins) }
+        return cook
     }
 
     /// Minutes parsed from a free-form duration, or nil if it holds no number. "2 hr 5 min" → 125.
@@ -218,6 +219,66 @@ enum IngredientListFormat {
         let keptName = (name?.isEmpty == true || (name != nil && isTagDump(name!))) ? nil : name
         let rows = items.compactMap { cleanedItem($0) }
         return (keptName, rows)
+    }
+
+    /// Amount and name for one ingredient row. "Chickpeas / kabuli chana — 1¼ cups dried (250g)"
+    /// reads amount-then-name. A line that already starts with the amount ("600g chicken") stays that way.
+    /// "(250g)" stays on the amount. "(optional)" and "(finely chopped)" stay on the name.
+    struct DisplayParts: Equatable {
+        var amount: String
+        var name: String
+        /// Stored as "name — amount". The amount is the whole right-hand side, including "(250g)".
+        var nameDashAmount: Bool = false
+    }
+
+    static func displayParts(_ raw: String) -> DisplayParts {
+        let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let flipped = nameThenAmount(line) {
+            return DisplayParts(amount: flipped.amount, name: flipped.name, nameDashAmount: true)
+        }
+        let leading = GrocerySort.splitQuantity(line)
+        if !leading.qty.isEmpty { return DisplayParts(amount: leading.qty, name: leading.name) }
+        return DisplayParts(amount: "", name: line)
+    }
+
+    /// Scale a "name — amount" line by its amount. Other lines stay on the leading-quantity scaler.
+    static func scaledLine(_ raw: String, from base: Int, to target: Int) -> String {
+        let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard base != target, let flipped = nameThenAmount(line) else {
+            return IngredientScaler.scale(text: raw, from: base, to: target)
+        }
+        let amount = IngredientScaler.scale(text: flipped.amount, from: base, to: target)
+        return "\(flipped.name) — \(amount)"
+    }
+
+    /// ponytail: the rightmost spaced dash whose right side starts with a quantity.
+    /// A glued pair ("methi - 1 tsp and hing — 1 pinch") keeps the left item inside the name.
+    /// Upgrade path: split once per dash that introduces its own quantity.
+    private static func nameThenAmount(_ line: String) -> DisplayParts? {
+        let separators = [" — ", " – ", " - "]
+        var best: (name: String, amount: String, at: String.Index)?
+        for sep in separators {
+            var search = line.startIndex
+            while let range = line.range(of: sep, range: search..<line.endIndex) {
+                let left = line[..<range.lowerBound].trimmingCharacters(in: .whitespaces)
+                let right = line[range.upperBound...].trimmingCharacters(in: .whitespaces)
+                if !left.isEmpty, !right.isEmpty,
+                   !startsWithQuantity(left), startsWithQuantity(right),
+                   best == nil || range.lowerBound >= best!.at {
+                    best = (String(left), String(right), range.lowerBound)
+                }
+                search = range.upperBound
+            }
+        }
+        guard let best else { return nil }
+        return DisplayParts(amount: best.amount, name: best.name, nameDashAmount: true)
+    }
+
+    private static func startsWithQuantity(_ s: String) -> Bool {
+        guard let first = s.first else { return false }
+        if first.isNumber { return true }
+        let word = s.prefix { $0.isLetter }.lowercased()
+        return ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "half", "quarter"].contains(word)
     }
 
     /// nil when the whole row is a tag dump. Otherwise the ingredient, with a trailing tag block removed.

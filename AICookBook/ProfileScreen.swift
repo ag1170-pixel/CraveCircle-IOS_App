@@ -61,6 +61,9 @@ struct ProfileScreen: View {
         // imports shared reels in this language instead of always English.
         .onChange(of: langCode) { _, newValue in
             UserDefaults(suiteName: AppEnvironment.appGroupID)?.set(newValue, forKey: "shared_recipe_language")
+            if let lang = AppLanguage(rawValue: newValue) {
+                Task { try? await OnDeviceTranscriber.installAssetIfNeeded(localeID: lang.localeID) }
+            }
         }
         .task {
             UserDefaults(suiteName: AppEnvironment.appGroupID)?.set(langCode, forKey: "shared_recipe_language")

@@ -38,12 +38,14 @@ enum RecipeExtractor {
                                                 onScreenText: onScreenText,
                                                 ownerId: ownerId, sourceLanguage: sourceLanguage,
                                                 targetLanguage: targetLanguage) {
-                return recipe
+                return applyingCaptionNutrition(recipe, caption: caption, onScreenText: onScreenText)
             }
         }
         #endif
-        return heuristic(transcript: transcript, caption: caption, onScreenText: onScreenText,
-                         ownerId: ownerId, sourceLanguage: sourceLanguage)
+        return applyingCaptionNutrition(
+            heuristic(transcript: transcript, caption: caption, onScreenText: onScreenText,
+                      ownerId: ownerId, sourceLanguage: sourceLanguage),
+            caption: caption, onScreenText: onScreenText)
     }
 
     /// True when the assembled recipe reads like actual cooking — it has cooking verbs, measurements,
@@ -177,10 +179,7 @@ enum RecipeExtractor {
         let steps = sentences.prefix(14).enumerated()
             .map { DirectionStep(stepIndex: $0.offset + 1, text: Self.clean(String($0.element))) }
 
-        let title = text.split(separator: "\n")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .first(where: { $0.count >= 3 })
-            .map { String($0.prefix(48)) } ?? "Imported Recipe"
+        let title = NutritionEstimator.dishTitle(in: text) ?? "Imported Recipe"
 
         return Recipe(
             id: UUID().uuidString, ownerId: ownerId,
@@ -188,6 +187,22 @@ enum RecipeExtractor {
             ingredients: ingredients, directions: Array(steps),
             ownerUsername: "@you", sourceLanguage: sourceLanguage
         )
+    }
+
+    /// A caption line that states kcal and all three macros per serving is the chart.
+    /// It replaces an ingredient estimate. A kcal-only headline is not the dish title.
+    private static func applyingCaptionNutrition(_ recipe: Recipe, caption: String?, onScreenText: String?) -> Recipe {
+        let source = [caption, onScreenText].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
+        guard !source.isEmpty else { return recipe }
+        var out = recipe
+        if let stated = NutritionEstimator.statedPerServing(in: source) {
+            out.nutrition = stated
+        }
+        if NutritionEstimator.isKcalServingHeadline(out.title),
+           let dish = NutritionEstimator.dishTitle(in: source) {
+            out.title = dish
+        }
+        return out
     }
 
     /// Clean a direction string: tidy whitespace and collapse HALLUCINATED REPETITIONS. Whisper on

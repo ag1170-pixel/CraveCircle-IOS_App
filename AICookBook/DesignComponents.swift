@@ -63,141 +63,177 @@ struct RecipeCoverImage: View {
         self.title = recipe.title
     }
     
-    private var localImage: UIImage? {
-        // 1. Check direct filename or relative thumbnail path
-        if let s = urlString, !s.isEmpty {
-            if s.hasPrefix("thumb-") || !s.contains("://") {
-                let filename = s.hasPrefix("file://") ? (URL(string: s)?.lastPathComponent ?? s) : s
-                if let img = UIImage(contentsOfFile: LocalStore.url(filename).path) {
-                    return img
-                }
-            } else if s.hasPrefix("file://") {
-                let filename = URL(string: s)?.lastPathComponent ?? s
-                if let img = UIImage(contentsOfFile: LocalStore.url(filename).path) {
-                    return img
-                }
-            }
+    /// Decoded local covers. `body` runs again inside scroll `sizeThatFits`; without this,
+    /// every pass re-reads the file on the main thread.
+    private static let storeCache: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 80
+        return cache
+    }()
+    private static let storeLock = NSLock()
+    private static var missingStoreFiles = Set<String>()
+    @State private var loadedLocal: UIImage?
+
+    /// Memory only. Disk and decode happen off the main thread; `body` runs inside scroll layout.
+    private var memoryLocalImage: UIImage? {
+        for name in Self.localCoverFilenames(urlString: urlString, recipeId: recipeId) {
+            if let image = Self.storeCache.object(forKey: name as NSString) { return image }
         }
-        
-        // 2. If recipeId provided, check standard on-device thumbnail names
-        if let rid = recipeId, !rid.isEmpty {
-            for ext in ["jpg", "jpeg", "heic", "png"] {
-                let file = LocalStore.url("thumb-\(rid).\(ext)")
-                if let img = UIImage(contentsOfFile: file.path) {
-                    return img
-                }
-            }
-        }
-        
-        // 3. Extract recipe ID from urlString if it matches thumb-<id> pattern
-        if let s = urlString, let range = s.range(of: "thumb-[^/.]+", options: .regularExpression) {
-            let thumbBase = String(s[range])
-            for ext in ["jpg", "jpeg", "heic", "png"] {
-                let file = LocalStore.url("\(thumbBase).\(ext)")
-                if let img = UIImage(contentsOfFile: file.path) {
-                    return img
-                }
-            }
-        }
-        
         return nil
     }
-    
+
+    /// Decode one local cover. Safe off the main thread. A miss is remembered so layout never stats it again.
+    static func loadStoreImage(named filename: String) -> UIImage? {
+        let key = filename as NSString
+        if let hit = storeCache.object(forKey: key) { return hit }
+        storeLock.lock()
+        let knownMissing = missingStoreFiles.contains(filename)
+        storeLock.unlock()
+        if knownMissing { return nil }
+        let url = LocalStore.url(filename)
+        guard FileManager.default.fileExists(atPath: url.path),
+              let data = try? Data(contentsOf: url),
+              let image = UIImage(data: data) else {
+            storeLock.lock()
+            missingStoreFiles.insert(filename)
+            storeLock.unlock()
+            return nil
+        }
+        storeCache.setObject(image, forKey: key)
+        return image
+    }
+
+    /// Names worth opening under LocalStore. Bundled asset names (`recipe_hot_honey_chicken`)
+    /// and remote URLs are not files. `UIImage(contentsOfFile:)` on those misses still walks
+    /// `@2x`/`@3x` variants with `faccessat` during layout — the 426ms home-feed hitch.
+    static func localCoverFilenames(urlString: String?, recipeId: String?) -> [String] {
+        var names: [String] = []
+        if let file = localCoverFilename(urlString) {
+            names.append(file)
+        }
+        // Writers that save a frame also set thumbnailUrl to `thumb-<id>.<ext>`. Probing four
+        // extensions for every card that already has a cover string is the layout hang.
+        if (urlString ?? "").isEmpty, let rid = recipeId, !rid.isEmpty {
+            names.append(contentsOf: Self.thumbExtensions.map { "thumb-\(rid).\($0)" })
+        }
+        if let s = urlString, s.contains("thumb-"),
+           let range = s.range(of: "thumb-[^/.]+", options: .regularExpression) {
+            let thumbBase = String(s[range])
+            if !names.contains(where: { $0.hasPrefix(thumbBase) }) {
+                names.append(contentsOf: Self.thumbExtensions.map { "\(thumbBase).\($0)" })
+            }
+        }
+        return names
+    }
+
+    static func localCoverFilename(_ urlString: String?) -> String? {
+        guard let s = urlString, !s.isEmpty else { return nil }
+        if s.hasPrefix("file://") {
+            let name = URL(string: s)?.lastPathComponent ?? ""
+            return name.isEmpty ? nil : name
+        }
+        if s.contains("://") || s.hasPrefix("/") { return nil }
+        if s.hasPrefix("thumb-") { return s }
+        let ext = (s as NSString).pathExtension.lowercased()
+        if Self.thumbExtensions.contains(ext) { return s }
+        return nil
+    }
+
+    private static let thumbExtensions = ["jpg", "jpeg", "heic", "png"]
+
     private var contextHint: String {
         [title, recipeId, urlString].compactMap { $0 }.joined(separator: " ")
     }
     
     var body: some View {
-        if let local = localImage {
-            // Priority 1: On-device stored cover (0ms latency, 100% offline-ready, immune to CDN expiry)
-            Image(uiImage: local).resizable()
-        } else if let s = urlString, !s.isEmpty, let bundled = UIImage(named: s) ?? Self.bundledAsset(from: s) {
-            // Priority 2: Shipped high-res asset bundled in app (instant, offline)
-            Image(uiImage: bundled).resizable()
-        } else if let url = Self.remoteURL(from: urlString, recipeId: recipeId) {
-            CachedRemoteCover(url: url, fallback: Self.categoryFallback(for: contextHint))
-        } else {
-            // Priority 4: Category fallback based on title, slug, or cuisine keywords (NEVER black card)
-            Image(uiImage: Self.categoryFallback(for: contextHint)).resizable()
+        let local = memoryLocalImage ?? loadedLocal
+        Group {
+            if let local {
+                Image(uiImage: local).resizable()
+            } else if let s = urlString, !s.isEmpty, let bundled = UIImage(named: s) ?? Self.bundledAsset(from: s) {
+                Image(uiImage: bundled).resizable()
+            } else if let url = Self.remoteURL(from: urlString, recipeId: recipeId) {
+                CachedRemoteCover(url: url, fallback: Self.categoryFallback(for: contextHint))
+            } else {
+                Image(uiImage: Self.categoryFallback(for: contextHint)).resizable()
+            }
         }
+        .task(id: "\(urlString ?? "")|\(recipeId ?? "")") {
+            guard memoryLocalImage == nil else { return }
+            let names = Self.localCoverFilenames(urlString: urlString, recipeId: recipeId)
+            guard !names.isEmpty else { return }
+            let image = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+                for name in names {
+                    if let image = RecipeCoverImage.loadStoreImage(named: name) { return image }
+                }
+                return nil
+            }.value
+            if let image { loadedLocal = image }
+        }
+    }
+
+    private static let fallbackCache: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 80
+        return cache
+    }()
+
+    /// One bundled asset for this dish. Layout must not open every photo in the family.
+    static func fallbackAssetName(for raw: String) -> String {
+        let base = raw.lowercased()
+        if base.contains("pani_puri") || base.contains("chaat") || base.contains("bhel") || base.contains("vada_pav") || base.contains("tikki") || base.contains("kulcha") || base.contains("samosa") {
+            return "recipe_samosa_chaat"
+        }
+        if base.contains("rasam") || base.contains("tadka") || base.contains("dal") || base.contains("sambar") || base.contains("lentil") {
+            return "recipe_dal_tadka"
+        }
+        if base.contains("rice") || base.contains("bath") || base.contains("pulihora") || base.contains("biryani") || base.contains("pulao") {
+            return pickName(from: ["recipe_biryani", "recipe_korean_bibimbap", "recipe_mushroom_risotto", "recipe_chipotle_bowl", "recipe_falafel_bowl", "recipe_thai_basil_chicken"], salt: base)
+        }
+        if base.contains("dosa") || base.contains("vada") || base.contains("appam") || base.contains("uttapam") || base.contains("pesarattu") || base.contains("idli") || base.contains("stew") {
+            return pickName(from: ["recipe_masala_dosa", "recipe_souffle_pancakes", "recipe_avocado_toast", "recipe_chole_bhature", "recipe_pav_bhaji"], salt: base)
+        }
+        if base.contains("korma") || base.contains("malai") || base.contains("kofta") || base.contains("shahi") || base.contains("matar_paneer") || base.contains("paneer") {
+            return "recipe_shahi_paneer"
+        }
+        if base.contains("aloo") || base.contains("dum") || base.contains("potato") || base.contains("gobi") {
+            return "recipe_aloo_gobi"
+        }
+        if base.contains("saag") || base.contains("palak") || base.contains("bharta") || base.contains("bhindi") || base.contains("avial") || base.contains("baingan") {
+            return "recipe_palak_paneer"
+        }
+        if base.contains("keema") || base.contains("chicken") || base.contains("kadai") || base.contains("meat") || base.contains("vindaloo") || base.contains("curry") || base.contains("jhol") || base.contains("fish") || base.contains("pork") || base.contains("shrimp") || base.contains("chingri") {
+            return "recipe_kadai_chicken"
+        }
+        if base.contains("chana") || base.contains("rajma") || base.contains("chole") {
+            return "recipe_chana_masala"
+        }
+        if base.contains("jamun") || base.contains("cake") || base.contains("dessert") || base.contains("sweet") || base.contains("tiramisu") {
+            return "recipe_gulab_jamun"
+        }
+        if base.contains("pasta") || base.contains("rigatoni") || base.contains("pizza") || base.contains("risotto") {
+            return "recipe_tomato_rigatoni"
+        }
+        return pickName(from: ["recipe_aloo_gobi", "recipe_butter_chicken", "recipe_biryani", "recipe_palak_paneer", "recipe_dal_makhani"], salt: base)
     }
 
     /// Authentic high-res food image fallback for dishes when an exact matching image asset is not yet available
     static func categoryFallback(for raw: String) -> UIImage {
-        let base = raw.lowercased()
-        
-        // Chaat, street food, snacks
-        if base.contains("pani_puri") || base.contains("chaat") || base.contains("bhel") || base.contains("vada_pav") || base.contains("tikki") || base.contains("kulcha") || base.contains("samosa") {
-            if let img = UIImage(named: "recipe_samosa_chaat") { return img }
-        }
-        
-        // Soups, lentils, broths
-        if base.contains("rasam") || base.contains("tadka") || base.contains("dal") || base.contains("sambar") || base.contains("lentil") {
-            if let img = UIImage(named: "recipe_dal_tadka") ?? UIImage(named: "recipe_dal_makhani") { return img }
-        }
-        
-        // Rice dishes — spread across distinct plated photos so jeera / curd / plain rice don't share one frame.
-        if base.contains("rice") || base.contains("bath") || base.contains("pulihora") || base.contains("biryani") || base.contains("pulao") {
-            if let img = pick(from: ["recipe_biryani", "recipe_korean_bibimbap", "recipe_mushroom_risotto", "recipe_chipotle_bowl", "recipe_falafel_bowl", "recipe_thai_basil_chicken"], salt: base) {
-                return img
-            }
-        }
-        
-        // South Indian crepes & fritters — dosa variants must not all render as masala dosa.
-        if base.contains("dosa") || base.contains("vada") || base.contains("appam") || base.contains("uttapam") || base.contains("pesarattu") || base.contains("idli") || base.contains("stew") {
-            if let img = pick(from: ["recipe_masala_dosa", "recipe_souffle_pancakes", "recipe_avocado_toast", "recipe_chole_bhature", "recipe_pav_bhaji"], salt: base) {
-                return img
-            }
-        }
-        
-        // Paneer & rich vegetarian curries
-        if base.contains("korma") || base.contains("malai") || base.contains("kofta") || base.contains("shahi") || base.contains("matar_paneer") || base.contains("paneer") {
-            if let img = UIImage(named: "recipe_shahi_paneer") ?? UIImage(named: "recipe_paneer_butter_masala") { return img }
-        }
-        
-        // Potato & cauliflower dishes (Dum Aloo, Aloo Gobi, etc.)
-        if base.contains("aloo") || base.contains("dum") || base.contains("potato") || base.contains("gobi") {
-            if let img = UIImage(named: "recipe_aloo_gobi") { return img }
-        }
-        
-        // Greens & vegetable dishes
-        if base.contains("saag") || base.contains("palak") || base.contains("bharta") || base.contains("bhindi") || base.contains("avial") || base.contains("baingan") {
-            if let img = UIImage(named: "recipe_palak_paneer") ?? UIImage(named: "recipe_aloo_gobi") { return img }
-        }
-        
-        // Chicken, meat, seafood, rich gravies
-        if base.contains("keema") || base.contains("chicken") || base.contains("kadai") || base.contains("meat") || base.contains("vindaloo") || base.contains("curry") || base.contains("jhol") || base.contains("fish") || base.contains("pork") || base.contains("shrimp") || base.contains("chingri") {
-            if let img = UIImage(named: "recipe_kadai_chicken") ?? UIImage(named: "recipe_butter_chicken") { return img }
-        }
-        
-        // Beans, chickpeas
-        if base.contains("chana") || base.contains("rajma") || base.contains("chole") {
-            if let img = UIImage(named: "recipe_chana_masala") ?? UIImage(named: "recipe_rajma_masala") { return img }
-        }
-        
-        // Sweets & desserts
-        if base.contains("jamun") || base.contains("cake") || base.contains("dessert") || base.contains("sweet") || base.contains("tiramisu") {
-            if let img = UIImage(named: "recipe_gulab_jamun") { return img }
-        }
-        
-        // Pasta & Italian
-        if base.contains("pasta") || base.contains("rigatoni") || base.contains("pizza") || base.contains("risotto") {
-            if let img = UIImage(named: "recipe_tomato_rigatoni") ?? UIImage(named: "recipe_margherita_pizza") { return img }
-        }
-        
-        // Guaranteed authentic fallback: NEVER nil, NEVER black placeholder card
-        return pick(from: ["recipe_aloo_gobi", "recipe_butter_chicken", "recipe_biryani", "recipe_palak_paneer", "recipe_dal_makhani"], salt: base)
-            ?? UIImage(named: "recipe_biryani")
-            ?? UIImage()
+        let key = raw.lowercased() as NSString
+        if let hit = fallbackCache.object(forKey: key) { return hit }
+        let name = fallbackAssetName(for: raw)
+        let image = UIImage(named: name) ?? UIImage(named: "recipe_biryani") ?? UIImage()
+        fallbackCache.setObject(image, forKey: key)
+        return image
     }
 
     /// Stable pick so two different dish names in the same family don't share one photo.
-    private static func pick(from names: [String], salt: String) -> UIImage? {
-        let imgs = names.compactMap { UIImage(named: $0) }
-        guard !imgs.isEmpty else { return nil }
+    /// Chooses the name only. Opening every photo in the list was a main-thread hitch while scrolling.
+    private static func pickName(from names: [String], salt: String) -> String {
+        guard !names.isEmpty else { return "recipe_biryani" }
         var hash: UInt = 0
         for byte in salt.utf8 { hash = hash &* 31 &+ UInt(byte) }
-        return imgs[Int(hash % UInt(imgs.count))]
+        return names[Int(hash % UInt(names.count))]
     }
 
     /// A shipped image asset matching the thumbnail's filename, if any. Seeded recipes carry a remote
@@ -218,10 +254,9 @@ struct RecipeCoverImage: View {
                 return URL(string: s)
             }
             if s.hasPrefix("http://") || s.hasPrefix("https://") {
-                // If it's not an expired fbcdn/instagram CDN URL
-                if !s.contains("fbcdn.net") && !s.contains("instagram.") {
-                    return URL(string: s)
-                }
+                // Instagram's own cover is the dish the person shared. Load it; don't swap in a
+                // bundled photo just because the host is fbcdn.
+                return URL(string: s)
             }
             if s.hasPrefix("/") {
                 let host = s.hasPrefix("/media/") ? "https://api.cravecircle.cc"
@@ -290,6 +325,8 @@ enum CoverDiskCache {
         if let hit = memoryImage(for: url) { return hit }
         var request = URLRequest(url: url)
         request.cachePolicy = .returnCacheDataElseLoad
+        // Instagram's CDN refuses a bare request. A browser agent is enough to fetch the cover.
+        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
               let image = UIImage(data: data) else { return nil }
@@ -506,7 +543,14 @@ struct LimeSegmentedControl: View {
 
 // MARK: - Checkable rows
 
-/// Ingredient row — radio circle leading, strikethrough + muted when checked.
+/// Insert or remove one checklist value. Callers share this so ingredient and step checks
+/// don't each grow their own toggle. Grocery checks stay on `AppEnvironment.toggleGroceryItemLocal`.
+func toggleChecklistItem<T: Hashable>(_ set: inout Set<T>, _ value: T) {
+    let willCheck = !set.contains(value)
+    Haptics.toggle(willCheck)
+    if willCheck { set.insert(value) } else { set.remove(value) }
+}
+
 /// Bold the quantity parts of a cooking line ("1 cup", "½ tbsp", "500g", "2 cloves", "half cup") while
 /// leaving the ingredient/instruction words at normal weight. Sets an explicit BOLD font at `size` on the
 /// quantity (not `.stronglyEmphasized`, which only nudges to semibold — too subtle in dark mode) so it's a
@@ -529,32 +573,211 @@ func boldQuantities(_ text: String, size: CGFloat) -> AttributedString {
     return attr
 }
 
-struct IngredientRow: View {
-    let text: String
+/// Ingredient row: the amount comes first, in bold, then the name.
+func ingredientLine(_ text: String, size: CGFloat) -> AttributedString {
+    let parts = IngredientListFormat.displayParts(text)
+    guard !parts.amount.isEmpty else { return AttributedString(parts.name) }
+    let combined = parts.name.isEmpty ? parts.amount : parts.amount + " " + parts.name
+    var attr = AttributedString(combined)
+    let hi = attr.index(attr.startIndex, offsetByCharacters: parts.amount.count)
+    attr[attr.startIndex..<hi].font = AppFont.body(size, weight: .bold)
+    return attr
+}
+
+/// One checklist row: circle / checkmark, at least 44pt, Checked/Unchecked.
+/// Plain rows are grocery and cook lists. Ingredient rows may lead with the check.
+/// Pass `stepNumber` for a direction card (badge, headline, detail, clock chip) — same toggle, trailing circle.
+struct ChecklistRow: View {
+    var title: AttributedString
+    var subtitle: AttributedString? = nil
+    var trailing: String? = nil
+    var minHeight: CGFloat = 44
+    var stepNumber: Int? = nil
+    var chips: [String] = []
+    var checkLeading: Bool = false
     let checked: Bool
-    let toggle: () -> Void
+    let action: () -> Void
 
     var body: some View {
-        Button {
-            Haptics.toggle(!checked)
-            toggle()
-        } label: {
-            HStack(spacing: AppSpacing.sm) {
-                Image(systemName: checked ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22, weight: .regular))
-                    .foregroundStyle(checked ? AppTheme.accentInk : AppTheme.textTertiary)
-                    .contentTransition(.symbolEffect(.replace))
-                Text(boldQuantities(text, size: 17))
+        Button(action: action) {
+            if stepNumber != nil {
+                cardLabel
+            } else {
+                plainLabel
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(checked ? .isSelected : [])
+        .accessibilityValue(checked ? "Checked" : "Unchecked")
+    }
+
+    private var plainLabel: some View {
+        HStack(alignment: .center, spacing: AppSpacing.sm) {
+            if checkLeading { checkImage }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
                     .font(AppFont.body(17))
                     .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.textPrimary)
                     .strikethrough(checked, color: AppTheme.textTertiary)
-                    .animation(nil, value: checked)
-                Spacer(minLength: 0)
+                    .multilineTextAlignment(.leading)
+                if let subtitle, !subtitle.characters.isEmpty {
+                    Text(subtitle)
+                        .font(AppFont.body(15))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .strikethrough(checked, color: AppTheme.textTertiary)
+                        .multilineTextAlignment(.leading)
+                }
             }
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let trailing, !trailing.isEmpty {
+                Text(trailing)
+                    .font(AppFont.body(15, weight: .semibold))
+                    .foregroundStyle(AppTheme.textTertiary)
+                    .strikethrough(checked, color: AppTheme.textTertiary)
+                    .monospacedDigit()
+            }
+
+            if !checkLeading { checkImage }
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private var cardLabel: some View {
+        HStack(alignment: .top, spacing: 14) {
+            if let stepNumber {
+                Text(String(format: "%02d", stepNumber))
+                    .font(AppFont.mono(13, weight: .bold))
+                    .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.accentInk)
+                    .frame(width: 32, height: 32)
+                    .background(
+                        checked ? AnyShapeStyle(AppTheme.hairline) : AnyShapeStyle(AppTheme.accentSoft),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(checked ? Color.clear : AppTheme.accent.opacity(0.35), lineWidth: 0.8)
+                    )
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(AppFont.body(16, weight: .bold))
+                    .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.textPrimary)
+                    .strikethrough(checked, color: AppTheme.textTertiary)
+                    .lineSpacing(2)
+                    .multilineTextAlignment(.leading)
+
+                if let subtitle, !subtitle.characters.isEmpty {
+                    Text(subtitle)
+                        .font(AppFont.body(15))
+                        .foregroundStyle(checked ? AppTheme.textTertiary.opacity(0.7) : AppTheme.textSecondary)
+                        .strikethrough(checked, color: AppTheme.textTertiary)
+                        .lineSpacing(3)
+                        .multilineTextAlignment(.leading)
+                }
+
+                if !chips.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(chips, id: \.self) { chip in
+                            HStack(spacing: 4) {
+                                Image(systemName: chip.contains("°") ? "thermometer.medium" : "clock.fill")
+                                    .font(.system(size: 10, weight: .bold))
+                                Text(chip)
+                                    .font(AppFont.label(11, weight: .bold))
+                            }
+                            .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.accentInk)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(
+                                checked ? AnyShapeStyle(AppTheme.hairline) : AnyShapeStyle(AppTheme.accentSoft),
+                                in: Capsule()
+                            )
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            checkImage
+                .padding(.top, 4)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
+        .background(
+            checked ? AppTheme.surface.opacity(0.4) : AppTheme.surface,
+            in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .stroke(AppTheme.hairline, lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(checked ? 0 : 0.03), radius: 6, y: 2)
+        .contentShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+    }
+
+    private var checkImage: some View {
+        Image(systemName: checked ? "checkmark.circle" : "circle")
+            .font(AppFont.body(22))
+            .foregroundStyle(checked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+            .contentTransition(.symbolEffect(.replace))
+            .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    /// Reports the enclosing list's content height so an inset-grouped list can sit in a parent scroll view.
+    func readChecklistHeight(_ height: Binding<CGFloat>) -> some View {
+        background {
+            ChecklistScrollProbe { next in
+                guard next > 1, abs(height.wrappedValue - next) > 0.5 else { return }
+                height.wrappedValue = next
+            }
+        }
+    }
+}
+
+/// ponytail: walks up to the list's collection view because `List` does not self-size inside a `ScrollView`.
+/// Upgrade path: drop this when the checklist is the screen's own scroller (cook mode already is).
+private struct ChecklistScrollProbe: UIViewRepresentable {
+    var onHeight: (CGFloat) -> Void
+
+    func makeUIView(context: Context) -> Probe {
+        let view = Probe()
+        view.isUserInteractionEnabled = false
+        view.backgroundColor = .clear
+        view.onHeight = onHeight
+        return view
+    }
+
+    func updateUIView(_ uiView: Probe, context: Context) {
+        uiView.onHeight = onHeight
+    }
+
+    final class Probe: UIView {
+        var onHeight: ((CGFloat) -> Void)?
+        private var last: CGFloat = 0
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            report()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            report()
+        }
+
+        private func report() {
+            guard let collection = sequence(first: superview, next: { $0?.superview }).compactMap({ $0 as? UICollectionView }).first else { return }
+            let content = collection.collectionViewLayout.collectionViewContentSize.height
+            guard content > 1, abs(content - last) > 0.5 else { return }
+            last = content
+            let report = onHeight
+            DispatchQueue.main.async { report?(content) }
+        }
     }
 }
 
@@ -618,89 +841,6 @@ enum DirectionStepParser {
         } else {
             return ParsedStep(headline: trimmed, detail: nil, badges: badges)
         }
-    }
-}
-
-/// Direction step — action headline, parameter tags (time/temp), clear body text, card layout, trailing checkbox.
-struct DirectionRow: View {
-    let index: Int
-    let text: String
-    let checked: Bool
-    let toggle: () -> Void
-
-    private var parsed: DirectionStepParser.ParsedStep {
-        DirectionStepParser.parse(text)
-    }
-
-    var body: some View {
-        Button {
-            Haptics.toggle(!checked)
-            toggle()
-        } label: {
-            HStack(alignment: .top, spacing: 14) {
-                // Step Number Badge
-                Text(String(format: "%02d", index))
-                    .font(AppFont.mono(13, weight: .bold))
-                    .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.accentInk)
-                    .frame(width: 32, height: 32)
-                    .background(checked ? AnyShapeStyle(AppTheme.hairline) : AnyShapeStyle(AppTheme.accentSoft), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(checked ? Color.clear : AppTheme.accent.opacity(0.35), lineWidth: 0.8))
-
-                // Content Block
-                VStack(alignment: .leading, spacing: 6) {
-                    // Headline
-                    Text(parsed.headline)
-                        .font(AppFont.body(16, weight: .bold))
-                        .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.textPrimary)
-                        .strikethrough(checked, color: AppTheme.textTertiary)
-                        .lineSpacing(2)
-                        .multilineTextAlignment(.leading)
-
-                    // Optional Detail
-                    if let detail = parsed.detail, !detail.isEmpty {
-                        Text(boldQuantities(detail, size: 15))
-                            .font(AppFont.body(15))
-                            .foregroundStyle(checked ? AppTheme.textTertiary.opacity(0.7) : AppTheme.textSecondary)
-                            .strikethrough(checked, color: AppTheme.textTertiary)
-                            .lineSpacing(3)
-                            .multilineTextAlignment(.leading)
-                    }
-
-                    // Badges (Time & Temperature)
-                    if !parsed.badges.isEmpty {
-                        HStack(spacing: 6) {
-                            ForEach(parsed.badges, id: \.self) { badge in
-                                HStack(spacing: 4) {
-                                    Image(systemName: badge.contains("°") ? "thermometer.medium" : "clock.fill")
-                                        .font(.system(size: 10, weight: .bold))
-                                    Text(badge)
-                                        .font(AppFont.label(11, weight: .bold))
-                                }
-                                .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.accentInk)
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 4)
-                                .background(checked ? AnyShapeStyle(AppTheme.hairline) : AnyShapeStyle(AppTheme.accentSoft), in: Capsule())
-                            }
-                        }
-                        .padding(.top, 2)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                // Checkbox
-                Image(systemName: checked ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(checked ? AppTheme.accentInk : AppTheme.textTertiary)
-                    .contentTransition(.symbolEffect(.replace))
-                    .padding(.top, 4)
-            }
-            .padding(14)
-            .background(checked ? AppTheme.surface.opacity(0.4) : AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
-            .shadow(color: .black.opacity(checked ? 0 : 0.03), radius: 6, y: 2)
-            .contentShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-        }
-        .buttonStyle(.plain)
     }
 }
 

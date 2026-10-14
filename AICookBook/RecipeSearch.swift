@@ -196,10 +196,10 @@ enum RecipeSearch {
         }
     }
 
-    // MARK: - Time (parsed from prep + cook)
+    // MARK: - Time (cook only; prep is not part of the duration)
 
     static func totalMinutes(_ r: Recipe) -> Int {
-        parseMinutes(r.prepTime) + parseMinutes(r.cookTime)
+        parseMinutes(r.cookTime)
     }
 
     private static func parseMinutes(_ s: String?) -> Int {

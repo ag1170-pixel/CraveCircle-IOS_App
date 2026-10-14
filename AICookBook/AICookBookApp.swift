@@ -240,6 +240,7 @@ struct CraveCircleApp: App {
                     }
                     environment.checkPendingSharedImport()
                     Task { await environment.importFromSharedURL() }
+                    Task { try? await OnDeviceTranscriber.installAssetIfNeeded(localeID: AppLanguage.preferred.localeID) }
                     WidgetCenter.shared.reloadAllTimelines()
                 }
         }

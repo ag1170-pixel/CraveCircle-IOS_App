@@ -143,7 +143,9 @@ struct FilterChip: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                Image(systemName: systemImage).font(.system(size: 12, weight: .semibold))
+                Image(systemName: systemImage)
+                    .font(.system(size: 15, weight: .medium))
+                    .symbolRenderingMode(.monochrome)
                 Text(title).font(AppFont.body(14, weight: .semibold))
             }
             .foregroundStyle(isOn ? AppTheme.onAccent : AppTheme.textPrimary)

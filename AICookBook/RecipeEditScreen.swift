@@ -51,9 +51,6 @@ struct RecipeEditScreen: View {
                     TextField("Recipe Name", text: $draft.title)
                     Stepper("Servings: \(draft.servings ?? 1)", value: servingsBinding, in: 1...30)
                 }
-                Section("Prep time") {
-                    DurationWheel(minutes: minutesBinding(for: $draft.prepTime))
-                }
                 Section("Cook time") {
                     DurationWheel(minutes: minutesBinding(for: $draft.cookTime))
                 }

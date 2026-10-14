@@ -51,9 +51,14 @@ actor APIClient {
         let downloadUrl: String
     }
     
-    func downloadReel(url: String) async throws -> ReelDownloadResult {
-        let payload = ["url": url]
-        return try await request(path: "reels/download", method: "POST", body: payload)
+    /// `audioOnly` fetches the reel's audio for on-device listening. Pass false only when the
+    /// phone still needs picture (on-screen OCR or a cover frame).
+    func downloadReel(url: String, audioOnly: Bool = true) async throws -> ReelDownloadResult {
+        struct Body: Encodable {
+            let url: String
+            let audio_only: Bool
+        }
+        return try await request(path: "reels/download", method: "POST", body: Body(url: url, audio_only: audioOnly))
     }
 
     struct TranslateTextResult: Decodable { let texts: [String] }

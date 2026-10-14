@@ -626,6 +626,7 @@ struct ImportToastBanner: View {
             switch status {
             case .queued: return "Queued in kitchen"
             case .downloading: return "Getting the reel..."
+            case .preparing: return "Getting ready to listen..."
             case .transcribing: return "Listening to the video..."
             case .extracting: return "Writing your recipe..."
             case .done: return "Recipe Plated! ✨"

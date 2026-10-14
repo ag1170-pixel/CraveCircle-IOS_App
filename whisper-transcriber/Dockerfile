@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     HF_HOME=/models \
     WHISPER_MODEL=small \
     WHISPER_DEVICE=auto \
-    WHISPER_COMPUTE_TYPE=int8
+    WHISPER_COMPUTE_TYPE=float16
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 python3-pip ffmpeg tesseract-ocr \

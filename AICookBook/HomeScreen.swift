@@ -234,15 +234,15 @@ struct HomeScreen: View {
     private var filterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                FilterChip(title: "Veg", systemImage: "leaf.fill", isOn: filters.diet == .veg) { setDiet(.veg) }
-                FilterChip(title: "Non-veg", systemImage: "fish.fill", isOn: filters.diet == .nonVeg) { setDiet(.nonVeg) }
-                FilterChip(title: "Vegan", systemImage: "carrot.fill", isOn: filters.diet == .vegan) { setDiet(.vegan) }
+                FilterChip(title: "Veg", systemImage: "leaf", isOn: filters.diet == .veg) { setDiet(.veg) }
+                FilterChip(title: "Non-veg", systemImage: "frying.pan", isOn: filters.diet == .nonVeg) { setDiet(.nonVeg) }
+                FilterChip(title: "Vegan", systemImage: "carrot", isOn: filters.diet == .vegan) { setDiet(.vegan) }
                 filterDivider
-                FilterChip(title: "Under 15m", systemImage: "bolt.fill", isOn: filters.time == .under15) { setTime(.under15) }
+                FilterChip(title: "Under 15m", systemImage: "timer", isOn: filters.time == .under15) { setTime(.under15) }
                 FilterChip(title: "15–30m", systemImage: "clock.fill", isOn: filters.time == .mid) { setTime(.mid) }
                 FilterChip(title: "30m+", systemImage: "clock", isOn: filters.time == .long) { setTime(.long) }
                 filterDivider
-                FilterChip(title: "High protein", systemImage: "flame.fill", isOn: filters.highProtein) {
+                FilterChip(title: "High protein", systemImage: "dumbbell", isOn: filters.highProtein) {
                     Haptics.select()
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { filters.highProtein.toggle() }
                 }
@@ -850,7 +850,6 @@ struct MetaLine: View {
     var body: some View {
         let parts = [
             recipe.servings.map { "\($0) servings" },
-            recipe.prepTime.map { "\($0) prep" },
             recipe.cookTime.map { "\($0) cook" }
         ].compactMap { $0 }
         Text(parts.joined(separator: " · "))

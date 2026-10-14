@@ -73,6 +73,11 @@ struct NutritionCard: View {
                     .foregroundStyle(AppTheme.textPrimary)
                 Spacer()
                 if baseServings > 1 {
+                    if nutrition.estimated {
+                        Text("Estimated")
+                            .font(AppFont.body(12))
+                            .foregroundStyle(AppTheme.textTertiary)
+                    }
                     Button {
                         Haptics.tap()
                         withAnimation(AppMotion.snappy) {

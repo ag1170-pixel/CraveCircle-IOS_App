@@ -402,6 +402,57 @@ enum NutritionEstimator {
         for (key, macro) in table where name.contains(key) { return macro }
         return nil
     }
+
+    /// One line that states kcal and protein, carbs, and fat, and is marked per serving.
+    /// Values are already per serving — do not divide by the recipe serving count.
+    /// A lone kcal headline returns nil so it cannot fill the chart.
+    static func statedPerServing(in text: String?) -> RecipeNutrition? {
+        guard let text, !text.isEmpty else { return nil }
+        for raw in text.split(whereSeparator: \.isNewline) {
+            let line = String(raw).trimmingCharacters(in: .whitespaces)
+            guard line.range(of: #"per\s+serv(?:e|ing)s?|/\s*servings?"#, options: [.regularExpression, .caseInsensitive]) != nil,
+                  let kcal = capture(#"(\d+(?:\.\d+)?)\s*(?:kcal|calories|cals)\b"#, in: line),
+                  let protein = macroGrams(line, name: "proteins?"),
+                  let carbs = macroGrams(line, name: "carbohydrates?|carbs?"),
+                  let fat = macroGrams(line, name: "fats?")
+            else { continue }
+            return RecipeNutrition(calories: kcal, carbsG: carbs, proteinG: protein, fatG: fat, estimated: false)
+        }
+        return nil
+    }
+
+    /// True when a title candidate is only a kcal-per-serving headline ("370 Kcal per Serving").
+    static func isKcalServingHeadline(_ text: String) -> Bool {
+        let cleaned = text.replacingOccurrences(of: #"[^\w\s/]"#, with: " ", options: .regularExpression)
+        let squashed = cleaned.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return squashed.range(
+            of: #"^\d+(?:\.\d+)?\s*(?:kcal|calories|cals)\s*(?:per\s+serv(?:e|ing)s?|/\s*servings?)$"#,
+            options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    /// First caption line that can be a dish name. Skips a kcal headline and a full macro line.
+    static func dishTitle(in text: String) -> String? {
+        text.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { line in
+                line.count >= 3 && !isKcalServingHeadline(line) && statedPerServing(in: line) == nil
+            }
+            .map { String($0.prefix(48)) }
+    }
+
+    private static func macroGrams(_ line: String, name: String) -> Double? {
+        capture(#"(\d+(?:\.\d+)?)\s*g(?:rams?)?\s*(?:of\s+)?(?:"# + name + #")\b"#, in: line)
+            ?? capture(#"(?:"# + name + #")\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*g(?:rams?)?\b"#, in: line)
+    }
+
+    private static func capture(_ pattern: String, in line: String) -> Double? {
+        guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+        let ns = line as NSString
+        guard let m = re.firstMatch(in: line, range: NSRange(location: 0, length: ns.length)),
+              m.numberOfRanges > 1 else { return nil }
+        return Double(ns.substring(with: m.range(at: 1)))
+    }
 }
 
 extension Recipe {

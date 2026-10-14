@@ -74,7 +74,8 @@ struct ImportProgressScreen: View {
                         stage: stage,
                         state: state(for: stage),
                         isLast: stage == .ready,
-                        reduceMotion: reduceMotion
+                        reduceMotion: reduceMotion,
+                        listening: currentStatus == .transcribing
                     )
                 }
             }
@@ -184,7 +185,7 @@ struct ImportProgressScreen: View {
     private func currentIndex() -> Int {
         switch currentStatus {
         case .queued, .downloading: return 0
-        case .transcribing: return 1
+        case .preparing, .transcribing: return 1
         case .extracting: return 2
         case .done: return 3
         case .error: return 1
@@ -210,6 +211,8 @@ private struct StageRow: View {
     let state: StageState
     let isLast: Bool
     let reduceMotion: Bool
+    /// False while the speech model is still downloading, so that wait isn't labeled as the listen.
+    var listening: Bool = true
 
     var body: some View {
         HStack(alignment: .top, spacing: AppSpacing.md) {
@@ -224,13 +227,13 @@ private struct StageRow: View {
             .frame(width: 32)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(stage.title)
+                Text(rowTitle)
                     .font(AppFont.body(17, weight: .semibold))
                     .foregroundStyle(titleColor)
-                Text(stage.subtitle)
+                Text(rowSubtitle)
                     .font(AppFont.body(13))
                     .foregroundStyle(AppTheme.textTertiary)
-                if stage == .transcribe && state == .active {
+                if showsWave {
                     ChunkBar(reduceMotion: reduceMotion).padding(.top, 8)
                 }
             }
@@ -239,8 +242,20 @@ private struct StageRow: View {
         }
     }
 
+    private var showsWave: Bool { stage == .transcribe && state == .active && listening }
+
+    private var rowTitle: String {
+        if stage == .transcribe && state == .active && !listening { return "Getting ready to listen" }
+        return stage.title
+    }
+
+    private var rowSubtitle: String {
+        if stage == .transcribe && state == .active && !listening { return "Setting up speech on this phone" }
+        return stage.subtitle
+    }
+
     private var connectorHeight: CGFloat {
-        stage == .transcribe && state == .active ? 36 : 22
+        showsWave ? 36 : 22
     }
 
     private var titleColor: Color {

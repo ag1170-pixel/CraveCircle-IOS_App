@@ -114,8 +114,8 @@ struct RecipeShareSheet: View {
                     .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(1)
                 CreatorLine(handle: recipe.ownerUsername)
-                if let prep = recipe.prepTime {
-                    Text("Prep: \(prep)")
+                if let cook = recipe.cookTime, !cook.isEmpty {
+                    Text(cook)
                         .font(AppFont.body(12))
                         .foregroundStyle(AppTheme.textTertiary)
                 }

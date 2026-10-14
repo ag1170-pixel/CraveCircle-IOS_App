@@ -23,10 +23,36 @@ from faster_whisper import WhisperModel, decode_audio
 
 MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
 MIN_SPEECH_SECONDS = float(os.getenv("MIN_SPEECH_SECONDS", "4.0"))  # below this = music/B-roll, not narration
-DEVICE = os.getenv("WHISPER_DEVICE", "auto")            # "cuda" | "cpu" | "auto"
-COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")    # float16 (GPU) | int8 (CPU)
-BEAM_SIZE = int(os.getenv("WHISPER_BEAM_SIZE", "5"))
+_DEVICE_ENV = os.getenv("WHISPER_DEVICE")               # None → auto
+_COMPUTE_ENV = os.getenv("WHISPER_COMPUTE_TYPE")           # None → float16 on GPU, int8 on CPU
+DEVICE = _DEVICE_ENV or "auto"                             # "cuda" | "cpu" | "auto"
+COMPUTE_TYPE = _COMPUTE_ENV or "int8"
+BEAM_SIZE = int(os.getenv("WHISPER_BEAM_SIZE", "1"))
 SAMPLE_RATE = 16_000
+
+
+def resolve_whisper_runtime(device: str, compute: str | None, cuda_devices: int) -> tuple[str, str]:
+    """Auto uses cuda/float16 when a GPU is visible. CPU int8 is the fallback.
+    An explicit WHISPER_DEVICE=cpu (or cuda) keeps the operator's compute type."""
+    requested = device or "auto"
+    dev = "cuda" if requested == "auto" and cuda_devices > 0 else ("cpu" if requested == "auto" else requested)
+    if requested == "auto" and dev == "cuda":
+        comp = "float16"   # int8 in the image env is the old CPU default, not a GPU pin
+    elif compute:
+        comp = compute
+    else:
+        comp = "int8"
+    if dev == "cpu" and comp == "float16":
+        comp = "int8"
+    return dev, comp
+
+
+assert resolve_whisper_runtime("auto", None, 1) == ("cuda", "float16")
+assert resolve_whisper_runtime("auto", "int8", 1) == ("cuda", "float16")
+assert resolve_whisper_runtime("auto", "int8", 0) == ("cpu", "int8")
+assert resolve_whisper_runtime("auto", None, 0) == ("cpu", "int8")
+assert resolve_whisper_runtime("cpu", "int8", 1) == ("cpu", "int8")
+assert resolve_whisper_runtime("cpu", "float16", 0) == ("cpu", "int8")
 
 
 @dataclass
@@ -48,17 +74,15 @@ class TranscriptResult:
 
 @lru_cache(maxsize=1)
 def _model() -> WhisperModel:
-    """Load large-v3 once and keep it warm. Falls back CUDA->CPU if no GPU is present."""
-    device = DEVICE
-    compute = COMPUTE_TYPE
-    if device == "auto":
+    """Load once and keep it warm. Auto uses the GPU when ctranslate2 sees one."""
+    cuda_devices = 0
+    if DEVICE == "auto":
         try:
             import ctranslate2
-            device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
+            cuda_devices = ctranslate2.get_cuda_device_count()
         except Exception:
-            device = "cpu"
-    if device == "cpu" and compute == "float16":
-        compute = "int8"   # float16 is a GPU compute type
+            cuda_devices = 0
+    device, compute = resolve_whisper_runtime(DEVICE, _COMPUTE_ENV, cuda_devices)
     try:
         return WhisperModel(MODEL_NAME, device=device, compute_type=compute)
     except Exception as e:

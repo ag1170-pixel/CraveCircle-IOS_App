@@ -1,16 +1,16 @@
-# CraveCircle Whisper transcriber. GPU on this host is shared/full (Voiceprint holds ~3.3GB of the
-# 4GB GTX 1650), so we run the medium model on CPU (int8) for a quality bump over small. If the GPU
-# is freed later, set WHISPER_DEVICE=cuda + WHISPER_COMPUTE_TYPE=float16 and add a gpu reservation.
+# CraveCircle Whisper transcriber. The 4GB GTX 1650 runs Whisper small at float16.
+# Ollama's 7B stays on CPU — it does not fit beside Whisper on this card.
 services:
   whisper-transcriber:
     build: .
     container_name: cravecircle-whisper
     restart: unless-stopped
+    gpus: all
     environment:
       WHISPER_MODEL: small
-      WHISPER_DEVICE: cpu
-      WHISPER_COMPUTE_TYPE: int8
-      WHISPER_BEAM_SIZE: "5"
+      WHISPER_DEVICE: cuda
+      WHISPER_COMPUTE_TYPE: float16
+      WHISPER_BEAM_SIZE: "1"
       COOKIES_FILE: /cookies/cookies.txt
       DB_PATH: /models/cravecircle_admin.db
       LLM_TRANSLATOR_URL: http://ollama:11434/v1

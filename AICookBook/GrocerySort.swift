@@ -132,7 +132,7 @@ enum GrocerySort {
     /// The bare ingredient (no leading quantity/unit) — used to de-duplicate across recipes.
     /// "2 tbsp olive oil" and "1 cup olive oil" both reduce to "olive oil".
     static func coreName(_ s: String) -> String {
-        var tokens = s.lowercased()
+        var tokens = IngredientListFormat.displayParts(s).name.lowercased()
             .replacingOccurrences(of: #"\([^)]*\)"#, with: "", options: .regularExpression)
             .split { !$0.isLetter && !$0.isNumber }
             .map(String.init)

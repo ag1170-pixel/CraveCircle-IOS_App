@@ -11,7 +11,7 @@ import sys
 os.environ.setdefault("LLM_TRANSLATOR_URL", "")
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from app.main import translate_recipe, _norm_lang  # noqa: E402
+from app.main import translate_recipe, _norm_lang, recipe_text_lang  # noqa: E402
 
 
 def sample() -> dict:
@@ -50,6 +50,16 @@ def main() -> None:
     assert _norm_lang("EN-US") == "en"
     assert _norm_lang(None) == ""
     assert _norm_lang("Ta") == "ta"
+
+    # Whisper task=translate already wrote English. Do not wait on Ollama to
+    # translate English into English just because the spoken tag is Hindi.
+    assert recipe_text_lang("Add the butter and simmer.", "hi") == "en"
+    assert _norm_lang("en") == _norm_lang(recipe_text_lang("Add the butter and simmer.", "hi"))
+    # No English transcript: a Hindi recipe still needs translation to English.
+    assert recipe_text_lang("", "hi") == "hi"
+    assert _norm_lang("en") != _norm_lang(recipe_text_lang("", "hi"))
+    # English transcript, user asked for Tamil: still translate.
+    assert _norm_lang("ta") != _norm_lang(recipe_text_lang("Add the butter and simmer.", "hi"))
 
     print("OK: translate_recipe early-exit paths all correct.")
 

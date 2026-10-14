@@ -112,6 +112,7 @@ struct TranscribeTestView: View {
         }
         guard let videoURL else { return }
         do {
+            try await OnDeviceTranscriber.installAssetIfNeeded(localeID: localeID)
             result = try await OnDeviceTranscriber.transcribe(url: videoURL, localeID: localeID)
         } catch {
             errorText = "Couldn't transcribe: \(error)"

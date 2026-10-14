@@ -64,8 +64,8 @@ final class RecipeSearchTests: XCTestCase {
     }
 
     func testTotalMinutes() {
-        XCTAssertEqual(RecipeSearch.totalMinutes(makeRecipe(title: "x", ingredients: ["a"], prep: "15 min", cook: "20 min")), 35)
-        XCTAssertEqual(RecipeSearch.totalMinutes(makeRecipe(title: "x", ingredients: ["a"], prep: "1 hr", cook: "10 min")), 70)
+        XCTAssertEqual(RecipeSearch.totalMinutes(makeRecipe(title: "x", ingredients: ["a"], prep: "15 min", cook: "20 min")), 20)
+        XCTAssertEqual(RecipeSearch.totalMinutes(makeRecipe(title: "x", ingredients: ["a"], prep: "1 hr", cook: "10 min")), 10)
     }
 
     func testIngredientQueryMatch() {
@@ -152,7 +152,7 @@ final class RecommendationEngineTests: XCTestCase {
     }
 }
 
-// MARK: - Recipe total-time parsing (Prep + Cook merged into one figure)
+// MARK: - Recipe duration (cook time only; prep is not added)
 
 final class RecipeTotalTimeTests: XCTestCase {
     func testMinutesParsing() {
@@ -170,12 +170,11 @@ final class RecipeTotalTimeTests: XCTestCase {
         XCTAssertEqual(Recipe.formatMinutes(95), "1 hr 35 min")
     }
 
-    func testTotalSumsPrepAndCook() {
-        XCTAssertEqual(makeRecipe(title: "x", ingredients: [], prep: "20 min", cook: "15 min").totalTimeText, "35 min")
-        // only one present → that one
-        XCTAssertEqual(makeRecipe(title: "x", ingredients: [], prep: "10 min").totalTimeText, "10 min")
-        // neither parseable but one exists → unparsed fallback
-        XCTAssertEqual(makeRecipe(title: "x", ingredients: [], prep: "a while").totalTimeText, "a while")
+    func testTotalIsCookTimeOnly() {
+        XCTAssertEqual(makeRecipe(title: "x", ingredients: [], prep: "20 min", cook: "15 min").totalTimeText, "15 min")
+        XCTAssertEqual(makeRecipe(title: "x", ingredients: [], prep: "10 min", cook: "1 hr 10 min").totalTimeText, "1 hr 10 min")
+        XCTAssertNil(makeRecipe(title: "x", ingredients: [], prep: "10 min").totalTimeText)
+        XCTAssertEqual(makeRecipe(title: "x", ingredients: [], cook: "a while").totalTimeText, "a while")
     }
 }
 
@@ -191,6 +190,25 @@ final class NutritionPortionTests: XCTestCase {
     func testWholeRecipeScalesWithServings() {
         XCTAssertEqual(RecipeNutrition.portionMultiplier(servings: 4, whole: true), 4)
         XCTAssertEqual(RecipeNutrition.portionMultiplier(servings: 1, whole: true), 1)
+    }
+
+    func testCaptionPerServingMacrosAreNotDividedByServings() throws {
+        let caption = """
+        370 Kcal per Serving
+        Garlic Chicken Bowl
+        370 kcal | 14g protein | 52g carbs | 13g fat per Serving
+        Makes 4 Servings
+        """
+        let n = try XCTUnwrap(NutritionEstimator.statedPerServing(in: caption))
+        XCTAssertEqual(n.calories, 370)
+        XCTAssertEqual(n.proteinG, 14)
+        XCTAssertEqual(n.carbsG, 52)
+        XCTAssertEqual(n.fatG, 13)
+        XCTAssertFalse(n.estimated)
+        XCTAssertNotEqual(n.calories, 140.0)
+        XCTAssertNotEqual(n.calories, 370 / 4)
+        XCTAssertNil(NutritionEstimator.statedPerServing(in: "370 Kcal per Serving\nMakes 4 Servings"))
+        XCTAssertEqual(NutritionEstimator.dishTitle(in: caption), "Garlic Chicken Bowl")
     }
 
     func testReducingServingsDoesNotInflatePerServingDV() {
@@ -296,6 +314,19 @@ final class DiscoveryReelRefreshTests: XCTestCase {
         XCTAssertEqual(DiscoveryReelRefresh.unseenPool(shown: ["a", "b"], candidates: ["b", "c", "d"]), ["c", "d"])
         XCTAssertEqual(DiscoveryReelRefresh.unseenPool(shown: ["a"], candidates: ["a"]), ["a"])
     }
+
+    func testMixedReelIncludesLibraryWithoutDuplicateIDs() {
+        let library = makeRecipe(id: "lib", title: "My Dal", ingredients: ["dal"])
+        let suggestion = makeRecipe(id: "sug", title: "Their Pasta", ingredients: ["pasta"])
+        let reel = DiscoveryReelRefresh.mixedReel(
+            library: [library],
+            suggestions: [suggestion, library],
+            ownedIDs: ["lib"],
+            viewedIDs: ["lib"]
+        )
+        XCTAssertEqual(Set(reel.map(\.id)), Set(["lib", "sug"]))
+        XCTAssertEqual(reel.count, Set(reel.map(\.id)).count)
+    }
 }
 
 // MARK: - Ingredient list format
@@ -329,6 +360,60 @@ final class IngredientListFormatTests: XCTestCase {
         let line = "Chopped coriander (panerecipe, viralreels, foodporn, foodblogger, recipeoftheday)"
         XCTAssertEqual(IngredientListFormat.cleanedItem(line), "Chopped coriander")
     }
+
+    func testNameDashAmountReadsAmountThenName() {
+        let line = "Chickpeas / kabuli chana — 1¼ cups dried (250g)"
+        let parts = IngredientListFormat.displayParts(line)
+        XCTAssertEqual(parts.amount, "1¼ cups dried (250g)")
+        XCTAssertEqual(parts.name, "Chickpeas / kabuli chana")
+        XCTAssertEqual(IngredientListFormat.cleanedItem("kasuri methi (optional)"), "kasuri methi (optional)")
+        XCTAssertFalse(IngredientListFormat.isTagDump("(optional)"))
+        let group = IngredientGroup(groupName: "Main Ingredients", items: [line, "butter (optional)"])
+        XCTAssertEqual(group.groupName, "Main Ingredients")
+        XCTAssertEqual(group.items, [line, "butter (optional)"])
+    }
+}
+
+final class TranscriptListenTests: XCTestCase {
+    func testFewWordsAreNotEnough() {
+        XCTAssertFalse(TranscriptListen.heardEnough("mix two cups of flour then bake"))
+    }
+
+    func testAHeardRecipeStops() {
+        let line = "You need 2 cups pasta, 3 tbsp butter, 4 cloves garlic, and 1 tsp salt. Boil the pasta, slice the garlic, heat the butter, then stir and serve. "
+        let text = String(repeating: line, count: 4)
+        XCTAssertGreaterThanOrEqual(text.count, 400)
+        XCTAssertTrue(TranscriptListen.heardEnough(text))
+    }
+
+    func testLongMonologueHitsTheCap() {
+        XCTAssertTrue(TranscriptListen.heardEnough(String(repeating: "word ", count: 400)))
+    }
+
+    func testCaptionRecipeWithCoverSkipsVideo() {
+        let caption = "Weeknight garlic rice\n1 cup rice\n2 tbsp oil\n1 tsp salt\nBoil the rice until tender. Heat the oil and serve warm."
+        XCTAssertFalse(TranscriptListen.needsVideoDownload(transcriptCount: 8, context: caption, hasCover: true))
+    }
+
+    func testThinTranscriptWithoutARecipeStillNeedsVideo() {
+        XCTAssertTrue(TranscriptListen.needsVideoDownload(transcriptCount: 8, context: "just a hello", hasCover: true))
+        XCTAssertTrue(TranscriptListen.needsVideoDownload(transcriptCount: 8, context: "just a hello", hasCover: false))
+    }
+
+    func testSpokenRecipeWithCoverSkipsVideo() {
+        XCTAssertFalse(TranscriptListen.needsVideoDownload(transcriptCount: 80, context: "anything", hasCover: true))
+    }
+
+    func testMissingCoverStillNeedsAFrame() {
+        XCTAssertTrue(TranscriptListen.needsVideoDownload(transcriptCount: 80, context: "a full spoken recipe", hasCover: false))
+    }
+
+    func testAudioFilesAreNotReencoded() {
+        XCTAssertTrue(OnDeviceTranscriber.passesThroughAudio(pathExtension: "m4a"))
+        XCTAssertTrue(OnDeviceTranscriber.passesThroughAudio(pathExtension: "MP3"))
+        XCTAssertFalse(OnDeviceTranscriber.passesThroughAudio(pathExtension: "mp4"))
+        XCTAssertFalse(OnDeviceTranscriber.passesThroughAudio(pathExtension: "mov"))
+    }
 }
 
 final class RecipeReportTests: XCTestCase {
@@ -341,5 +426,55 @@ final class RecipeReportTests: XCTestCase {
         XCTAssertEqual(parsed?.recipe.id, "paneer-1")
         XCTAssertEqual(parsed?.recipe.title, "Paneer Butter Masala")
         XCTAssertEqual(parsed?.recipe.ingredients.first?.items, ["200g paneer", "1 onion, chopped"])
+    }
+}
+
+final class RecipeCoverFilenameTests: XCTestCase {
+    func testBundledAndRemoteCoversDoNotOpenFiles() {
+        XCTAssertNil(RecipeCoverImage.localCoverFilename("recipe_hot_honey_chicken"))
+        XCTAssertTrue(
+            RecipeCoverImage.localCoverFilenames(
+                urlString: "recipe_hot_honey_chicken",
+                recipeId: "recipe-hot-honey-chicken"
+            ).isEmpty
+        )
+        let remote = "https://db.cravecircle.cc/storage/v1/object/public/recipe-thumbnails/recipe_biryani.jpg"
+        XCTAssertTrue(RecipeCoverImage.localCoverFilenames(urlString: remote, recipeId: "recipe-biryani").isEmpty)
+    }
+
+    func testLocalThumbIsOneFilename() {
+        XCTAssertEqual(RecipeCoverImage.localCoverFilename("thumb-abc.jpg"), "thumb-abc.jpg")
+        XCTAssertEqual(
+            RecipeCoverImage.localCoverFilenames(urlString: "thumb-abc.jpg", recipeId: "abc"),
+            ["thumb-abc.jpg"]
+        )
+        XCTAssertEqual(
+            RecipeCoverImage.localCoverFilename("file:///var/mobile/thumb-abc.heic"),
+            "thumb-abc.heic"
+        )
+    }
+
+    func testFallbackPicksOneAssetAndStaysStable() {
+        XCTAssertEqual(RecipeCoverImage.fallbackAssetName(for: "Butter Chicken"), "recipe_kadai_chicken")
+        let rice = RecipeCoverImage.fallbackAssetName(for: "Jeera Rice")
+        let family = ["recipe_biryani", "recipe_korean_bibimbap", "recipe_mushroom_risotto", "recipe_chipotle_bowl", "recipe_falafel_bowl", "recipe_thai_basil_chicken"]
+        XCTAssertTrue(family.contains(rice))
+        XCTAssertEqual(RecipeCoverImage.fallbackAssetName(for: "Jeera Rice"), rice)
+    }
+}
+
+final class ChecklistToggleTests: XCTestCase {
+    func testToggleChecklistItemInsertsThenRemoves() {
+        var ingredients: Set<String> = []
+        toggleChecklistItem(&ingredients, "0:1")
+        XCTAssertEqual(ingredients, ["0:1"])
+        toggleChecklistItem(&ingredients, "0:1")
+        XCTAssertTrue(ingredients.isEmpty)
+
+        var steps: Set<Int> = [2]
+        toggleChecklistItem(&steps, 2)
+        XCTAssertFalse(steps.contains(2))
+        toggleChecklistItem(&steps, 4)
+        XCTAssertEqual(steps, [4])
     }
 }

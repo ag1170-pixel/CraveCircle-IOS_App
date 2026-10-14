@@ -38,6 +38,25 @@ enum DiscoveryReelRefresh {
         let fresh = candidates.filter { !shownSet.contains($0) }
         return fresh.isEmpty ? candidates : fresh
     }
+
+    /// Suggestion cards plus Home's library (owned or saved), one copy per id, shuffled.
+    /// Viewed ids stay off the suggestion list. Owned library cards stay eligible after a view;
+    /// a viewed saved card stays out unless dropping the library would empty the reel.
+    static func mixedReel(
+        library: [Recipe],
+        suggestions: [Recipe],
+        ownedIDs: Set<String>,
+        viewedIDs: Set<String>
+    ) -> [Recipe] {
+        let eligible = library.filter { ownedIDs.contains($0.id) || !viewedIDs.contains($0.id) }
+        var byID: [String: Recipe] = [:]
+        for recipe in suggestions { byID[recipe.id] = recipe }
+        for recipe in eligible { byID[recipe.id] = recipe }
+        if byID.isEmpty {
+            for recipe in library { byID[recipe.id] = recipe }
+        }
+        return Array(byID.values).shuffled()
+    }
 }
 
 /// Bumped only by a double-tap on the Discover tab while that tab is already selected.
@@ -313,7 +332,7 @@ private struct ReelCell: View {
                 .foregroundStyle(.white)
                 .lineLimit(2)
             HStack(spacing: 6) {
-                if let p = recipe.prepTime { metaPill(icon: "clock", text: p) }
+                if let c = recipe.cookTime, !c.isEmpty { metaPill(icon: "clock", text: c) }
                 if let k = recipe.nutrition?.calories { metaPill(icon: "flame", text: "\(Int(k)) kcal") }
             }
         }
