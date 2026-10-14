@@ -8,7 +8,9 @@
 
 import SwiftUI
 import UIKit
+#if !XTOOL_WSL
 import PhotosUI
+#endif
 
 enum ReelURL {
     /// Accepts Instagram reels/posts, TikTok, and YouTube Shorts links.

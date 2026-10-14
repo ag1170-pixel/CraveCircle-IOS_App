@@ -38,6 +38,8 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>CraveCircle uses the camera to capture dishes and ingredients for recipes.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>CraveCircle connects to your CraveCircle server to import recipes from cooking videos.</string>
 	<key>NSMicrophoneUsageDescription</key>

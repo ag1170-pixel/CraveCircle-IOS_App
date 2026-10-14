@@ -1,0 +1,4 @@
+version: 1
+bundleID: com.anassyed.AICookBook
+product: AICookBook
+infoPath: Config/AICookBook-Info.plist
