@@ -24,7 +24,8 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var avatarImageData: Data? { didSet { persist(avatarImageData, "avatar.json") } }
     @AppStorage("guest_user_id") private var guestUserId: String = ""
     @AppStorage("onboarded_user_ids") private var onboardedUserIdsRaw: String = ""
-    @AppStorage("deleted_recipe_ids") private var deletedRecipeIdsRaw: String = ""
+    /// Per signed-in user. Not @AppStorage — that key was one list for the whole phone.
+    private var deletedRecipeIdsRaw: String = ""
     @Published private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
     @Published private(set) var selectedRecipe: Recipe?
     @Published private(set) var importState: ImportFlowState = .idle {
@@ -47,9 +48,9 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var savedRecipeIds: Set<String> = []
     
     // Friends & Circle
-    @Published private(set) var circleFriends: [FriendItem] = []
-    @Published private(set) var incomingRequests: [FriendRequestItem] = []
-    @Published private(set) var outgoingRequests: [FriendRequestItem] = []
+    @Published private(set) var circleFriends: [FriendItem] = [] { didSet { persist(circleFriends, "circle_friends.json") } }
+    @Published private(set) var incomingRequests: [FriendRequestItem] = [] { didSet { persist(incomingRequests, "friend_requests_in.json") } }
+    @Published private(set) var outgoingRequests: [FriendRequestItem] = [] { didSet { persist(outgoingRequests, "friend_requests_out.json") } }
     
     // Collections
     @Published private(set) var ownedCollections: [CollectionItem] = CollectionItem.ownedSamples { didSet { persist(ownedCollections, "owned_collections.json") } }
@@ -59,10 +60,10 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var studioDraftIds: Set<String> = ["recipe-hot-honey-chicken", "recipe-spicy-paneer-wrap"] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
     
     // Notifications & Activity
-    @Published private(set) var circleNotifications: [CircleNotificationItem] = CircleNotificationItem.samples
+    @Published private(set) var circleNotifications: [CircleNotificationItem] = CircleNotificationItem.samples { didSet { persist(circleNotifications, "notifications.json") } }
 
     // Recipe Comments
-    @Published private(set) var recipeComments: [String: [RecipeComment]] = RecipeComment.defaultSamples
+    @Published private(set) var recipeComments: [String: [RecipeComment]] = RecipeComment.defaultSamples { didSet { persist(recipeComments, "comments.json") } }
 
     let config: AppConfig
     private let tokenStore: TokenStore
@@ -71,10 +72,21 @@ final class AppEnvironment: ObservableObject {
     private var importTask: Task<Void, Never>?
 
     /// Guards on-disk autosave: property `didSet`s only persist AFTER `hydrateLocal()` has loaded
-    /// the saved state, so loading doesn't immediately overwrite the files.
+    /// the saved state, so loading doesn't immediately overwrite the files. Writes go to the
+    /// signed-in user's file, never the shared unscoped name.
     private var hydrated = false
     private func persist<T: Encodable>(_ value: T, _ file: String) {
-        if hydrated { LocalStore.save(value, to: file) }
+        guard hydrated, let id = currentUser?.id, !id.isEmpty else { return }
+        LocalStore.save(value, to: AccountScope.fileName(userId: id, file: file))
+    }
+
+    private func loadScoped<T: Decodable>(_ type: T.Type, _ file: String, userId: String) -> T? {
+        LocalStore.load(type, from: AccountScope.fileName(userId: userId, file: file))
+    }
+
+    private func storeRecipeIdSet(_ ids: Set<String>, key: String) {
+        guard hydrated, let id = currentUser?.id, !id.isEmpty else { return }
+        UserDefaults.standard.set(Array(ids), forKey: AccountScope.defaultsKey(userId: id, key: key))
     }
 
     init(
@@ -95,13 +107,43 @@ final class AppEnvironment: ObservableObject {
 
     private let supabase: SupabaseData
 
-    /// Load the persisted library (recipes/collections/grocery/flags) from disk, merging any new
-    /// bundled sample recipes by id so content updates still appear. Runs once, before autosave arms.
+    /// Copy the old unscoped files onto this user once, then never again.
+    /// The owner id is recorded before the copy so a second account cannot claim the same files.
+    private func claimLegacyFilesIfNeeded(userId: String) {
+        let defaults = UserDefaults.standard
+        let recorded = defaults.string(forKey: AccountScope.ownerKey)
+        guard AccountScope.mayReadLegacy(userId: userId, recordedOwner: recorded) else { return }
+        if recorded == nil {
+            defaults.set(userId, forKey: AccountScope.ownerKey)
+        }
+        let fm = FileManager.default
+        for file in AccountScope.personalFiles {
+            let scopedURL = LocalStore.url(AccountScope.fileName(userId: userId, file: file))
+            let legacyURL = LocalStore.url(file)
+            if !fm.fileExists(atPath: scopedURL.path), fm.fileExists(atPath: legacyURL.path) {
+                try? fm.copyItem(at: legacyURL, to: scopedURL)
+            }
+        }
+        for key in AccountScope.personalDefaultsKeys {
+            let scoped = AccountScope.defaultsKey(userId: userId, key: key)
+            if defaults.object(forKey: scoped) == nil, let legacy = defaults.object(forKey: key) {
+                defaults.set(legacy, forKey: scoped)
+            }
+        }
+    }
+
+    /// Load this user's library, photo, grocery, and the rest of their on-device setup.
+    /// Sample recipes are still merged in so Discover works offline; they are not owned.
     private func hydrateLocal() {
-        let saved = LocalStore.load([Recipe].self, from: "recipes.json") ?? []
+        guard let userId = currentUser?.id, !userId.isEmpty else { return }
+        hydrated = false
+        claimLegacyFilesIfNeeded(userId: userId)
+        let defaults = UserDefaults.standard
+        deletedRecipeIdsRaw = defaults.string(forKey: AccountScope.defaultsKey(userId: userId, key: "deleted_recipe_ids")) ?? ""
         let localDeleted = deletedRecipeIds
+
+        let saved = loadScoped([Recipe].self, "recipes.json", userId: userId) ?? []
         var merged = saved.filter { !localDeleted.contains($0.id) }
-        // Auto-heal local covers: clean legacy file:// URLs to relative filenames so container UUID migrations never break covers
         for i in merged.indices {
             if let t = merged[i].thumbnailUrl, t.hasPrefix("file://"), let name = URL(string: t)?.lastPathComponent {
                 merged[i].thumbnailUrl = name
@@ -114,34 +156,80 @@ final class AppEnvironment: ObservableObject {
         }
         let savedIds = Set(merged.map(\.id))
         for sample in Recipe.placeholderRecipes where !savedIds.contains(sample.id) { merged.append(sample) }
+        var stamped = false
+        for i in merged.indices where merged[i].ownerId == "you" || merged[i].ownerId == "local-user" || merged[i].ownerId == "local-chef" {
+            merged[i].ownerId = userId
+            stamped = true
+        }
         recipes = merged.map(NutritionEstimator.replacingCalorieHeadline)
 
-        ownedCollections = LocalStore.load([CollectionItem].self, from: "owned_collections.json") ?? []
-        sharedCollections = LocalStore.load([CollectionItem].self, from: "shared_collections.json") ?? []
-        groceryItems = LocalStore.load([GroceryItem].self, from: "grocery.json") ?? []
-        if let drafts = LocalStore.load([String].self, from: "studio_drafts.json") { studioDraftIds = Set(drafts) }
-        if let follows = LocalStore.load([String].self, from: "followed_creators.json") { followedCreators = Set(follows) }
-        sharedLog = LocalStore.load([SharedRecipeRecord].self, from: "shared_log.json") ?? []
-        if let unsynced = LocalStore.load([String].self, from: "unsynced_recipes.json") { unsyncedRecipeIds = Set(unsynced) }
-        if let cuisines = LocalStore.load([String].self, from: "preferred_cuisines.json") { preferredCuisines = Set(cuisines) }
-        avatarImageData = LocalStore.load(Data.self, from: "avatar.json")
-        pendingInteractions = LocalStore.load([InteractionEvent].self, from: "pending_interactions.json") ?? []
-        interactionHistory = LocalStore.load([InteractionEvent].self, from: "interaction_history.json") ?? []
+        ownedCollections = loadScoped([CollectionItem].self, "owned_collections.json", userId: userId) ?? []
+        sharedCollections = loadScoped([CollectionItem].self, "shared_collections.json", userId: userId) ?? []
+        groceryItems = loadScoped([GroceryItem].self, "grocery.json", userId: userId) ?? []
+        studioDraftIds = Set(loadScoped([String].self, "studio_drafts.json", userId: userId) ?? [])
+        followedCreators = Set(loadScoped([String].self, "followed_creators.json", userId: userId) ?? [])
+        sharedLog = loadScoped([SharedRecipeRecord].self, "shared_log.json", userId: userId) ?? []
+        unsyncedRecipeIds = Set(loadScoped([String].self, "unsynced_recipes.json", userId: userId) ?? [])
+        preferredCuisines = Set(loadScoped([String].self, "preferred_cuisines.json", userId: userId) ?? [])
+        avatarImageData = loadScoped(Data.self, "avatar.json", userId: userId)
+        pendingInteractions = loadScoped([InteractionEvent].self, "pending_interactions.json", userId: userId) ?? []
+        interactionHistory = loadScoped([InteractionEvent].self, "interaction_history.json", userId: userId) ?? []
+        recipeComments = loadScoped([String: [RecipeComment]].self, "comments.json", userId: userId) ?? RecipeComment.defaultSamples
+        circleNotifications = loadScoped([CircleNotificationItem].self, "notifications.json", userId: userId) ?? CircleNotificationItem.samples
+        circleFriends = loadScoped([FriendItem].self, "circle_friends.json", userId: userId) ?? []
+        incomingRequests = loadScoped([FriendRequestItem].self, "friend_requests_in.json", userId: userId) ?? []
+        outgoingRequests = loadScoped([FriendRequestItem].self, "friend_requests_out.json", userId: userId) ?? []
 
-        // These were saved to UserDefaults but never read back — fix the round-trip here.
-        let defaults = UserDefaults.standard
-        if let s = defaults.array(forKey: "saved_recipe_ids") as? [String] { savedRecipeIds = Set(s) }
-        if let l = defaults.array(forKey: "liked_recipe_ids") as? [String] { likedRecipeIds = Set(l) }
+        savedRecipeIds = Set(defaults.array(forKey: AccountScope.defaultsKey(userId: userId, key: "saved_recipe_ids")) as? [String] ?? [])
+        likedRecipeIds = Set(defaults.array(forKey: AccountScope.defaultsKey(userId: userId, key: "liked_recipe_ids")) as? [String] ?? [])
+
+        suggestionReasons = [:]
+        suggestedRecipes = []
+        selectedRecipe = nil
+        myCreatorRequestStatus = nil
+        pendingCreatorRequests = []
+        nutritionAttempted = []
+        didThumbnailBackfill = false
 
         hydrated = true
+        if stamped { persist(recipes, "recipes.json") }
+    }
+
+    /// Drop the previous account's in-memory setup without writing empty files over their store.
+    private func clearPersonalState() {
+        recipes = []
+        savedRecipeIds = []
+        likedRecipeIds = []
+        groceryItems = []
+        ownedCollections = []
+        sharedCollections = []
+        studioDraftIds = []
+        followedCreators = []
+        unsyncedRecipeIds = []
+        sharedLog = []
+        pendingInteractions = []
+        interactionHistory = []
+        preferredCuisines = []
+        avatarImageData = nil
+        recipeComments = [:]
+        circleNotifications = []
+        circleFriends = []
+        incomingRequests = []
+        outgoingRequests = []
+        suggestionReasons = [:]
+        suggestedRecipes = []
+        selectedRecipe = nil
+        deletedRecipeIdsRaw = ""
+        myCreatorRequestStatus = nil
+        pendingCreatorRequests = []
+        nutritionAttempted = []
+        recipeSwipeContext = nil
     }
 
     func bootstrap() async {
         #if DEBUG
         _ = CraveCircleInvariantChecks._runChecks
         #endif
-        hydrateLocal()   // load the persisted library (recipes/collections/grocery) before anything else
-
         guard tokenStore.readAccessToken() != nil else {
             if !guestUserId.isEmpty {
                 continueAsGuest()
@@ -163,6 +251,7 @@ final class AppEnvironment: ObservableObject {
         if let profile = await supabase.fetchMyProfile() {
             currentUser = profile
             appState = .signedIn
+            hydrateLocal()
             await refreshRecipes()
             await uploadDeviceTokenIfPossible()
             syncSharedUserId()
@@ -171,6 +260,7 @@ final class AppEnvironment: ObservableObject {
         do {
             currentUser = try await apiClient.fetchProfile()
             appState = .signedIn
+            hydrateLocal()
             await refreshRecipes()
             await uploadDeviceTokenIfPossible()
             syncSharedUserId()
@@ -183,6 +273,7 @@ final class AppEnvironment: ObservableObject {
             }
             currentUser = fallbackUser()
             appState = .signedIn
+            hydrateLocal()
             await refreshRecipes()
         }
     }
@@ -210,18 +301,28 @@ final class AppEnvironment: ObservableObject {
     }
 
     private func finishAuthenticatedSession(email: String?) async {
+        let guestId = guestUserId
+        let carried: [Recipe] = guestId.isEmpty ? [] : recipes.filter { $0.ownerId == guestId }
+        hydrated = false
         if let profile = await supabase.fetchMyProfile() {
             currentUser = profile
         } else {
             do { currentUser = try await apiClient.fetchProfile() }
             catch { currentUser = fallbackUser(email: email) }
         }
-        if let user = currentUser {
-            migrateGuestData(to: user.id)
+        hydrateLocal()
+        if let userId = currentUser?.id, !carried.isEmpty {
+            for var recipe in carried {
+                recipe.ownerId = userId
+                if let index = recipes.firstIndex(where: { $0.id == recipe.id }) {
+                    recipes[index] = recipe
+                } else {
+                    recipes.insert(recipe, at: 0)
+                }
+            }
         }
-        resetPersonalizationIfUserChanged()
+        if !guestId.isEmpty { guestUserId = "" }
         appState = .signedIn
-        if !hydrated { hydrateLocal() }
         await refreshRecipes()
         await uploadDeviceTokenIfPossible()   // token may have arrived before login
         syncSharedUserId()
@@ -259,12 +360,11 @@ final class AppEnvironment: ObservableObject {
     }
 
     func signOut() {
-        hydrated = false          // don't let clearing state overwrite the on-disk library
+        hydrated = false          // don't let clearing state overwrite the previous user's files
         importTask?.cancel()
         tokenStore.clearSession()
+        clearPersonalState()
         currentUser = nil
-        recipes = []
-        selectedRecipe = nil
         importState = .idle
         appState = .signedOut
         syncSharedUserId()   // clear the shared user id so shares aren't attributed to a signed-out user
@@ -380,7 +480,7 @@ final class AppEnvironment: ObservableObject {
     func addPreviewRecipe() {
         let next = Recipe(
             id: UUID().uuidString,
-            ownerId: currentUser?.id ?? "local-user",
+            ownerId: currentUser?.id ?? "",
             title: "New Recipe Draft",
             description: "A local preview recipe while backend content is loading.",
             prepTime: "10 min",
@@ -421,20 +521,6 @@ final class AppEnvironment: ObservableObject {
         recipeSwipeContext = context
         selectedRecipe = recipe
         refreshAuthoritativeNutrition(for: recipe)
-    }
-
-    /// When a different account signs in on this device, start its on-device behavioral history
-    /// fresh — interaction history is device-local, so without this a new user inherits the previous
-    /// user's views and sees wrong "Because you viewed…" reasons. Their real behavior rebuilds it.
-    private func resetPersonalizationIfUserChanged() {
-        let key = "last_signed_in_user_id"
-        let id = currentUser?.id ?? ""
-        guard UserDefaults.standard.string(forKey: key) != id else { return }
-        interactionHistory = []
-        pendingInteractions = []
-        suggestionReasons = [:]
-        nutritionAttempted = []
-        UserDefaults.standard.set(id, forKey: key)
     }
 
     private var nutritionAttempted = Set<String>()
@@ -538,7 +624,8 @@ final class AppEnvironment: ObservableObject {
             if added > 0 { hasMoreRecipes = true }   // new content available to scroll
         }
         // PUSH — send my own changed recipes up; clear the dirty flag only on success.
-        if supabase.hasSession, let uid = currentUser?.id {
+        // Only an admin push reaches the public catalog. Everyone else's recipes stay on this phone.
+        if canPublish, supabase.hasSession, let uid = currentUser?.id {
             // Backfill (once per session): recipes published before Storage upload still carry a
             // device-local cover in the cloud (unreachable to others → placeholder). Re-flag my own
             // local-cover recipes whose image file still exists so the upload path fixes them.
@@ -553,8 +640,8 @@ final class AppEnvironment: ObservableObject {
                 }
             }
             // Personal use / legal: NEVER push a social-imported recipe to the shared cloud — those
-            // stay private on the importer's device. Only a user's own original (non-social) recipes
-            // sync up, and only creators' originals ever become public (see publishDraft).
+            // stay private on the importer's device. Only an admin's own original recipes sync up
+            // (see publishDraft).
             var dirty = recipes.filter {
                 unsyncedRecipeIds.contains($0.id) && $0.ownerId == uid && !$0.isImportedFromSocial
             }
@@ -596,27 +683,20 @@ final class AppEnvironment: ObservableObject {
         return await supabase.uploadThumbnail(data: payload, path: "\(recipeId).jpg", contentType: "image/jpeg")
     }
 
-    /// True when the signed-in user owns this recipe (edit/delete are owner-only).
-    /// Includes imported reels and on-device recipes so they always belong to the user's personal library.
+    /// True only when this recipe was imported or created by the signed-in account.
+    /// A social import is theirs because its owner id was stored at import time, not because it has a source URL.
     func isOwner(of recipe: Recipe) -> Bool {
-        if recipe.ownerId == currentUser?.id { return true }
-        if recipe.ownerId == "you" || recipe.ownerId == "local-user" { return true }
-        if let gid = currentUser?.id, gid.hasPrefix("guest_"), recipe.ownerId.hasPrefix("guest_") { return true }
-        if recipe.isImportedFromSocial || recipe.sourceUrl != nil { return true }
-        return false
+        guard let id = currentUser?.id, !id.isEmpty else { return false }
+        return recipe.ownerId == id
     }
 
-    /// Instagram rule: you can delete your own library reel, never someone else's.
-    /// Admin (the founder) can delete any recipe. Any reel imported onto this phone can be removed.
+    /// Delete your own library reel. An admin can delete any recipe.
     func canDelete(_ recipe: Recipe) -> Bool {
         if currentUser?.role == .admin { return true }
-        if isOwner(of: recipe) { return true }
-        if recipe.isImportedFromSocial || recipe.sourceUrl != nil { return true }
-        let isSample = Recipe.placeholderRecipes.contains(where: { $0.id == recipe.id })
-        return !isSample
+        return isOwner(of: recipe)
     }
 
-    var canPublish: Bool { currentUser?.canPublish ?? false }
+    var canPublish: Bool { currentUser?.role == .admin }
 
     // MARK: - Community MVP Logic Stubs
     
@@ -642,7 +722,7 @@ final class AppEnvironment: ObservableObject {
         // A private import is not in the public catalog. Upload it as followers-only so the
         // recipient can open it (shares_select policy) without it showing up for everyone.
         if var recipe, let uid = currentUser?.id, isOwner(of: recipe) {
-            if recipe.isImportedFromSocial { recipe.visibility = .followers }
+            if !canPublish || recipe.isImportedFromSocial { recipe.visibility = .followers }
             _ = await supabase.upsertRecipes([recipe], ownerId: uid)
         }
         let ok = await supabase.recordShare(recipeId: recipeId, toUserId: toId, channel: "in-app",
@@ -766,21 +846,8 @@ final class AppEnvironment: ObservableObject {
             guestUserId = "guest_\(Int.random(in: 1000...9999))"
         }
         currentUser = UserProfile(id: guestUserId, username: "Guest", fullName: "Guest User", avatarUrl: nil, role: .user)
+        hydrateLocal()
         appState = .signedIn
-    }
-    
-    func migrateGuestData(to newUserId: String) {
-        // Find any recipes created by the guest and update their ownerId
-        let oldGuestId = guestUserId
-        guard !oldGuestId.isEmpty else { return }
-        
-        for i in recipes.indices {
-            if recipes[i].ownerId == oldGuestId {
-                recipes[i].ownerId = newUserId
-            }
-        }
-        
-        guestUserId = "" // Clear the guest id now that they are signed in
     }
 
     func deleteOwnedRecipe(id: String) {
@@ -1031,7 +1098,7 @@ final class AppEnvironment: ObservableObject {
             return
         }
         var recipe = await RecipeExtractor.extract(
-            transcript: "", caption: nil, ownerId: currentUser?.id ?? "you",
+            transcript: "", caption: nil, ownerId: currentUser?.id ?? "",
             sourceLanguage: nil, onScreenText: ocr, targetLanguage: AppLanguage.preferred
         )
         if Task.isCancelled { return }
@@ -1163,7 +1230,7 @@ final class AppEnvironment: ObservableObject {
 
         if Task.isCancelled { return }
         var recipe = await RecipeExtractor.extract(
-            transcript: transcript, caption: fullCaption.isEmpty ? nil : fullCaption, ownerId: currentUser?.id ?? "you",
+            transcript: transcript, caption: fullCaption.isEmpty ? nil : fullCaption, ownerId: currentUser?.id ?? "",
             sourceLanguage: nil, onScreenText: onScreen, targetLanguage: AppLanguage.preferred
         )
         // Caption is still in hand here. A stated per-serving line must not be replaced by the USDA fill-in.
@@ -1332,7 +1399,7 @@ final class AppEnvironment: ObservableObject {
                 scheduleCookNudge(recipeId: id, title: title)
             }
         }
-        UserDefaults.standard.set(Array(savedRecipeIds), forKey: "saved_recipe_ids")
+        storeRecipeIdSet(savedRecipeIds, key: "saved_recipe_ids")
     }
 
     var savedRecipes: [Recipe] {
@@ -1394,7 +1461,7 @@ final class AppEnvironment: ObservableObject {
                 circleNotifications.insert(notif, at: 0)
             }
         }
-        UserDefaults.standard.set(Array(likedRecipeIds), forKey: "liked_recipe_ids")
+        storeRecipeIdSet(likedRecipeIds, key: "liked_recipe_ids")
     }
 
     // MARK: - Friend Actions

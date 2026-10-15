@@ -498,6 +498,27 @@ final class RecipeCoverFilenameTests: XCTestCase {
     }
 }
 
+final class AccountIsolationTests: XCTestCase {
+    func testTwoAccountsDoNotShareALibraryAndOnlyAdminPublishes() {
+        let krishna = AccountScope.fileName(userId: "krishna-id", file: "recipes.json")
+        let aditya = AccountScope.fileName(userId: "aditya-id", file: "recipes.json")
+        XCTAssertNotEqual(krishna, aditya)
+        XCTAssertNotEqual(krishna, "recipes.json")
+        XCTAssertNotEqual(
+            AccountScope.fileName(userId: "krishna-id", file: "avatar.json"),
+            AccountScope.fileName(userId: "aditya-id", file: "avatar.json")
+        )
+        XCTAssertFalse(AccountScope.mayReadLegacy(userId: "aditya-id", recordedOwner: "krishna-id"))
+        XCTAssertTrue(AccountScope.mayReadLegacy(userId: "krishna-id", recordedOwner: nil))
+        XCTAssertFalse(AccountScope.mayReadLegacy(userId: "guest_4", recordedOwner: nil))
+        XCTAssertFalse(AccountRole.user.canPublish)
+        XCTAssertFalse(AccountRole.creator.canPublish)
+        XCTAssertTrue(AccountRole.admin.canPublish)
+        XCTAssertFalse(UserProfile(id: "creator", role: .creator).canPublish)
+        XCTAssertTrue(UserProfile(id: "admin", role: .admin).canPublish)
+    }
+}
+
 final class ChecklistToggleTests: XCTestCase {
     func testToggleChecklistItemInsertsThenRemoves() {
         var ingredients: Set<String> = []

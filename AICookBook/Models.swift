@@ -1,12 +1,12 @@
 import Foundation
 
-/// App account role. Consumers browse; creators (Studio-enrolled) publish; admin is the founder.
+/// App account role. Consumers and creators browse; only an admin can publish for now.
 enum AccountRole: String, Codable {
     case user
     case creator
     case admin
 
-    var canPublish: Bool { self == .creator || self == .admin }
+    var canPublish: Bool { self == .admin }
 
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
@@ -447,7 +447,7 @@ struct CollectionItem: Codable, Identifiable, Hashable {
     static let sharedSamples: [CollectionItem] = shared
 }
 
-struct CircleNotificationItem: Identifiable, Hashable {
+struct CircleNotificationItem: Codable, Identifiable, Hashable {
     var id: UUID = UUID()
     var title: String
     var message: String
@@ -511,7 +511,7 @@ enum CraveCircleInvariantChecks {
         precondition(Recipe.isSocialImportURL("https://tiktok.com/@x/video/1") == true)
         precondition(Recipe.isSocialImportURL("https://cravecircle.cc/recipes/1") == false)
         precondition(AccountRole.user.canPublish == false)
-        precondition(AccountRole.creator.canPublish == true)
+        precondition(AccountRole.creator.canPublish == false)
         precondition(AccountRole.admin.canPublish == true)
     }()
 }

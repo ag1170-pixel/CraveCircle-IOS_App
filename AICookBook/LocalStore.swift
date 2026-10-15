@@ -61,3 +61,37 @@ enum LocalStore {
         }
     }
 }
+
+/// On-device personal files are named by the signed-in user id. Two accounts never share a path.
+enum AccountScope {
+    static let ownerKey = "library_owner_id"
+    static let personalFiles = [
+        "recipes.json", "avatar.json", "grocery.json", "followed_creators.json",
+        "owned_collections.json", "shared_collections.json", "studio_drafts.json",
+        "unsynced_recipes.json", "shared_log.json", "pending_interactions.json",
+        "interaction_history.json", "preferred_cuisines.json",
+        "comments.json", "notifications.json", "circle_friends.json",
+        "friend_requests_in.json", "friend_requests_out.json"
+    ]
+    static let personalDefaultsKeys = ["saved_recipe_ids", "liked_recipe_ids", "deleted_recipe_ids"]
+
+    static func fileName(userId: String, file: String) -> String {
+        "\(sanitize(userId))-\(file)"
+    }
+
+    static func defaultsKey(userId: String, key: String) -> String {
+        "\(sanitize(userId))-\(key)"
+    }
+
+    /// Unscoped files from before this split belong to the first real signed-in user.
+    /// A later account, a guest, and the local fallback do not inherit them.
+    static func mayReadLegacy(userId: String, recordedOwner: String?) -> Bool {
+        if userId.hasPrefix("guest_") || userId.hasPrefix("local-") { return false }
+        return recordedOwner == nil || recordedOwner == userId
+    }
+
+    private static func sanitize(_ id: String) -> String {
+        let ok = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        return String(id.unicodeScalars.map { ok.contains($0) ? Character($0) : "_" })
+    }
+}

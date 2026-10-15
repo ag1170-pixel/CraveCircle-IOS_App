@@ -204,7 +204,7 @@ struct AddRecipeSheet: View {
     static func newBlank() -> Recipe {
         Recipe(
             id: "draft-\(UUID().uuidString.prefix(8))",
-            ownerId: AppEnvironment.shared?.currentUser?.id ?? "local-chef",
+            ownerId: AppEnvironment.shared?.currentUser?.id ?? "",
             title: "",            // empty → the "Recipe Name" placeholder shows instead of pre-filled text
             description: "",
             prepTime: nil,
