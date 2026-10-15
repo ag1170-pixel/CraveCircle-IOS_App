@@ -509,13 +509,19 @@ struct HomeScreen: View {
             }
             .padding(.horizontal, AppSpacing.md)
 
-            LazyVGrid(columns: columns, spacing: AppSpacing.lg) {
-                ForEach(libraryGridRecipes) { recipe in
-                    LibraryCard(recipe: recipe) { environment.selectRecipe(recipe) }
-                        .reportsCardFrame(id: "lib-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: AppSpacing.md) {
+                    ForEach(libraryGridRecipes) { recipe in
+                        FreshCard(recipe: recipe) { environment.selectRecipe(recipe) }
+                            .reportsCardFrame(id: "lib-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
+                    }
                 }
+                .padding(.horizontal, AppSpacing.md)
             }
-            .padding(.horizontal, AppSpacing.md)
+            .scrollClipDisabled()
+            .background(GeometryReader { geo in
+                Color.clear.preference(key: HorizontalScrollFrameKey.self, value: [geo.frame(in: .global)])
+            })
         }
     }
 }
@@ -715,7 +721,7 @@ struct FreshCard: View {
                 .font(AppFont.body(15, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(2)
-                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
             CreatorLine(handle: recipe.ownerUsername)
             MetaLine(recipe: recipe)
         }
@@ -736,6 +742,13 @@ struct FreshCard: View {
             } label: {
                 Label("View Details", systemImage: "eye")
             }
+            if environment.canDelete(recipe) {
+                Button(role: .destructive) {
+                    environment.deleteOwnedRecipe(id: recipe.id)
+                } label: {
+                    Label("Delete from Library", systemImage: "trash")
+                }
+            }
         }
     }
 }
@@ -751,11 +764,18 @@ struct LibraryCard: View {
         VStack(alignment: .leading, spacing: 8) {
             // Definite 1.1 aspect box so every card's cover is the SAME height (the cover() helper is a
             // GeometryReader with no intrinsic size, so it needs a sized container to fill).
+            // One frame for every cover. A reel still and a square studio photo otherwise
+            // size the cell differently and the grid stops lining up.
             Color.clear
                 .frame(maxWidth: .infinity)
-                .aspectRatio(1.1, contentMode: .fit)
-                .overlay { RecipeCoverImage(recipe: recipe).scaledToFill() }
-                .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+                .aspectRatio(1 / 0.78, contentMode: .fit)
+                .overlay {
+                    RecipeCoverImage(recipe: recipe)
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: AppRadius.tile, style: .continuous))
                 .overlay(alignment: .bottomLeading) {
                     Circle()
                         .fill(AppTheme.accentSoft)
@@ -780,16 +800,12 @@ struct LibraryCard: View {
                 }
                 .overlay { CardLikeOverlay(recipeId: recipe.id, onSingleTap: onTap) }
             Text(recipe.title)
-                .font(AppFont.body(16, weight: .bold))
+                .font(AppFont.body(15, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(2)
-                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
             CreatorLine(handle: recipe.ownerUsername)
-            if let s = recipe.servings {
-                Text("\(s) servings")
-                    .font(AppFont.body(12))
-                    .foregroundStyle(AppTheme.textTertiary)
-            }
+            MetaLine(recipe: recipe)
         }
         .contentShape(Rectangle())
         .onTapGesture { Haptics.tap(); onTap() }
