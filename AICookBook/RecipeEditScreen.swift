@@ -8,7 +8,9 @@
 //
 
 import SwiftUI
+#if !XTOOL_WSL
 import PhotosUI
+#endif
 
 struct RecipeEditScreen: View {
     @Binding var recipe: Recipe

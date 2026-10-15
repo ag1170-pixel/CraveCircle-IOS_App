@@ -7,7 +7,9 @@
 //
 
 import SwiftUI
+#if !XTOOL_WSL
 import PhotosUI
+#endif
 import UniformTypeIdentifiers
 
 struct TranscribeTestView: View {

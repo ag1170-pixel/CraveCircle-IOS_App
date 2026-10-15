@@ -6,7 +6,9 @@
 //
 
 import SwiftUI
+#if !XTOOL_WSL
 import PhotosUI
+#endif
 
 struct RecipeCommentsSection: View {
     let recipeId: String

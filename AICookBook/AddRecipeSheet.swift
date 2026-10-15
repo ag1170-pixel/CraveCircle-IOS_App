@@ -8,7 +8,9 @@
 //
 
 import SwiftUI
+#if !XTOOL_WSL
 import PhotosUI
+#endif
 
 struct AddRecipeSheet: View {
     @EnvironmentObject private var environment: AppEnvironment

@@ -7,7 +7,9 @@
 //
 
 import SwiftUI
+#if !XTOOL_WSL
 import PhotosUI
+#endif
 
 struct ProfileScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
