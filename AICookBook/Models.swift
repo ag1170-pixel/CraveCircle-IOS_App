@@ -321,6 +321,42 @@ enum IngredientListFormat {
     }
 }
 
+/// One short line under the title. Seeded recipes already have one. An import often only has
+/// "Extracted from @…" or nothing, so the page says what the dish is made with.
+enum DishBlurb {
+    static func line(title: String, stored: String?, items: [String]) -> String? {
+        let kept = stored?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !kept.isEmpty, !isPlaceholder(kept) { return kept }
+        let names = items.compactMap { readableName($0, title: title) }.reduce(into: [String]()) { acc, name in
+            if acc.count < 3, !acc.contains(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) {
+                acc.append(name)
+            }
+        }
+        guard !names.isEmpty else { return nil }
+        switch names.count {
+        case 1: return "Made with \(names[0])."
+        case 2: return "Made with \(names[0]) and \(names[1])."
+        default: return "Made with \(names[0]), \(names[1]), and \(names[2])."
+        }
+    }
+
+    static func isPlaceholder(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        return lower.hasPrefix("extracted from @") || lower.hasPrefix("freshly extracted")
+    }
+
+    private static func readableName(_ raw: String, title: String) -> String? {
+        let parts = IngredientListFormat.displayParts(raw)
+        var name = parts.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let paren = name.firstIndex(of: "(") {
+            name = String(name[..<paren])
+        }
+        name = name.trimmingCharacters(in: CharacterSet(charactersIn: " -–—,;"))
+        guard name.count >= 2, name.caseInsensitiveCompare(title) != .orderedSame else { return nil }
+        return name
+    }
+}
+
 struct GroceryItem: Codable, Identifiable, Equatable {
     let id: String
     let ingredientName: String

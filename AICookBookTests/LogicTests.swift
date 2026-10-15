@@ -361,6 +361,27 @@ final class IngredientListFormatTests: XCTestCase {
         XCTAssertEqual(IngredientListFormat.cleanedItem(line), "Chopped coriander")
     }
 
+    func testShareLinkOpensTheRecipePageAndHandleDropsTheAt() {
+        XCTAssertEqual(AppConfig.recipeWebLink("abc"), "https://import.cravecircle.cc/recipe/abc")
+        XCTAssertEqual(AppConfig.shareHandle("  @Udit "), "Udit")
+        XCTAssertEqual(AppConfig.shareHandle("udit"), "udit")
+    }
+
+    func testImportWithoutABlurbSaysWhatItIsMadeWith() {
+        let line = DishBlurb.line(
+            title: "Creamy Garlic Butter Shrimp with Rice",
+            stored: "Extracted from @someone's cooking reel.",
+            items: ["200g shrimp", "1 tbsp butter", "2 garlic cloves"]
+        )
+        XCTAssertEqual(line, "Made with shrimp, butter, and garlic cloves.")
+        let kept = DishBlurb.line(
+            title: "Butter Chicken",
+            stored: "Velvety restaurant-style tandoori chicken in a tomato gravy.",
+            items: ["600g chicken"]
+        )
+        XCTAssertEqual(kept, "Velvety restaurant-style tandoori chicken in a tomato gravy.")
+    }
+
     func testNameDashAmountReadsAmountThenName() {
         let line = "Chickpeas / kabuli chana — 1¼ cups dried (250g)"
         let parts = IngredientListFormat.displayParts(line)

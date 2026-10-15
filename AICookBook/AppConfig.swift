@@ -9,6 +9,17 @@ struct AppConfig {
     static let termsOfServiceURL = URL(string: "https://cravecircle.cc/terms")!
     static let supportURL = URL(string: "https://cravecircle.cc/support")!
 
+    /// Page that opens the app. cravecircle.cc/recipe currently sends people to the marketing site.
+    static func recipeWebLink(_ id: String) -> String {
+        "https://import.cravecircle.cc/recipe/\(id)"
+    }
+
+    static func shareHandle(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let bare = trimmed.hasPrefix("@") ? String(trimmed.dropFirst()) : trimmed
+        return bare.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     static var current: AppConfig {
         let dict = Bundle.main.infoDictionary ?? [:]
         let env = ProcessInfo.processInfo.environment

@@ -163,7 +163,8 @@ struct CraveCircleApp: App {
                 .onOpenURL { url in
                     // Support both the legacy cravecircle:// custom scheme and standard https Universal Links.
                     let isCustomScheme = url.scheme == "cravecircle"
-                    let isUniversalLink = (url.scheme == "https" || url.scheme == "http") && url.host == "cravecircle.cc"
+                    let recipeHosts = ["cravecircle.cc", "www.cravecircle.cc", "import.cravecircle.cc"]
+                    let isUniversalLink = (url.scheme == "https" || url.scheme == "http") && recipeHosts.contains(url.host ?? "")
                     guard isCustomScheme || isUniversalLink else { return }
                     if isCustomScheme && url.host == "auth-callback" { return }
                     // Tapping the in-progress "cooking" Live Activity just brings the app forward —
@@ -187,6 +188,8 @@ struct CraveCircleApp: App {
                     if (isCustomScheme && url.host == "recipe") || (isUniversalLink && pathComponents.first == "recipe") {
                         let id = url.lastPathComponent
                         if !id.isEmpty, id != "/" { environment.openRecipe(id: id) }
+                    } else if isUniversalLink {
+                        return
                     } else {
                         // Share Extension. Prefer the server job id → resume the live progress UI and
                         // file the recipe as the user's. Fall back to a carried ?url= (legacy), else

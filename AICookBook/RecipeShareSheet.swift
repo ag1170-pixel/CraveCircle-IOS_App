@@ -23,9 +23,13 @@ struct RecipeShareSheet: View {
                 VStack(alignment: .leading, spacing: AppSpacing.lg) {
                     recipePreviewCard
                     usernameShareSection
-                    circleFriendsSection
+                    if !environment.circleFriends.isEmpty {
+                        circleFriendsSection
+                    }
                     quickActionsSection
-                    collectionsSection
+                    if !environment.ownedCollections.isEmpty {
+                        collectionsSection
+                    }
                 }
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.top, AppSpacing.md)
@@ -84,13 +88,20 @@ struct RecipeShareSheet: View {
             } else if usernameShareStatus == "notfound" {
                 Text("No CraveCircle user with that username (they need an account).")
                     .font(AppFont.body(12)).foregroundStyle(AppTheme.destructive)
+            } else if usernameShareStatus == "signedout" {
+                Text("Sign in to send this to another CraveCircle account.")
+                    .font(AppFont.body(12)).foregroundStyle(AppTheme.destructive)
             }
         }
     }
 
     private func sendToUsername() {
-        let handle = usernameToShare.trimmingCharacters(in: .whitespaces)
+        let handle = AppConfig.shareHandle(usernameToShare)
         guard !handle.isEmpty else { return }
+        guard environment.hasRealSession else {
+            usernameShareStatus = "signedout"
+            return
+        }
         usernameShareStatus = "sending"
         Task {
             let ok = await environment.shareRecipeToUsername(recipeId: recipe.id, username: handle)
@@ -156,10 +167,12 @@ struct RecipeShareSheet: View {
                                 .lineLimit(1)
                             Button {
                                 guard !isSent else { return }
-                                Haptics.success()
-                                withAnimation(AppMotion.snappy) {
-                                    sentFriendIds.insert(friend.id)
-                                    environment.shareRecipeWithFriend(recipeId: recipe.id, friend: friend)
+                                Task {
+                                    let ok = await environment.shareRecipeWithFriend(recipeId: recipe.id, friend: friend)
+                                    if ok {
+                                        Haptics.success()
+                                        withAnimation(AppMotion.snappy) { sentFriendIds.insert(friend.id) }
+                                    }
                                 }
                             } label: {
                                 Text(isSent ? "Sent ✓" : "Send")
@@ -187,7 +200,7 @@ struct RecipeShareSheet: View {
             Text("Share Outside App").sectionLabelStyle()
             VStack(spacing: 0) {
                 // Web-friendly link: an https link ensures messaging apps render it clickable.
-                let shareText = "\(recipe.title) on CraveCircle\nhttps://cravecircle.cc/recipe/\(recipe.id)"
+                let shareText = "\(recipe.title) on CraveCircle\n\(AppConfig.recipeWebLink(recipe.id))"
                 ShareLink(item: shareText, preview: SharePreview(recipe.title, image: Image(recipe.thumbnailUrl ?? "chickenRecipe"))) {
                     HStack(spacing: AppSpacing.sm) {
                         Image(systemName: "square.and.arrow.up")
@@ -211,7 +224,7 @@ struct RecipeShareSheet: View {
 
                 Button {
                     Haptics.tap()
-                    UIPasteboard.general.string = "https://cravecircle.cc/recipe/\(recipe.id)"
+                    UIPasteboard.general.string = AppConfig.recipeWebLink(recipe.id)
                     withAnimation { showCopiedAlert = true }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         withAnimation { showCopiedAlert = false }

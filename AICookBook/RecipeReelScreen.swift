@@ -232,7 +232,7 @@ private struct ReelCell: View {
     private var commentsN: Int { environment.comments(for: recipe.id).count }
     private var following: Bool { environment.isFollowing(creatorHandle: recipe.ownerUsername ?? "") }
 
-    private var shareURL: URL { URL(string: "https://cravecircle.cc/recipe/\(recipe.id)")! }
+    private var shareURL: URL { URL(string: AppConfig.recipeWebLink(recipe.id))! }
     private var shareText: String { "\(recipe.title) on CraveCircle" }
 
     private var cellHeight: CGFloat { size.height + topInset + bottomInset }

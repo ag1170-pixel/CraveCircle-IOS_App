@@ -230,10 +230,10 @@ struct SupabaseData {
 
     /// Resolve a @handle to its profile id so we can address follows/shares by the real user.
     func resolveProfileId(username: String) async -> String? {
-        let handle = username.hasPrefix("@") ? String(username.dropFirst()) : username
+        let handle = AppConfig.shareHandle(username)
         guard !handle.isEmpty,
               let enc = handle.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let req = request(path: "rest/v1/profiles?select=id&username=eq.\(enc)&limit=1", method: "GET") else { return nil }
+              let req = request(path: "rest/v1/profiles?select=id&username=ilike.\(enc)&limit=1", method: "GET") else { return nil }
         guard let (data, resp) = try? await URLSession.shared.data(for: req),
               let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode),
               let rows = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else { return nil }

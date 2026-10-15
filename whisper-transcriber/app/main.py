@@ -1118,6 +1118,68 @@ def _transcript_steps(transcript: str) -> list:
     return out
 
 
+def _dish_blurb(caption: str, title: str, groups: list) -> str:
+    """One short line under the title. A caption sentence wins; otherwise name a few ingredients."""
+    prose = _caption_prose(caption, title)
+    if prose:
+        return prose
+    names = []
+    for group in groups or []:
+        for item in group.get("items") or []:
+            name = _readable_ingredient(item)
+            if name and name.lower() not in [n.lower() for n in names]:
+                names.append(name)
+            if len(names) == 3:
+                break
+    if not names:
+        return ""
+    if len(names) == 1:
+        tail = names[0]
+    elif len(names) == 2:
+        tail = f"{names[0]} and {names[1]}"
+    else:
+        tail = f"{names[0]}, {names[1]}, and {names[2]}"
+    return f"Made with {tail}."
+
+
+def _caption_prose(caption: str, title: str) -> str:
+    title_l = (title or "").strip().lower()
+    for raw in (caption or "").splitlines():
+        line = raw.strip()
+        low = line.lower().rstrip(":")
+        if low in {"ingredients", "ingredient", "directions", "direction", "method", "instructions", "steps"}:
+            break
+        if not line or line.startswith("#") or line.lower() == title_l:
+            continue
+        if _is_kcal_serving_headline(line) or _stated_per_serving_nutrition(line):
+            continue
+        if re.search(r"\bmakes?\s+\d+\s+servings?\b", line, re.I):
+            continue
+        if _QTY_LINE.search(line) and len(line) < 80:
+            continue
+        sentence = re.split(r"(?<=[.!?])\s+", line)[0].strip()
+        if 40 <= len(sentence) <= 220 and not sentence.lower().startswith("http"):
+            return sentence
+    return ""
+
+
+def _readable_ingredient(item: str) -> str:
+    text = (item or "").strip()
+    if re.search(r"\s[—–-]\s", text):
+        left = re.split(r"\s+[—–-]\s+", text, maxsplit=1)[0].strip()
+        if left and not re.match(r"\d", left):
+            text = left
+    text = re.sub(r"\([^)]*\)", "", text)
+    text = re.sub(r"^[\d¼½¾⅓⅔./\s-]+", "", text)
+    text = re.sub(
+        r"^(g|kg|ml|cups?|tbsp|tsp|teaspoons?|tablespoons?|cloves?|pinch)\b",
+        "",
+        text,
+        flags=re.I,
+    )
+    return text.strip(" -–—,;")[:48]
+
+
 def assemble_recipe(caption: str, transcript: str, ocr_text: str, has_speech: bool,
                     video_title: str = "", author: str = "") -> dict:
     """Best-source-per-field merge (pipeline v2).
@@ -1195,7 +1257,7 @@ def assemble_recipe(caption: str, transcript: str, ocr_text: str, has_speech: bo
     nutrition = _stated_per_serving_nutrition(caption) or estimate_nutrition(groups, servings=serving_count)
     return {
         "title": title,
-        "description": f"Extracted from @{author}'s cooking reel." if author else "Freshly extracted cooking reel recipe.",
+        "description": _dish_blurb(caption, title, groups),
         "prep_time": "",
         "cook_time": "15 min",
         "servings": serving_count,
@@ -1221,6 +1283,10 @@ def _check_caption_macros_stay_per_serving() -> None:
     assert parsed["servings"] == 4
     assert parsed["title"] == "Garlic Chicken Bowl", parsed["title"]
     assert _stated_per_serving_nutrition("370 Kcal per Serving") is None
+    prose = "Meet the street-food classic whose name means thick muddy chickpeas."
+    assert _dish_blurb(prose + "\nIngredients:\nOnion — 1", "Chole", []).startswith("Meet the street-food")
+    made = _dish_blurb("", "Shrimp", [{"items": ["200g shrimp", "1 tbsp butter", "2 garlic cloves"]}])
+    assert made == "Made with shrimp, butter, and garlic cloves.", made
 
 
 _check_caption_macros_stay_per_serving()

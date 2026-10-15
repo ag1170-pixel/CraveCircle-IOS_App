@@ -106,8 +106,10 @@ struct FlashcardCookScreen: View {
                     LazyVStack(spacing: 0) {
                         ForEach(cards.indices, id: \.self) { i in
                             CardContent(card: cards[i], stepCount: stepCount, ink: color(for: index).ink)
-                                .padding(.leading, 48)
-                                .padding(.trailing, 72)
+                                // Landscape puts the Dynamic Island on one side. A fixed 48pt inset
+                                // still runs the card under it; follow the safe area on both edges.
+                                .padding(.leading, max(48, geo.safeAreaInsets.leading + 16))
+                                .padding(.trailing, max(72, geo.safeAreaInsets.trailing + 20))
                                 .frame(width: geo.size.width, height: rowH)
                                 .scrollTransition(axis: .vertical) { content, phase in
                                     // Centre (identity) = full; neighbours fade & shrink → wheel feel.

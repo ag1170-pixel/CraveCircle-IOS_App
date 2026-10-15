@@ -43,6 +43,7 @@ struct RecipeDetailScreen: View {
     @State private var galleryIndex = 0
     @State private var galleryFrame: CGRect = .zero   // hero gallery's rect (in "detail" space)
     @State private var segmentFrame: CGRect = .zero   // Ingredients/Directions box rect (in "detail" space)
+    @State private var topBarGlass = false            // frosted strip only once content is under the buttons
 
     private let heroHeight: CGFloat = 380
 
@@ -67,10 +68,26 @@ struct RecipeDetailScreen: View {
             }
             .coordinateSpace(name: "scroll")
             .scrollIndicators(.hidden)
+            .onScrollGeometryChange(for: Bool.self) { geo in
+                geo.contentOffset.y > 8
+            } action: { _, show in
+                guard show != topBarGlass else { return }
+                if reduceMotion { topBarGlass = show }
+                else { withAnimation(.easeOut(duration: 0.2)) { topBarGlass = show } }
+            }
 
-            topControls
-                .padding(.horizontal, AppSpacing.md)
-                .padding(.top, safeTopInset())
+            ZStack(alignment: .top) {
+                if topBarGlass {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .frame(height: safeTopInset() + 52)
+                        .ignoresSafeArea(edges: .top)
+                        .allowsHitTesting(false)
+                }
+                topControls
+                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.top, safeTopInset())
+            }
         }
         .doodleScreenBackground()   // static wallpaper behind the scroll
         .ignoresSafeArea(edges: .top)
@@ -535,11 +552,13 @@ struct RecipeDetailScreen: View {
 
             originChip
 
-            if let description = recipe.description, !description.isEmpty {
+            if let description = DishBlurb.line(
+                title: recipe.title,
+                stored: recipe.description,
+                items: recipe.ingredients.flatMap(\.items)
+            ) {
                 descriptionBlock(description)
             }
-
-            NutritionCard(nutrition: recipe.nutritionOrEstimate, servings: servings, baseServings: recipe.servings ?? 2)
 
             actionRow
 
@@ -576,6 +595,8 @@ struct RecipeDetailScreen: View {
             .tint(AppTheme.accentInk)
             // Swipes that start on this box toggle Ingredients⇄Directions; swipes elsewhere change recipe.
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("detail")) } action: { segmentFrame = $0 }
+
+            NutritionCard(nutrition: recipe.nutritionOrEstimate, servings: servings, baseServings: recipe.servings ?? 2)
 
             Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.top, AppSpacing.sm)
 
