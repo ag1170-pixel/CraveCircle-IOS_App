@@ -3,7 +3,7 @@
 //  CraveCircle (AICookBook)
 //
 //  Discover = full-screen vertical reel of recipes (one per screen, swipe up/down to page), Instagram
-//  styled: bottom-right rail (like / comment / share / save), bottom-left creator lockup.
+//  styled: bottom-right rail (like / share / comment / save / more), bottom-left creator lockup.
 //  Pull-to-refresh at the top.
 //
 //  No cat here — the chef-cat lives on Home + Grocery; Discover stays focused on the reel.
@@ -73,8 +73,6 @@ struct RecipeReelScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("reel_autoplay")        private var autoplay = false
 
-    @State private var autoplayTick = 0
-
     // A STABLE snapshot of the feed. Built once, then only on an explicit Discover-tab double-tap.
     // Reappearing the tab must not reshuffle — a viewed card would drop out from under the user.
     // See `AppEnvironment.discoveryReel()`.
@@ -132,7 +130,8 @@ struct RecipeReelScreen: View {
                                  size: geo.size,
                                  topInset: geo.safeAreaInsets.top,
                                  bottomInset: geo.safeAreaInsets.bottom,
-                                 fitMode: true)   // always fit (the recipe photo is never cropped)
+                                 fitMode: true,   // always fit (the recipe photo is never cropped)
+                                 onNotInterested: { skip($0) })
                         .frame(width: geo.size.width,
                                height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom)
                         .id(r.id)
@@ -145,7 +144,6 @@ struct RecipeReelScreen: View {
             .refreshable { await environment.fetchSuggestedFeed(); refreshReel() }
             .ignoresSafeArea()
             .background(.black)
-            .overlay(alignment: .top) { topChrome(topInset: geo.safeAreaInsets.top) }
         }
         .task {
             // `.task` restarts every time this tab appears. Only build a reel when there isn't one.
@@ -169,7 +167,7 @@ struct RecipeReelScreen: View {
             guard tabSignal.token > 0 else { return }
             refreshReel(excludingShown: true)
         }
-        .task(id: "\(autoplay)-\(autoplayTick)") {
+        .task(id: autoplay) {
             guard autoplay, !reduceMotion else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 6_000_000_000)
@@ -179,31 +177,15 @@ struct RecipeReelScreen: View {
         }
     }
 
-    // MARK: - Top chrome (a single bubbly play/pause control for auto-advance)
-
-    private func topChrome(topInset: CGFloat) -> some View {
-        HStack {
-            Spacer()
-            Button {
-                Haptics.select()
-                withAnimation(AppMotion.snappy) { autoplay.toggle(); autoplayTick &+= 1 }
-            } label: {
-                Image(systemName: autoplay ? "pause.fill" : "play.fill")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay(Circle().strokeBorder(.white.opacity(0.22), lineWidth: 0.5))
-                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-            }
-            .buttonStyle(PressableStyle())
-            .accessibilityLabel(autoplay ? "Pause auto-advance" : "Play — auto-advance reels")
-        }
-        .padding(.horizontal, 14)
-        .padding(.top, topInset + 10)
-    }
-
     // MARK: - Advancement
+
+    /// Drop a card the user marked Not interested and stay on the next one.
+    private func skip(_ id: String) {
+        guard let idx = reel.firstIndex(where: { $0.id == id }) else { return }
+        let next = idx + 1 < reel.count ? reel[idx + 1].id : (idx > 0 ? reel[idx - 1].id : nil)
+        reel.remove(at: idx)
+        currentID = reel.contains(where: { $0.id == next }) ? next : reel.first?.id
+    }
 
     private func advance(from id: String) {
         if let idx = reel.firstIndex(where: { $0.id == id }), idx + 1 < reel.count {
@@ -220,11 +202,18 @@ private struct ReelCell: View {
     let topInset: CGFloat
     let bottomInset: CGFloat
     let fitMode: Bool
+    var onNotInterested: (String) -> Void = { _ in }
 
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage("reel_autoplay") private var autoplay = false
+    @AppStorage("reel_fills_screen") private var fillsScreen = false
     @State private var showHeart = false       // Instagram-style burst on double-tap
     @State private var showComments = false    // bottom sheet with comments
+    @State private var showMenu = false
+    @State private var menuPage = ReelMenuPage.actions
+    @State private var showReport = false
+    @State private var reportAfterMenu = false
     @State private var pendingOpen: DispatchWorkItem?
 
     private var liked: Bool  { environment.isLiked(recipeId: recipe.id) }
@@ -260,6 +249,37 @@ private struct ReelCell: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $showMenu, onDismiss: {
+                menuPage = .actions
+                if reportAfterMenu {
+                    reportAfterMenu = false
+                    showReport = true
+                }
+            }) {
+                ReelMoreSheet(
+                    page: $menuPage,
+                    interested: environment.interactionHistory.contains { $0.recipeId == recipe.id && $0.eventType == "interested" },
+                    fillsScreen: fillsScreen,
+                    autoplay: autoplay,
+                    onInterested: {
+                        Haptics.select()
+                        environment.logInteraction(recipeId: recipe.id, eventType: "interested")
+                        showMenu = false
+                    },
+                    onNotInterested: {
+                        Haptics.select()
+                        environment.logInteraction(recipeId: recipe.id, eventType: "not_interested")
+                        showMenu = false
+                        onNotInterested(recipe.id)
+                    },
+                    onToggleFull: { fillsScreen.toggle() },
+                    onToggleAutoplay: { autoplay.toggle() },
+                    onReport: { reportAfterMenu = true; showMenu = false }
+                )
+            }
+            .sheet(isPresented: $showReport) {
+                ReportIssueSheet(recipe: recipe)
+            }
     }
 
     // MARK: - Recipe content
@@ -278,7 +298,7 @@ private struct ReelCell: View {
 
     // Portrait fits the photo (never cropped); landscape would shrink that fit to a thin strip
     // (fitPhotoHeight collapses when height < width), so landscape fills the screen instead.
-    private var useFit: Bool { fitMode && size.height >= size.width }
+    private var useFit: Bool { fitMode && !fillsScreen && size.height >= size.width }
 
     private var backdrop: some View {
         ZStack {
@@ -293,7 +313,7 @@ private struct ReelCell: View {
                     .scaledToFill()
                     .frame(width: size.width, height: cellHeight)
                     .clipped()
-                    .overlay(.black.opacity(0.28))
+                    .overlay(fillsScreen ? Color.clear : Color.black.opacity(0.28))
             }
         }
         .frame(width: size.width, height: cellHeight)
@@ -403,11 +423,7 @@ private struct ReelCell: View {
         VStack(spacing: 16) {
             railButton(icon: liked ? "heart.fill" : "heart",
                        tint: liked ? .red : .white,
-                       bounceValue: liked, count: nil, action: like)
-            railButton(icon: "message", tint: .white, bounceValue: false,
-                       count: commentsN > 0 ? "\(commentsN)" : nil) {
-                showComments = true                  // in-reel comment sheet, no need to leave Discover
-            }
+                       bounceValue: liked, count: nil, label: "Like", action: like)
             ShareLink(item: shareURL, subject: Text(recipe.title), message: Text(shareText)) {
                 Image(systemName: "paperplane")
                     .font(.system(size: 22, weight: .semibold))
@@ -415,9 +431,20 @@ private struct ReelCell: View {
             }
             .buttonStyle(.plain)
             .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
+            .accessibilityLabel("Share")
+            railButton(icon: "message", tint: .white, bounceValue: false,
+                       count: commentsN > 0 ? "\(commentsN)" : nil, label: "Comments") {
+                showComments = true
+            }
             railButton(icon: saved ? "bookmark.fill" : "bookmark",
                        tint: .white,
-                       bounceValue: saved, count: nil, action: save)
+                       bounceValue: saved, count: nil, label: "Save", action: save)
+            railButton(icon: "line.3.horizontal", tint: .white, bounceValue: false,
+                       count: nil, label: "More") {
+                menuPage = .actions
+                showMenu = true
+            }
+            .padding(.top, 8)
         }
         .padding(.trailing, 10)
         .padding(.bottom, bottomInset + 110)
@@ -425,7 +452,7 @@ private struct ReelCell: View {
     }
 
     private func railButton(icon: String, tint: Color, bounceValue: Bool, count: String?,
-                            action: @escaping () -> Void) -> some View {
+                            label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 2) {
                 Image(systemName: icon)
@@ -438,6 +465,7 @@ private struct ReelCell: View {
         }
         .buttonStyle(PressableStyle())
         .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
+        .accessibilityLabel(label)
     }
 
     // MARK: Heart burst (Instagram-style double-tap)
@@ -477,5 +505,123 @@ private struct ReelCell: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
             withAnimation(.easeOut(duration: 0.3)) { showHeart = false }
         }
+    }
+}
+
+private enum ReelMenuPage {
+    case actions
+    case playback
+}
+
+/// More menu on a reel: Interested, Not interested, Playback, Report.
+/// Playback is only full-screen and auto-scroll.
+private struct ReelMoreSheet: View {
+    @Binding var page: ReelMenuPage
+    let interested: Bool
+    let fillsScreen: Bool
+    let autoplay: Bool
+    let onInterested: () -> Void
+    let onNotInterested: () -> Void
+    let onToggleFull: () -> Void
+    let onToggleAutoplay: () -> Void
+    let onReport: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            if page == .playback {
+                playback
+            } else {
+                actions
+            }
+        }
+        .padding(.horizontal, AppSpacing.md)
+        .padding(.top, AppSpacing.lg)
+        .padding(.bottom, AppSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.background.ignoresSafeArea())
+        .presentationDetents([.height(page == .playback ? 220 : 320)])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var actions: some View {
+        VStack(spacing: 0) {
+            menuRow(icon: "checkmark", title: "Interested", tint: AppTheme.textPrimary, action: onInterested)
+            menuRow(icon: "xmark", title: "Not interested", tint: AppTheme.textPrimary, action: onNotInterested)
+            menuRow(icon: "play.circle", title: "Playback", tint: AppTheme.textPrimary) { page = .playback }
+            menuRow(icon: "exclamationmark.bubble", title: "Report", tint: AppTheme.destructive, action: onReport)
+        }
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+    }
+
+    private var playback: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Text("Playback")
+                .font(AppFont.body(17, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .frame(maxWidth: .infinity)
+            VStack(spacing: 0) {
+                Button(action: onToggleFull) {
+                    HStack(spacing: AppSpacing.sm) {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(AppTheme.accentInk)
+                            .frame(width: 28)
+                        Text("View full-screen")
+                            .font(AppFont.body(16, weight: .medium))
+                            .foregroundStyle(AppTheme.textPrimary)
+                        Spacer()
+                        if fillsScreen {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(AppTheme.accentInk)
+                        }
+                    }
+                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.vertical, 14)
+                }
+                .buttonStyle(.plain)
+                Divider().overlay(AppTheme.separator).padding(.leading, 48)
+                HStack(spacing: AppSpacing.sm) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(AppTheme.accentInk)
+                        .frame(width: 28)
+                    Text("Auto-scroll")
+                        .font(AppFont.body(16, weight: .medium))
+                        .foregroundStyle(AppTheme.textPrimary)
+                    Spacer()
+                    Toggle("Auto-scroll", isOn: Binding(get: { autoplay }, set: { _ in onToggleAutoplay() }))
+                        .labelsHidden()
+                }
+                .padding(.horizontal, AppSpacing.md)
+                .padding(.vertical, 10)
+            }
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+        }
+    }
+
+    private func menuRow(icon: String, title: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: AppSpacing.sm) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 28)
+                Text(title)
+                    .font(AppFont.body(16, weight: .medium))
+                    .foregroundStyle(tint)
+                Spacer()
+                if title == "Interested" && interested {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(AppTheme.accentInk)
+                }
+            }
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.vertical, 14)
+        }
+        .buttonStyle(.plain)
     }
 }

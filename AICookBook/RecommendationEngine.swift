@@ -23,6 +23,8 @@ enum RecommendationEngine {
         case "grocery": return 5      // added ingredients to shop — high intent
         case "save":    return 4
         case "like":    return 4
+        case "interested": return 5
+        case "not_interested": return -4
         case "comment": return 2
         case "view":    return 1      // a glance; dwell time adds the rest (see below)
         default:        return 1
@@ -54,7 +56,7 @@ enum RecommendationEngine {
                 // Longer dwell = stronger interest, capped so one long view can't dominate.
                 weight += min(Double(secs) / 10.0, 4.0)
             }
-            guard weight > 0 else { continue }
+            guard weight != 0 else { continue }
             totalSignal += weight
             for token in tokens(for: recipe) {
                 profile[token, default: 0] += weight

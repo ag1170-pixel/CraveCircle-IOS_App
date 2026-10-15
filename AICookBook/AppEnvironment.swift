@@ -1681,8 +1681,9 @@ final class AppEnvironment: ObservableObject {
     /// the mix after a view so that exclusion can't empty Discover of recipes the user already has.
     func discoveryReel() -> [Recipe] {
         let seen = Set(interactionHistory.filter { $0.eventType == "view" }.map(\.recipeId))
+        let rejected = Set(interactionHistory.filter { $0.eventType == "not_interested" }.map(\.recipeId))
         let own = Set(recipes.filter { isOwner(of: $0) }.map(\.id))
-        let excluded = seen.union(own)
+        let excluded = seen.union(own).union(rejected)
         var picks = RecommendationEngine.suggestions(
             from: recipes,
             history: interactionHistory,
@@ -1695,7 +1696,7 @@ final class AppEnvironment: ObservableObject {
             let unseen = recipes.filter { !own.contains($0.id) && !seen.contains($0.id) }
             picks = unseen.isEmpty ? recipes.filter { !own.contains($0.id) } : unseen
         }
-        let library = recipes.filter { isOwner(of: $0) || isSaved(recipeId: $0.id) }
+        let library = recipes.filter { (isOwner(of: $0) || isSaved(recipeId: $0.id)) && !rejected.contains($0.id) }
         return DiscoveryReelRefresh.mixedReel(
             library: library,
             suggestions: picks,
