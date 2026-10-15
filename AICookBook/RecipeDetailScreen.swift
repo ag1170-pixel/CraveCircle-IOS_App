@@ -153,7 +153,7 @@ struct RecipeDetailScreen: View {
         }
         .scrollIndicators(.hidden)
         .fullScreenCover(isPresented: $showCook) {
-            CookModeScreen(recipe: recipe, servings: recipe.servings ?? 2)
+            FlashcardCookScreen(recipe: recipe)
         }
         .fullScreenCover(isPresented: $showEdit) {
             RecipeEditScreen(recipe: $recipe, onSave: { environment.updateRecipe($0) })

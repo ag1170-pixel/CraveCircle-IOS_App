@@ -46,8 +46,6 @@ struct FlashcardCookScreen: View {
     init(recipe: Recipe) {
         self.recipe = recipe
         var list: [FlashCard] = []
-        let ingredients = recipe.ingredients.flatMap(\.items)
-        if !ingredients.isEmpty { list.append(.ingredients(ingredients)) }
         let steps = recipe.directions.sorted { $0.stepIndex < $1.stepIndex }
         for s in steps {
             for chunk in Self.chunkStep(s.text) {
@@ -407,7 +405,6 @@ private struct ClockRingView: View {
 // MARK: - Card model + content
 
 enum FlashCard {
-    case ingredients([String])
     case step(number: Int, text: String)
     case finish(recipeTitle: String)
 
@@ -456,24 +453,6 @@ private struct CardContent: View {
 
     @ViewBuilder private var content: some View {
         switch card {
-        case .ingredients(let items):
-            VStack(alignment: .leading, spacing: 10) {
-                Text("INGREDIENTS")
-                    .font(AppFont.label(13, weight: .bold)).tracking(1.5)
-                    .foregroundStyle(ink.opacity(0.7))
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                            HStack(alignment: .top, spacing: 10) {
-                                Circle().fill(ink.opacity(0.6)).frame(width: 6, height: 6).padding(.top, 9)
-                                Text(item).font(AppFont.body(18, weight: .medium)).foregroundStyle(ink)
-                            }
-                        }
-                    }
-                }
-                .frame(maxHeight: 150)
-            }
-
         case .step(let number, let text):
             VStack(alignment: .leading, spacing: 10) {
                 Text(number == stepCount ? "LAST STEP · \(number)/\(stepCount)" : "STEP \(number) OF \(stepCount)")
@@ -499,10 +478,9 @@ private struct CardContent: View {
     }
 }
 
-/// The words read aloud for a card (steps verbatim; ingredients listed; a spoken finish line).
+/// The words read aloud for a card (the step itself, or a spoken finish line).
 func flashcardSpokenText(_ card: FlashCard) -> String {
     switch card {
-    case .ingredients(let items): return "Ingredients. " + items.joined(separator: ", ")
     case .step(_, let text):      return text
     case .finish(let title):      return "You finished \(title). Enjoy your meal, chef!"
     }
