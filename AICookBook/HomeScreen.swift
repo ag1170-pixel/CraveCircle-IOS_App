@@ -200,7 +200,7 @@ struct HomeScreen: View {
             micButton
         }
         .padding(.horizontal, AppSpacing.md)
-        .frame(height: 48)
+        .frame(height: 50)
         .background(AppTheme.surface, in: Capsule())
         .overlay(Capsule().stroke(voiceSearch.isRecording ? AppTheme.accent : AppTheme.hairline,
                                   lineWidth: voiceSearch.isRecording ? 1.5 : 1))
@@ -434,10 +434,6 @@ struct HomeScreen: View {
                 Text("Fresh in your Circle")
                     .font(AppFont.display(20, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
-                Text("new today !!")
-                    .font(AppFont.serif(15, weight: .semibold))
-                    .italic()
-                    .foregroundStyle(AppTheme.accentInk)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, AppSpacing.md)

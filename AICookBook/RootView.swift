@@ -302,31 +302,19 @@ struct MainTabView: View {
         // platter (the "glass bubble"), five equal icons, selection capsule drawn by UIKit,
         // shrinks on scroll. This is Gowtham's original bar, restored verbatim.
         TabView(selection: $tab) {
-            Tab(value: AppTab.home) {
+            Tab(AppTab.home.title, systemImage: AppTab.home.icon, value: AppTab.home) {
                 HomeScreen(showingImportSheet: $showingImportSheet)
-            } label: {
-                Image(systemName: AppTab.home.icon)
-                    .accessibilityLabel(AppTab.home.title)
             }
-            Tab(value: AppTab.discover) {
+            Tab(AppTab.discover.title, systemImage: AppTab.discover.icon, value: AppTab.discover) {
                 // Discover is now the full-screen recipe reel (Instagram/TikTok style, Hinge swipes).
                 // The old SearchScreen stays in the repo — search lives on Home now.
                 RecipeReelScreen(tabSignal: discoverSignal, reel: $discoverReel, currentID: $discoverCurrentID)
-            } label: {
-                Image(systemName: AppTab.discover.icon)
-                    .accessibilityLabel(AppTab.discover.title)
             }
-            Tab(value: AppTab.groceries) {
+            Tab(AppTab.groceries.title, systemImage: AppTab.groceries.icon, value: AppTab.groceries) {
                 GroceryScreen()
-            } label: {
-                Image(systemName: AppTab.groceries.icon)
-                    .accessibilityLabel(AppTab.groceries.title)
             }
-            Tab(value: AppTab.profile) {
+            Tab(AppTab.profile.title, systemImage: AppTab.profile.icon, value: AppTab.profile) {
                 ProfileScreen()
-            } label: {
-                Image(systemName: AppTab.profile.icon)
-                    .accessibilityLabel(AppTab.profile.title)
             }
         }
         // Osta-style: Import is a floating round button, not a tab (keeps the glassy 4-icon bar).
