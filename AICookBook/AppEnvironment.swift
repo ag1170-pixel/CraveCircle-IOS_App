@@ -1309,18 +1309,28 @@ final class AppEnvironment: ObservableObject {
     }
 
     // MARK: - Saved / Bookmark Actions
-    func toggleSaveRecipe(id: String) {
+    /// Bookmark. The recipe is kept in `recipes` so Library's Saved folder and Home's library
+    /// can show the card, not only the id.
+    func toggleSaveRecipe(id: String, recipe: Recipe? = nil) {
         if savedRecipeIds.contains(id) {
             savedRecipeIds.remove(id)
-            cancelCookNudge(recipeId: id)   // no longer saved → drop the reminder
+            cancelCookNudge(recipeId: id)
         } else {
+            if let card = recipe ?? recipes.first(where: { $0.id == id }),
+               !recipes.contains(where: { $0.id == id }) {
+                recipes.insert(card, at: 0)
+            }
             savedRecipeIds.insert(id)
             logInteraction(recipeId: id, eventType: "save")
-            if let title = recipes.first(where: { $0.id == id })?.title {
+            if let title = (recipe ?? recipes.first(where: { $0.id == id }))?.title {
                 scheduleCookNudge(recipeId: id, title: title)
             }
         }
         UserDefaults.standard.set(Array(savedRecipeIds), forKey: "saved_recipe_ids")
+    }
+
+    var savedRecipes: [Recipe] {
+        recipes.filter { savedRecipeIds.contains($0.id) }
     }
 
     // MARK: - Cook-nudge (gentle "you saved this — cook it?" reminder)

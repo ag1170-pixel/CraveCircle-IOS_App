@@ -22,7 +22,7 @@ struct LibraryScreen: View {
         case 1: // Liked
             return environment.likedRecipes
         case 2: // Saved
-            return environment.recipes.filter { environment.isSaved(recipeId: $0.id) }
+            return environment.savedRecipes
         case 3: // Created
             return environment.ownedRecipes
         default: // All
@@ -37,7 +37,7 @@ struct LibraryScreen: View {
                     segments: [
                         "All \(environment.myLibraryRecipes.count)",
                         "Liked \(environment.likedRecipeIds.count)",
-                        "Saved \(environment.savedRecipeIds.count)",
+                        "Saved \(environment.savedRecipes.count)",
                         "Created \(environment.ownedRecipes.count)"
                     ],
                     selection: $filter

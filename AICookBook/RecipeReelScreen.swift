@@ -431,6 +431,10 @@ private struct ReelCell: View {
             railButton(icon: liked ? "heart.fill" : "heart",
                        tint: liked ? .red : .white,
                        bounceValue: liked, count: nil, label: "Like", action: like)
+            railButton(icon: "message", tint: .white, bounceValue: false,
+                       count: commentsN > 0 ? "\(commentsN)" : nil, label: "Comments") {
+                showComments = true
+            }
             ShareLink(item: shareURL, subject: Text(recipe.title), message: Text(shareText)) {
                 Image(systemName: "paperplane")
                     .font(.system(size: 22, weight: .semibold))
@@ -440,10 +444,6 @@ private struct ReelCell: View {
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("Share")
-            railButton(icon: "message", tint: .white, bounceValue: false,
-                       count: commentsN > 0 ? "\(commentsN)" : nil, label: "Comments") {
-                showComments = true
-            }
             railButton(icon: saved ? "bookmark.fill" : "bookmark",
                        tint: .white,
                        bounceValue: saved, count: nil, label: "Save", action: save)
@@ -498,7 +498,7 @@ private struct ReelCell: View {
     }
     private func save() {
         Haptics.tap()
-        withAnimation(AppMotion.snappy) { environment.toggleSaveRecipe(id: recipe.id) }
+        withAnimation(AppMotion.snappy) { environment.toggleSaveRecipe(id: recipe.id, recipe: recipe) }
     }
     private func doubleTapLike() {
         if !liked {
