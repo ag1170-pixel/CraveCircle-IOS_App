@@ -431,6 +431,52 @@ enum NutritionEstimator {
             options: [.regularExpression, .caseInsensitive]) != nil
     }
 
+    /// Dish name spoken in the reel ("this is chole masala") when the written title is only calories.
+    static func spokenDishName(in text: String) -> String? {
+        let cues = #"(?:this is(?: my| our| the)?|(?:today )?(?:i am|i'm|we are|we're) making|(?:i'm|i am|we're|we are) making|recipe for|how to make|(?:let's|lets) make)\s+([A-Za-z][A-Za-z'’\-]*(?:\s+[A-Za-z][A-Za-z'’\-]*){0,5})"#
+        if let name = firstDish(cues, in: text) { return name }
+        let words = #"\b([A-Za-z][A-Za-z'\-]*(?:\s+[A-Za-z][A-Za-z'\-]*){0,2}\s+(?:masala|curry|biryani|pulao|khichdi|sabzi|sabji|dal|gravy|roast|pasta|risotto|ramen|tacos|noodles))\b"#
+        let opening = String(text.prefix(600))
+        return firstDish(words, in: opening)
+    }
+
+    /// A saved import whose title is "370 Kcal per Serving" takes the dish name from its steps.
+    static func replacingCalorieHeadline(_ recipe: Recipe) -> Recipe {
+        guard isKcalServingHeadline(recipe.title) else { return recipe }
+        let blob = ([recipe.description ?? ""] + recipe.directions.map(\.text)).joined(separator: "\n")
+        guard let name = spokenDishName(in: blob), !isKcalServingHeadline(name) else { return recipe }
+        var copy = recipe
+        copy.title = name
+        return copy
+    }
+
+    private static let dishStop: Set<String> = ["and", "with", "for", "from", "that", "which", "using", "today", "now", "here", "guys"]
+    private static let dishLead: Set<String> = ["add", "mix", "stir", "pour", "heat", "cook", "fry", "use", "using", "then", "now", "so"]
+    private static let notADish: Set<String> = ["garam masala", "chaat masala", "kitchen king masala", "curry leaves", "curry leaf"]
+
+    private static func firstDish(_ pattern: String, in text: String) -> String? {
+        guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return nil }
+        let ns = text as NSString
+        guard let match = re.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)),
+              match.numberOfRanges > 1 else { return nil }
+        return tidyDishName(ns.substring(with: match.range(at: 1)))
+    }
+
+    private static func tidyDishName(_ raw: String) -> String? {
+        var words: [String] = []
+        for word in raw.split(separator: " ") {
+            if dishStop.contains(word.lowercased()) { break }
+            words.append(String(word))
+            if words.count == 4 { break }
+        }
+        while let first = words.first, dishLead.contains(first.lowercased()) {
+            words.removeFirst()
+        }
+        let name = words.joined(separator: " ")
+        guard (3...40).contains(name.count), !notADish.contains(name.lowercased()), !isKcalServingHeadline(name) else { return nil }
+        return name == name.lowercased() ? name.capitalized : name
+    }
+
     /// First caption line that can be a dish name. Skips a kcal headline and a full macro line.
     static func dishTitle(in text: String) -> String? {
         text.split(whereSeparator: \.isNewline)

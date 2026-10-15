@@ -361,6 +361,20 @@ final class IngredientListFormatTests: XCTestCase {
         XCTAssertEqual(IngredientListFormat.cleanedItem(line), "Chopped coriander")
     }
 
+    func testCalorieHeadlineTakesTheSpokenDishName() {
+        XCTAssertEqual(
+            NutritionEstimator.spokenDishName(in: "Hey. This is chole masala. Then add garam masala."),
+            "Chole Masala"
+        )
+        var recipe = makeRecipe(title: "370 Kcal per Serving", ingredients: ["chickpeas"])
+        recipe.directions = [DirectionStep(stepIndex: 1, text: "This is chole masala. Soak the chickpeas.")]
+        XCTAssertEqual(NutritionEstimator.replacingCalorieHeadline(recipe).title, "Chole Masala")
+        XCTAssertEqual(
+            NutritionEstimator.replacingCalorieHeadline(makeRecipe(title: "Chole Masala", ingredients: ["chickpeas"])).title,
+            "Chole Masala"
+        )
+    }
+
     func testShareLinkOpensTheRecipePageAndHandleDropsTheAt() {
         XCTAssertEqual(AppConfig.recipeWebLink("abc"), "https://import.cravecircle.cc/recipe/abc")
         XCTAssertEqual(AppConfig.shareHandle("  @Udit "), "Udit")

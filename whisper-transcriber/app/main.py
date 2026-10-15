@@ -615,6 +615,54 @@ def _is_kcal_serving_headline(text: str) -> bool:
     return _KCAL_HEADLINE.fullmatch(clean) is not None
 
 
+_DISH_CUE = re.compile(
+    r"(?:this is(?: my| our| the)?|(?:today )?(?:i am|i'm|we are|we're) making|"
+    r"(?:i'm|i am|we're|we are) making|recipe for|how to make|(?:let's|lets) make)\s+"
+    r"([a-z][a-z'’\-]*(?:\s+[a-z][a-z'’\-]*){0,5})",
+    re.I,
+)
+_DISH_WORD = re.compile(
+    r"\b([a-z][a-z'\-]*(?:\s+[a-z][a-z'\-]*){0,2}\s+"
+    r"(?:masala|curry|biryani|pulao|khichdi|sabzi|sabji|dal|gravy|roast|pasta|risotto|ramen|tacos|noodles))\b",
+    re.I,
+)
+_NOT_A_DISH = {"garam masala", "chaat masala", "kitchen king masala", "curry leaves", "curry leaf"}
+_DISH_STOP = {"and", "with", "for", "from", "that", "which", "using", "today", "now", "here", "guys"}
+_DISH_LEAD = {"add", "mix", "stir", "pour", "heat", "cook", "fry", "use", "using", "then", "now", "so"}
+
+
+def _tidy_dish_name(raw: str) -> str:
+    words = []
+    for word in re.sub(r"\s+", " ", raw or "").strip(" .,-").split():
+        if word.lower() in _DISH_STOP:
+            break
+        words.append(word)
+        if len(words) == 4:
+            break
+    while words and words[0].lower() in _DISH_LEAD:
+        words.pop(0)
+    name = " ".join(words).strip()
+    if not (3 <= len(name) <= 40) or name.lower() in _NOT_A_DISH or _is_kcal_serving_headline(name):
+        return ""
+    return name.title() if name.islower() else name
+
+
+def _spoken_dish_name(transcript: str) -> str:
+    """Dish name from the narration when the caption is only a calorie headline."""
+    text = transcript or ""
+    cue = _DISH_CUE.search(text)
+    if cue:
+        name = _tidy_dish_name(cue.group(1))
+        if name:
+            return name
+    opening = text[:600]
+    for match in _DISH_WORD.finditer(opening):
+        name = _tidy_dish_name(match.group(1))
+        if name:
+            return name
+    return ""
+
+
 def _macro_grams(line: str, name: str) -> float | None:
     m = re.search(rf"(\d+(?:\.\d+)?)\s*g(?:rams?)?\s*(?:of\s+)?(?:{name})\b", line, re.I)
     if not m:
@@ -1234,8 +1282,10 @@ def assemble_recipe(caption: str, transcript: str, ocr_text: str, has_speech: bo
             else:
                 groups = [{"group_name": "Main Ingredients", "items": extra}]
 
+    if _is_kcal_serving_headline(title):
+        title = ""
     if not title:
-        title = "Delicious Homemade Recipe"
+        title = _spoken_dish_name(transcript) or "Delicious Homemade Recipe"
 
     # Drop promo / intro / CTA lines that aren't actual cooking steps.
     directions = [d for d in directions if not _INTRO_LINE.match(d)]
@@ -1282,6 +1332,12 @@ def _check_caption_macros_stay_per_serving() -> None:
     assert n["calories"] not in (140, 370 / 4), n
     assert parsed["servings"] == 4
     assert parsed["title"] == "Garlic Chicken Bowl", parsed["title"]
+    spoken = assemble_recipe(
+        "370 Kcal per Serving\n",
+        "Hey. This is chole masala. Soak the chickpeas, then add garam masala.",
+        "", False, video_title="370 Kcal per Serving",
+    )
+    assert spoken["title"] == "Chole Masala", spoken["title"]
     assert _stated_per_serving_nutrition("370 Kcal per Serving") is None
     prose = "Meet the street-food classic whose name means thick muddy chickpeas."
     assert _dish_blurb(prose + "\nIngredients:\nOnion — 1", "Chole", []).startswith("Meet the street-food")

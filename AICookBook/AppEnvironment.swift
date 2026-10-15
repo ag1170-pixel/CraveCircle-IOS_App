@@ -114,7 +114,7 @@ final class AppEnvironment: ObservableObject {
         }
         let savedIds = Set(merged.map(\.id))
         for sample in Recipe.placeholderRecipes where !savedIds.contains(sample.id) { merged.append(sample) }
-        recipes = merged
+        recipes = merged.map(NutritionEstimator.replacingCalorieHeadline)
 
         ownedCollections = LocalStore.load([CollectionItem].self, from: "owned_collections.json") ?? []
         sharedCollections = LocalStore.load([CollectionItem].self, from: "shared_collections.json") ?? []
