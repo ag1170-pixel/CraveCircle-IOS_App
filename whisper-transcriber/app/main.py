@@ -1828,6 +1828,10 @@ async def add_recipe_to_grocery(recipe_id: str) -> list[dict]:
 
 
 
+# CraveCircle is not listed on the App Store yet, so a missing install lands on search.
+APP_STORE_SEARCH = "https://apps.apple.com/search?term=CraveCircle"
+
+
 @app.get("/recipe/{recipe_id}", response_class=HTMLResponse)
 async def recipe_landing_page(recipe_id: str):
     html_content = f"""
@@ -1843,28 +1847,48 @@ async def recipe_landing_page(recipe_id: str):
             body {{ background: #1C1C1E; color: white; font-family: -apple-system, sans-serif; text-align: center; padding-top: 80px; margin: 0; }}
             .container {{ padding: 20px; }}
             .title {{ font-size: 24px; font-weight: bold; margin-bottom: 10px; }}
-            .subtitle {{ color: #AEAEB2; font-size: 16px; margin-bottom: 40px; }}
-            .btn {{ display: inline-block; background: #FF5A5F; color: white; text-decoration: none; padding: 16px 32px; border-radius: 30px; font-weight: bold; font-size: 18px; }}
-            .hint {{ color: #8E8E93; font-size: 14px; margin-top: 24px; }}
+            .subtitle {{ color: #AEAEB2; font-size: 16px; margin-bottom: 24px; }}
+            .btn {{ display: inline-block; background: #FF5A5F; color: white; text-decoration: none; padding: 16px 32px; border-radius: 30px; font-weight: bold; font-size: 18px; margin: 8px; }}
+            .btn.store {{ background: transparent; color: white; border: 1px solid rgba(255,255,255,0.35); }}
+            .hint {{ color: #8E8E93; font-size: 14px; margin-top: 24px; max-width: 320px; margin-left: auto; margin-right: auto; line-height: 1.4; }}
         </style>
         <script>
             window.onload = function() {{
                 var appLink = "cravecircle:/" + window.location.pathname;
-                document.getElementById('openBtn').href = appLink;
+                var store = "{APP_STORE_SEARCH}";
+                var left = false;
+                document.getElementById("openBtn").href = appLink;
+                document.getElementById("storeBtn").href = store;
+                document.addEventListener("visibilitychange", function() {{
+                    if (document.hidden) left = true;
+                }});
+                window.addEventListener("pagehide", function() {{ left = true; }});
+                setTimeout(function() {{ window.location.href = appLink; }}, 400);
                 setTimeout(function() {{
-                    window.location.href = appLink;
-                }}, 500);
+                    if (!left) window.location.href = store;
+                }}, 1600);
             }};
         </script>
     </head>
     <body>
         <div class="container">
             <div class="title">CraveCircle</div>
-            <div class="subtitle">You've been invited to view a recipe!</div>
+            <div class="subtitle">You've been invited to view a recipe.</div>
             <a href="#" id="openBtn" class="btn">Open in App</a>
-            <div class="hint">If you have CraveCircle installed, tap the button above or accept the prompt to jump right in.</div>
+            <a href="{APP_STORE_SEARCH}" id="storeBtn" class="btn store">Get the App</a>
+            <div class="hint">If CraveCircle is not installed, this page opens the App Store. After you install, open this link again to view the recipe.</div>
         </div>
     </body>
     </html>
     """
     return HTMLResponse(content=html_content)
+
+
+def _check_share_page_sends_missing_app_to_the_store() -> None:
+    assert APP_STORE_SEARCH.startswith("https://apps.apple.com/")
+    joined = " ".join(c for c in recipe_landing_page.__code__.co_consts if isinstance(c, str))
+    assert "Get the App" in joined and "cravecircle:/" in joined
+    assert "APP_STORE_SEARCH" in recipe_landing_page.__code__.co_names
+
+
+_check_share_page_sends_missing_app_to_the_store()

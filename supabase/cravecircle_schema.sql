@@ -222,6 +222,15 @@ CREATE POLICY recipes_select ON cravecircle.recipes
         )
     );
 
+DROP POLICY IF EXISTS recipes_select_shared ON cravecircle.recipes;
+CREATE POLICY recipes_select_shared ON cravecircle.recipes
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM cravecircle.shares
+            WHERE shares.recipe_id = recipes.id AND shares.to_user_id = auth.uid()
+        )
+    );
+
 DROP POLICY IF EXISTS recipes_write_own ON cravecircle.recipes;
 CREATE POLICY recipes_write_own ON cravecircle.recipes
     FOR ALL USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid());

@@ -119,7 +119,9 @@ struct HomeScreen: View {
             // Mail removed; import moved to the tab bar (+). Only the notifications bell remains (right).
             HStack {
                 Spacer()
-                iconButton("bell", label: "Notifications") { Haptics.tap(); showNotifications = true }
+                iconButton("bell", label: "Notifications", badgeCount: environment.circleNotifications.filter { !$0.isRead }.count) {
+                    Haptics.tap(); showNotifications = true
+                }
             }
         }
         .padding(.horizontal, AppSpacing.md)

@@ -639,6 +639,12 @@ final class AppEnvironment: ObservableObject {
         let handle = AppConfig.shareHandle(username)
         guard !handle.isEmpty, let toId = await supabase.resolveProfileId(username: handle) else { return false }
         let recipe = recipes.first(where: { $0.id == recipeId })
+        // A private import is not in the public catalog. Upload it as followers-only so the
+        // recipient can open it (shares_select policy) without it showing up for everyone.
+        if var recipe, let uid = currentUser?.id, isOwner(of: recipe) {
+            if recipe.isImportedFromSocial { recipe.visibility = .followers }
+            _ = await supabase.upsertRecipes([recipe], ownerId: uid)
+        }
         let ok = await supabase.recordShare(recipeId: recipeId, toUserId: toId, channel: "in-app",
                                             title: recipe?.title, thumbnail: recipe?.thumbnailUrl)
         if ok {
@@ -669,7 +675,7 @@ final class AppEnvironment: ObservableObject {
         for rec in remote where !existingIds.contains(rec.id) { merged.append(rec) }
         sharedLog = merged.sorted { $0.createdAt > $1.createdAt }
         for rec in newlyReceived {
-            let title = recipes.first(where: { $0.id == rec.recipeId })?.title ?? "a recipe"
+            let title = rec.recipeTitle ?? recipes.first(where: { $0.id == rec.recipeId })?.title ?? "a recipe"
             circleNotifications.insert(
                 CircleNotificationItem(title: "Recipe shared with you",
                                        message: "Someone shared '\(title)' with you",
