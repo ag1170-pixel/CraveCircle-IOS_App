@@ -287,11 +287,21 @@ private struct ReelCell: View {
     private var recipeContent: some View {
         ZStack(alignment: .bottomLeading) {
             backdrop
-            captionBlock
-            rail
             heartBurst
         }
         .frame(width: size.width, height: cellHeight)
+        // Photo taps stay on this layer. The rail sits in an overlay so a tap on a
+        // button cannot fall through to "open the recipe".
+        .overlay(alignment: .bottom) {
+            HStack(alignment: .bottom, spacing: 12) {
+                captionBlock
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                rail
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, 10)
+            .padding(.bottom, bottomInset + 12)
+        }
     }
 
     // MARK: Backdrop (photo + taps)
@@ -356,9 +366,6 @@ private struct ReelCell: View {
                 if let k = recipe.nutrition?.calories { metaPill(icon: "flame", text: "\(Int(k)) kcal") }
             }
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 70)
-        .padding(.bottom, bottomInset + 20)
     }
 
     private var creatorAvatar: some View {
@@ -420,7 +427,7 @@ private struct ReelCell: View {
     // MARK: Rail (bottom-right)
 
     private var rail: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 18) {
             railButton(icon: liked ? "heart.fill" : "heart",
                        tint: liked ? .red : .white,
                        bounceValue: liked, count: nil, label: "Like", action: like)
@@ -428,9 +435,10 @@ private struct ReelCell: View {
                 Image(systemName: "paperplane")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(.white)
+                    .frame(width: 48, height: 48)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
+            .buttonStyle(.borderless)
             .accessibilityLabel("Share")
             railButton(icon: "message", tint: .white, bounceValue: false,
                        count: commentsN > 0 ? "\(commentsN)" : nil, label: "Comments") {
@@ -444,11 +452,7 @@ private struct ReelCell: View {
                 menuPage = .actions
                 showMenu = true
             }
-            .padding(.top, 8)
         }
-        .padding(.trailing, 10)
-        .padding(.bottom, bottomInset + 110)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
     }
 
     private func railButton(icon: String, tint: Color, bounceValue: Bool, count: String?,
@@ -462,9 +466,10 @@ private struct ReelCell: View {
                     .symbolEffect(.bounce, value: bounceValue)
                 if let count { Text(count).font(AppFont.body(10, weight: .semibold)).foregroundStyle(.white) }
             }
+            .frame(width: 48, height: 48)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(PressableStyle())
-        .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
+        .buttonStyle(.borderless)
         .accessibilityLabel(label)
     }
 
