@@ -237,7 +237,8 @@ private struct ReelCell: View {
                             .padding(.horizontal, AppSpacing.md)
                             .padding(.top, AppSpacing.md)
                     }
-                    .background(AppTheme.background.ignoresSafeArea())
+                    .scrollContentBackground(.hidden)
+                    .background(.ultraThinMaterial)
                     .navigationTitle("Comments")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
@@ -245,9 +246,11 @@ private struct ReelCell: View {
                             Button("Done") { showComments = false }
                         }
                     }
+                    .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
                 }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+                .presentationBackground(.ultraThinMaterial)
             }
             .sheet(isPresented: $showMenu, onDismiss: {
                 menuPage = .actions
@@ -542,59 +545,60 @@ private struct ReelMoreSheet: View {
         .padding(.horizontal, AppSpacing.md)
         .padding(.top, AppSpacing.lg)
         .padding(.bottom, AppSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.background.ignoresSafeArea())
-        .presentationDetents([.height(page == .playback ? 220 : 320)])
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .presentationDetents([.height(page == .playback ? 240 : 300)])
         .presentationDragIndicator(.visible)
+        .presentationBackground(.ultraThinMaterial)
     }
 
     private var actions: some View {
         VStack(spacing: 0) {
-            menuRow(icon: "checkmark", title: "Interested", tint: AppTheme.textPrimary, action: onInterested)
-            menuRow(icon: "xmark", title: "Not interested", tint: AppTheme.textPrimary, action: onNotInterested)
-            menuRow(icon: "play.circle", title: "Playback", tint: AppTheme.textPrimary) { page = .playback }
+            menuRow(icon: "checkmark", title: "Interested", tint: .primary, action: onInterested)
+            glassDivider
+            menuRow(icon: "xmark", title: "Not interested", tint: .primary, action: onNotInterested)
+            glassDivider
+            menuRow(icon: "play.circle", title: "Playback", tint: .primary) { page = .playback }
+            glassDivider
             menuRow(icon: "exclamationmark.bubble", title: "Report", tint: AppTheme.destructive, action: onReport)
         }
-        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
     }
 
     private var playback: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             Text("Playback")
                 .font(AppFont.body(17, weight: .bold))
-                .foregroundStyle(AppTheme.textPrimary)
+                .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity)
             VStack(spacing: 0) {
                 Button(action: onToggleFull) {
                     HStack(spacing: AppSpacing.sm) {
                         Image(systemName: "arrow.up.left.and.arrow.down.right")
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(AppTheme.accentInk)
+                            .foregroundStyle(.primary)
                             .frame(width: 28)
                         Text("View full-screen")
                             .font(AppFont.body(16, weight: .medium))
-                            .foregroundStyle(AppTheme.textPrimary)
+                            .foregroundStyle(.primary)
                         Spacer()
                         if fillsScreen {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(AppTheme.accentInk)
+                                .foregroundStyle(.primary)
                         }
                     }
                     .padding(.horizontal, AppSpacing.md)
                     .padding(.vertical, 14)
                 }
                 .buttonStyle(.plain)
-                Divider().overlay(AppTheme.separator).padding(.leading, 48)
+                glassDivider
                 HStack(spacing: AppSpacing.sm) {
                     Image(systemName: "arrow.triangle.2.circlepath")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(AppTheme.accentInk)
+                        .foregroundStyle(.primary)
                         .frame(width: 28)
                     Text("Auto-scroll")
                         .font(AppFont.body(16, weight: .medium))
-                        .foregroundStyle(AppTheme.textPrimary)
+                        .foregroundStyle(.primary)
                     Spacer()
                     Toggle("Auto-scroll", isOn: Binding(get: { autoplay }, set: { _ in onToggleAutoplay() }))
                         .labelsHidden()
@@ -602,9 +606,14 @@ private struct ReelMoreSheet: View {
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.vertical, 10)
             }
-            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
         }
+    }
+
+    private var glassDivider: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.12))
+            .frame(height: 0.5)
+            .padding(.leading, 52)
     }
 
     private func menuRow(icon: String, title: String, tint: Color, action: @escaping () -> Void) -> some View {
@@ -621,7 +630,7 @@ private struct ReelMoreSheet: View {
                 if title == "Interested" && interested {
                     Image(systemName: "checkmark")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(AppTheme.accentInk)
+                        .foregroundStyle(.primary)
                 }
             }
             .padding(.horizontal, AppSpacing.md)
