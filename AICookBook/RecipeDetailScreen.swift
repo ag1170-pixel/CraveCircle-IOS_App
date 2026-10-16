@@ -552,12 +552,6 @@ struct RecipeDetailScreen: View {
                 .lineSpacing(-2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            metaLine
-
-            originChip
-
-            nutritionButton
-
             if let description = DishBlurb.line(
                 title: recipe.title,
                 stored: recipe.description,
@@ -565,6 +559,14 @@ struct RecipeDetailScreen: View {
             ) {
                 descriptionBlock(description)
             }
+
+            HStack(alignment: .center, spacing: 8) {
+                metaLine
+                Spacer(minLength: 8)
+                originChip
+            }
+
+            nutritionButton
 
             actionRow
 
@@ -718,7 +720,7 @@ struct RecipeDetailScreen: View {
             showNutrition = true
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: "chart.pie.fill")
+                Image(systemName: "fork.knife")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(AppTheme.accentInk)
                 Text("Nutrition")
