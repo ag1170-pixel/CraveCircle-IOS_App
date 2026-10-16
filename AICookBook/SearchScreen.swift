@@ -134,6 +134,44 @@ struct SuggestionReasonChip: View {
 
 // MARK: - Filter chip (shared — used by Home's search filter bar)
 
+/// Veg / non-veg switch: the mark on the left, the knob on the right. Veg is the green dot,
+/// non-veg is the red triangle — both SF Symbols, colored like the food-label marks.
+struct DietToggle: View {
+    let systemImage: String
+    let tint: Color
+    let isOn: Bool
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(tint)
+                Capsule()
+                    .fill(isOn ? tint : AppTheme.hairline)
+                    .frame(width: 34, height: 20)
+                    .overlay(alignment: isOn ? .trailing : .leading) {
+                        Circle()
+                            .fill(AppTheme.surface)
+                            .frame(width: 16, height: 16)
+                            .padding(2)
+                            .shadow(color: .black.opacity(0.12), radius: 1, y: 1)
+                    }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel(label)
+        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
+
 struct FilterChip: View {
     let title: String
     let systemImage: String

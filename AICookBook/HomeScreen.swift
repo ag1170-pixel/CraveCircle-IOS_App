@@ -236,9 +236,8 @@ struct HomeScreen: View {
     private var filterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                FilterChip(title: "Veg", systemImage: "leaf", isOn: filters.diet == .veg) { setDiet(.veg) }
-                FilterChip(title: "Non-veg", systemImage: "frying.pan", isOn: filters.diet == .nonVeg) { setDiet(.nonVeg) }
-                FilterChip(title: "Vegan", systemImage: "carrot", isOn: filters.diet == .vegan) { setDiet(.vegan) }
+                DietToggle(systemImage: "smallcircle.filled.circle", tint: Self.vegMark, isOn: filters.diet == .veg, label: "Vegetarian") { setDiet(.veg) }
+                DietToggle(systemImage: "triangle.fill", tint: Self.nonVegMark, isOn: filters.diet == .nonVeg, label: "Non-vegetarian") { setDiet(.nonVeg) }
                 filterDivider
                 FilterChip(title: "Under 15m", systemImage: "timer", isOn: filters.time == .under15) { setTime(.under15) }
                 FilterChip(title: "15–30m", systemImage: "clock.fill", isOn: filters.time == .mid) { setTime(.mid) }
@@ -273,6 +272,9 @@ struct HomeScreen: View {
             Color.clear.preference(key: HorizontalScrollFrameKey.self, value: [geo.frame(in: .global)])
         })
     }
+
+    private static let vegMark = Color(light: Color(hex: "1B7F3A"), dark: Color(hex: "3DDC6E"))
+    private static let nonVegMark = Color(light: Color(hex: "C7362A"), dark: Color(hex: "FF5A48"))
 
     private var filterDivider: some View {
         Rectangle().fill(AppTheme.hairline).frame(width: 1, height: 22).padding(.horizontal, 2)
