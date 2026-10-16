@@ -735,10 +735,10 @@ struct RecipeDetailScreen: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(AppTheme.textTertiary)
             }
-            .padding(.horizontal, AppSpacing.md)
-            .padding(.vertical, 14)
-            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+            .background(AppTheme.surface, in: Capsule())
+            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Nutrition, \(kcal) kilocalories")
@@ -910,18 +910,19 @@ struct RecipeDetailScreen: View {
     // MARK: Directions
 
     private var directionsList: some View {
-        let steps = recipe.directions.sorted { $0.stepIndex < $1.stepIndex }
+        let lines = recipe.directions
+            .sorted { $0.stepIndex < $1.stepIndex }
+            .flatMap { DirectionStepParser.shortLines($0.text) }
         return VStack(alignment: .leading, spacing: 12) {
-            ForEach(Array(steps.enumerated()), id: \.element.stepIndex) { i, step in
-                let parsed = DirectionStepParser.parse(step.text)
+            ForEach(Array(lines.enumerated()), id: \.offset) { i, line in
                 ChecklistRow(
-                    title: AttributedString(parsed.headline),
-                    subtitle: parsed.detail.flatMap { $0.isEmpty ? nil : boldQuantities($0, size: 15) },
+                    title: boldQuantities(line, size: 17),
+                    subtitle: nil,
                     stepNumber: i + 1,
-                    chips: parsed.badges,
-                    checked: checkedSteps.contains(step.stepIndex)
+                    chips: [],
+                    checked: checkedSteps.contains(i)
                 ) {
-                    toggleChecklistItem(&checkedSteps, step.stepIndex)
+                    toggleChecklistItem(&checkedSteps, i)
                 }
             }
         }

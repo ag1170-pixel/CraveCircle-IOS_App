@@ -543,6 +543,16 @@ final class PhotoRecipeImportTests: XCTestCase {
     }
 }
 
+final class DirectionLineTests: XCTestCase {
+    func testAParagraphBecomesShortLines() {
+        let lines = DirectionStepParser.shortLines("Heat olive oil and butter in a large skillet over medium-high heat. Sear salmon skin-side down for 5 minutes, flip, and cook 3 minutes more. Transfer to a plate.")
+        XCTAssertGreaterThan(lines.count, 2)
+        XCTAssertFalse(lines.contains { $0.contains(". ") })
+        XCTAssertTrue(lines.contains { $0.localizedCaseInsensitiveContains("sear") })
+        XCTAssertTrue(lines.contains { $0.localizedCaseInsensitiveContains("plate") })
+    }
+}
+
 final class ChecklistToggleTests: XCTestCase {
     func testToggleChecklistItemInsertsThenRemoves() {
         var ingredients: Set<String> = []

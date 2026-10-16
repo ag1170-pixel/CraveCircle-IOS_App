@@ -789,6 +789,87 @@ enum DirectionStepParser {
         let badges: [String]
     }
 
+    /// One direction, broken into short lines. No stacked sentences, no trailing period.
+    static func shortLines(_ raw: String) -> [String] {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        var pieces = splitClauses(trimmed).flatMap(splitThen)
+        pieces = pieces.flatMap { splitIfLong($0) }
+        let lines = pieces.map(tidyLine).filter { $0.count >= 2 }
+        return lines.isEmpty ? [tidyLine(trimmed)].filter { !$0.isEmpty } : lines
+    }
+
+    private static func splitClauses(_ text: String) -> [String] {
+        var out: [String] = []
+        var current = ""
+        let chars = Array(text)
+        var i = 0
+        while i < chars.count {
+            let c = chars[i]
+            let next = i + 1 < chars.count ? chars[i + 1] : " "
+            if ".!?".contains(c), next == " " || next == "\n" || i == chars.count - 1 {
+                let piece = current.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !piece.isEmpty { out.append(piece) }
+                current = ""
+            } else if c == ";" || c == "\n" {
+                let piece = current.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !piece.isEmpty { out.append(piece) }
+                current = ""
+            } else {
+                current.append(c)
+            }
+            i += 1
+        }
+        let tail = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !tail.isEmpty { out.append(tail) }
+        return out
+    }
+
+    private static func splitThen(_ text: String) -> [String] {
+        let parts = text.components(separatedBy: " then ").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        return parts.count > 1 ? parts : [text]
+    }
+
+    /// A long line with commas becomes separate actions. A one-word scrap joins the next piece.
+    private static func splitIfLong(_ text: String) -> [String] {
+        let words = text.split(separator: " ")
+        guard words.count > 14, text.contains(",") else { return [text] }
+        var parts = text.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        var merged: [String] = []
+        var i = 0
+        while i < parts.count {
+            if parts[i].split(separator: " ").count < 3, i + 1 < parts.count {
+                parts[i + 1] = parts[i] + " " + parts[i + 1]
+            } else if parts[i].split(separator: " ").count < 3, let last = merged.popLast() {
+                merged.append(last + " " + parts[i])
+            } else {
+                merged.append(parts[i])
+            }
+            i += 1
+        }
+        return merged.isEmpty ? [text] : merged
+    }
+
+    private static func tidyLine(_ text: String) -> String {
+        var t = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".,;"))
+        let fillers = ["and ", "then ", "thoroughly ", "gently ", "carefully ", "immediately ", "meanwhile ", "next ", "now ", "finally "]
+        var lower = t.lowercased()
+        var changed = true
+        while changed {
+            changed = false
+            for filler in fillers where lower.hasPrefix(filler) {
+                t = String(t.dropFirst(filler.count))
+                lower = t.lowercased()
+                changed = true
+            }
+        }
+        t = t.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = t.first else { return "" }
+        return first.uppercased() + t.dropFirst()
+    }
+
     static func parse(_ raw: String) -> ParsedStep {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
