@@ -731,6 +731,9 @@ struct RecipeDetailScreen: View {
                     .font(AppFont.body(14, weight: .semibold))
                     .foregroundStyle(AppTheme.textSecondary)
                     .monospacedDigit()
+                Text("per serving")
+                    .font(AppFont.body(13, weight: .medium))
+                    .foregroundStyle(AppTheme.textTertiary)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(AppTheme.textTertiary)
@@ -741,7 +744,7 @@ struct RecipeDetailScreen: View {
             .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Nutrition, \(kcal) kilocalories")
+        .accessibilityLabel("Nutrition, \(kcal) kilocalories per serving")
     }
 
     private var metaLine: some View {
