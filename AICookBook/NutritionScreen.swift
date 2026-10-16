@@ -2,61 +2,65 @@
 //  NutritionScreen.swift
 //  CraveCircle (AICookBook)
 //
-//  The recipe page opens this instead of an inline nutrition card.
-//  Per serving is the stored value. Whole recipe multiplies by the batch the user set.
+//  Same per-serving numbers the recipe already stores. This page only shows them.
 //
 
 import SwiftUI
 
 struct NutritionScreen: View {
     let recipe: Recipe
-    let servings: Int
 
     @Environment(\.dismiss) private var dismiss
-    @State private var whole = 0
     @State private var openMacro: MacroKind?
 
     private var nutrition: RecipeNutrition { recipe.nutritionOrEstimate }
-    private var isWhole: Bool { whole == 1 }
-    private var scale: Double { RecipeNutrition.portionMultiplier(servings: servings, whole: isWhole) }
-
-    private var proteinG: Double { nutrition.proteinG * scale }
-    private var carbsG: Double { nutrition.carbsG * scale }
-    private var fatG: Double { nutrition.fatG * scale }
-    private var calories: Double { nutrition.calories * scale }
 
     private let proteinColor = Color(hex: "E0A02E")
     private let carbsColor = Color(hex: "E25B4C")
     private let fatColor = Color(hex: "4C8FE8")
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            topBar
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.md) {
                     header
-                    LimeSegmentedControl(segments: ["Per serving", "Whole recipe"], selection: $whole)
                     donutCard
                     macrosCard
-                    breakdownCard
                 }
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.top, AppSpacing.sm)
                 .padding(.bottom, AppSpacing.xl)
             }
-            .background(AppTheme.background.ignoresSafeArea())
-            .navigationTitle("Nutrition")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { dismiss() } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .semibold))
-                    }
-                    .accessibilityLabel("Back")
+        }
+        .background(AppTheme.background.ignoresSafeArea())
+    }
+
+    private var topBar: some View {
+        ZStack {
+            Text("Nutrition")
+                .font(AppFont.body(17, weight: .semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+            HStack {
+                Button {
+                    Haptics.tap()
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .frame(width: 40, height: 40)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().stroke(Color.primary.opacity(0.14), lineWidth: 0.5))
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back")
+                Spacer()
             }
         }
-        .tint(AppTheme.accentInk)
+        .padding(.horizontal, AppSpacing.md)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
     }
 
     private var header: some View {
@@ -78,7 +82,7 @@ struct NutritionScreen: View {
     }
 
     private var subtitle: String {
-        var parts = ["\(max(servings, 1)) servings"]
+        var parts = ["\(max(recipe.servings ?? 1, 1)) servings"]
         if let cook = recipe.totalTimeText { parts.append("\(cook) cook") }
         if nutrition.estimated { parts.append("Estimated") }
         return parts.joined(separator: " · ")
@@ -87,24 +91,23 @@ struct NutritionScreen: View {
     private var donutCard: some View {
         HStack(alignment: .center, spacing: AppSpacing.lg) {
             ZStack {
-                MealDonut(protein: proteinG, carbs: carbsG, fat: fatG,
+                MealDonut(protein: nutrition.proteinG, carbs: nutrition.carbsG, fat: nutrition.fatG,
                           proteinColor: proteinColor, carbsColor: carbsColor, fatColor: fatColor)
                     .frame(width: 148, height: 148)
                 VStack(spacing: 0) {
-                    Text("\(Int(calories.rounded()))")
+                    Text("\(Int(nutrition.calories.rounded()))")
                         .font(AppFont.display(32, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                         .monospacedDigit()
-                        .contentTransition(.numericText())
                     Text("kcal")
                         .font(AppFont.body(13, weight: .medium))
                         .foregroundStyle(AppTheme.textSecondary)
                 }
             }
             VStack(alignment: .leading, spacing: 14) {
-                legendRow("Protein", grams: proteinG, percent: nutrition.proteinPercent, color: proteinColor)
-                legendRow("Carbs", grams: carbsG, percent: nutrition.carbsPercent, color: carbsColor)
-                legendRow("Fat", grams: fatG, percent: nutrition.fatPercent, color: fatColor)
+                legendRow("Protein", grams: nutrition.proteinG, percent: nutrition.proteinPercent, color: proteinColor)
+                legendRow("Carbs", grams: nutrition.carbsG, percent: nutrition.carbsPercent, color: carbsColor)
+                legendRow("Fat", grams: nutrition.fatG, percent: nutrition.fatPercent, color: fatColor)
             }
             Spacer(minLength: 0)
         }
@@ -120,10 +123,11 @@ struct NutritionScreen: View {
                 Text(name)
                     .font(AppFont.body(14, weight: .semibold))
                     .foregroundStyle(AppTheme.textPrimary)
-                Text("\(Int(grams.rounded())) g · \(percent)%")
+                Text("\(shownGrams(grams)) g · \(percent)%")
                     .font(AppFont.body(13))
                     .foregroundStyle(AppTheme.textSecondary)
                     .monospacedDigit()
+                    .lineLimit(1)
             }
         }
     }
@@ -138,16 +142,19 @@ struct NutritionScreen: View {
                 Text("% Daily Value")
                     .font(AppFont.body(12))
                     .foregroundStyle(AppTheme.textTertiary)
+                    .lineLimit(1)
             }
-            macroRow(.protein, grams: proteinG, dv: RecipeNutrition.dailyValuePercent(grams: proteinG, reference: RecipeNutrition.proteinDailyG), color: proteinColor)
-            macroRow(.carbs, grams: carbsG, dv: RecipeNutrition.dailyValuePercent(grams: carbsG, reference: RecipeNutrition.carbsDailyG), color: carbsColor)
-            macroRow(.fat, grams: fatG, dv: RecipeNutrition.dailyValuePercent(grams: fatG, reference: RecipeNutrition.fatDailyG), color: fatColor)
+            macroRow(.protein, grams: nutrition.proteinG, reference: RecipeNutrition.proteinDailyG, color: proteinColor)
+            macroRow(.carbs, grams: nutrition.carbsG, reference: RecipeNutrition.carbsDailyG, color: carbsColor)
+            macroRow(.fat, grams: nutrition.fatG, reference: RecipeNutrition.fatDailyG, color: fatColor)
         }
         .padding(AppSpacing.md)
         .modifier(NutritionPanel())
     }
 
-    private func macroRow(_ kind: MacroKind, grams: Double, dv: Int, color: Color) -> some View {
+    private func macroRow(_ kind: MacroKind, grams: Double, reference: Double, color: Color) -> some View {
+        let gramsShown = shownGrams(grams)
+        let dv = RecipeNutrition.dailyValuePercent(grams: Double(gramsShown), reference: reference)
         let open = openMacro == kind
         return VStack(alignment: .leading, spacing: 10) {
             Button {
@@ -159,17 +166,20 @@ struct NutritionScreen: View {
                     Text(kind.title)
                         .font(AppFont.body(15, weight: .semibold))
                         .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
                     dvBar(percent: dv, color: color)
-                    Text("\(Int(grams.rounded())) g")
+                    Text("\(gramsShown) g")
                         .font(AppFont.body(15, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                         .monospacedDigit()
-                        .frame(width: 52, alignment: .trailing)
+                        .lineLimit(1)
+                        .fixedSize()
                     Text("\(dv)%")
                         .font(AppFont.body(14, weight: .semibold))
                         .foregroundStyle(AppTheme.textSecondary)
                         .monospacedDigit()
-                        .frame(width: 40, alignment: .trailing)
+                        .lineLimit(1)
+                        .fixedSize()
                     Image(systemName: "chevron.down")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(AppTheme.textTertiary)
@@ -192,12 +202,13 @@ struct NutritionScreen: View {
             }
         }
         .frame(height: 6)
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder private func contributionList(_ kind: MacroKind) -> some View {
         let rows = nutrition.contributions(for: kind)
         if rows.isEmpty {
-            Text("No ingredient breakdown for this recipe.")
+            Text("No ingredient sources for this.")
                 .font(AppFont.body(13))
                 .foregroundStyle(AppTheme.textTertiary)
         } else {
@@ -208,60 +219,17 @@ struct NutritionScreen: View {
                         .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
                     Spacer()
-                    Text("\(formatted(row.item.value(for: kind) * scale, kind: kind)) · \(row.percent)%")
+                    Text("\(shownGrams(row.item.value(for: kind))) g · \(row.percent)%")
                         .font(AppFont.body(12, weight: .semibold))
                         .foregroundStyle(AppTheme.textSecondary)
                         .monospacedDigit()
+                        .lineLimit(1)
                 }
             }
         }
     }
 
-    private var breakdownCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Breakdown")
-                    .font(AppFont.body(17, weight: .bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                Spacer()
-                Text(isWhole ? "Whole recipe" : "Per serving")
-                    .font(AppFont.body(12))
-                    .foregroundStyle(AppTheme.textTertiary)
-            }
-            // Saturated fat, sugar, and fiber are not on the recipe yet. Show the rows, not a guess.
-            breakdownRow("Saturated fat", grams: nil, percent: nil)
-            breakdownRow("Sugar", grams: nil, percent: nil)
-            breakdownRow("Fiber", grams: nil, percent: nil)
-        }
-        .padding(AppSpacing.md)
-        .modifier(NutritionPanel())
-    }
-
-    private func breakdownRow(_ name: String, grams: Double?, percent: Int?) -> some View {
-        HStack {
-            Text(name)
-                .font(AppFont.body(15))
-                .foregroundStyle(AppTheme.textPrimary)
-            Spacer()
-            Text(grams.map { "\(Int(($0 * scale).rounded())) g" } ?? "—")
-                .font(AppFont.body(15, weight: .semibold))
-                .foregroundStyle(AppTheme.textPrimary)
-                .monospacedDigit()
-                .frame(width: 56, alignment: .trailing)
-            Text(percent.map { "\($0)%" } ?? "—")
-                .font(AppFont.body(14))
-                .foregroundStyle(AppTheme.textSecondary)
-                .monospacedDigit()
-                .frame(width: 44, alignment: .trailing)
-        }
-    }
-
-    private func formatted(_ value: Double, kind: MacroKind) -> String {
-        if kind == .calories { return "\(Int(value.rounded())) kcal" }
-        let rounded = (value * 10).rounded() / 10
-        let text = rounded == rounded.rounded() ? "\(Int(rounded))" : String(format: "%.1f", rounded)
-        return text + " g"
-    }
+    private func shownGrams(_ grams: Double) -> Int { Int(grams.rounded()) }
 }
 
 private struct MealDonut: View {

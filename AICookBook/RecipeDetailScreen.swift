@@ -157,7 +157,7 @@ struct RecipeDetailScreen: View {
             FlashcardCookScreen(recipe: recipe)
         }
         .fullScreenCover(isPresented: $showNutrition) {
-            NutritionScreen(recipe: recipe, servings: servings)
+            NutritionScreen(recipe: recipe)
         }
         .fullScreenCover(isPresented: $showEdit) {
             RecipeEditScreen(recipe: $recipe, onSave: { environment.updateRecipe($0) })
