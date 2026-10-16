@@ -76,14 +76,16 @@ struct FlashcardCookScreen: View {
             // time with a smooth transition — not a whole 3-step page.
             GeometryReader { geo in
                 let rowH = geo.size.height * 0.52
+                // The wheel ignores the safe area and the status bar is hidden, so SwiftUI's
+                // insets are 0 and the step line runs under the Dynamic Island. Read the window
+                // and keep a floor that clears the island on whichever side the phone is rotated.
+                let edges = Self.displayEdgeInsets
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 0) {
                         ForEach(cards.indices, id: \.self) { i in
                             CardContent(card: cards[i], stepCount: stepCount, ink: color(for: index).ink)
-                                // Landscape puts the Dynamic Island on one side. A fixed 48pt inset
-                                // still runs the card under it; follow the safe area on both edges.
-                                .padding(.leading, max(48, geo.safeAreaInsets.leading + 16))
-                                .padding(.trailing, max(72, geo.safeAreaInsets.trailing + 20))
+                                .padding(.leading, max(88, edges.left + 24))
+                                .padding(.trailing, max(88, edges.right + 28))
                                 .frame(width: geo.size.width, height: rowH)
                                 .scrollTransition(axis: .vertical) { content, phase in
                                     // Centre (identity) = full; neighbours fade & shrink → wheel feel.
@@ -183,6 +185,15 @@ struct FlashcardCookScreen: View {
 
     // MARK: Orientation
 
+    /// Sensor-housing insets in the current orientation. Zero when no window is up yet.
+    private static var displayEdgeInsets: UIEdgeInsets {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first { $0.isKeyWindow }?
+            .safeAreaInsets ?? .zero
+    }
+
     /// Pin the app to `mask` and ask the active scene to rotate to it. The app is portrait
     /// everywhere else (see `AppDelegate.orientationLock`).
     private func lockOrientation(_ mask: UIInterfaceOrientationMask) {
@@ -278,7 +289,7 @@ struct FlashcardCookScreen: View {
                     .animation(reduceMotion ? nil : AppMotion.snappy, value: index)
             }
         }
-        .padding(.trailing, 8)
+        .padding(.trailing, max(12, Self.displayEdgeInsets.right + 8))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Card \(index + 1) of \(cards.count)")
     }
