@@ -76,6 +76,18 @@ struct RecipeNutrition: Codable, Hashable {
         whole ? Double(max(servings, 1)) : 1
     }
 
+    // FDA adult Daily Values. Sugar has no total-sugar DV, so the page shows a dash for it.
+    static let proteinDailyG = 50.0
+    static let carbsDailyG = 275.0
+    static let fatDailyG = 78.0
+    static let saturatedFatDailyG = 20.0
+    static let fiberDailyG = 28.0
+
+    static func dailyValuePercent(grams: Double, reference: Double) -> Int {
+        guard reference > 0 else { return 0 }
+        return Int((grams / reference * 100).rounded())
+    }
+
     // Macro split = share of THIS meal's calories from each macro (4/4/9 kcal per g).
     private var carbsKcal: Double { carbsG * 4 }
     private var proteinKcal: Double { proteinG * 4 }

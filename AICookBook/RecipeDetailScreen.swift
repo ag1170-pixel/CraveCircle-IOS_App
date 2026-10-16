@@ -25,6 +25,7 @@ struct RecipeDetailScreen: View {
     @State private var descClampedHeight: CGFloat = 0     // height when clamped to 3 lines
     @State private var servings: Int
     @State private var showCook = false
+    @State private var showNutrition = false
     @State private var showEdit = false
     @State private var showShareSheet = false
     @State private var showCreatorSheet = false
@@ -154,6 +155,9 @@ struct RecipeDetailScreen: View {
         .scrollIndicators(.hidden)
         .fullScreenCover(isPresented: $showCook) {
             FlashcardCookScreen(recipe: recipe)
+        }
+        .fullScreenCover(isPresented: $showNutrition) {
+            NutritionScreen(recipe: recipe, servings: servings)
         }
         .fullScreenCover(isPresented: $showEdit) {
             RecipeEditScreen(recipe: $recipe, onSave: { environment.updateRecipe($0) })
@@ -552,6 +556,8 @@ struct RecipeDetailScreen: View {
 
             originChip
 
+            nutritionButton
+
             if let description = DishBlurb.line(
                 title: recipe.title,
                 stored: recipe.description,
@@ -595,8 +601,6 @@ struct RecipeDetailScreen: View {
             .tint(AppTheme.accentInk)
             // Swipes that start on this box toggle Ingredients⇄Directions; swipes elsewhere change recipe.
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("detail")) } action: { segmentFrame = $0 }
-
-            NutritionCard(nutrition: recipe.nutritionOrEstimate, servings: servings, baseServings: recipe.servings ?? 2)
 
             Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.top, AppSpacing.sm)
 
@@ -705,6 +709,37 @@ struct RecipeDetailScreen: View {
             .background(AppTheme.surface, in: Capsule())
             .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
         }
+    }
+
+    private var nutritionButton: some View {
+        let kcal = Int(recipe.nutritionOrEstimate.calories.rounded())
+        return Button {
+            Haptics.tap()
+            showNutrition = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "chart.pie.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(AppTheme.accentInk)
+                Text("Nutrition")
+                    .font(AppFont.body(16, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Spacer()
+                Text("\(kcal) kcal")
+                    .font(AppFont.body(14, weight: .semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .monospacedDigit()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.vertical, 14)
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Nutrition, \(kcal) kilocalories")
     }
 
     private var metaLine: some View {
