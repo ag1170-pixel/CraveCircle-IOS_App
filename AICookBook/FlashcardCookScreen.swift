@@ -104,6 +104,19 @@ struct FlashcardCookScreen: View {
             }
             .ignoresSafeArea()
 
+            if timer.running || currentDuration != nil {
+                ClockRingView(timer: timer,
+                              idleMinutes: currentDuration ?? 0,
+                              diameter: 108,
+                              tint: Color(hex: "1B1712")) {
+                    toggleTimer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .padding(.trailing, 14)
+                .padding(.bottom, 14)
+                .transition(.scale.combined(with: .opacity))
+            }
+
             VStack {
                 topBar
                 if voice.permissionDenied { permissionBanner }
@@ -202,34 +215,25 @@ struct FlashcardCookScreen: View {
         HStack(spacing: 10) {
             iconButton("xmark", label: "Exit Flashcards") { Haptics.tap(); dismiss() }
             Spacer()
-            if timer.running || currentDuration != nil {
-                ClockRingView(timer: timer,
-                              idleMinutes: currentDuration ?? 0,
-                              diameter: 58,
-                              tint: Color(hex: "1B1712")) {
-                    toggleTimer()
-                }
-                .transition(.scale.combined(with: .opacity))
-            }
             iconButton(readAloud ? "speaker.wave.2.fill" : "speaker.slash.fill",
+                       size: 50,
                        label: readAloud ? "Turn off read aloud" : "Read steps aloud") {
                 Haptics.tap(); readAloud.toggle()
                 if readAloud { speakCurrentCard() } else { reader.stop() }
             }
             voiceButton
         }
-        .padding(.leading, max(20, Self.displayEdgeInsets.left + 12))
-        .padding(.trailing, max(20, Self.displayEdgeInsets.right + 12))
+        .padding(.horizontal, 24)
         .padding(.top, 14)
     }
 
-    private func iconButton(_ system: String, label: String, action: @escaping () -> Void) -> some View {
+    private func iconButton(_ system: String, size: CGFloat = 38, label: String, action: @escaping () -> Void) -> some View {
         let ink = color(for: index).ink
         return Button(action: action) {
             Image(systemName: system)
-                .font(.system(size: 14, weight: .bold))
+                .font(.system(size: size > 40 ? 18 : 14, weight: .bold))
                 .foregroundStyle(ink)
-                .frame(width: 38, height: 38)
+                .frame(width: size, height: size)
                 .background(ink.opacity(0.12), in: Circle())
                 .overlay(Circle().stroke(ink.opacity(0.25), lineWidth: 1))
         }
@@ -251,9 +255,9 @@ struct FlashcardCookScreen: View {
             if voiceOn { voice.start() } else { voice.stop() }
         } label: {
             Image(systemName: symbol)
-                .font(.system(size: 14, weight: .bold))
+                .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(ink)
-                .frame(width: 38, height: 38)
+                .frame(width: 50, height: 50)
                 .background(ink.opacity(0.12), in: Circle())
                 .overlay(Circle().stroke(ink.opacity(0.25), lineWidth: 1))
         }
@@ -287,6 +291,7 @@ struct FlashcardCookScreen: View {
             }
         }
         .padding(.trailing, max(12, Self.displayEdgeInsets.right + 8))
+        .padding(.bottom, (timer.running || currentDuration != nil) ? 128 : 12)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Card \(index + 1) of \(cards.count)")
     }
