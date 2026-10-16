@@ -38,6 +38,11 @@ struct GroceryScreen: View {
     private var total: Int { shownItems.count }
     private var checked: Int { shownItems.filter(\.checked).count }
     private var progress: Double { total == 0 ? 0 : Double(checked) / Double(total) }
+    private var progressLine: String {
+        if total == 0 { return "Nothing to shop yet" }
+        if let dish = selectedDish { return "\(checked) of \(total) · \(dish)" }
+        return "\(checked) of \(total) picked up"
+    }
 
     var body: some View {
         NavigationStack {
@@ -89,7 +94,25 @@ struct GroceryScreen: View {
     // MARK: Sort bar (By Recipe / By Aisle — Osta-style ⇅ toggle)
 
     private var sortBar: some View {
-        HStack {
+        HStack(spacing: 8) {
+            Button {
+                Haptics.success()
+                let dish = selectedDish
+                withAnimation(AppMotion.snappy) {
+                    environment.finishGrocery(dish: dish)
+                    selectedDish = nil
+                }
+            } label: {
+                Text("Finish")
+                    .font(AppFont.body(14, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.surface, in: Capsule())
+                    .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(selectedDish == nil ? "Finish the whole list" : "Finish \(selectedDish ?? "this recipe")")
             Picker("Sort by", selection: sortModeBinding) {
                 ForEach(GrocerySortMode.allCases, id: \.self) { mode in
                     Text(mode.label).tag(mode)
@@ -115,7 +138,7 @@ struct GroceryScreen: View {
                 Text("Your list")
                     .font(AppFont.display(22, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
-                Text(total == 0 ? "Nothing to shop yet" : "\(checked) of \(total) picked up")
+                Text(progressLine)
                     .font(AppFont.body(14))
                     .foregroundStyle(AppTheme.textSecondary)
             }
@@ -141,7 +164,7 @@ struct GroceryScreen: View {
             }
             Button {
                 Haptics.select()
-                withAnimation(AppMotion.snappy) { environment.markAllGroceryComplete() }
+                withAnimation(AppMotion.snappy) { environment.markAllGroceryComplete(dish: selectedDish) }
             } label: {
                 Label("Mark all as complete", systemImage: "checkmark.circle")
             }

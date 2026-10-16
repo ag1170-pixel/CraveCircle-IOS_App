@@ -73,6 +73,16 @@ enum GrocerySort {
 
     static let handAddedLabel = "Added by you"
 
+    static func dishName(_ item: GroceryItem) -> String {
+        item.recipeName ?? handAddedLabel
+    }
+
+    /// Finishing All clears the list. Finishing one dish drops only that dish.
+    static func removingFinished(_ items: [GroceryItem], dish: String?) -> [GroceryItem] {
+        guard let dish else { return [] }
+        return items.filter { dishName($0) != dish }
+    }
+
     /// Grouped by DISH (the recipe each item came from), in first-appearance order; hand-added items
     /// (no recipe) come last under "Added by you". This is how the Grocery screen reads now — you can
     /// see and shop one dish at a time. Items keep their order within a dish.

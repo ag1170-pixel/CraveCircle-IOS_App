@@ -1665,8 +1665,17 @@ final class AppEnvironment: ObservableObject {
         groceryItems.removeAll { $0.checked }
     }
 
-    func markAllGroceryComplete() {
-        for i in groceryItems.indices where !groceryItems[i].checked { groceryItems[i].checked = true }
+    func markAllGroceryComplete(dish: String? = nil) {
+        for i in groceryItems.indices where !groceryItems[i].checked {
+            if dish == nil || GrocerySort.dishName(groceryItems[i]) == dish {
+                groceryItems[i].checked = true
+            }
+        }
+    }
+
+    /// Done shopping. No dish means the whole list. A dish name removes only that recipe.
+    func finishGrocery(dish: String?) {
+        groceryItems = GrocerySort.removingFinished(groceryItems, dish: dish)
     }
 
     // MARK: - Recipe Comments

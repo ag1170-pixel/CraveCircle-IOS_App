@@ -119,6 +119,16 @@ final class GrocerySortTests: XCTestCase {
         let grouped = GrocerySort.grouped(items)
         XCTAssertEqual(grouped.first?.aisle, .produce)
     }
+
+    func testFinishingOneDishLeavesTheRest() {
+        let wrap = GroceryItem(id: "1", ingredientName: "paneer", checked: true, recipeName: "Wrap")
+        let salmon = GroceryItem(id: "2", ingredientName: "salmon", checked: false, recipeName: "Salmon")
+        let milk = GroceryItem(id: "3", ingredientName: "milk", checked: false, recipeName: nil)
+        let items = [wrap, salmon, milk]
+        XCTAssertEqual(GrocerySort.removingFinished(items, dish: "Wrap").map(\.id), ["2", "3"])
+        XCTAssertTrue(GrocerySort.removingFinished(items, dish: nil).isEmpty)
+        XCTAssertEqual(GrocerySort.removingFinished(items, dish: GrocerySort.handAddedLabel).map(\.id), ["1", "2"])
+    }
 }
 
 // MARK: - RecommendationEngine
