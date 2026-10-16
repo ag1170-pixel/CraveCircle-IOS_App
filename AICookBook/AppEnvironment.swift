@@ -60,7 +60,7 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var studioDraftIds: Set<String> = ["recipe-hot-honey-chicken", "recipe-spicy-paneer-wrap"] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
     
     // Notifications & Activity
-    @Published private(set) var circleNotifications: [CircleNotificationItem] = CircleNotificationItem.samples { didSet { persist(circleNotifications, "notifications.json") } }
+    @Published private(set) var circleNotifications: [CircleNotificationItem] = [] { didSet { persist(circleNotifications, "notifications.json") } }
 
     // Recipe Comments
     @Published private(set) var recipeComments: [String: [RecipeComment]] = RecipeComment.defaultSamples { didSet { persist(recipeComments, "comments.json") } }
@@ -175,7 +175,9 @@ final class AppEnvironment: ObservableObject {
         pendingInteractions = loadScoped([InteractionEvent].self, "pending_interactions.json", userId: userId) ?? []
         interactionHistory = loadScoped([InteractionEvent].self, "interaction_history.json", userId: userId) ?? []
         recipeComments = loadScoped([String: [RecipeComment]].self, "comments.json", userId: userId) ?? RecipeComment.defaultSamples
-        circleNotifications = loadScoped([CircleNotificationItem].self, "notifications.json", userId: userId) ?? CircleNotificationItem.samples
+        circleNotifications = CircleNotificationItem.withoutSamples(
+            loadScoped([CircleNotificationItem].self, "notifications.json", userId: userId) ?? []
+        )
         circleFriends = loadScoped([FriendItem].self, "circle_friends.json", userId: userId) ?? []
         incomingRequests = loadScoped([FriendRequestItem].self, "friend_requests_in.json", userId: userId) ?? []
         outgoingRequests = loadScoped([FriendRequestItem].self, "friend_requests_out.json", userId: userId) ?? []

@@ -553,6 +553,15 @@ final class PhotoRecipeImportTests: XCTestCase {
     }
 }
 
+final class ActivityAlertTests: XCTestCase {
+    func testANewAccountDoesNotKeepSampleAlerts() {
+        let real = CircleNotificationItem(title: "Recipe shared with you", message: "Someone shared 'Chole' with you", timeAgo: "Just now", symbol: "tray.and.arrow.down.fill", isRead: false)
+        let kept = CircleNotificationItem.withoutSamples(CircleNotificationItem.samples + [real])
+        XCTAssertEqual(kept.map(\.message), [real.message])
+        XCTAssertTrue(CircleNotificationItem.withoutSamples([]).isEmpty)
+    }
+}
+
 final class DirectionLineTests: XCTestCase {
     func testAParagraphBecomesShortLines() {
         let lines = DirectionStepParser.shortLines("Heat olive oil and butter in a large skillet over medium-high heat. Sear salmon skin-side down for 5 minutes, flip, and cook 3 minutes more. Transfer to a plate.")

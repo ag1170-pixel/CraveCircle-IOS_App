@@ -462,6 +462,12 @@ struct CircleNotificationItem: Codable, Identifiable, Hashable {
         .init(title: "Recipe Saved", message: "@Aditya.Gupta saved your 'Spicy Paneer Tikka Wrap'", timeAgo: "3h ago", symbol: "bookmark.fill", isRead: true, recipeId: "recipe-spicy-paneer-wrap"),
         .init(title: "New Shared Collection", message: "@deveats invited you to 'Roommate Dinners'", timeAgo: "1d ago", symbol: "folder.badge.plus", isRead: true)
     ]
+
+    /// Demo rows that used to ship as a new account's activity. A real alert never uses these messages.
+    static func withoutSamples(_ items: [CircleNotificationItem]) -> [CircleNotificationItem] {
+        let demo = Set(samples.map(\.message))
+        return items.filter { !demo.contains($0.message) }
+    }
 }
 
 // MARK: - Recipe Comments Model
