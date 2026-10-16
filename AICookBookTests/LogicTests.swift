@@ -526,6 +526,23 @@ final class AccountIsolationTests: XCTestCase {
     }
 }
 
+final class PhotoRecipeImportTests: XCTestCase {
+    func testPictureTextAndCaptionBothBecomeTheRecipe() async {
+        let recipe = await RecipeExtractor.extract(
+            transcript: "fry the paneer until the edges are golden",
+            caption: "Spicy paneer wrap",
+            ownerId: "tester",
+            sourceLanguage: nil,
+            onScreenText: "200g paneer\n1 tbsp oil\nHeat the oil and fry the paneer until golden."
+        )
+        let lines = recipe.ingredients.flatMap(\.items).joined(separator: " ").lowercased()
+        let steps = recipe.directions.map(\.text).joined(separator: " ").lowercased()
+        XCTAssertTrue(lines.contains("paneer") || steps.contains("paneer"))
+        XCTAssertFalse(recipe.directions.isEmpty)
+        XCTAssertTrue(RecipeExtractor.looksLikeFood(recipe))
+    }
+}
+
 final class ChecklistToggleTests: XCTestCase {
     func testToggleChecklistItemInsertsThenRemoves() {
         var ingredients: Set<String> = []

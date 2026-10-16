@@ -914,10 +914,46 @@ final class AppEnvironment: ObservableObject {
     /// On launch/foreground, resume a share's server job if the extension left one in the App Group
     /// (paid-team builds). No-op on free teams (no App Group) — there the deep link or refresh covers it.
     func checkPendingSharedImport() {
-        guard importState == .idle, let d = UserDefaults(suiteName: Self.appGroupID),
-              let job = d.string(forKey: "pending_import_job"), !job.isEmpty else { return }
-        d.removeObject(forKey: "pending_import_job")
-        resumeSharedImport(jobId: job)
+        guard importState == .idle, let d = UserDefaults(suiteName: Self.appGroupID) else { return }
+        if let job = d.string(forKey: "pending_import_job"), !job.isEmpty {
+            d.removeObject(forKey: "pending_import_job")
+            resumeSharedImport(jobId: job)
+            return
+        }
+        consumePendingSharedPhoto(defaults: d)
+    }
+
+    /// A share that was a photo (recipe written on the picture) rather than a reel link.
+    /// Caption and, when the post has one, the audio are folded into the same recipe.
+    private func consumePendingSharedPhoto(defaults: UserDefaults) {
+        guard let name = defaults.string(forKey: "pending_import_image"), !name.isEmpty,
+              let folder = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupID)
+        else { return }
+        let file = folder.appendingPathComponent(name)
+        guard let image = UIImage(contentsOfFile: file.path) else {
+            defaults.removeObject(forKey: "pending_import_image")
+            return
+        }
+        let caption = defaults.string(forKey: "pending_import_caption")
+        let page = defaults.string(forKey: "pending_import_page_url")
+        defaults.removeObject(forKey: "pending_import_image")
+        defaults.removeObject(forKey: "pending_import_caption")
+        defaults.removeObject(forKey: "pending_import_page_url")
+        try? FileManager.default.removeItem(at: file)
+        Task { await importSharedPicture(image, caption: caption, pageURL: page) }
+    }
+
+    private func importSharedPicture(_ image: UIImage, caption: String?, pageURL: String?) async {
+        let ocr = await PhotoTextOCR.recognize(image)
+        if Task.isCancelled { return }
+        if let pageURL, !pageURL.isEmpty {
+            await startImport(from: pageURL, extraOnScreen: ocr, extraCaption: caption)
+            if case .failed = importState {
+                await importFromPhoto(image, caption: caption, recognized: ocr)
+            }
+            return
+        }
+        await importFromPhoto(image, caption: caption, recognized: ocr)
     }
 
     /// Resume watching a server-side import the Share Extension already started (it POSTs
@@ -933,18 +969,18 @@ final class AppEnvironment: ObservableObject {
     /// Public entry — runs the whole import inside the cancellable `importTask` so the Cancel button
     /// actually terminates it: it cancels the in-flight server/download requests AND stops the
     /// on-device transcription/OCR/extraction, and no late state write can revive the banner.
-    func startImport(from instagramURL: String) async {
+    func startImport(from instagramURL: String, extraOnScreen: String? = nil, extraCaption: String? = nil) async {
         importTask?.cancel()
         importState = .submitting
         let task = Task { [weak self] in
             guard let self else { return }
-            await self._startImport(from: instagramURL)
+            await self._startImport(from: instagramURL, extraOnScreen: extraOnScreen, extraCaption: extraCaption)
         }
         importTask = task
         await task.value
     }
 
-    private func _startImport(from instagramURL: String) async {
+    private func _startImport(from instagramURL: String, extraOnScreen: String? = nil, extraCaption: String? = nil) async {
         do {
             // Audio only, so listening starts without a 720p file. One frame is downloaded after.
             importState = .polling(jobId: "link", status: .downloading)
@@ -954,9 +990,10 @@ final class AppEnvironment: ObservableObject {
             let resolvedThumb = Self.absoluteMediaURL(reel.thumbnail, apiBase: config.apiBaseURL)
             // Start the poster download now, while the CDN link is fresh, overlapping the listen.
             let coverTask = Task { await Self.fetchCover(resolvedThumb) }
+            let caption = [reel.caption, extraCaption].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
             await _importFromVideo(
-                localAudio, caption: reel.caption, title: reel.title, thumbnailUrl: resolvedThumb,
-                reelLink: instagramURL, coverTask: coverTask)
+                localAudio, caption: caption.isEmpty ? nil : caption, title: reel.title, thumbnailUrl: resolvedThumb,
+                reelLink: instagramURL, coverTask: coverTask, extraOnScreen: extraOnScreen)
             try? FileManager.default.removeItem(at: localAudio)
         } catch {
             if Task.isCancelled { return }   // a cancelled request throws — don't show "failed"
@@ -1078,27 +1115,33 @@ final class AppEnvironment: ObservableObject {
 
     /// Build a recipe from a photo of a written/printed recipe (Vision OCR → extractor). The photo
     /// becomes the cover (stored locally). It's the user's own content, so it syncs like any original.
-    func importFromPhoto(_ image: UIImage) async {
+    func importFromPhoto(_ image: UIImage, caption: String? = nil, recognized: String? = nil) async {
         importTask?.cancel()
         importState = .submitting
         let task = Task { [weak self] in
             guard let self else { return }
-            await self._importFromPhoto(image)
+            await self._importFromPhoto(image, caption: caption, recognized: recognized)
         }
         importTask = task
         await task.value
     }
 
-    private func _importFromPhoto(_ image: UIImage) async {
-        let ocr = await PhotoTextOCR.recognize(image)
+    private func _importFromPhoto(_ image: UIImage, caption: String? = nil, recognized: String? = nil) async {
+        let ocr: String
+        if let recognized {
+            ocr = recognized
+        } else {
+            ocr = await PhotoTextOCR.recognize(image)
+        }
         if Task.isCancelled { return }
         importState = .polling(jobId: "on-device", status: .extracting)
-        guard ocr.trimmingCharacters(in: .whitespacesAndNewlines).count > 10 else {
+        let note = caption?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard ocr.trimmingCharacters(in: .whitespacesAndNewlines).count > 10 || note.count > 10 else {
             importState = .failed(message: "Couldn't read text from that photo. Try a clearer shot of the recipe.")
             return
         }
         var recipe = await RecipeExtractor.extract(
-            transcript: "", caption: nil, ownerId: currentUser?.id ?? "",
+            transcript: "", caption: note.isEmpty ? nil : note, ownerId: currentUser?.id ?? "",
             sourceLanguage: nil, onScreenText: ocr, targetLanguage: AppLanguage.preferred
         )
         if Task.isCancelled { return }
@@ -1136,7 +1179,7 @@ final class AppEnvironment: ObservableObject {
 
     private func _importFromVideo(
         _ url: URL, caption: String? = nil, title: String? = nil, thumbnailUrl: String? = nil,
-        reelLink: String? = nil, coverTask: Task<Data?, Never>? = nil
+        reelLink: String? = nil, coverTask: Task<Data?, Never>? = nil, extraOnScreen: String? = nil
     ) async {
         guard await OnDeviceTranscriber.ensureAuthorized() else {
             if Task.isCancelled { return }
@@ -1201,6 +1244,9 @@ final class AppEnvironment: ObservableObject {
                 onScreen = await VideoTextOCR.recognizeText(url: videoFile)
                 if Task.isCancelled { return }
             }
+        }
+        if let extraOnScreen, !extraOnScreen.isEmpty {
+            onScreen = [extraOnScreen, onScreen].filter { !$0.isEmpty }.joined(separator: "\n")
         }
 
         // 3) MULTILINGUAL BRIDGE: the heuristic extractor and food gate only understand English

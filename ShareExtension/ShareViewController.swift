@@ -13,6 +13,12 @@ import UIKit
 import UniformTypeIdentifiers
 import ActivityKit
 
+/// URL and photo loaded from one share. DispatchGroup makes the writes visible before `notify`.
+private final class SharedPayload {
+    var url: String?
+    var image: UIImage?
+}
+
 final class ShareViewController: UIViewController {
 
     // Must match AppEnvironment.appGroupID / pendingImportKey in the main app.
@@ -52,11 +58,35 @@ final class ShareViewController: UIViewController {
 
         let urlType = UTType.url.identifier
         let textType = UTType.plainText.identifier
+        let imageType = UTType.image.identifier
+        let caption = item.attributedContentText?.string
+        let urlProvider = providers.first { $0.hasItemConformingToTypeIdentifier(urlType) }
+        let imageProvider = providers.first { $0.hasItemConformingToTypeIdentifier(imageType) }
 
-        if let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(urlType) }) {
-            provider.loadItem(forTypeIdentifier: urlType, options: nil) { [weak self] data, _ in
-                let url = (data as? URL)?.absoluteString ?? (data as? String)
-                DispatchQueue.main.async { self?.deliver(url) }
+        if urlProvider != nil || imageProvider != nil {
+            let group = DispatchGroup()
+            let box = SharedPayload()
+            if let urlProvider {
+                group.enter()
+                urlProvider.loadItem(forTypeIdentifier: urlType, options: nil) { data, _ in
+                    box.url = (data as? URL)?.absoluteString ?? (data as? String)
+                    group.leave()
+                }
+            }
+            if let imageProvider {
+                group.enter()
+                imageProvider.loadDataRepresentation(forTypeIdentifier: imageType) { data, _ in
+                    box.image = data.flatMap { UIImage(data: $0) }
+                    group.leave()
+                }
+            }
+            group.notify(queue: .main) { [weak self] in
+                let page = box.url ?? self?.firstURL(in: caption)
+                if box.image != nil {
+                    self?.deliverImage(box.image, caption: caption, pageURL: page)
+                } else {
+                    self?.deliver(page)
+                }
             }
             return
         }
@@ -69,6 +99,54 @@ final class ShareViewController: UIViewController {
         }
 
         showError("Couldn't find a video link in this share.")
+    }
+
+    /// A reel link still goes to the server (audio + caption). A photo, or a post whose recipe is
+    /// written on the picture, is saved for the app to read. A video link wins when both are present
+    /// so a reel thumbnail does not replace the audio import.
+    private func deliverImage(_ image: UIImage?, caption: String?, pageURL: String?) {
+        if let pageURL, isVideoLink(pageURL) {
+            deliver(pageURL)
+            return
+        }
+        guard let image, let data = image.jpegData(compressionQuality: 0.85) else {
+            if let pageURL { deliver(pageURL); return }
+            showError("Couldn't read that photo.")
+            return
+        }
+        guard let folder = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID),
+              let defaults = UserDefaults(suiteName: appGroupID) else {
+            if let pageURL { deliver(pageURL); return }
+            showError("Couldn't save that photo. Open CraveCircle and try again.")
+            return
+        }
+        let file = folder.appendingPathComponent("pending-recipe-photo.jpg")
+        do {
+            try data.write(to: file, options: .atomic)
+        } catch {
+            showError("Couldn't save that photo. Open CraveCircle and try again.")
+            return
+        }
+        defaults.set("pending-recipe-photo.jpg", forKey: "pending_import_image")
+        let note = caption?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if note.isEmpty { defaults.removeObject(forKey: "pending_import_caption") }
+        else { defaults.set(note, forKey: "pending_import_caption") }
+        if let pageURL, !pageURL.isEmpty { defaults.set(pageURL, forKey: "pending_import_page_url") }
+        else { defaults.removeObject(forKey: "pending_import_page_url") }
+        defaults.removeObject(forKey: pendingKey)
+        defaults.removeObject(forKey: "pending_import_job")
+        setState(loading: false,
+                 title: "On it!",
+                 message: "We'll read the ingredients and steps on this photo when you open CraveCircle. A caption or the audio on the post is used too.",
+                 systemIcon: "checkmark.circle.fill",
+                 iconTint: UIColor(red: 0.42, green: 0.78, blue: 0.44, alpha: 1))
+        primaryButton.setTitle("Done", for: .normal)
+    }
+
+    private func isVideoLink(_ url: String) -> Bool {
+        let u = url.lowercased()
+        return u.contains("/reel") || u.contains("tiktok.com") || u.contains("youtube.com")
+            || u.contains("youtu.be") || u.contains("/watch")
     }
 
     private func firstURL(in text: String?) -> String? {
