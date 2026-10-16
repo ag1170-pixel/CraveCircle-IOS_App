@@ -127,7 +127,13 @@ struct FlashcardCookScreen: View {
                         .padding(.bottom, 18)
                 }
             }
-            .overlay(alignment: .trailing) { stepRail }
+            .overlay(alignment: .trailing) {
+                stepRail
+                    .frame(maxHeight: .infinity, alignment: .center)
+                    .padding(.top, 78)
+                    .padding(.bottom, (timer.running || currentDuration != nil) ? 140 : 28)
+                    .padding(.trailing, max(18, Self.displayEdgeInsets.right + 10))
+            }
             .animation(.spring(response: 0.45, dampingFraction: 0.75), value: voice.wakeActive)
             .animation(.easeInOut(duration: 0.25), value: voice.permissionDenied)
             .animation(reduceMotion ? nil : AppMotion.snappy, value: timer.running)
@@ -290,8 +296,6 @@ struct FlashcardCookScreen: View {
                     .animation(reduceMotion ? nil : AppMotion.snappy, value: index)
             }
         }
-        .padding(.trailing, max(12, Self.displayEdgeInsets.right + 8))
-        .padding(.bottom, (timer.running || currentDuration != nil) ? 128 : 12)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Card \(index + 1) of \(cards.count)")
     }
