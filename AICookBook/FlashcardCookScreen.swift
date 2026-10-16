@@ -104,19 +104,6 @@ struct FlashcardCookScreen: View {
             }
             .ignoresSafeArea()
 
-            // Clock lives in the parent so a running timer persists while you swipe steps.
-            if timer.running || currentDuration != nil {
-                ClockRingView(timer: timer,
-                              idleMinutes: currentDuration ?? 0,
-                              tint: Color(hex: "1B1712")) {
-                    toggleTimer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.trailing, 36)
-                .padding(.bottom, 30)
-                .transition(.scale.combined(with: .opacity))
-            }
-
             VStack {
                 topBar
                 if voice.permissionDenied { permissionBanner }
@@ -215,6 +202,15 @@ struct FlashcardCookScreen: View {
         HStack(spacing: 10) {
             iconButton("xmark", label: "Exit Flashcards") { Haptics.tap(); dismiss() }
             Spacer()
+            if timer.running || currentDuration != nil {
+                ClockRingView(timer: timer,
+                              idleMinutes: currentDuration ?? 0,
+                              diameter: 58,
+                              tint: Color(hex: "1B1712")) {
+                    toggleTimer()
+                }
+                .transition(.scale.combined(with: .opacity))
+            }
             iconButton(readAloud ? "speaker.wave.2.fill" : "speaker.slash.fill",
                        label: readAloud ? "Turn off read aloud" : "Read steps aloud") {
                 Haptics.tap(); readAloud.toggle()
@@ -222,7 +218,8 @@ struct FlashcardCookScreen: View {
             }
             voiceButton
         }
-        .padding(.horizontal, 24)
+        .padding(.leading, max(20, Self.displayEdgeInsets.left + 12))
+        .padding(.trailing, max(20, Self.displayEdgeInsets.right + 12))
         .padding(.top, 14)
     }
 
@@ -352,6 +349,7 @@ final class CookTimer: ObservableObject {
 private struct ClockRingView: View {
     @ObservedObject var timer: CookTimer
     var idleMinutes: Int
+    var diameter: CGFloat = 92
     var tint: Color
     var onTap: () -> Void
 
@@ -383,6 +381,8 @@ private struct ClockRingView: View {
                 }
             }
             .frame(width: 92, height: 92)
+            .scaleEffect(diameter / 92)
+            .frame(width: diameter, height: diameter)
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel(timer.running ? "Stop timer" : "Start \(idleMinutes) minute timer")
