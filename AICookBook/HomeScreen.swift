@@ -236,8 +236,8 @@ struct HomeScreen: View {
     private var filterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                DietToggle(systemImage: "smallcircle.filled.circle", tint: Self.vegMark, isOn: filters.diet == .veg, label: "Vegetarian") { setDiet(.veg) }
-                DietToggle(systemImage: "triangle.fill", tint: Self.nonVegMark, isOn: filters.diet == .nonVeg, label: "Non-vegetarian") { setDiet(.nonVeg) }
+                DietToggle(mark: .veg, tint: Self.vegMark, isOn: filters.diet == .veg, label: "Vegetarian") { setDiet(.veg) }
+                DietToggle(mark: .nonVeg, tint: Self.nonVegMark, isOn: filters.diet == .nonVeg, label: "Non-vegetarian") { setDiet(.nonVeg) }
                 filterDivider
                 FilterChip(title: "Under 15m", systemImage: "timer", isOn: filters.time == .under15) { setTime(.under15) }
                 FilterChip(title: "15–30m", systemImage: "clock.fill", isOn: filters.time == .mid) { setTime(.mid) }

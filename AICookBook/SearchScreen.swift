@@ -134,10 +134,43 @@ struct SuggestionReasonChip: View {
 
 // MARK: - Filter chip (shared — used by Home's search filter bar)
 
-/// Veg / non-veg switch: the mark on the left, the knob on the right. Veg is the green dot,
-/// non-veg is the red triangle — both SF Symbols, colored like the food-label marks.
+enum DietMark { case veg, nonVeg }
+
+/// The food-label mark: a green dot in a green box, or a red triangle in a red box.
+struct DietMarkIcon: View {
+    let mark: DietMark
+    let tint: Color
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 3.5, style: .continuous)
+                .stroke(tint, lineWidth: 1.5)
+            switch mark {
+            case .veg:
+                Circle().fill(tint).padding(4)
+            case .nonVeg:
+                DietTriangle().fill(tint).padding(4)
+            }
+        }
+        .frame(width: 18, height: 18)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct DietTriangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// Veg / non-veg switch: the boxed mark on the left, the knob on the right.
 struct DietToggle: View {
-    let systemImage: String
+    let mark: DietMark
     let tint: Color
     let isOn: Bool
     let label: String
@@ -146,9 +179,7 @@ struct DietToggle: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(tint)
+                DietMarkIcon(mark: mark, tint: tint)
                 Capsule()
                     .fill(isOn ? tint : AppTheme.hairline)
                     .frame(width: 34, height: 20)
