@@ -95,6 +95,15 @@ struct GroceryScreen: View {
 
     private var sortBar: some View {
         HStack(spacing: 8) {
+            Picker("Sort by", selection: sortModeBinding) {
+                ForEach(GrocerySortMode.allCases, id: \.self) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(AppTheme.textSecondary)
+            .accessibilityLabel("Sort list")
+            Spacer(minLength: 8)
             Button {
                 Haptics.success()
                 let dish = selectedDish
@@ -113,15 +122,6 @@ struct GroceryScreen: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(selectedDish == nil ? "Finish the whole list" : "Finish \(selectedDish ?? "this recipe")")
-            Picker("Sort by", selection: sortModeBinding) {
-                ForEach(GrocerySortMode.allCases, id: \.self) { mode in
-                    Text(mode.label).tag(mode)
-                }
-            }
-            .pickerStyle(.menu)
-            .tint(AppTheme.textSecondary)
-            .accessibilityLabel("Sort list")
-            Spacer()
         }
     }
 

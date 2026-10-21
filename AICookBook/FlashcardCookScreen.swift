@@ -30,16 +30,17 @@ struct FlashcardCookScreen: View {
     private let cards: [FlashCard]
     private let stepCount: Int
 
-    // Bold, cycling card colours (bg + a legible ink per card).
-    static let palette: [(bg: Color, ink: Color)] = [
-        (Color(hex: "C75146"), .white),            // terracotta red
-        (Color(hex: "E0A13A"), Color(hex: "3A2A10")), // mustard amber
-        (Color(hex: "B86AB8"), Color(hex: "2E1430")), // orchid purple
-        (Color(hex: "4FA38B"), Color(hex: "0E2E26")), // teal
-        (Color(hex: "5B7DB1"), .white),            // dusty blue
-        (Color(hex: "D98299"), Color(hex: "3A1A24")), // rose
+    // Dark cook theme: near-black at the top, a muted warm glow at the bottom. The glow
+    // shifts per step (brown, olive, cocoa) so cards still change, and the ink stays white.
+    static let palette: [(glow: Color, ink: Color)] = [
+        (Color(hex: "6A4032"), .white),
+        (Color(hex: "3E4C30"), .white),
+        (Color(hex: "5C382C"), .white),
+        (Color(hex: "3A4034"), .white),
+        (Color(hex: "4E3428"), .white),
+        (Color(hex: "2E3A32"), .white),
     ]
-    private func color(for i: Int) -> (bg: Color, ink: Color) {
+    private func color(for i: Int) -> (glow: Color, ink: Color) {
         Self.palette[((i % Self.palette.count) + Self.palette.count) % Self.palette.count]
     }
 
@@ -66,10 +67,17 @@ struct FlashcardCookScreen: View {
 
     var body: some View {
         ZStack {
-            // Whole-screen background = the CENTERED step's colour; it animates as the wheel settles
-            // on a new step.
-            color(for: index).bg.ignoresSafeArea()
-                .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: index)
+            // Whole-screen background. Near-black on top, the step's warm glow along the bottom.
+            ZStack {
+                Color(hex: "12100E")
+                LinearGradient(
+                    colors: [Color(hex: "12100E"), color(for: index).glow],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .ignoresSafeArea()
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: index)
 
             // A picker-WHEEL of steps (like the Clock alarm hour/minute wheel): one step per row, the
             // centred step big and the neighbours faint above/below. Scrolling moves one STEP at a
