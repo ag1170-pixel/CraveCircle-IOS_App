@@ -26,22 +26,27 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         if synth.isSpeaking { synth.stopSpeaking(at: .immediate) }
-        // Record-capable category so TTS coexists with the command mic. NEVER plain .playback —
-        // that deactivates the mic's .playAndRecord session and breaks "next"/"back".
-        let session = AVAudioSession.sharedInstance()
-        // .default, not .voiceChat. Voice-chat mode is a phone-call filter and is what made
-        // every step sound like a robot, especially when the next card cut in.
-        try? session.setCategory(.playAndRecord, mode: .default,
-                                 options: [.duckOthers, .defaultToSpeaker, .allowBluetoothA2DP])
-        try? session.setActive(true)
-
         let u = AVSpeechUtterance(string: trimmed)
         u.voice = Self.bestVoice(language)
         u.rate = AVSpeechUtteranceDefaultSpeechRate
         u.pitchMultiplier = 1.0
         u.preUtteranceDelay = 0.12
         u.postUtteranceDelay = 0.2
-        synth.speak(u)
+        // Session activate is the same main-thread hang as the search mic. Do it off-main,
+        // then speak. .default, not .voiceChat — voice-chat is a phone-call filter.
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(.playAndRecord, mode: .default,
+                                     options: [.duckOthers, .defaultToSpeaker, .allowBluetoothA2DP])
+            if #available(iOS 27, *) {
+                session.activate(options: []) { _, _ in
+                    DispatchQueue.main.async { self?.synth.speak(u) }
+                }
+            } else {
+                try? session.setActive(true)
+                DispatchQueue.main.async { self?.synth.speak(u) }
+            }
+        }
     }
 
     func stop() {

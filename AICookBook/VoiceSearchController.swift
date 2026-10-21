@@ -81,14 +81,16 @@ final class VoiceSearchController: NSObject, ObservableObject {
         transcript = ""
         committed = ""
         dictation = DictationTranscript()
-        Task { @MainActor in
+        // Locale lookup, session activate, and engine start are synchronous XPC calls.
+        // On the main thread they freeze the UI for the better part of a second.
+        Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self else { return }
             let notes = await self.startNotesDictation()
-            if !notes, !self.stopping { self.startLegacy() }
+            if !notes, !self.stopping { await self.startLegacy() }
         }
     }
 
     /// Notes-style on-device dictation. Returns false when that language model is not installed yet.
-    @MainActor
     private func startNotesDictation() async -> Bool {
         guard let locale = await DictationTranscriber.supportedLocale(equivalentTo: .current) else { return false }
         let installed = await DictationTranscriber.installedLocales
@@ -101,18 +103,18 @@ final class VoiceSearchController: NSObject, ObservableObject {
 
         let transcriber = DictationTranscriber(locale: locale, preset: .progressiveLongDictation)
         guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else { return false }
-        guard openSession() else { return false }
+        guard !stopping, await openSession() else { return false }
 
         let input = audioEngine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
         guard inputFormat.sampleRate > 0, let converter = AVAudioConverter(from: inputFormat, to: format) else {
-            closeSession()
+            await closeSession()
             return false
         }
 
         let analyzer = SpeechAnalyzer(modules: [transcriber])
         do { try await analyzer.prepareToAnalyze(in: format) } catch {
-            closeSession()
+            await closeSession()
             return false
         }
         self.analyzer = analyzer
@@ -127,13 +129,20 @@ final class VoiceSearchController: NSObject, ObservableObject {
         audioEngine.prepare()
         do { try audioEngine.start() } catch {
             continuation.finish()
-            closeSession()
+            await closeSession()
+            return false
+        }
+        guard !stopping else {
+            continuation.finish()
+            await closeSession()
             return false
         }
 
-        isRecording = true
-        Haptics.tap()
-        armSilenceTimer(firstWait: true)
+        await MainActor.run {
+            self.isRecording = true
+            Haptics.tap()
+            self.armSilenceTimer(firstWait: true)
+        }
         resultsTask = Task { @MainActor in
             do {
                 for try await result in transcriber.results {
@@ -151,25 +160,26 @@ final class VoiceSearchController: NSObject, ObservableObject {
 
     /// System recognizer for any words, in the phone's language. Restarts itself so a pause
     /// between phrases does not throw away the rest of the sentence.
-    private func startLegacy() {
+    private func startLegacy() async {
         let current = Locale.current
         let chosen = SFSpeechRecognizer(locale: current)
         recognizer = (chosen?.isAvailable == true ? chosen : nil)
             ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
             ?? SFSpeechRecognizer()
-        guard let recognizer, recognizer.isAvailable, openSession() else { return }
+        guard let recognizer, recognizer.isAvailable, await openSession() else { return }
 
         let node = audioEngine.inputNode
         node.removeTap(onBus: 0)
         let format = node.outputFormat(forBus: 0)
-        guard format.sampleRate > 0 else { closeSession(); return }
+        guard format.sampleRate > 0 else { await closeSession(); return }
         node.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             self?.request?.append(buffer)
         }
         audioEngine.prepare()
-        do { try audioEngine.start() } catch { closeSession(); return }
+        do { try audioEngine.start() } catch { await closeSession(); return }
+        guard !stopping else { await closeSession(); return }
 
-        DispatchQueue.main.async {
+        await MainActor.run {
             self.isRecording = true
             Haptics.tap()
             self.armSilenceTimer(firstWait: true)
@@ -223,20 +233,33 @@ final class VoiceSearchController: NSObject, ObservableObject {
         return a + " " + b
     }
 
-    private func openSession() -> Bool {
+    /// Category + activate never run on the main thread. `setActive` there is the hang
+    /// (the runtime reports it around 600ms and the screen freezes until it returns).
+    private func openSession() async -> Bool {
+        let session = AVAudioSession.sharedInstance()
         do {
-            let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playAndRecord, mode: .measurement,
                                     options: [.duckOthers, .defaultToSpeaker, .allowBluetoothHFP])
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-            return true
         } catch {
             return false
         }
+        if #available(iOS 27, *) {
+            return await withCheckedContinuation { cont in
+                session.activate(options: []) { ok, _ in cont.resume(returning: ok) }
+            }
+        }
+        return (try? session.setActive(true, options: .notifyOthersOnDeactivation)) != nil
     }
 
-    private func closeSession() {
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    private func closeSession() async {
+        let session = AVAudioSession.sharedInstance()
+        if #available(iOS 27, *) {
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                session.deactivate(options: [.notifyOthersOnDeactivation]) { _, _ in cont.resume() }
+            }
+        } else {
+            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
 
     /// First wait is long enough to start a sentence. Later waits end the take after a real pause.
@@ -255,20 +278,23 @@ final class VoiceSearchController: NSObject, ObservableObject {
             self.isRecording = false
             self.silenceTimer?.invalidate()
             self.silenceTimer = nil
-            self.audioEngine.inputNode.removeTap(onBus: 0)
-            if self.audioEngine.isRunning { self.audioEngine.stop() }
             self.request?.endAudio()
             self.inputContinuation?.finish()
             self.inputContinuation = nil
             let analyzer = self.analyzer
             self.analyzer = nil
-            Task { await analyzer?.cancelAndFinishNow() }
             self.task?.cancel()
             self.task = nil
             self.request = nil
             self.resultsTask?.cancel()
             self.resultsTask = nil
-            self.closeSession()
+            let engine = self.audioEngine
+            Task.detached(priority: .userInitiated) {
+                engine.inputNode.removeTap(onBus: 0)
+                if engine.isRunning { engine.stop() }
+                await analyzer?.cancelAndFinishNow()
+                await self.closeSession()
+            }
         }
     }
 

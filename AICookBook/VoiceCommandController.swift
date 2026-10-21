@@ -158,17 +158,33 @@ final class VoiceCommandController: NSObject, ObservableObject {
         // UI never freezes (fixes the ~659ms watchdog hang). @Published state publishes back to main.
         audioQueue.async { [weak self] in
             guard let self else { return }
+            let session = AVAudioSession.sharedInstance()
             do {
-                let session = AVAudioSession.sharedInstance()
                 try session.setCategory(.playAndRecord, mode: .default,
                                         options: [.duckOthers, .defaultToSpeaker, .allowBluetoothA2DP])
-                try session.setActive(true, options: .notifyOthersOnDeactivation)
             } catch {
                 self.publish { self.available = false; self.lastHeard = "Audio error" }
                 return
             }
-            guard self.startEngine() else { return }
-            self.startRecognition()
+            if #available(iOS 27, *) {
+                session.activate(options: []) { [weak self] ok, _ in
+                    guard let self, ok else {
+                        self?.publish { self?.available = false; self?.lastHeard = "Audio error" }
+                        return
+                    }
+                    self.audioQueue.async {
+                        guard self.startEngine() else { return }
+                        self.startRecognition()
+                    }
+                }
+            } else {
+                do { try session.setActive(true, options: .notifyOthersOnDeactivation) } catch {
+                    self.publish { self.available = false; self.lastHeard = "Audio error" }
+                    return
+                }
+                guard self.startEngine() else { return }
+                self.startRecognition()
+            }
         }
     }
 
