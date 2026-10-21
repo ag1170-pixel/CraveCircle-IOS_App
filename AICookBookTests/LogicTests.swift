@@ -553,6 +553,23 @@ final class PhotoRecipeImportTests: XCTestCase {
     }
 }
 
+final class SearchDictationTests: XCTestCase {
+    func testARevisedPhraseReplacesTheEarlierGuess() {
+        var heard = DictationTranscript()
+        XCTAssertEqual(heard.absorb(start: 0, text: "paneer"), "paneer")
+        XCTAssertEqual(heard.absorb(start: 1.2, text: "butter"), "paneer butter")
+        XCTAssertEqual(heard.absorb(start: 0.02, text: "spicy paneer"), "spicy paneer butter")
+    }
+
+    func testSiriBeatsTheRoboticVoice() {
+        let siri = SpeechReader.voiceScore(identifier: "com.apple.ttsbundle.siri_female_en-US_compact", quality: .premium)
+        let robot = SpeechReader.voiceScore(identifier: "com.apple.eloquence.en-US.Sandy", quality: .premium)
+        let plain = SpeechReader.voiceScore(identifier: "com.apple.voice.compact.en-US.Samantha", quality: .default)
+        XCTAssertGreaterThan(siri, plain)
+        XCTAssertGreaterThan(plain, robot)
+    }
+}
+
 final class ActivityAlertTests: XCTestCase {
     func testANewAccountDoesNotKeepSampleAlerts() {
         let real = CircleNotificationItem(title: "Recipe shared with you", message: "Someone shared 'Chole' with you", timeAgo: "Just now", symbol: "tray.and.arrow.down.fill", isRead: false)

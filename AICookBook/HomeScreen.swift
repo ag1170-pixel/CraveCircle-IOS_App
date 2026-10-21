@@ -47,12 +47,13 @@ struct HomeScreen: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.lg) {
                     // Brand header lives INSIDE the scroll content so it scrolls away as you scroll
                     // down and returns at the top (Instagram-style), instead of staying pinned.
                     topBar
-                    searchSection
+                    searchSection.id("home-search")
                     if isSearching {
                         searchResultsSection
                     } else {
@@ -84,10 +85,11 @@ struct HomeScreen: View {
             }
             // The "Search" quick action lands here and asks for the search box to be keyboard-ready.
             .onChange(of: environment.pendingSearchFocus) { _, want in
-                if want { focusSearchSoon() }
+                if want { focusSearchSoon(proxy) }
             }
             .onAppear {
-                if environment.pendingSearchFocus { focusSearchSoon() }
+                if environment.pendingSearchFocus { focusSearchSoon(proxy) }
+            }
             }
             .navigationDestination(isPresented: $navigateToLibrary) {
                 LibraryScreen()
@@ -160,9 +162,14 @@ struct HomeScreen: View {
 
     /// Focus the search box after the Home tab has settled on screen (focus set during the tab
     /// switch gets dropped), scrolling the field into view by clearing any active search first.
-    private func focusSearchSoon() {
+    private func focusSearchSoon(_ proxy: ScrollViewProxy) {
         environment.pendingSearchFocus = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { searchFocused = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            withAnimation(.easeOut(duration: 0.25)) {
+                proxy.scrollTo("home-search", anchor: .top)
+            }
+            searchFocused = true
+        }
     }
 
     private var searchResult: RecipeSearch.Result {

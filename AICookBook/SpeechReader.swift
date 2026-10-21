@@ -29,18 +29,18 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         // Record-capable category so TTS coexists with the command mic. NEVER plain .playback —
         // that deactivates the mic's .playAndRecord session and breaks "next"/"back".
         let session = AVAudioSession.sharedInstance()
-        if session.category != .playAndRecord {
-            try? session.setCategory(.playAndRecord, mode: .voiceChat,
-                                     options: [.duckOthers, .defaultToSpeaker, .allowBluetoothA2DP])
-        }
+        // .default, not .voiceChat. Voice-chat mode is a phone-call filter and is what made
+        // every step sound like a robot, especially when the next card cut in.
+        try? session.setCategory(.playAndRecord, mode: .default,
+                                 options: [.duckOthers, .defaultToSpeaker, .allowBluetoothA2DP])
         try? session.setActive(true)
 
         let u = AVSpeechUtterance(string: trimmed)
         u.voice = Self.bestVoice(language)
-        u.rate = 0.44                       // a touch slower than default (0.5) so each step is easy to follow
+        u.rate = AVSpeechUtteranceDefaultSpeechRate
         u.pitchMultiplier = 1.0
-        u.preUtteranceDelay = 0.0
-        u.postUtteranceDelay = 0.15
+        u.preUtteranceDelay = 0.12
+        u.postUtteranceDelay = 0.2
         synth.speak(u)
     }
 
@@ -48,22 +48,26 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         if synth.isSpeaking { synth.stopSpeaking(at: .immediate) }
     }
 
-    /// Highest-quality installed voice for the language: premium → enhanced → default. Siri's own
-    /// voice isn't exposed to apps, so we pick the best AVSpeech voice present; a user who downloads
-    /// an Enhanced/Premium English voice (Settings › Accessibility › Spoken Content › Voices) then
-    /// gets a far more natural, less "computery" read automatically.
+    /// Prefer a Siri or premium voice. Eloquence is the old robotic voice and always loses.
+    static func voiceScore(identifier: String, quality: AVSpeechSynthesisVoiceQuality) -> Int {
+        let id = identifier.lowercased()
+        if id.contains("eloquence") { return 0 }
+        var score: Int
+        switch quality {
+        case .premium: score = 5
+        case .enhanced: score = 3
+        default: score = 1
+        }
+        if id.contains("siri") { score += 20 }
+        if id.contains("premium") { score += 4 }
+        return score
+    }
+
     private static func bestVoice(_ language: String) -> AVSpeechSynthesisVoice? {
         let prefix = String(language.prefix(2))
-        func rank(_ q: AVSpeechSynthesisVoiceQuality) -> Int {
-            switch q {
-            case .premium:  return 3
-            case .enhanced: return 2
-            default:        return 1
-            }
-        }
         let best = AVSpeechSynthesisVoice.speechVoices()
             .filter { $0.language.hasPrefix(prefix) }
-            .max { rank($0.quality) < rank($1.quality) }
+            .max { voiceScore(identifier: $0.identifier, quality: $0.quality) < voiceScore(identifier: $1.identifier, quality: $1.quality) }
         return best ?? AVSpeechSynthesisVoice(language: language) ?? AVSpeechSynthesisVoice(language: "en-US")
     }
 

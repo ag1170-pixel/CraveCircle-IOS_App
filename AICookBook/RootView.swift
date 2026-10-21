@@ -339,6 +339,13 @@ struct MainTabView: View {
                     guard tab == .discover else { return }
                     Haptics.select()
                     discoverSignal.token += 1
+                },
+                onHomeDoubleTap: {
+                    Haptics.select()
+                    if tab != .home {
+                        withAnimation(.easeOut(duration: 0.25)) { tab = .home }
+                    }
+                    environment.pendingSearchFocus = true
                 }
             )
         }
@@ -465,19 +472,23 @@ struct MainTabView: View {
 /// Only fires when Discover was already selected — switching onto the tab keeps the current card.
 private struct DiscoverTabTapCatcher: UIViewControllerRepresentable {
     var onDoubleTap: () -> Void
+    var onHomeDoubleTap: () -> Void
 
     func makeUIViewController(context: Context) -> Catcher {
         let catcher = Catcher()
         catcher.onDoubleTap = onDoubleTap
+        catcher.onHomeDoubleTap = onHomeDoubleTap
         return catcher
     }
 
     func updateUIViewController(_ catcher: Catcher, context: Context) {
         catcher.onDoubleTap = onDoubleTap
+        catcher.onHomeDoubleTap = onHomeDoubleTap
     }
 
     final class Catcher: UIViewController, UIGestureRecognizerDelegate {
         var onDoubleTap: (() -> Void)?
+        var onHomeDoubleTap: (() -> Void)?
         /// Latched from the first touch of a double-tap. A tap that switches onto Discover
         /// must not reload — Instagram keeps your place.
         private var alreadyOnDiscover = false
@@ -486,6 +497,7 @@ private struct DiscoverTabTapCatcher: UIViewControllerRepresentable {
         private weak var tabController: UITabBarController?
         private var recognizers: [UIGestureRecognizer] = []
         private var discoverIndex: Int { AppTab.allCases.firstIndex(of: .discover) ?? 1 }
+        private var homeIndex: Int { AppTab.allCases.firstIndex(of: .home) ?? 0 }
 
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
@@ -543,16 +555,22 @@ private struct DiscoverTabTapCatcher: UIViewControllerRepresentable {
         }
 
         @objc private func didDouble(_ gesture: UITapGestureRecognizer) {
-            guard alreadyOnDiscover, isDiscover(gesture) else { return }
+            guard let index = tabIndex(gesture) else { return }
+            if index == homeIndex {
+                onHomeDoubleTap?()
+                return
+            }
+            guard alreadyOnDiscover, index == discoverIndex, tabController?.selectedIndex == discoverIndex else { return }
             onDoubleTap?()
         }
 
-        private func isDiscover(_ gesture: UIGestureRecognizer) -> Bool {
-            guard let bar = gesture.view as? UITabBar else { return false }
+        private func tabIndex(_ gesture: UIGestureRecognizer) -> Int? {
+            guard let bar = gesture.view as? UITabBar else { return nil }
             let count = bar.items?.count ?? 0
-            guard count > 0, bar.bounds.width > 0 else { return false }
+            guard count > 0, bar.bounds.width > 0 else { return nil }
             let index = Int(gesture.location(in: bar).x / (bar.bounds.width / CGFloat(count)))
-            return index == discoverIndex && tabController?.selectedIndex == discoverIndex
+            guard index >= 0, index < count else { return nil }
+            return index
         }
     }
 }

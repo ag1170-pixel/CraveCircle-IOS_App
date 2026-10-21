@@ -160,7 +160,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
             guard let self else { return }
             do {
                 let session = AVAudioSession.sharedInstance()
-                try session.setCategory(.playAndRecord, mode: .voiceChat,
+                try session.setCategory(.playAndRecord, mode: .default,
                                         options: [.duckOthers, .defaultToSpeaker, .allowBluetoothA2DP])
                 try session.setActive(true, options: .notifyOthersOnDeactivation)
             } catch {
