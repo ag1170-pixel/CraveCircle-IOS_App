@@ -83,6 +83,14 @@ struct RecipeCoverImage: View {
     }
 
     /// Decode one local cover. Safe off the main thread. A miss is remembered so layout never stats it again.
+    /// A cover file written after the card already looked and found nothing.
+    static func noteCoverReady(_ filename: String) {
+        storeLock.lock()
+        missingStoreFiles.remove(filename)
+        storeLock.unlock()
+        storeCache.removeObject(forKey: filename as NSString)
+    }
+
     static func loadStoreImage(named filename: String) -> UIImage? {
         let key = filename as NSString
         if let hit = storeCache.object(forKey: key) { return hit }

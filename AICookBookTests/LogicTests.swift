@@ -692,6 +692,12 @@ final class WebRecipeParserTests: XCTestCase {
         let google = URL(string: "https://www.google.com/search?q=rajma")!
         XCTAssertNil(WebRecipeParser.recipe(html: html, pageURL: google, ownerId: "me"))
         XCTAssertNil(WebRecipeParser.recipe(html: "<html>no recipe</html>", pageURL: page, ownerId: "me"))
+        let relative = """
+        <html><meta property="og:image" content="/photos/rajma.jpg">
+        <script type="application/ld+json">{"@type":"Recipe","name":"Rajma","image":"/photos/rajma.jpg","recipeIngredient":["1 cup rajma"],"recipeInstructions":"Cook."}</script></html>
+        """
+        let saved = WebRecipeParser.recipe(html: relative, pageURL: page, ownerId: "me")
+        XCTAssertEqual(saved?.thumbnailUrl, "https://www.sharmispassions.com/photos/rajma.jpg")
     }
 }
 

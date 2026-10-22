@@ -24,17 +24,17 @@ enum WebRecipeParser {
             guard let match, match.numberOfRanges > 1, let span = Range(match.range(at: 1), in: html) else { return }
             blocks.append(String(html[span]))
         }
-        return recipe(blocks: blocks, pageURL: pageURL, ownerId: ownerId)
+        return recipe(blocks: blocks, pageURL: pageURL, ownerId: ownerId, pageImage: openGraphImage(html))
     }
 
-    static func recipe(blocks: [String], pageURL: URL, ownerId: String) -> Recipe? {
+    static func recipe(blocks: [String], pageURL: URL, ownerId: String, pageImage: String? = nil) -> Recipe? {
         if isSearchHost(pageURL) { return nil }
         for block in blocks {
             guard let data = block.data(using: .utf8),
                   let json = try? JSONSerialization.jsonObject(with: data) else { continue }
             var budget = 400
             guard let node = findRecipe(json, budget: &budget) else { continue }
-            if let recipe = make(node, pageURL: pageURL, ownerId: ownerId) { return recipe }
+            if let recipe = make(node, pageURL: pageURL, ownerId: ownerId, pageImage: pageImage) { return recipe }
         }
         return nil
     }
@@ -65,7 +65,21 @@ enum WebRecipeParser {
         return names.contains { $0 == "Recipe" || $0.hasSuffix("/Recipe") }
     }
 
-    private static func make(_ node: [String: Any], pageURL: URL, ownerId: String) -> Recipe? {
+    private static func openGraphImage(_ html: String) -> String? {
+        let patterns = [
+            "(?i)<meta[^>]*property=[\"']og:image[\"'][^>]*content=[\"']([^\"']+)[\"']",
+            "(?i)<meta[^>]*content=[\"']([^\"']+)[\"'][^>]*property=[\"']og:image[\"']"
+        ]
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern),
+                  let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
+                  match.numberOfRanges > 1, let span = Range(match.range(at: 1), in: html) else { continue }
+            return String(html[span])
+        }
+        return nil
+    }
+
+    private static func make(_ node: [String: Any], pageURL: URL, ownerId: String, pageImage: String?) -> Recipe? {
         let title = plain(string(node["name"])).trimmingCharacters(in: .whitespacesAndNewlines)
         let items = ingredients(node["recipeIngredient"])
         let steps = instructions(node["recipeInstructions"])
@@ -81,7 +95,7 @@ enum WebRecipeParser {
             servings: yieldCount(node["recipeYield"]),
             ingredients: [IngredientGroup(groupName: nil, items: items)],
             directions: steps.enumerated().map { DirectionStep(stepIndex: $0.offset + 1, text: $0.element) },
-            thumbnailUrl: imageURL(node["image"]),
+            thumbnailUrl: resolvedImage(imageURL(node["image"]) ?? pageImage, page: pageURL),
             ownerUsername: host,
             sourceUrl: pageURL.absoluteString,
             visibility: .followers
@@ -152,16 +166,27 @@ enum WebRecipeParser {
     }
 
     private static func imageURL(_ value: Any?) -> String? {
-        if let text = value as? String, text.hasPrefix("http") { return text }
+        if let text = value as? String {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
         if let list = value as? [Any] {
             for item in list {
                 if let found = imageURL(item) { return found }
             }
         }
         if let dict = value as? [String: Any] {
-            return imageURL(dict["url"] ?? dict["contentUrl"])
+            return imageURL(dict["url"] ?? dict["contentUrl"] ?? dict["@id"])
         }
         return nil
+    }
+
+    private static func resolvedImage(_ raw: String?, page: URL) -> String? {
+        guard var raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        if raw.hasPrefix("//") { raw = "https:" + raw }
+        guard let url = URL(string: raw, relativeTo: page)?.absoluteURL,
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return nil }
+        return url.absoluteString
     }
 
     private static func string(_ value: Any?) -> String? {

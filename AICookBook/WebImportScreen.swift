@@ -159,9 +159,9 @@ final class WebImportModel: ObservableObject {
         }
         let owner = ownerId
         webView.evaluateJavaScript(Self.script) { [weak self] result, _ in
-            let blocks = Self.blocks(from: result)
+            let read = Self.pageRead(from: result)
             Task.detached {
-                let found = WebRecipeParser.recipe(blocks: blocks, pageURL: page, ownerId: owner)
+                let found = WebRecipeParser.recipe(blocks: read.blocks, pageURL: page, ownerId: owner, pageImage: read.image)
                 await MainActor.run { [weak self] in
                     guard let self, self.webView.url == page else { return }
                     self.recipe = found
@@ -172,6 +172,10 @@ final class WebImportModel: ObservableObject {
 
     private static let script = """
     (function() {
+      function abs(u) {
+        if (!u) return "";
+        try { return new URL(u, document.baseURI).href; } catch (e) { return ""; }
+      }
       var out = [];
       var nodes = document.querySelectorAll('script[type="application/ld+json"]');
       for (var i = 0; i < nodes.length && out.length < 4; i++) {
@@ -180,14 +184,16 @@ final class WebImportModel: ObservableObject {
         if (text.length > 80000) text = text.slice(0, 80000);
         out.push(text);
       }
-      return JSON.stringify(out);
+      var og = document.querySelector('meta[property="og:image"], meta[name="og:image"]');
+      return JSON.stringify({ blocks: out, image: abs(og && og.content) });
     })()
     """
 
-    private static func blocks(from result: Any?) -> [String] {
+    private static func pageRead(from result: Any?) -> (blocks: [String], image: String?) {
         guard let text = result as? String, let data = text.data(using: .utf8),
-              let list = try? JSONSerialization.jsonObject(with: data) as? [String] else { return [] }
-        return list
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return ([], nil) }
+        let image = obj["image"] as? String
+        return (obj["blocks"] as? [String] ?? [], image?.isEmpty == true ? nil : image)
     }
 }
 

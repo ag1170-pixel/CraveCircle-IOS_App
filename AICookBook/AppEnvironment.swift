@@ -1203,18 +1203,20 @@ final class AppEnvironment: ObservableObject {
         saved.visibility = .followers
         saved.ownerId = currentUser?.id ?? saved.ownerId
         let remote = saved.thumbnailUrl
-        saved.thumbnailUrl = nil
+        let referer = saved.sourceUrl
         recipes.insert(saved, at: 0)
         let id = saved.id
         if let remote, remote.hasPrefix("http") {
             Task.detached { [weak self] in
-                guard let data = await Self.fetchWebCover(remote),
+                guard let data = await Self.fetchWebCover(remote, referer: referer),
                       let jpeg = ImageDownscale.jpeg(from: data, maxPixel: 720, quality: 0.6),
                       LocalStore.saveData(jpeg, to: "thumb-\(id).jpg") != nil else { return }
                 await MainActor.run { [weak self] in
                     guard let self, let i = self.recipes.firstIndex(where: { $0.id == id }) else { return }
-                    self.recipes[i].thumbnailUrl = "thumb-\(id).jpg"
-                    if self.selectedRecipe?.id == id { self.selectedRecipe?.thumbnailUrl = "thumb-\(id).jpg" }
+                    let name = "thumb-\(id).jpg"
+                    RecipeCoverImage.noteCoverReady(name)
+                    self.recipes[i].thumbnailUrl = name
+                    if self.selectedRecipe?.id == id { self.selectedRecipe?.thumbnailUrl = name }
                 }
             }
         }
@@ -1226,14 +1228,18 @@ final class AppEnvironment: ObservableObject {
     }
 
     /// Cover from the food site, not from our server. Short timeout so a slow host cannot stall the save.
-    private static func fetchWebCover(_ urlString: String) async -> Data? {
+    private static func fetchWebCover(_ urlString: String, referer: String?) async -> Data? {
         guard let url = URL(string: urlString) else { return nil }
         var request = URLRequest(url: url)
-        request.timeoutInterval = 6
+        request.timeoutInterval = 8
         request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("image/avif,image/webp,image/*,*/*", forHTTPHeaderField: "Accept")
+        if let referer, referer.hasPrefix("http") {
+            request.setValue(referer, forHTTPHeaderField: "Referer")
+        }
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
-              (1..<3_000_000).contains(data.count) else { return nil }
+              (1..<8_000_000).contains(data.count) else { return nil }
         return data
     }
 
