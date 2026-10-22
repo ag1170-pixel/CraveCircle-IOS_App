@@ -17,6 +17,7 @@ struct RecipeCommentsSection: View {
     @State private var isSubmitting = false
     @State private var pickedItem: PhotosPickerItem?
     @State private var pickedImage: UIImage?
+    @State private var notice: String?
     @FocusState private var isFocused: Bool
 
     private var comments: [RecipeComment] {
@@ -29,13 +30,22 @@ struct RecipeCommentsSection: View {
 
     private func post() {
         guard canPost else { return }
+        let text = commentText
+        let image = pickedImage
         Haptics.tap()
-        withAnimation(AppMotion.snappy) {
-            environment.addComment(recipeId: recipeId, text: commentText, image: pickedImage)
-            commentText = ""
-            pickedImage = nil
-            pickedItem = nil
-            isFocused = false
+        Task {
+            if let message = await environment.addComment(recipeId: recipeId, text: text, image: image) {
+                notice = message
+                Haptics.warning()
+                return
+            }
+            withAnimation(AppMotion.snappy) {
+                commentText = ""
+                pickedImage = nil
+                pickedItem = nil
+                notice = nil
+                isFocused = false
+            }
         }
     }
 
@@ -121,6 +131,11 @@ struct RecipeCommentsSection: View {
                     }
                 }
             }
+            if let notice {
+                Text(notice)
+                    .font(AppFont.body(13, weight: .medium))
+                    .foregroundStyle(Color(hex: "C7362A"))
+            }
 
             // Comments list
             if comments.isEmpty {
@@ -149,7 +164,12 @@ struct RecipeCommentsSection: View {
             }
         }
         .padding(.top, AppSpacing.md)
-        .task(id: recipeId) { await environment.refreshComments(for: recipeId) }
+        .task(id: recipeId) {
+            while !Task.isCancelled {
+                await environment.refreshComments(for: recipeId)
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+            }
+        }
     }
 }
 

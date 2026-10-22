@@ -447,6 +447,30 @@ struct CollectionItem: Codable, Identifiable, Hashable {
     static let sharedSamples: [CollectionItem] = shared
 }
 
+/// Blocks harassment in comments. Whole words only, so "mustard" and "mouth" still pass.
+enum CommentModeration {
+    private static let words: Set<String> = [
+        "fuck", "fucking", "fucker", "fucked", "shit", "bitch", "bastard", "asshole",
+        "dick", "cock", "pussy", "cunt", "slut", "whore", "nigger", "nigga", "faggot",
+        "retard", "rape", "rapist",
+        "madarchod", "behenchod", "bhosdike", "bhosdi", "chutiya", "chutiye", "gandu",
+        "randi", "harami", "muth", "muthmar", "mardu", "lund", "lauda", "jhatu", "gaand"
+    ]
+    private static let phrases = ["kill yourself", "kys", "muth mar"]
+
+    static func isBlocked(_ text: String) -> Bool {
+        let folded = text.lowercased()
+            .replacingOccurrences(of: "@", with: "a")
+            .replacingOccurrences(of: "$", with: "s")
+            .replacingOccurrences(of: "0", with: "o")
+            .replacingOccurrences(of: "1", with: "i")
+        let tokens = folded.split { !$0.isLetter }.map { String($0) }
+        if tokens.contains(where: { words.contains($0) }) { return true }
+        let sentence = tokens.joined(separator: " ")
+        return phrases.contains { sentence.contains($0) }
+    }
+}
+
 struct SearchDemandAlert: Codable, Identifiable, Hashable {
     var id: UUID
     var kind: String

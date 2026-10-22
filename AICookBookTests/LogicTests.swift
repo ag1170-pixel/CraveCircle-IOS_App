@@ -604,6 +604,19 @@ final class SearchDictationTests: XCTestCase {
     }
 }
 
+final class CommentModerationTests: XCTestCase {
+    func testANormalCommentIsAllowed() {
+        XCTAssertFalse(CommentModeration.isBlocked("looks tasty, the raspberries are a good idea"))
+        XCTAssertFalse(CommentModeration.isBlocked("add a little mustard"))
+    }
+
+    func testAbuseIsBlocked() {
+        XCTAssertTrue(CommentModeration.isBlocked("muth"))
+        XCTAssertTrue(CommentModeration.isBlocked("you muth mar"))
+        XCTAssertFalse(CommentModeration.isBlocked("mouth watering"))
+    }
+}
+
 final class CommentSyncTests: XCTestCase {
     func testASharedCommentReplacesTheDemoRows() {
         let demo = RecipeComment.defaultSamples["recipe-hot-honey-chicken"] ?? []

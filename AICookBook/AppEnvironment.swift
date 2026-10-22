@@ -1713,20 +1713,27 @@ final class AppEnvironment: ObservableObject {
         recipeComments[recipeId] ?? []
     }
 
-    func addComment(recipeId: String, text: String, image: UIImage? = nil) {
+    /// Nil when the comment is shared. A message means it was not posted.
+    func addComment(recipeId: String, text: String, image: UIImage? = nil) async -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if CommentModeration.isBlocked(trimmed) {
+            return "That comment isn't allowed."
+        }
         // A comment needs text OR a photo (people can share just a picture of how it turned out).
         var imageData: Data? = nil
         if let image, let raw = image.jpegData(compressionQuality: 0.8) {
             imageData = ImageDownscale.jpeg(from: raw, maxPixel: 1200, quality: 0.7) ?? raw
         }
-        guard !trimmed.isEmpty || imageData != nil else { return }
+        guard !trimmed.isEmpty || imageData != nil else { return nil }
+        guard supabase.hasSession else {
+            return "Sign in to comment so other people can see it."
+        }
         let user = currentUser?.fullName ?? "You"
         let handle = currentUser?.username ?? "@cravecircle"
         let newComment = RecipeComment(
             recipeId: recipeId,
             authorName: user,
-            authorUsername: handle,
+            authorUsername: handle.hasPrefix("@") ? handle : "@\(handle)",
             text: trimmed,
             timeAgo: "Just now",
             likesCount: 0,
@@ -1734,11 +1741,15 @@ final class AppEnvironment: ObservableObject {
             imageData: imageData,
             createdAt: Date()
         )
+        if !trimmed.isEmpty {
+            let posted = await supabase.postComment(newComment)
+            if !posted { return "Couldn't share that comment. Try again." }
+        }
         var list = recipeComments[recipeId] ?? []
         list.insert(newComment, at: 0)
         recipeComments[recipeId] = list
         if !trimmed.isEmpty {
-            Task { await publishComment(newComment) }
+            await refreshComments(for: recipeId)
         }
         logInteraction(recipeId: recipeId, eventType: "comment")
 
@@ -1751,17 +1762,15 @@ final class AppEnvironment: ObservableObject {
             recipeId: recipeId
         )
         circleNotifications.insert(notif, at: 0)
+        return nil
     }
 
     /// Pull the shared thread for this recipe. Both phones read the same rows.
     func refreshComments(for recipeId: String) async {
         guard let remote = await supabase.fetchComments(recipeId: recipeId) else { return }
-        recipeComments[recipeId] = RecipeComment.synced(remote: remote, local: recipeComments[recipeId] ?? [])
-    }
-
-    private func publishComment(_ comment: RecipeComment) async {
-        guard await supabase.postComment(comment) else { return }
-        await refreshComments(for: comment.recipeId)
+        let local = (recipeComments[recipeId] ?? []).filter { !CommentModeration.isBlocked($0.text) }
+        recipeComments[recipeId] = RecipeComment.synced(remote: remote, local: local)
+            .filter { !CommentModeration.isBlocked($0.text) }
     }
 
     func toggleCommentLike(recipeId: String, commentId: UUID) {
