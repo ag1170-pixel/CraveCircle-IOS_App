@@ -99,12 +99,12 @@ struct NutritionScreen: View {
     private var ringCard: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             HStack(alignment: .center, spacing: AppSpacing.md) {
-                mealDonut
+                dayRings
                     .frame(width: 156, height: 156)
                 VStack(alignment: .leading, spacing: 14) {
-                    legend(proteinColor, "Protein", grams: shown.proteinG, share: nutrition.proteinPercent)
-                    legend(carbsColor, "Carbs", grams: shown.carbsG, share: nutrition.carbsPercent)
-                    legend(fatColor, "Fat", grams: shown.fatG, share: nutrition.fatPercent)
+                    legend(proteinColor, "Protein", grams: shown.proteinG, reference: RecipeNutrition.proteinDailyG)
+                    legend(carbsColor, "Carbs", grams: shown.carbsG, reference: RecipeNutrition.carbsDailyG)
+                    legend(fatColor, "Fat", grams: shown.fatG, reference: RecipeNutrition.fatDailyG)
                 }
                 Spacer(minLength: 0)
             }
@@ -116,60 +116,51 @@ struct NutritionScreen: View {
         .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
     }
 
-    /// One ring. Each slice is that macro's share of this meal, so the shape stays put
-    /// when the portion changes. The number in the middle is the portion's calories.
-    private var mealDonut: some View {
+    /// Each ring is one macro's share of a day, and it grows when you switch to the whole recipe.
+    /// A ring stops at one full circle. Past that, the words say "a full day" instead of 400%.
+    private var dayRings: some View {
         ZStack {
-            ForEach(Array(mealSlices.enumerated()), id: \.offset) { _, slice in
-                Circle()
-                    .trim(from: slice.start, to: slice.end)
-                    .stroke(slice.color, style: StrokeStyle(lineWidth: 18, lineCap: .butt))
-                    .rotationEffect(.degrees(-90))
-            }
+            dayRing(RecipeNutrition.dayMark(amount: Double(shown.proteinG), reference: RecipeNutrition.proteinDailyG).fill, proteinColor, diameter: 148)
+            dayRing(RecipeNutrition.dayMark(amount: Double(shown.carbsG), reference: RecipeNutrition.carbsDailyG).fill, carbsColor, diameter: 112)
+            dayRing(RecipeNutrition.dayMark(amount: Double(shown.fatG), reference: RecipeNutrition.fatDailyG).fill, fatColor, diameter: 76)
             VStack(spacing: 0) {
                 Text("\(shown.kcal)")
-                    .font(AppFont.display(34, weight: .bold))
+                    .font(AppFont.display(28, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
                     .monospacedDigit()
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                 Text("kcal")
-                    .font(AppFont.body(13, weight: .medium))
+                    .font(AppFont.body(12, weight: .medium))
                     .foregroundStyle(AppTheme.textSecondary)
             }
-            .frame(width: 78)
+            .frame(width: 58)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(shown.kcal) kilocalories, \(whole ? "whole recipe" : "per serving")")
     }
 
-    private var mealSlices: [(start: Double, end: Double, color: Color)] {
-        let raw = [
-            (Double(nutrition.proteinPercent), proteinColor),
-            (Double(nutrition.carbsPercent), carbsColor),
-            (Double(nutrition.fatPercent), fatColor)
-        ].filter { $0.0 > 0 }
-        let sum = raw.map(\.0).reduce(0, +)
-        guard sum > 0 else { return [] }
-        let gap = 0.015
-        var cursor = 0.0
-        return raw.map { value, color in
-            let span = value / sum
-            let start = cursor + gap / 2
-            let end = cursor + max(span - gap / 2, gap / 2)
-            cursor += span
-            return (min(start, 1), min(max(end, start), 1), color)
+    private func dayRing(_ fill: Double, _ color: Color, diameter: CGFloat) -> some View {
+        ZStack {
+            Circle().stroke(color.opacity(0.18), lineWidth: 12)
+            Circle()
+                .trim(from: 0, to: min(max(fill, 0), 1))
+                .stroke(color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                .rotationEffect(.degrees(-90))
         }
+        .frame(width: diameter, height: diameter)
+        .animation(AppMotion.snappy, value: whole)
     }
 
-    private func legend(_ color: Color, _ name: String, grams: Int, share: Int) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+    private func legend(_ color: Color, _ name: String, grams: Int, reference: Double) -> some View {
+        let mark = RecipeNutrition.dayMark(amount: Double(grams), reference: reference)
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
             Circle().fill(color).frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 1) {
                 Text(name)
                     .font(AppFont.body(15, weight: .semibold))
                     .foregroundStyle(AppTheme.textPrimary)
-                Text("\(grams) g · \(share)%")
+                Text("\(grams) g · \(dayWords(mark))")
                     .font(AppFont.body(14))
                     .foregroundStyle(AppTheme.textSecondary)
                     .monospacedDigit()
@@ -178,8 +169,12 @@ struct NutritionScreen: View {
         }
     }
 
+    private func dayWords(_ mark: (fill: Double, percent: Int, over: Bool)) -> String {
+        mark.over ? "a full day" : "\(mark.percent)% of a day"
+    }
+
     private var dailyGoal: some View {
-        let pct = Int((Double(shown.kcal) / nutrition.dailyCalories * 100).rounded())
+        let mark = RecipeNutrition.dayMark(amount: Double(shown.kcal), reference: nutrition.dailyCalories)
         let budget = Int(nutrition.dailyCalories.rounded())
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -187,12 +182,12 @@ struct NutritionScreen: View {
                     .font(AppFont.body(14, weight: .semibold))
                     .foregroundStyle(AppTheme.textPrimary)
                 Spacer()
-                Text("\(pct)% of \(budget.formatted()) kcal")
+                Text(mark.over ? "A full day's \(budget.formatted()) kcal" : "\(mark.percent)% of \(budget.formatted()) kcal")
                     .font(AppFont.body(13, weight: .medium))
                     .foregroundStyle(AppTheme.textSecondary)
                     .monospacedDigit()
             }
-            shareBar(percent: pct, color: AppTheme.accentInk)
+            shareBar(percent: mark.percent, color: AppTheme.accentInk)
             if nutrition.estimated {
                 Text(whole ? "Estimated · \(servings) servings" : "Estimated · per serving")
                     .font(AppFont.body(12))
@@ -224,7 +219,7 @@ struct NutritionScreen: View {
     }
 
     private func macroRow(_ kind: MacroKind, grams: Int, reference: Double, color: Color) -> some View {
-        let daily = daily(grams, reference)
+        let mark = RecipeNutrition.dayMark(amount: Double(grams), reference: reference)
         let sources = nutrition.contributions(for: kind)
         let visible = sources.filter { $0.percent >= 15 }
         let rows = visible.isEmpty ? sources : visible
@@ -247,7 +242,7 @@ struct NutritionScreen: View {
                             .font(AppFont.body(17, weight: .bold))
                             .foregroundStyle(AppTheme.textPrimary)
                             .monospacedDigit()
-                        Text("\(daily)%")
+                        Text(mark.over ? "Full" : "\(mark.percent)%")
                             .font(AppFont.body(15, weight: .semibold))
                             .foregroundStyle(AppTheme.textSecondary)
                             .monospacedDigit()
@@ -258,12 +253,12 @@ struct NutritionScreen: View {
                                 .foregroundStyle(AppTheme.textTertiary)
                         }
                     }
-                    shareBar(percent: daily, color: color)
+                    shareBar(percent: mark.percent, color: color)
                 }
             }
             .buttonStyle(.plain)
             .disabled(sources.isEmpty)
-            .accessibilityLabel("\(kind.title), \(grams) grams, \(daily) percent of the daily value")
+            .accessibilityLabel("\(kind.title), \(grams) grams, \(dayWords(mark))")
             if open {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
@@ -320,10 +315,6 @@ struct NutritionScreen: View {
         }
         .frame(height: 6)
         .animation(AppMotion.snappy, value: whole)
-    }
-
-    private func daily(_ grams: Int, _ reference: Double) -> Int {
-        RecipeNutrition.dailyValuePercent(grams: Double(grams), reference: reference)
     }
 
 }

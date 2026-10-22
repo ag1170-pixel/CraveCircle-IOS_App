@@ -100,6 +100,14 @@ struct RecipeNutrition: Codable, Hashable {
         return Int((grams / reference * 100).rounded())
     }
 
+    /// A ring only has one turn, so the drawing stops at a full circle. The raw comparison
+    /// can be 400% (200 g protein against a 50 g day); `over` is that case, and `percent` stays ≤ 100.
+    static func dayMark(amount: Double, reference: Double) -> (fill: Double, percent: Int, over: Bool) {
+        let raw = dailyValuePercent(grams: amount, reference: reference)
+        let capped = min(max(raw, 0), 100)
+        return (Double(capped) / 100, capped, raw > 100)
+    }
+
     // Macro split = share of THIS meal's calories from each macro (4/4/9 kcal per g).
     private var carbsKcal: Double { carbsG * 4 }
     private var proteinKcal: Double { proteinG * 4 }

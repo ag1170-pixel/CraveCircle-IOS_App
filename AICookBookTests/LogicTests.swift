@@ -218,6 +218,18 @@ final class NutritionPortionTests: XCTestCase {
         XCTAssertEqual(Int((Double(all.kcal) / n.dailyCalories * 100).rounded()), 190)
     }
 
+    func testADayRingStopsAtAFullCircle() {
+        let under = RecipeNutrition.dayMark(amount: 34, reference: 50)
+        XCTAssertEqual(under.percent, 68)
+        XCTAssertFalse(under.over)
+        XCTAssertEqual(under.fill, 0.68, accuracy: 0.001)
+        let over = RecipeNutrition.dayMark(amount: 200, reference: 50)
+        XCTAssertEqual(RecipeNutrition.dailyValuePercent(grams: 200, reference: 50), 400)
+        XCTAssertTrue(over.over)
+        XCTAssertEqual(over.percent, 100)
+        XCTAssertEqual(over.fill, 1, accuracy: 0.001)
+    }
+
     func testDailyValueMatchesTheNutritionPage() {
         // 34 g protein, 112 g carbs, 41 g fat — the page's % Daily Value column.
         XCTAssertEqual(RecipeNutrition.dailyValuePercent(grams: 34, reference: RecipeNutrition.proteinDailyG), 68)
