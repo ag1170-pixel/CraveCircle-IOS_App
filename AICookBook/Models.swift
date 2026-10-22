@@ -243,8 +243,43 @@ enum IngredientListFormat {
         var nameDashAmount: Bool = false
     }
 
+    /// Drop blog asides so a line can be cooked from. A weight such as "(30 grams)" stays. "((adjust to taste))" goes.
+    static func cookLine(_ raw: String) -> String {
+        var s = raw
+        let inner = #"\(([^()]*)\)"#
+        var guardrail = 0
+        while guardrail < 12, let regex = try? NSRegularExpression(pattern: inner) {
+            guardrail += 1
+            let matches = regex.matches(in: s, range: NSRange(s.startIndex..., in: s))
+            if matches.isEmpty { break }
+            var changed = false
+            for match in matches.reversed() {
+                guard let span = Range(match.range, in: s), let body = Range(match.range(at: 1), in: s) else { continue }
+                let kept = measurement(String(s[body])).map { "(\($0))" } ?? ""
+                let original = String(s[span])
+                guard kept != original else { continue }
+                s.replaceSubrange(span, with: kept)
+                changed = true
+            }
+            if !changed { break }
+        }
+        s = s.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func measurement(_ inner: String) -> String? {
+        let t = inner.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let regex = try? NSRegularExpression(pattern: #"^(\d+(?:\.\d+)?(?:\s*(?:to|-|–)\s*\d+(?:\.\d+)?)?)\s*(grams?|g|ml|oz|kg)$"#),
+              let match = regex.firstMatch(in: t, range: NSRange(t.startIndex..., in: t)),
+              match.numberOfRanges > 2,
+              let number = Range(match.range(at: 1), in: t),
+              let unit = Range(match.range(at: 2), in: t) else { return nil }
+        let name = t[unit].hasPrefix("gram") ? "g" : String(t[unit])
+        return "\(t[number]) \(name)"
+    }
+
     static func displayParts(_ raw: String) -> DisplayParts {
-        let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let line = cookLine(raw)
         if let flipped = nameThenAmount(line) {
             return DisplayParts(amount: flipped.amount, name: flipped.name, nameDashAmount: true)
         }

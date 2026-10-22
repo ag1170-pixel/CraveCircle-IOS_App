@@ -109,7 +109,7 @@ enum WebRecipeParser {
         else { raw = [] }
         var seen = Set<String>()
         return raw.compactMap { line in
-            let clean = plain(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            let clean = IngredientListFormat.cookLine(plain(line))
             guard clean.count >= 2 else { return nil }
             let key = clean.lowercased()
             guard seen.insert(key).inserted else { return nil }

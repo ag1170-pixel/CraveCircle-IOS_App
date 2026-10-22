@@ -471,7 +471,19 @@ final class IngredientListFormatTests: XCTestCase {
     func testNameDashAmountReadsAmountThenName() {
         let line = "Chickpeas / kabuli chana — 1¼ cups dried (250g)"
         let parts = IngredientListFormat.displayParts(line)
-        XCTAssertEqual(parts.amount, "1¼ cups dried (250g)")
+        XCTAssertEqual(parts.amount, "1¼ cups dried (250 g)")
+        XCTAssertEqual(
+            IngredientListFormat.cookLine("1 cup (130 grams) onions ((sliced or diced from 1 medium yellow or 2 small red onions))"),
+            "1 cup (130 g) onions"
+        )
+        XCTAssertEqual(
+            IngredientListFormat.cookLine("2 green cardamoms ( (or 1/4 to 1/2 tsp ground cardamom, elaichi))"),
+            "2 green cardamoms"
+        )
+        XCTAssertEqual(
+            IngredientListFormat.cookLine("1 teaspoon sea salt ( (adjust to taste))"),
+            "1 teaspoon sea salt"
+        )
         XCTAssertEqual(parts.name, "Chickpeas / kabuli chana")
         XCTAssertEqual(IngredientListFormat.cleanedItem("kasuri methi (optional)"), "kasuri methi (optional)")
         XCTAssertFalse(IngredientListFormat.isTagDump("(optional)"))
