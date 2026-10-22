@@ -12,10 +12,7 @@ struct CollectionDetailScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
 
     private var collectionRecipes: [Recipe] {
-        if collection.recipeIds.isEmpty {
-            return environment.recipes
-        }
-        return environment.recipes.filter { collection.recipeIds.contains($0.id) }
+        collection.matching(in: environment.recipes)
     }
 
     private let columns = [

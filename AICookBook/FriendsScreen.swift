@@ -14,22 +14,17 @@ struct FriendsScreen: View {
     @State private var showAddFriend = false
     @State private var selectedCreator: (handle: String, name: String?)?
 
-    private let columns = [
-        GridItem(.flexible(), spacing: AppSpacing.sm),
-        GridItem(.flexible(), spacing: AppSpacing.sm)
-    ]
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 LimeSegmentedControl(
-                    segments: ["Feed", "Requests \(environment.incomingRequests.count)"],
+                    segments: ["Friends", "Requests \(environment.incomingRequests.count)"],
                     selection: $tab
                 )
 
                 if tab == 0 {
                     circleFriendsBar
-                    feed
+                    sharedFromFriends
                 } else {
                     requests
                 }
@@ -73,6 +68,8 @@ struct FriendsScreen: View {
         }
         .task {
             if environment.recipes.isEmpty { await environment.refreshRecipes() }
+            await environment.loadFriendships()
+            await environment.syncShares()
         }
         .tint(AppTheme.accentInk)
     }
@@ -141,26 +138,66 @@ struct FriendsScreen: View {
 
     // MARK: Feed
 
-    @ViewBuilder private var feed: some View {
-        if environment.recipes.isEmpty {
-            emptyFeed
-        } else {
-            LazyVGrid(columns: columns, spacing: AppSpacing.sm) {
-                ForEach(environment.recipes) { recipe in
-                    LibraryCard(recipe: recipe) { environment.selectRecipe(recipe) }
-                }
+    @ViewBuilder private var sharedFromFriends: some View {
+        let mine = environment.currentUser?.id ?? ""
+        let received = environment.sharedLog.filter { $0.toUserId == mine }
+        let sent = environment.sharedLog.filter { $0.fromUserId == mine }
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            Text("Shared with you")
+                .font(AppFont.body(14, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+            if received.isEmpty {
+                Text("Nothing yet. A friend can send a recipe from the share button, or you can still send a link.")
+                    .font(AppFont.body(14))
+                    .foregroundStyle(AppTheme.textSecondary)
+            } else {
+                sharedRows(received)
+            }
+            Text("You shared")
+                .font(AppFont.body(14, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+            if sent.isEmpty {
+                Text("Recipes you send to a friend show up here.")
+                    .font(AppFont.body(14))
+                    .foregroundStyle(AppTheme.textSecondary)
+            } else {
+                sharedRows(sent)
             }
         }
     }
 
-    private var emptyFeed: some View {
-        VStack(spacing: AppSpacing.sm) {
-            Image(systemName: "person.2").font(.system(size: 32)).foregroundStyle(AppTheme.textTertiary)
-            Text("Your Circle is quiet").font(AppFont.body(16, weight: .semibold)).foregroundStyle(AppTheme.textPrimary)
-            Text("Follow creators and friends to see what they're cooking.")
-                .font(AppFont.body(14)).foregroundStyle(AppTheme.textSecondary).multilineTextAlignment(.center)
+    private func sharedRows(_ records: [SharedRecipeRecord]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(records) { record in
+                Button {
+                    Haptics.tap()
+                    if let recipe = environment.recipes.first(where: { $0.id == record.recipeId }) {
+                        environment.selectRecipe(recipe)
+                    } else {
+                        environment.openRecipe(id: record.recipeId)
+                    }
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(record.recipeTitle ?? "Recipe")
+                                .font(AppFont.body(15, weight: .semibold))
+                                .foregroundStyle(AppTheme.textPrimary)
+                                .lineLimit(1)
+                            Text(record.recipeId)
+                                .font(AppFont.body(12))
+                                .foregroundStyle(AppTheme.textTertiary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(AppTheme.textTertiary)
+                    }
+                    .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .frame(maxWidth: .infinity).padding(.vertical, AppSpacing.xl)
     }
 
     // MARK: Requests

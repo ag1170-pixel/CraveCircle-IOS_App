@@ -69,6 +69,8 @@ struct ProfileScreen: View {
         }
         .task {
             UserDefaults(suiteName: AppEnvironment.appGroupID)?.set(langCode, forKey: "shared_recipe_language")
+            await environment.loadFriendships()
+            await environment.syncShares()
         }
         .sheet(isPresented: $showEditProfile) {
             EditProfileSheet()

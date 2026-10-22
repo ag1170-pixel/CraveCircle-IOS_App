@@ -670,6 +670,16 @@ final class DirectionLineTests: XCTestCase {
     }
 }
 
+final class CollectionMatchTests: XCTestCase {
+    func testAnEmptyCollectionShowsNoRecipes() {
+        let dish = Recipe(id: "a", ownerId: "me", title: "A", ingredients: [], directions: [])
+        let empty = CollectionItem(name: "Later", count: 0, shared: false, imageName: "x", recipeIds: [])
+        XCTAssertTrue(empty.matching(in: [dish]).isEmpty)
+        let saved = CollectionItem(name: "Saved", count: 1, shared: false, imageName: "x", recipeIds: ["a"])
+        XCTAssertEqual(saved.matching(in: [dish]).map(\.id), ["a"])
+    }
+}
+
 final class ChecklistToggleTests: XCTestCase {
     func testToggleChecklistItemInsertsThenRemoves() {
         var ingredients: Set<String> = []

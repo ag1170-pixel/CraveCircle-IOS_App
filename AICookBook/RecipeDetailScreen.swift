@@ -574,10 +574,6 @@ struct RecipeDetailScreen: View {
                 showNutrition = true
             }
 
-            Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.top, AppSpacing.sm)
-
-            RecipeCommentsSection(recipeId: recipe.id)
-
             Spacer(minLength: 60)
         }
         .padding(.horizontal, AppSpacing.md)

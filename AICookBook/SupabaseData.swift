@@ -142,6 +142,58 @@ struct SupabaseData {
         return try? Self.decoder().decode([CreatorRequest].self, from: data)
     }
 
+    func sendFriendRequest(fromUserId: String, toUserId: String) async -> Bool {
+        guard hasSession, var req = request(path: "rest/v1/friendships") else { return false }
+        req.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
+        guard let body = try? JSONSerialization.data(withJSONObject: [
+            "requester_id": fromUserId, "addressee_id": toUserId
+        ]) else { return false }
+        req.httpBody = body
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
+    func fetchFriendships() async -> [RemoteFriendship]? {
+        guard hasSession,
+              let req = request(path: "rest/v1/friendships?select=id,requester_id,addressee_id,status&order=created_at.desc", method: "GET") else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return try? Self.decoder().decode([RemoteFriendship].self, from: data)
+    }
+
+    func profileNames(ids: [String]) async -> [String: (name: String, username: String)] {
+        let unique = Array(Set(ids)).filter { !$0.isEmpty }
+        guard hasSession, !unique.isEmpty,
+              let req = request(path: "rest/v1/profiles?id=in.(\(unique.joined(separator: ",")))&select=id,username,full_name", method: "GET") else { return [:] }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let rows = try? Self.decoder().decode([RemoteProfileName].self, from: data) else { return [:] }
+        var out: [String: (name: String, username: String)] = [:]
+        for row in rows {
+            let handle = row.username ?? "friend"
+            out[row.id] = (row.fullName ?? handle, handle.hasPrefix("@") ? handle : "@\(handle)")
+        }
+        return out
+    }
+
+    func acceptFriendship(id: UUID) async -> Bool {
+        guard hasSession, var req = request(path: "rest/v1/friendships?id=eq.\(id.uuidString.lowercased())", method: "PATCH") else { return false }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["status": "accepted"])
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
+    func deleteFriendship(id: UUID) async -> Bool {
+        guard hasSession,
+              let req = request(path: "rest/v1/friendships?id=eq.\(id.uuidString.lowercased())", method: "DELETE") else { return false }
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
     /// A signed-in search that found no dish. The database counts distinct people.
     func noteSearchMiss(_ query: String) async {
         guard hasSession, var req = request(path: "rest/v1/rpc/note_search_miss") else { return }
@@ -344,6 +396,19 @@ struct SupabaseData {
         }
         return d
     }
+}
+
+struct RemoteFriendship: Decodable {
+    let id: UUID
+    let requesterId: String
+    let addresseeId: String
+    let status: String
+}
+
+private struct RemoteProfileName: Decodable {
+    let id: String
+    let username: String?
+    let fullName: String?
 }
 
 private struct RemoteCommentRow: Decodable {

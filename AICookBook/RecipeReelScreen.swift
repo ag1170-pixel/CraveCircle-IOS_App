@@ -208,7 +208,6 @@ private struct ReelCell: View {
     @AppStorage("reel_autoplay") private var autoplay = false
     @AppStorage("reel_fills_screen") private var fillsScreen = false
     @State private var showHeart = false       // Instagram-style burst on double-tap
-    @State private var showComments = false    // bottom sheet with comments
     @State private var showMenu = false
     @State private var menuPage = ReelMenuPage.actions
     @State private var showReport = false
@@ -217,7 +216,6 @@ private struct ReelCell: View {
 
     private var liked: Bool  { environment.isLiked(recipeId: recipe.id) }
     private var saved: Bool  { environment.isSaved(recipeId: recipe.id) }
-    private var commentsN: Int { environment.comments(for: recipe.id).count }
     private var shareURL: URL { URL(string: AppConfig.recipeWebLink(recipe.id))! }
     private var shareText: String { "\(recipe.title) on CraveCircle" }
 
@@ -227,28 +225,6 @@ private struct ReelCell: View {
     var body: some View {
         // No nested horizontal pager: it fought the outer vertical pager and hung scrolling.
         recipeContent
-            .sheet(isPresented: $showComments) {
-                NavigationStack {
-                    ScrollView {
-                        RecipeCommentsSection(recipeId: recipe.id)
-                            .padding(.horizontal, AppSpacing.md)
-                            .padding(.top, AppSpacing.md)
-                    }
-                    .scrollContentBackground(.hidden)
-                    .background(.ultraThinMaterial)
-                    .navigationTitle("Comments")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Done") { showComments = false }
-                        }
-                    }
-                    .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-                }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(.ultraThinMaterial)
-            }
             .sheet(isPresented: $showMenu, onDismiss: {
                 menuPage = .actions
                 if reportAfterMenu {
@@ -395,10 +371,6 @@ private struct ReelCell: View {
             railButton(icon: liked ? "heart.fill" : "heart",
                        tint: liked ? .red : .white,
                        bounceValue: liked, count: nil, label: "Like", action: like)
-            railButton(icon: "message", tint: .white, bounceValue: false,
-                       count: commentsN > 0 ? "\(commentsN)" : nil, label: "Comments") {
-                showComments = true
-            }
             ShareLink(item: shareURL, subject: Text(recipe.title), message: Text(shareText)) {
                 Image(systemName: "paperplane")
                     .font(.system(size: 22, weight: .semibold))

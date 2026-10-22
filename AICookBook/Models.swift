@@ -445,6 +445,12 @@ struct CollectionItem: Codable, Identifiable, Hashable {
     ]
     static let ownedSamples: [CollectionItem] = owned
     static let sharedSamples: [CollectionItem] = shared
+
+    /// Recipes that were added to this collection. An empty collection is empty.
+    func matching(in recipes: [Recipe]) -> [Recipe] {
+        guard !recipeIds.isEmpty else { return [] }
+        return recipes.filter { recipeIds.contains($0.id) }
+    }
 }
 
 /// Blocks harassment in comments. Whole words only, so "mustard" and "mouth" still pass.

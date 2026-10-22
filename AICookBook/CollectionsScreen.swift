@@ -98,8 +98,13 @@ struct CollectionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {
             ZStack(alignment: .topTrailing) {
-                Image(item.imageName)
-                    .resizable().scaledToFill()
+                Group {
+                    if UIImage(named: item.imageName) != nil {
+                        Image(item.imageName).resizable().scaledToFill()
+                    } else {
+                        AppTheme.accentSoft
+                    }
+                }
                     .frame(height: 120)
                     .frame(maxWidth: .infinity)
                     .clipped()
@@ -130,7 +135,6 @@ struct CreateCollectionSheet: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
-    @State private var shared = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
@@ -146,17 +150,9 @@ struct CreateCollectionSheet: View {
                 .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
 
-            Toggle(isOn: $shared) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Shared collection").font(AppFont.body(16, weight: .semibold)).foregroundStyle(AppTheme.textPrimary)
-                    Text("Friends can add recipes too").font(AppFont.body(13)).foregroundStyle(AppTheme.textSecondary)
-                }
-            }
-            .tint(AppTheme.accent)
-
             PillButton(title: "Create collection", systemImage: "plus", kind: .filled, fullWidth: true) {
                 Haptics.success()
-                environment.createCollection(name: name, isShared: shared)
+                environment.createCollection(name: name, isShared: false)
                 dismiss()
             }
             .opacity(name.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)

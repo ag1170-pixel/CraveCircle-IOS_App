@@ -100,9 +100,7 @@ struct CreatorProfileSheet: View {
 
     private var statsSection: some View {
         HStack(spacing: AppSpacing.sm) {
-            statCard("Followers", "2.4k")
-            statCard("Recipes", "\(max(creatorRecipes.count, 1))")
-            statCard("Saves", "1.8k")
+            statCard("Recipes", "\(creatorRecipes.count)")
         }
     }
 

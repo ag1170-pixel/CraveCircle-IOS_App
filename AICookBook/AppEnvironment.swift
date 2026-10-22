@@ -1541,32 +1541,69 @@ final class AppEnvironment: ObservableObject {
     }
 
     // MARK: - Friend Actions
-    func sendFriendRequest(usernameOrEmail: String) {
-        let clean = usernameOrEmail.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !clean.isEmpty else { return }
-        let handle = clean.hasPrefix("@") ? clean : "@\(clean)"
-        let name = clean.replacingOccurrences(of: "@", with: "").capitalized
-        let newRequest = FriendRequestItem(name: name, username: handle)
-        outgoingRequests.insert(newRequest, at: 0)
+    /// Nil when the request is on the server. A message means it was not sent.
+    func sendFriendRequest(usernameOrEmail: String) async -> String? {
+        guard supabase.hasSession else { return "Sign in to add a friend." }
+        let handle = AppConfig.shareHandle(usernameOrEmail)
+        guard !handle.isEmpty else { return "Enter a username." }
+        guard let otherId = await supabase.resolveProfileId(username: handle) else {
+            return "No account with that username."
+        }
+        if otherId == currentUser?.id { return "That's your own account." }
+        guard let me = currentUser?.id, await supabase.sendFriendRequest(fromUserId: me, toUserId: otherId) else {
+            return "Couldn't send that request."
+        }
+        await loadFriendships()
+        return nil
     }
-    
+
+    func loadFriendships() async {
+        guard let rows = await supabase.fetchFriendships(), let me = currentUser?.id else { return }
+        let others = rows.map { $0.requesterId == me ? $0.addresseeId : $0.requesterId }
+        let names = await supabase.profileNames(ids: others)
+        var friends: [FriendItem] = []
+        var incoming: [FriendRequestItem] = []
+        var outgoing: [FriendRequestItem] = []
+        for row in rows {
+            let otherId = row.requesterId == me ? row.addresseeId : row.requesterId
+            let known = names[otherId]
+            let username = known?.username ?? "@friend"
+            let name = known?.name ?? username
+            if row.status == "accepted" {
+                let count = recipes.filter { ($0.ownerUsername ?? "").replacingOccurrences(of: "@", with: "").lowercased() == username.replacingOccurrences(of: "@", with: "").lowercased() }.count
+                friends.append(FriendItem(id: row.id, name: name, username: username, bio: nil, recipesCount: count, avatarAsset: nil))
+            } else if row.addresseeId == me {
+                incoming.append(FriendRequestItem(id: row.id, name: name, username: username))
+            } else {
+                outgoing.append(FriendRequestItem(id: row.id, name: name, username: username))
+            }
+        }
+        circleFriends = friends
+        incomingRequests = incoming
+        outgoingRequests = outgoing
+    }
+
     func acceptFriendRequest(id: UUID) {
-        guard let index = incomingRequests.firstIndex(where: { $0.id == id }) else { return }
-        let req = incomingRequests.remove(at: index)
-        let friend = FriendItem(id: UUID(), name: req.name, username: req.username, bio: "Food enthusiast & Circle member", recipesCount: 4, avatarAsset: nil)
-        circleFriends.insert(friend, at: 0)
-        followedCreators.insert(req.username)
-        
-        let notif = CircleNotificationItem(title: "New Circle Friend", message: "You and \(req.name) are now connected!", timeAgo: "Just now", symbol: "person.2.fill", isRead: false)
-        circleNotifications.insert(notif, at: 0)
+        Task {
+            guard await supabase.acceptFriendship(id: id) else { return }
+            await loadFriendships()
+            let notif = CircleNotificationItem(title: "New friend", message: "You are now connected.", timeAgo: "Just now", symbol: "person.2.fill", isRead: false)
+            circleNotifications.insert(notif, at: 0)
+        }
     }
-    
+
     func declineFriendRequest(id: UUID) {
-        incomingRequests.removeAll { $0.id == id }
+        Task {
+            guard await supabase.deleteFriendship(id: id) else { return }
+            await loadFriendships()
+        }
     }
-    
+
     func cancelOutgoingRequest(id: UUID) {
-        outgoingRequests.removeAll { $0.id == id }
+        Task {
+            guard await supabase.deleteFriendship(id: id) else { return }
+            await loadFriendships()
+        }
     }
 
     // MARK: - Share Recipe With Friend

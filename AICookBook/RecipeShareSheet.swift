@@ -46,6 +46,7 @@ struct RecipeShareSheet: View {
                 }
             }
         }
+        .task { await environment.loadFriendships() }
     }
 
     // MARK: - Send to a CraveCircle user (by @username — any user, no creator role needed)
