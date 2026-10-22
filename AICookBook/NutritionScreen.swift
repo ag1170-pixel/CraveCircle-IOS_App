@@ -121,6 +121,7 @@ struct NutritionScreen: View {
         ZStack {
             ForEach(Array(mealSlices.enumerated()), id: \.offset) { _, slice in
                 Circle()
+                    .inset(by: 9)
                     .trim(from: slice.start, to: slice.end)
                     .stroke(slice.color, style: StrokeStyle(lineWidth: 18, lineCap: .butt))
                     .rotationEffect(.degrees(-90))
@@ -150,14 +151,12 @@ struct NutritionScreen: View {
         ].filter { $0.0 > 0 }
         let sum = raw.map(\.0).reduce(0, +)
         guard sum > 0 else { return [] }
-        let gap = 0.02
         var cursor = 0.0
         return raw.map { value, color in
-            let span = value / sum
-            let start = cursor + gap / 2
-            let end = cursor + max(span - gap / 2, gap / 2)
-            cursor += span
-            return (min(start, 1), min(max(end, start), 1), color)
+            let start = cursor
+            cursor += value / sum
+            // A hair of overlap keeps the joins from showing the card color between slices.
+            return (start, min(cursor + 0.004, 1), color)
         }
     }
 
