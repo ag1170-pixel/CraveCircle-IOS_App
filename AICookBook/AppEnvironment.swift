@@ -190,6 +190,7 @@ final class AppEnvironment: ObservableObject {
         selectedRecipe = nil
         myCreatorRequestStatus = nil
         pendingCreatorRequests = []
+        searchDemands = []
         nutritionAttempted = []
         didThumbnailBackfill = false
 
@@ -224,6 +225,7 @@ final class AppEnvironment: ObservableObject {
         deletedRecipeIdsRaw = ""
         myCreatorRequestStatus = nil
         pendingCreatorRequests = []
+        searchDemands = []
         nutritionAttempted = []
         recipeSwipeContext = nil
     }
@@ -779,6 +781,8 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var myCreatorRequestStatus: String?
     /// The admin approval queue.
     @Published private(set) var pendingCreatorRequests: [CreatorRequest] = []
+    /// Missing dishes enough people have searched for. Only filled for the admin account.
+    @Published private(set) var searchDemands: [SearchDemandAlert] = []
 
     var isAdmin: Bool { currentUser?.role == .admin }
     var isGuest: Bool { currentUser?.id.hasPrefix("guest_") == true || currentUser == nil }
@@ -829,6 +833,30 @@ final class AppEnvironment: ObservableObject {
     func loadPendingCreatorRequests() async {
         guard isAdmin, let reqs = await supabase.fetchPendingCreatorRequests() else { return }
         pendingCreatorRequests = reqs
+    }
+
+    /// Record one person's search for a dish we do not have. The server counts people and tells the admin at 10.
+    func noteSearchMiss(_ query: String) async {
+        guard SearchDemand.key(query) != nil else { return }
+        await supabase.noteSearchMiss(query)
+    }
+
+    /// Admin bell + list. One ping per dish, even if more people search it later.
+    func loadSearchDemands() async {
+        guard isAdmin, let rows = await supabase.fetchSearchDemands() else { return }
+        searchDemands = rows
+        for row in rows where !circleNotifications.contains(where: { $0.message.localizedCaseInsensitiveContains(row.queryKey) }) {
+            circleNotifications.insert(
+                CircleNotificationItem(
+                    title: "Recipe people are asking for",
+                    message: row.message,
+                    timeAgo: "Just now",
+                    symbol: "magnifyingglass",
+                    isRead: false
+                ),
+                at: 0
+            )
+        }
     }
 
     /// Admin: approve/reject a request; approval promotes the requester to creator server-side.

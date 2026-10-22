@@ -306,6 +306,29 @@ struct ProfileScreen: View {
                     .buttonStyle(.plain)
                     Divider().overlay(AppTheme.separator).padding(.leading, 56)
                     NavigationLink {
+                        AdminSearchDemandScreen()
+                    } label: {
+                        HStack(spacing: AppSpacing.sm) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 30, height: 30)
+                                .background(Color(hex: "C7362A"), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            Text("Recipes people want")
+                                .font(AppFont.body(16, weight: .medium))
+                                .foregroundStyle(AppTheme.textPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(AppTheme.textTertiary)
+                        }
+                        .padding(.horizontal, AppSpacing.md)
+                        .padding(.vertical, 13)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                    NavigationLink {
                         AdminRecipeReportsScreen()
                     } label: {
                         HStack(spacing: AppSpacing.sm) {

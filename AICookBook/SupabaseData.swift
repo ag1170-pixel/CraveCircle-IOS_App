@@ -142,6 +142,22 @@ struct SupabaseData {
         return try? Self.decoder().decode([CreatorRequest].self, from: data)
     }
 
+    /// A signed-in search that found no dish. The database counts distinct people.
+    func noteSearchMiss(_ query: String) async {
+        guard hasSession, var req = request(path: "rest/v1/rpc/note_search_miss") else { return }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["p_query": query])
+        _ = try? await URLSession.shared.data(for: req)
+    }
+
+    /// Dishes that crossed the demand line. Empty for anyone who is not an admin.
+    func fetchSearchDemands() async -> [SearchDemandAlert]? {
+        guard hasSession,
+              let req = request(path: "rest/v1/admin_alerts?kind=eq.search_demand&select=*&order=ask_count.desc", method: "GET") else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return try? Self.decoder().decode([SearchDemandAlert].self, from: data)
+    }
+
     /// Admin decision — approve promotes the requester to creator (RLS + is_admin() enforced server-side).
     func decideCreatorRequest(id: String, approve: Bool) async -> Bool {
         guard hasSession, var req = request(path: "rest/v1/rpc/decide_creator_request") else { return false }

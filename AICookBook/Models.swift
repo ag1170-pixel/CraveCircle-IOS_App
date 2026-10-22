@@ -447,6 +447,16 @@ struct CollectionItem: Codable, Identifiable, Hashable {
     static let sharedSamples: [CollectionItem] = shared
 }
 
+struct SearchDemandAlert: Codable, Identifiable, Hashable {
+    var id: UUID
+    var kind: String
+    var queryKey: String
+    var title: String
+    var message: String
+    var askCount: Int
+    var createdAt: Date
+}
+
 struct CircleNotificationItem: Codable, Identifiable, Hashable {
     var id: UUID = UUID()
     var title: String

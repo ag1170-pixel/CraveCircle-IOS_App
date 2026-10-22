@@ -82,6 +82,13 @@ struct HomeScreen: View {
                 if environment.suggestedRecipes.isEmpty {
                     await environment.fetchSuggestedFeed()
                 }
+                await environment.loadSearchDemands()
+            }
+            .task(id: searchMissQuery) {
+                guard let searchMissQuery else { return }
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                guard !Task.isCancelled else { return }
+                await environment.noteSearchMiss(searchMissQuery)
             }
             // The "Search" quick action lands here and asks for the search box to be keyboard-ready.
             .onChange(of: environment.pendingSearchFocus) { _, want in
@@ -174,6 +181,14 @@ struct HomeScreen: View {
 
     private var searchResult: RecipeSearch.Result {
         RecipeSearch.search(environment.recipes, query: query, filters: filters)
+    }
+
+    /// A paused search that found no real dish. Typing does not count until this stays still.
+    private var searchMissQuery: String? {
+        guard let key = SearchDemand.key(query), isSearching else { return nil }
+        let result = searchResult
+        guard result.isGuess || result.recipes.isEmpty else { return nil }
+        return key
     }
     private var results: [Recipe] { searchResult.recipes }
 
@@ -309,11 +324,12 @@ struct HomeScreen: View {
                 noResults
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(result.isGuess ? "No exact match" : "\(recipes.count) \(recipes.count == 1 ? "result" : "results")")
+                    Text(result.isGuess ? "We don't have “\(query.trimmingCharacters(in: .whitespaces))” yet" : "\(recipes.count) \(recipes.count == 1 ? "result" : "results")")
                         .font(AppFont.display(20, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
                     if result.isGuess {
-                        Text("Here's what you might be craving instead")
+                        Text("These are close. We'll keep an eye on this search.")
                             .font(AppFont.body(13))
                             .foregroundStyle(AppTheme.textSecondary)
                     }
@@ -333,10 +349,10 @@ struct HomeScreen: View {
     private var noResults: some View {
         VStack(spacing: AppSpacing.sm) {
             Image(systemName: "magnifyingglass").font(.system(size: 32)).foregroundStyle(AppTheme.textTertiary)
-            Text(query.isEmpty ? "No recipes match those filters" : "No matches for \u{201C}\(query)\u{201D}")
+            Text(query.isEmpty ? "No recipes match those filters" : "We don't have “\(query.trimmingCharacters(in: .whitespaces))” yet")
                 .font(AppFont.body(16, weight: .semibold)).foregroundStyle(AppTheme.textPrimary)
                 .multilineTextAlignment(.center)
-            Text("Try a different dish, ingredient, or fewer filters.")
+            Text(query.isEmpty ? "Try fewer filters." : "Try another name, or take off a filter. We'll keep an eye on this search.")
                 .font(AppFont.body(14)).foregroundStyle(AppTheme.textSecondary)
         }
         .frame(maxWidth: .infinity).padding(.vertical, AppSpacing.xl).padding(.horizontal, AppSpacing.md)

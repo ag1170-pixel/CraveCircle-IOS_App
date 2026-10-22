@@ -19,6 +19,18 @@ struct RecipeFilters: Equatable {
     var isActive: Bool { diet != .any || time != .any || highProtein }
 }
 
+enum SearchDemand {
+    /// Distinct people searching the same missing dish before the admin is told once.
+    static let peopleNeeded = 10
+
+    /// One key for "Butter  Chicken" and "butter chicken". Too short to be a dish name returns nil.
+    static func key(_ query: String) -> String? {
+        let folded = query.lowercased().split { $0.isWhitespace }.joined(separator: " ")
+        guard folded.count >= 3, folded.count <= 80 else { return nil }
+        return folded
+    }
+}
+
 enum RecipeSearch {
 
     /// Ranked search result. `isGuess` is true when nothing matched the query and these are the

@@ -79,3 +79,36 @@ struct AdminRequestsScreen: View {
         }
     }
 }
+
+/// Dishes enough people searched for that we still do not have. Admin publishes those from this account.
+struct AdminSearchDemandScreen: View {
+    @EnvironmentObject private var environment: AppEnvironment
+
+    var body: some View {
+        List {
+            if environment.searchDemands.isEmpty {
+                ContentUnavailableView(
+                    "No dish has reached \(SearchDemand.peopleNeeded) people yet",
+                    systemImage: "magnifyingglass",
+                    description: Text("When enough people search for the same missing recipe, it shows up here.")
+                )
+            } else {
+                ForEach(environment.searchDemands) { row in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(row.queryKey)
+                            .font(AppFont.body(16, weight: .semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                        Text("\(row.askCount) people searched for this")
+                            .font(AppFont.body(13))
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .navigationTitle("Recipes people want")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await environment.loadSearchDemands() }
+        .refreshable { await environment.loadSearchDemands() }
+    }
+}

@@ -305,6 +305,12 @@ final class SmartSearchTests: XCTestCase {
         XCTAssertFalse(out.recipes.isEmpty)
     }
 
+    func testAShortSearchDoesNotCountAsAMissingDish() {
+        XCTAssertNil(SearchDemand.key("ab"))
+        XCTAssertEqual(SearchDemand.key("  Butter   Chicken "), "butter chicken")
+        XCTAssertEqual(SearchDemand.peopleNeeded, 10)
+    }
+
     func testEmptyQueryReturnsAll() {
         let out = RecipeSearch.search(recipes, query: "", filters: RecipeFilters())
         XCTAssertEqual(out.recipes.count, recipes.count)
