@@ -1,16 +1,19 @@
+import PhotosUI
 import SwiftUI
 
 /// What a recipe report stores: the user's words, who sent them, and the recipe they were looking at.
 enum RecipeReport {
     struct Payload: Codable, Equatable {
         var note: String
+        var reason: String?
+        var photo: String?
         var reporter: String?
         var reporterId: String?
         var recipe: Recipe
     }
 
-    static func content(note: String, reporter: String?, reporterId: String?, recipe: Recipe) -> String {
-        let payload = Payload(note: note, reporter: reporter, reporterId: reporterId, recipe: recipe)
+    static func content(note: String, reason: String, photo: String?, reporter: String?, reporterId: String?, recipe: Recipe) -> String {
+        let payload = Payload(note: note, reason: reason, photo: photo, reporter: reporter, reporterId: reporterId, recipe: recipe)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         if let data = try? encoder.encode(payload), let text = String(data: data, encoding: .utf8) {
@@ -31,9 +34,14 @@ struct ReportIssueSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var issueText = ""
+    @State private var reason = "Wrong nutrition"
+    @State private var photoItem: PhotosPickerItem?
+    @State private var photoJPEG: String?
     @State private var isSubmitting = false
     @State private var showSuccess = false
     @State private var errorMessage: String?
+
+    private let reasons = ["Wrong nutrition", "Wrong ingredients", "Missing a step", "Something else"]
 
     var body: some View {
         NavigationStack {
@@ -68,6 +76,50 @@ struct ReportIssueSheet: View {
                                 .font(AppFont.body(14, weight: .semibold))
                                 .foregroundStyle(AppTheme.textPrimary)
 
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(reasons, id: \.self) { item in
+                                    Button {
+                                        Haptics.tap()
+                                        reason = item
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: reason == item ? "checkmark.circle.fill" : "circle")
+                                            Text(item)
+                                            Spacer()
+                                        }
+                                        .font(AppFont.body(16, weight: .semibold))
+                                        .foregroundStyle(AppTheme.textPrimary)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 12)
+                                        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+                                        .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(reason == item ? AppTheme.accent : AppTheme.hairline, lineWidth: 1))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+
+                            PhotosPicker(selection: $photoItem, matching: .images) {
+                                HStack {
+                                    Image(systemName: "photo")
+                                    Text(photoJPEG == nil ? "Add a photo" : "Photo added")
+                                    Spacer()
+                                }
+                                .font(AppFont.body(16, weight: .semibold))
+                                .foregroundStyle(AppTheme.textPrimary)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 12)
+                                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                            .onChange(of: photoItem) { _, item in
+                                guard let item else { return }
+                                Task {
+                                    guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+                                    photoJPEG = ImageDownscale.jpeg(from: data, maxPixel: 720, quality: 0.5)?.base64EncodedString()
+                                }
+                            }
+
                             TextEditor(text: $issueText)
                                 .font(AppFont.body(16))
                                 .padding(12)
@@ -96,10 +148,10 @@ struct ReportIssueSheet: View {
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
-                                .background(issueText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray.opacity(0.5) : AppTheme.brand)
+                                .background(AppTheme.brand)
                                 .clipShape(Capsule())
                             }
-                            .disabled(issueText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmitting)
+                            .disabled(isSubmitting)
                         }
                         .padding(24)
                     }
@@ -129,11 +181,13 @@ struct ReportIssueSheet: View {
 
     private func submitReport() {
         let note = issueText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !note.isEmpty, !isSubmitting else { return }
+        guard !isSubmitting else { return }
         isSubmitting = true
         errorMessage = nil
         let content = RecipeReport.content(
-            note: note,
+            note: note.isEmpty ? reason : note,
+            reason: reason,
+            photo: photoJPEG,
             reporter: environment.currentUser?.username,
             reporterId: environment.currentUser?.id,
             recipe: recipe
@@ -200,6 +254,9 @@ struct AdminRecipeReportsScreen: View {
             Text(payload?.recipe.title ?? "Recipe report")
                 .font(AppFont.body(16, weight: .semibold))
                 .foregroundStyle(AppTheme.textPrimary)
+            Text(payload?.reason ?? "Recipe report")
+                .font(AppFont.body(13, weight: .semibold))
+                .foregroundStyle(AppTheme.textSecondary)
             Text(payload?.note ?? row.content ?? "")
                 .font(AppFont.body(14))
                 .foregroundStyle(AppTheme.textSecondary)
@@ -244,10 +301,22 @@ struct RecipeReportDetail: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let payload {
+                    if let reason = payload.reason, !reason.isEmpty {
+                        Text(reason)
+                            .font(AppFont.body(13, weight: .bold))
+                            .foregroundStyle(AppTheme.accentInk)
+                    }
                     Text(payload.note)
                         .font(AppFont.body(17))
                         .foregroundStyle(AppTheme.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    if let photo = payload.photo, let data = Data(base64Encoded: photo), let image = UIImage(data: data) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity, maxHeight: 240)
+                            .clipShape(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+                    }
 
                     Text([payload.reporter ?? row.userHandle, row.createdAt].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(AppFont.body(13))

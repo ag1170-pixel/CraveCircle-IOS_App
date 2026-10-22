@@ -230,6 +230,27 @@ final class NutritionPortionTests: XCTestCase {
         XCTAssertEqual(over.fill, 1, accuracy: 0.001)
     }
 
+    func testAPaneerGravyCountsTheButterCreamAndPaneer() {
+        let lines = [
+            "1 tablespoon (15 ml) oil",
+            "2 cups (350 grams) onions",
+            "15 (30 grams) whole cashew nuts",
+            "2 tablespoons (30 grams) unsalted butter",
+            "250 to 300 grams (9 to 10 oz) paneer",
+            "3 to 4 tablespoons (45 to 60 ml) heavy cream"
+        ]
+        XCTAssertEqual(NutritionEstimator.parse("2 tablespoons (30 grams) unsalted butter").grams, 30, accuracy: 0.1)
+        XCTAssertGreaterThan(NutritionEstimator.parse("2 tablespoons butter").grams, 20)
+        let recipe = Recipe(
+            id: "paneer", ownerId: "me", title: "Paneer Butter Masala", servings: 4,
+            ingredients: [IngredientGroup(groupName: nil, items: lines)], directions: []
+        )
+        let n = NutritionEstimator.estimate(for: recipe)
+        XCTAssertGreaterThan(n.calories, 300)
+        XCTAssertGreaterThan(n.proteinG, 8)
+        XCTAssertTrue(n.estimated)
+    }
+
     func testDailyValueMatchesTheNutritionPage() {
         // 34 g protein, 112 g carbs, 41 g fat — the page's % Daily Value column.
         XCTAssertEqual(RecipeNutrition.dailyValuePercent(grams: 34, reference: RecipeNutrition.proteinDailyG), 68)
@@ -505,9 +526,10 @@ final class TranscriptListenTests: XCTestCase {
 final class RecipeReportTests: XCTestCase {
     func testReportKeepsTheNoteAndTheRecipe() {
         let recipe = makeRecipe(id: "paneer-1", title: "Paneer Butter Masala", ingredients: ["200g paneer", "1 onion, chopped"])
-        let content = RecipeReport.content(note: "Missed the cream", reporter: "@anas", reporterId: "user-1", recipe: recipe)
+        let content = RecipeReport.content(note: "Missed the cream", reason: "Wrong ingredients", photo: nil, reporter: "@anas", reporterId: "user-1", recipe: recipe)
         let parsed = RecipeReport.parse(content)
         XCTAssertEqual(parsed?.note, "Missed the cream")
+        XCTAssertEqual(parsed?.reason, "Wrong ingredients")
         XCTAssertEqual(parsed?.reporter, "@anas")
         XCTAssertEqual(parsed?.recipe.id, "paneer-1")
         XCTAssertEqual(parsed?.recipe.title, "Paneer Butter Masala")

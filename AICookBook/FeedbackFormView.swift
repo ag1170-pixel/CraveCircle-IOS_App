@@ -1,13 +1,28 @@
+import PhotosUI
 import SwiftUI
 
 /// Swiggy-style "Write a letter to our CEO" — a single warm compose box. Envelope mark, a short
 /// invitation, one big text field (max 2000 chars with a live counter), and a "Share message" CTA.
 /// Brand: cream background, coral CTA, charcoal text.
+private struct WrittenNote: Codable {
+    var note: String
+    var photo: String?
+
+    static func content(note: String, photo: String?) -> String {
+        guard photo != nil,
+              let data = try? JSONEncoder().encode(WrittenNote(note: note, photo: photo)),
+              let text = String(data: data, encoding: .utf8) else { return note }
+        return text
+    }
+}
+
 struct FeedbackFormView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var environment: AppEnvironment
 
     @State private var message = ""
+    @State private var photoItem: PhotosPickerItem?
+    @State private var photoJPEG: String?
     @State private var isSubmitting = false
     @State private var showThankYou = false
     @FocusState private var editorFocused: Bool
@@ -26,6 +41,19 @@ struct FeedbackFormView: View {
                     VStack(alignment: .leading, spacing: AppSpacing.lg) {
                         header
                         editor
+                        PhotosPicker(selection: $photoItem, matching: .images) {
+                            Label(photoJPEG == nil ? "Add a photo" : "Photo added", systemImage: "photo")
+                                .font(AppFont.body(16, weight: .semibold))
+                                .foregroundStyle(AppTheme.textPrimary)
+                        }
+                        .buttonStyle(.plain)
+                        .onChange(of: photoItem) { _, item in
+                            guard let item else { return }
+                            Task {
+                                guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+                                photoJPEG = ImageDownscale.jpeg(from: data, maxPixel: 720, quality: 0.5)?.base64EncodedString()
+                            }
+                        }
                     }
                     .padding(.horizontal, AppSpacing.md)
                     .padding(.top, AppSpacing.lg)
@@ -158,7 +186,8 @@ struct FeedbackFormView: View {
         Haptics.success()
         Task {
             do {
-                try await environment.submitFeedback(type: "ceo_letter", content: trimmed,
+                let content = WrittenNote.content(note: trimmed, photo: photoJPEG)
+                try await environment.submitFeedback(type: "ceo_letter", content: content,
                                                      handle: environment.currentUser?.username)
                 await MainActor.run {
                     withAnimation(.spring()) { showThankYou = true }

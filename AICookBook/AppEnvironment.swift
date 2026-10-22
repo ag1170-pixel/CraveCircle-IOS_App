@@ -534,17 +534,20 @@ final class AppEnvironment: ObservableObject {
     /// doesn't recompute every render. NEVER overwrites a recipe that already has nutrition (e.g. the
     /// accurate server value from a share import).
     func refreshAuthoritativeNutrition(for recipe: Recipe) {
-        guard recipe.nutrition == nil, !nutritionAttempted.contains(recipe.id) else { return }
+        let estimated = recipe.nutrition?.estimated == true
+        guard recipe.nutrition == nil || estimated, !nutritionAttempted.contains(recipe.id) else { return }
         nutritionAttempted.insert(recipe.id)
         Task.detached { [weak self] in
             let computed = NutritionEstimator.estimate(for: recipe)   // offline USDA-backed
             await MainActor.run {
                 guard let self else { return }
+                let keep = computed.calories > 0
                 if let i = self.recipes.firstIndex(where: { $0.id == recipe.id }),
-                   self.recipes[i].nutrition == nil {
+                   self.recipes[i].nutrition == nil || (self.recipes[i].nutrition?.estimated == true && keep) {
                     self.recipes[i].nutrition = computed
                 }
-                if self.selectedRecipe?.id == recipe.id, self.selectedRecipe?.nutrition == nil {
+                if self.selectedRecipe?.id == recipe.id,
+                   self.selectedRecipe?.nutrition == nil || (self.selectedRecipe?.nutrition?.estimated == true && keep) {
                     self.selectedRecipe?.nutrition = computed
                 }
             }

@@ -285,7 +285,8 @@ enum NutritionEstimator {
         "kg": 1000, "g": 1, "gram": 1, "grams": 1, "mg": 0.001,
         "l": 1000, "litre": 1000, "ml": 1,
         "lb": 454, "lbs": 454, "oz": 28,
-        "cup": 200, "cups": 200, "tbsp": 15, "tablespoon": 15, "tsp": 5, "teaspoon": 5,
+        "cup": 200, "cups": 200, "tbsp": 15, "tablespoon": 15, "tablespoons": 15,
+        "tsp": 5, "teaspoon": 5, "teaspoons": 5,
         "clove": 5, "cloves": 5, "slice": 20, "slices": 20,
         "can": 400, "pinch": 0.5, "egg": 50, "eggs": 50,
         "roti": 45, "rotis": 45, "chapati": 45
@@ -311,9 +312,13 @@ enum NutritionEstimator {
     /// Extract a gram amount + the lowercased ingredient line (used for the table lookup).
     static func parse(_ line: String) -> (grams: Double, name: String) {
         let lower = line.lowercased()
+        // A blog writes the real weight in parentheses: "2 tablespoons (30 grams) butter".
+        // The first number is often a count, so the parenthetical weight wins.
+        if let weighed = explicitMass(lower) { return (weighed, lower) }
         var s = lower
 
-        // ranges "2-3" -> midpoint
+        // ranges "2-3" and "250 to 300" -> midpoint
+        s = midpointRanges(s)
         if let m = s.range(of: #"(\d+)\s*[-–—]\s*(\d+)"#, options: .regularExpression) {
             let nums = s[m].split { !$0.isNumber }.compactMap { Double($0) }
             if nums.count == 2 { s.replaceSubrange(m, with: String((nums[0] + nums[1]) / 2)) }
@@ -355,6 +360,40 @@ enum NutritionEstimator {
         if spiceWords.contains(where: { core.contains($0) }) { return (hasNumber ? q * 2.0 : 2.0, lower) }
         if condimentWords.contains(where: { s.contains($0) }) { return (hasNumber ? q * 15.0 : 15.0, lower) }
         return (hasNumber ? q * 40.0 : 80.0, lower)   // bare count of unknown food (was 60)
+    }
+
+    /// "(30 grams)", "(15 ml)", "(9 to 10 oz)" anywhere in the line. Nil when no weighed amount is written.
+    private static func explicitMass(_ line: String) -> Double? {
+        guard let regex = try? NSRegularExpression(pattern: #"\(([^)]{0,48})\)"#) else { return nil }
+        var found: Double?
+        let ns = line as NSString
+        regex.enumerateMatches(in: line, range: NSRange(location: 0, length: ns.length)) { match, _, _ in
+            guard let match, match.numberOfRanges > 1 else { return }
+            let inner = midpointRanges(ns.substring(with: match.range(at: 1)))
+            guard let qty = inner.range(of: #"\d+(?:\.\d+)?"#, options: .regularExpression).map({ Double(inner[$0]) }) ?? nil,
+                  qty > 0 else { return }
+            if inner.range(of: #"\bkg\b"#, options: .regularExpression) != nil { found = qty * 1000 }
+            else if inner.range(of: #"\bgrams?\b"#, options: .regularExpression) != nil { found = qty }
+            else if inner.range(of: #"\bml\b"#, options: .regularExpression) != nil { found = qty }
+            else if inner.range(of: #"\boz\b"#, options: .regularExpression) != nil { found = qty * 28 }
+            else if inner.range(of: #"\bg\b"#, options: .regularExpression) != nil { found = qty }
+        }
+        return found
+    }
+
+    private static func midpointRanges(_ s: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: #"(\d+(?:\.\d+)?)\s+to\s+(\d+(?:\.\d+)?)"#) else { return s }
+        let ns = s as NSString
+        var out = s
+        for match in regex.matches(in: s, range: NSRange(location: 0, length: ns.length)).reversed() {
+            guard match.numberOfRanges > 2,
+                  let aRange = Range(match.range(at: 1), in: out),
+                  let bRange = Range(match.range(at: 2), in: out),
+                  let span = Range(match.range, in: out),
+                  let a = Double(out[aRange]), let b = Double(out[bRange]) else { continue }
+            out.replaceSubrange(span, with: String((a + b) / 2))
+        }
+        return out
     }
 
     private struct Macro { let kcal, carbs, protein, fat: Double }
