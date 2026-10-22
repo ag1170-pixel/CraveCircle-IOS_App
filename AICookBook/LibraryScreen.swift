@@ -23,8 +23,8 @@ struct LibraryScreen: View {
             return environment.likedRecipes
         case 2: // Saved
             return environment.savedRecipes
-        case 3: // Created
-            return environment.ownedRecipes
+        case 3: // Created — written here, not imported
+            return environment.createdRecipes
         default: // All
             return environment.myLibraryRecipes
         }
@@ -38,7 +38,7 @@ struct LibraryScreen: View {
                         "All \(environment.myLibraryRecipes.count)",
                         "Liked \(environment.likedRecipeIds.count)",
                         "Saved \(environment.savedRecipes.count)",
-                        "Created \(environment.ownedRecipes.count)"
+                        "Created \(environment.createdRecipes.count)"
                     ],
                     selection: $filter
                 )
@@ -48,10 +48,10 @@ struct LibraryScreen: View {
                         Image(systemName: filter == 1 ? "heart.slash" : (filter == 2 ? "bookmark.slash" : "tray"))
                             .font(.system(size: 32))
                             .foregroundStyle(filter == 1 ? Color(hex: "FF2D55") : AppTheme.textTertiary)
-                        Text(filter == 1 ? "No liked recipes yet" : (filter == 2 ? "No saved recipes" : "No recipes found"))
+                        Text(filter == 1 ? "No liked recipes yet" : (filter == 2 ? "No saved recipes" : (filter == 3 ? "No recipes you wrote" : "No recipes found")))
                             .font(AppFont.body(16, weight: .semibold))
                             .foregroundStyle(AppTheme.textPrimary)
-                        Text(filter == 1 ? "Double-tap any cooking photo to heart it and save it to your liked list." : (filter == 2 ? "Save recipes to find them quickly here." : "Import or author recipes to see them here."))
+                        Text(filter == 1 ? "Double-tap any cooking photo to heart it and save it to your liked list." : (filter == 2 ? "Save recipes to find them quickly here." : (filter == 3 ? "Write a recipe and it shows up here. Imports stay in All." : "Import or author recipes to see them here.")))
                             .font(AppFont.body(14))
                             .foregroundStyle(AppTheme.textSecondary)
                             .multilineTextAlignment(.center)

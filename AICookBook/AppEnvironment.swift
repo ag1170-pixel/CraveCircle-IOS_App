@@ -908,6 +908,8 @@ final class AppEnvironment: ObservableObject {
     // MARK: - Owner-aware recipe collections (single source of truth for "your" recipes)
     /// Recipes the signed-in user created or imported.
     var ownedRecipes: [Recipe] { recipes.filter { isOwner(of: $0) } }
+    /// Recipes this account wrote. Imports stay in All.
+    var createdRecipes: [Recipe] { ownedRecipes.filter { $0.wasWrittenHere(by: currentUser?.username) } }
     /// The user's own recipes still in Studio draft.
     var myDrafts: [Recipe] { ownedRecipes.filter { isDraft(recipeId: $0.id) } }
     /// The user's own recipes that are published.
@@ -1426,6 +1428,7 @@ final class AppEnvironment: ObservableObject {
         }
         if Task.isCancelled { return }
 
+        if let reelLink { recipe.sourceUrl = reelLink }
         recipes.insert(recipe, at: 0)
         markRecipeDirty(recipe.id)
         Task { await syncRecipes() }

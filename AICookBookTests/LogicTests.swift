@@ -723,6 +723,11 @@ final class WebRecipeParserTests: XCTestCase {
         XCTAssertEqual(recipe?.visibility, .followers)
         XCTAssertEqual(recipe?.ownerUsername, "sharmispassions.com")
         XCTAssertTrue(recipe?.staysOnThisPhone == true)
+        XCTAssertFalse(recipe?.wasWrittenHere(by: "@shreyasi") == true)
+        let written = Recipe(id: "draft-1", ownerId: "me", title: "Mine", ingredients: [], directions: [], ownerUsername: "@shreyasi")
+        XCTAssertTrue(written.wasWrittenHere(by: "@shreyasi"))
+        let reel = Recipe(id: "reel-1", ownerId: "me", title: "Pasta", ingredients: [], directions: [], ownerUsername: "@The Sapor")
+        XCTAssertFalse(reel.wasWrittenHere(by: "@shreyasi"))
         let google = URL(string: "https://www.google.com/search?q=rajma")!
         XCTAssertNil(WebRecipeParser.recipe(html: html, pageURL: google, ownerId: "me"))
         XCTAssertNil(WebRecipeParser.recipe(html: "<html>no recipe</html>", pageURL: page, ownerId: "me"))

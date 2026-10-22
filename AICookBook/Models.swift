@@ -193,6 +193,15 @@ struct Recipe: Codable, Identifiable, Hashable {
     }
 
     var staysOnThisPhone: Bool { Self.isSocialImportURL(sourceUrl) || Self.isWebImportURL(sourceUrl) }
+
+    /// Written in the app by this account. A web page or someone else's reel is not created.
+    func wasWrittenHere(by username: String?) -> Bool {
+        if staysOnThisPhone || id.hasPrefix("web-") { return false }
+        let handle = ownerUsername?.replacingOccurrences(of: "@", with: "").lowercased() ?? ""
+        if handle.isEmpty || handle == "you" { return true }
+        let mine = username?.replacingOccurrences(of: "@", with: "").lowercased() ?? ""
+        return !mine.isEmpty && handle == mine
+    }
 }
 
 struct IngredientGroup: Codable, Hashable {
