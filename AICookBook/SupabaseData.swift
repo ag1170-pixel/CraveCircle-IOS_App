@@ -282,6 +282,39 @@ struct SupabaseData {
         }
     }
 
+    /// Comments on one recipe, newest first. Nil when there is no session or the request fails,
+    /// so the caller keeps whatever is already on the phone.
+    func fetchComments(recipeId: String) async -> [RecipeComment]? {
+        guard hasSession,
+              let enc = recipeId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let req = request(
+                path: "rest/v1/comments?recipe_id=eq.\(enc)&select=id,recipe_id,author_name,author_username,body,created_at&order=created_at.desc&limit=200",
+                method: "GET"
+              ) else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let rows = try? Self.decoder().decode([RemoteCommentRow].self, from: data) else { return nil }
+        return rows.map { $0.comment }
+    }
+
+    /// Insert one comment as the signed-in user. The author id is the database default (`auth.uid()`).
+    func postComment(_ comment: RecipeComment) async -> Bool {
+        guard hasSession, !comment.text.isEmpty, var req = request(path: "rest/v1/comments") else { return false }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        let row: [String: Any] = [
+            "id": comment.id.uuidString.lowercased(),
+            "recipe_id": comment.recipeId,
+            "author_name": comment.authorName,
+            "author_username": comment.authorUsername,
+            "body": comment.text
+        ]
+        guard let body = try? JSONSerialization.data(withJSONObject: row) else { return false }
+        req.httpBody = body
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
     /// Decoder that maps snake_case columns and parses Postgres ISO-8601 timestamps (with fractional seconds).
     static func decoder() -> JSONDecoder {
         let d = JSONDecoder()
@@ -294,6 +327,26 @@ struct SupabaseData {
             return Date()
         }
         return d
+    }
+}
+
+private struct RemoteCommentRow: Decodable {
+    let id: UUID
+    let recipeId: String
+    let authorName: String
+    let authorUsername: String
+    let body: String
+    let createdAt: Date
+    var comment: RecipeComment {
+        RecipeComment(
+            id: id,
+            recipeId: recipeId,
+            authorName: authorName,
+            authorUsername: authorUsername,
+            text: body,
+            timeAgo: "",
+            createdAt: createdAt
+        )
     }
 }
 

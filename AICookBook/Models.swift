@@ -482,6 +482,16 @@ struct RecipeComment: Codable, Identifiable, Hashable {
     var likesCount: Int = 0
     var isLiked: Bool = false
     var imageData: Data? = nil      // optional photo: "here's how mine turned out"
+    var createdAt: Date? = nil
+    /// What the row shows. A synced comment uses the real time; older local rows keep their label.
+    var displayTime: String {
+        guard let createdAt else { return timeAgo }
+        let age = Date().timeIntervalSince(createdAt)
+        if age < 45 { return "Just now" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: createdAt, relativeTo: Date())
+    }
     var initials: String {
         let parts = authorName.split(separator: " ")
         if parts.count >= 2 {
@@ -489,6 +499,27 @@ struct RecipeComment: Codable, Identifiable, Hashable {
         }
         let clean = authorUsername.replacingOccurrences(of: "@", with: "")
         return String(clean.prefix(2)).uppercased()
+    }
+
+    var sampleKey: String { "\(authorUsername)|\(text)" }
+
+    /// Server list wins. A comment still waiting to upload stays. The demo rows do not.
+    /// ponytail: likes and photos stay on the phone that made them; the shared row is the text.
+    static func synced(remote: [RecipeComment], local: [RecipeComment]) -> [RecipeComment] {
+        let demo = Set(defaultSamples.values.flatMap { $0.map(\.sampleKey) })
+        let remoteIds = Set(remote.map(\.id))
+        let localById = Dictionary(local.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let pending = local.filter { !remoteIds.contains($0.id) && !demo.contains($0.sampleKey) }
+        let filled = remote.map { row -> RecipeComment in
+            var copy = row
+            if let old = localById[row.id] {
+                copy.imageData = old.imageData
+                copy.isLiked = old.isLiked
+                copy.likesCount = old.likesCount
+            }
+            return copy
+        }
+        return (pending + filled).sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
     }
 
     static let defaultSamples: [String: [RecipeComment]] = [

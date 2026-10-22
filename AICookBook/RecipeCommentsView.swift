@@ -149,6 +149,7 @@ struct RecipeCommentsSection: View {
             }
         }
         .padding(.top, AppSpacing.md)
+        .task(id: recipeId) { await environment.refreshComments(for: recipeId) }
     }
 }
 
@@ -179,7 +180,7 @@ struct CommentRow: View {
                         .font(AppFont.body(11, weight: .medium))
                         .foregroundStyle(AppTheme.textTertiary)
                     Spacer()
-                    Text(comment.timeAgo)
+                    Text(comment.displayTime)
                         .font(AppFont.body(11))
                         .foregroundStyle(AppTheme.textTertiary)
                 }

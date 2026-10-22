@@ -1703,11 +1703,15 @@ final class AppEnvironment: ObservableObject {
             timeAgo: "Just now",
             likesCount: 0,
             isLiked: false,
-            imageData: imageData
+            imageData: imageData,
+            createdAt: Date()
         )
         var list = recipeComments[recipeId] ?? []
         list.insert(newComment, at: 0)
         recipeComments[recipeId] = list
+        if !trimmed.isEmpty {
+            Task { await publishComment(newComment) }
+        }
         logInteraction(recipeId: recipeId, eventType: "comment")
 
         let notif = CircleNotificationItem(
@@ -1719,6 +1723,17 @@ final class AppEnvironment: ObservableObject {
             recipeId: recipeId
         )
         circleNotifications.insert(notif, at: 0)
+    }
+
+    /// Pull the shared thread for this recipe. Both phones read the same rows.
+    func refreshComments(for recipeId: String) async {
+        guard let remote = await supabase.fetchComments(recipeId: recipeId) else { return }
+        recipeComments[recipeId] = RecipeComment.synced(remote: remote, local: recipeComments[recipeId] ?? [])
+    }
+
+    private func publishComment(_ comment: RecipeComment) async {
+        guard await supabase.postComment(comment) else { return }
+        await refreshComments(for: comment.recipeId)
     }
 
     func toggleCommentLike(recipeId: String, commentId: UUID) {

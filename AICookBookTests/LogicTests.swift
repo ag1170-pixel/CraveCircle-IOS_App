@@ -598,6 +598,40 @@ final class SearchDictationTests: XCTestCase {
     }
 }
 
+final class CommentSyncTests: XCTestCase {
+    func testASharedCommentReplacesTheDemoRows() {
+        let demo = RecipeComment.defaultSamples["recipe-hot-honey-chicken"] ?? []
+        let remote = RecipeComment(
+            id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
+            recipeId: "recipe-hot-honey-chicken",
+            authorName: "A",
+            authorUsername: "@a",
+            text: "hello from the other phone",
+            timeAgo: "",
+            createdAt: Date()
+        )
+        XCTAssertEqual(RecipeComment.synced(remote: [remote], local: demo).map(\.text), ["hello from the other phone"])
+    }
+
+    func testAnEmptyThreadDropsTheDemoRows() {
+        let demo = RecipeComment.defaultSamples["recipe-tomato-rigatoni"] ?? []
+        XCTAssertFalse(demo.isEmpty)
+        XCTAssertTrue(RecipeComment.synced(remote: [], local: demo).isEmpty)
+    }
+
+    func testACommentWaitingToUploadStays() {
+        let pending = RecipeComment(
+            recipeId: "r",
+            authorName: "A",
+            authorUsername: "@a",
+            text: "not uploaded yet",
+            timeAgo: "Just now",
+            createdAt: Date()
+        )
+        XCTAssertEqual(RecipeComment.synced(remote: [], local: [pending]).map(\.text), ["not uploaded yet"])
+    }
+}
+
 final class ActivityAlertTests: XCTestCase {
     func testANewAccountDoesNotKeepSampleAlerts() {
         let real = CircleNotificationItem(title: "Recipe shared with you", message: "Someone shared 'Chole' with you", timeAgo: "Just now", symbol: "tray.and.arrow.down.fill", isRead: false)
