@@ -31,23 +31,27 @@ enum WebRecipeParser {
         if isSearchHost(pageURL) { return nil }
         for block in blocks {
             guard let data = block.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: data),
-                  let node = findRecipe(json) else { continue }
+                  let json = try? JSONSerialization.jsonObject(with: data) else { continue }
+            var budget = 400
+            guard let node = findRecipe(json, budget: &budget) else { continue }
             if let recipe = make(node, pageURL: pageURL, ownerId: ownerId) { return recipe }
         }
         return nil
     }
 
-    private static func findRecipe(_ value: Any) -> [String: Any]? {
+    /// Stop after a few hundred nodes. A food page's recipe sits near the top; the rest is site junk.
+    private static func findRecipe(_ value: Any, budget: inout Int) -> [String: Any]? {
+        budget -= 1
+        if budget < 0 { return nil }
         if let dict = value as? [String: Any] {
             if isRecipe(dict["@type"]) { return dict }
-            if let graph = dict["@graph"], let found = findRecipe(graph) { return found }
-            for (key, nested) in dict where key != "@context" {
-                if let found = findRecipe(nested) { return found }
+            if let graph = dict["@graph"], let found = findRecipe(graph, budget: &budget) { return found }
+            for (key, nested) in dict where key != "@context" && key != "@id" {
+                if let found = findRecipe(nested, budget: &budget) { return found }
             }
         } else if let list = value as? [Any] {
-            for item in list {
-                if let found = findRecipe(item) { return found }
+            for item in list.prefix(40) {
+                if let found = findRecipe(item, budget: &budget) { return found }
             }
         }
         return nil

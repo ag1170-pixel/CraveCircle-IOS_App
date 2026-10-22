@@ -78,10 +78,9 @@ struct WebImportScreen: View {
                 guard let recipe = model.recipe, !saving else { return }
                 saving = true
                 Haptics.tap()
-                Task {
-                    await environment.saveWebRecipe(recipe)
-                    onSaved()
-                }
+                model.stop()
+                environment.saveWebRecipe(recipe)
+                onSaved()
             } label: {
                 Text(saving ? "Saving…" : (model.recipe == nil ? "Open a recipe to import" : "Save this recipe"))
                     .font(AppFont.body(16, weight: .semibold))
@@ -99,6 +98,7 @@ struct WebImportScreen: View {
     }
 }
 
+@MainActor
 final class WebImportModel: ObservableObject {
     let webView: WKWebView
     @Published var address = "https://www.google.com/"
@@ -106,9 +106,12 @@ final class WebImportModel: ObservableObject {
     @Published var canGoBack = false
     @Published var canGoForward = false
     var ownerId = ""
+    private var readTask: Task<Void, Never>?
 
     init() {
         let config = WKWebViewConfiguration()
+        config.websiteDataStore = .nonPersistent()
+        config.mediaTypesRequiringUserActionForPlayback = .all
         let view = WKWebView(frame: .zero, configuration: config)
         view.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
         view.allowsBackForwardNavigationGestures = true
@@ -126,24 +129,44 @@ final class WebImportModel: ObservableObject {
     func goBack() { if webView.canGoBack { webView.goBack() } }
     func goForward() { if webView.canGoForward { webView.goForward() } }
 
+    func stop() {
+        readTask?.cancel()
+        webView.stopLoading()
+        webView.navigationDelegate = nil
+    }
+
     fileprivate func noteNavigation() {
         canGoBack = webView.canGoBack
         canGoForward = webView.canGoForward
         if let url = webView.url { address = url.absoluteString }
     }
 
-    fileprivate func readPage() {
+    /// One read per pause. Ad frames finish many times; parsing each of them is what makes the page hitch.
+    fileprivate func scheduleRead() {
         noteNavigation()
+        readTask?.cancel()
+        readTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            self?.readPage()
+        }
+    }
+
+    private func readPage() {
         guard let page = webView.url, !WebRecipeParser.isSearchHost(page) else {
             recipe = nil
             return
         }
         let owner = ownerId
         webView.evaluateJavaScript(Self.script) { [weak self] result, _ in
-            guard let self, self.webView.url == page else { return }
             let blocks = Self.blocks(from: result)
-            let found = WebRecipeParser.recipe(blocks: blocks, pageURL: page, ownerId: owner)
-            DispatchQueue.main.async { self.recipe = found }
+            Task.detached {
+                let found = WebRecipeParser.recipe(blocks: blocks, pageURL: page, ownerId: owner)
+                await MainActor.run { [weak self] in
+                    guard let self, self.webView.url == page else { return }
+                    self.recipe = found
+                }
+            }
         }
     }
 
@@ -151,9 +174,11 @@ final class WebImportModel: ObservableObject {
     (function() {
       var out = [];
       var nodes = document.querySelectorAll('script[type="application/ld+json"]');
-      for (var i = 0; i < nodes.length; i++) {
-        var text = nodes[i].textContent;
-        if (text) out.push(text);
+      for (var i = 0; i < nodes.length && out.length < 4; i++) {
+        var text = nodes[i].textContent || "";
+        if (text.indexOf("Recipe") === -1) continue;
+        if (text.length > 80000) text = text.slice(0, 80000);
+        out.push(text);
       }
       return JSON.stringify(out);
     })()
@@ -191,7 +216,7 @@ private struct WebImportRepresentable: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            DispatchQueue.main.async { self.model.readPage() }
+            DispatchQueue.main.async { self.model.scheduleRead() }
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {

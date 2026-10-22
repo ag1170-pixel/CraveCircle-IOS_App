@@ -1196,21 +1196,45 @@ final class AppEnvironment: ObservableObject {
         notifyImportDone(recipeTitle: recipe.title)
     }
 
-    /// A food page the person opened in the in-app browser. The recipe block is already parsed.
-    /// It stays on this phone and is not published.
-    func saveWebRecipe(_ recipe: Recipe) async {
+    /// A food page the person opened in the in-app browser. Parsed on the phone.
+    /// Nothing is sent to our server. The photo downloads after the screen has closed.
+    func saveWebRecipe(_ recipe: Recipe) {
         var saved = recipe
         saved.visibility = .followers
         saved.ownerId = currentUser?.id ?? saved.ownerId
-        if let remote = saved.thumbnailUrl, remote.hasPrefix("http"),
-           let data = await Self.fetchCover(remote) {
-            let jpeg = ImageDownscale.jpeg(from: data, maxPixel: 720, quality: 0.6) ?? data
-            if LocalStore.saveData(jpeg, to: "thumb-\(saved.id).jpg") != nil {
-                saved.thumbnailUrl = "thumb-\(saved.id).jpg"
+        let remote = saved.thumbnailUrl
+        saved.thumbnailUrl = nil
+        recipes.insert(saved, at: 0)
+        let id = saved.id
+        if let remote, remote.hasPrefix("http") {
+            Task.detached { [weak self] in
+                guard let data = await Self.fetchWebCover(remote),
+                      let jpeg = ImageDownscale.jpeg(from: data, maxPixel: 720, quality: 0.6),
+                      LocalStore.saveData(jpeg, to: "thumb-\(id).jpg") != nil else { return }
+                await MainActor.run { [weak self] in
+                    guard let self, let i = self.recipes.firstIndex(where: { $0.id == id }) else { return }
+                    self.recipes[i].thumbnailUrl = "thumb-\(id).jpg"
+                    if self.selectedRecipe?.id == id { self.selectedRecipe?.thumbnailUrl = "thumb-\(id).jpg" }
+                }
             }
         }
-        recipes.insert(saved, at: 0)
-        selectRecipe(saved)
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard let current = self.recipes.first(where: { $0.id == id }) else { return }
+            self.selectRecipe(current)
+        }
+    }
+
+    /// Cover from the food site, not from our server. Short timeout so a slow host cannot stall the save.
+    private static func fetchWebCover(_ urlString: String) async -> Data? {
+        guard let url = URL(string: urlString) else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 6
+        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              (1..<3_000_000).contains(data.count) else { return nil }
+        return data
     }
 
     func importFromVideo(_ url: URL, caption: String? = nil, title: String? = nil, thumbnailUrl: String? = nil) async {
