@@ -76,6 +76,18 @@ struct RecipeNutrition: Codable, Hashable {
         whole ? Double(max(servings, 1)) : 1
     }
 
+    /// Numbers the nutrition page prints. Grams and calories are rounded first, then the
+    /// daily-value percents are taken from those rounded figures so the % matches the gram shown.
+    func shown(servings: Int, whole: Bool) -> (kcal: Int, proteinG: Int, carbsG: Int, fatG: Int) {
+        let m = Self.portionMultiplier(servings: servings, whole: whole)
+        return (
+            Int((calories * m).rounded()),
+            Int((proteinG * m).rounded()),
+            Int((carbsG * m).rounded()),
+            Int((fatG * m).rounded())
+        )
+    }
+
     // FDA adult Daily Values. Sugar has no total-sugar DV, so the page shows a dash for it.
     static let proteinDailyG = 50.0
     static let carbsDailyG = 275.0

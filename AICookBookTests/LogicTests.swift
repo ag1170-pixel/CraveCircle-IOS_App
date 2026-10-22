@@ -202,6 +202,22 @@ final class NutritionPortionTests: XCTestCase {
         XCTAssertEqual(RecipeNutrition.portionMultiplier(servings: 1, whole: true), 1)
     }
 
+    func testWholeRecipeChangesTheCaloriesAndTheDailyValue() {
+        let n = RecipeNutrition(calories: 952, carbsG: 112, proteinG: 34, fatG: 41)
+        let one = n.shown(servings: 4, whole: false)
+        let all = n.shown(servings: 4, whole: true)
+        XCTAssertEqual(one.kcal, 952)
+        XCTAssertEqual(one.proteinG, 34)
+        XCTAssertEqual(all.kcal, 3808)
+        XCTAssertEqual(all.proteinG, 136)
+        XCTAssertEqual(all.carbsG, 448)
+        XCTAssertEqual(all.fatG, 164)
+        XCTAssertEqual(RecipeNutrition.dailyValuePercent(grams: Double(one.proteinG), reference: RecipeNutrition.proteinDailyG), 68)
+        XCTAssertEqual(RecipeNutrition.dailyValuePercent(grams: Double(all.proteinG), reference: RecipeNutrition.proteinDailyG), 272)
+        XCTAssertEqual(Int((Double(one.kcal) / n.dailyCalories * 100).rounded()), 48)
+        XCTAssertEqual(Int((Double(all.kcal) / n.dailyCalories * 100).rounded()), 190)
+    }
+
     func testDailyValueMatchesTheNutritionPage() {
         // 34 g protein, 112 g carbs, 41 g fat — the page's % Daily Value column.
         XCTAssertEqual(RecipeNutrition.dailyValuePercent(grams: 34, reference: RecipeNutrition.proteinDailyG), 68)
