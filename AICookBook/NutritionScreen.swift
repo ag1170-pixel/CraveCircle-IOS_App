@@ -2,8 +2,8 @@
 //  NutritionScreen.swift
 //  CraveCircle (AICookBook)
 //
-//  One ring split by this meal (protein, carbs, fat), calories in the middle, daily value
-//  underneath. Whole recipe multiplies the stored per-serving numbers by the batch.
+//  One ring split by this meal (protein, carbs, fat), calories in the middle.
+//  Whole recipe multiplies the stored per-serving numbers by the batch.
 //
 
 import SwiftUI
@@ -137,8 +137,11 @@ struct NutritionScreen: View {
                 }
                 Spacer(minLength: 0)
             }
-            Divider().overlay(AppTheme.separator)
-            dailyGoal
+            if nutrition.estimated {
+                Text(whole ? "Estimated · \(servings) servings" : "Estimated · per serving")
+                    .font(AppFont.body(12))
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
         }
         .padding(AppSpacing.md)
         .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
@@ -209,29 +212,6 @@ struct NutritionScreen: View {
 
     private func dayWords(_ mark: (fill: Double, percent: Int, over: Bool)) -> String {
         mark.over ? "a full day" : "\(mark.percent)% of a day"
-    }
-
-    private var dailyGoal: some View {
-        let mark = RecipeNutrition.dayMark(amount: Double(shown.kcal), reference: nutrition.dailyCalories)
-        let budget = Int(nutrition.dailyCalories.rounded())
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Daily goal")
-                    .font(AppFont.body(14, weight: .semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                Spacer()
-                Text(mark.over ? "A full day's \(budget.formatted()) kcal" : "\(mark.percent)% of \(budget.formatted()) kcal")
-                    .font(AppFont.body(13, weight: .medium))
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .monospacedDigit()
-            }
-            shareBar(percent: mark.percent, color: AppTheme.accentInk)
-            if nutrition.estimated {
-                Text(whole ? "Estimated · \(servings) servings" : "Estimated · per serving")
-                    .font(AppFont.body(12))
-                    .foregroundStyle(AppTheme.textTertiary)
-            }
-        }
     }
 
     private var macros: some View {
