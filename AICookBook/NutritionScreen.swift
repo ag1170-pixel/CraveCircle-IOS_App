@@ -31,6 +31,7 @@ struct NutritionScreen: View {
             topBar
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.md) {
+                    dishHeading
                     portionPicker
                     ringCard
                     macros
@@ -69,6 +70,34 @@ struct NutritionScreen: View {
         .padding(.horizontal, AppSpacing.md)
         .padding(.top, 8)
         .padding(.bottom, 4)
+    }
+
+    private var dishHeading: some View {
+        HStack(alignment: .center, spacing: 12) {
+            RecipeCoverImage(recipe: recipe)
+                .scaledToFill()
+                .frame(width: 52, height: 52)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(recipe.title)
+                    .font(AppFont.body(16, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(headingMeta)
+                    .font(AppFont.body(13, weight: .medium))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var headingMeta: String {
+        let count = servings
+        var parts = ["\(count) \(count == 1 ? "serving" : "servings")"]
+        if let cook = recipe.totalTimeText { parts.append("\(cook) cook") }
+        return parts.joined(separator: " · ")
     }
 
     private var portionPicker: some View {
@@ -326,4 +355,82 @@ struct NutritionScreen: View {
         .animation(AppMotion.snappy, value: whole)
     }
 
+}
+
+/// The recipe-page card that opens nutrition. Per serving only; the full page has the whole-recipe switch.
+struct NutritionSummaryCard: View {
+    let recipe: Recipe
+    var onOpen: () -> Void
+
+    private let proteinColor = Color(hex: "E0A02E")
+    private let carbsColor = Color(hex: "E25B4C")
+    private let fatColor = Color(hex: "4C8FE8")
+
+    private var nutrition: RecipeNutrition { recipe.nutritionOrEstimate }
+    private var shown: (kcal: Int, proteinG: Int, carbsG: Int, fatG: Int) {
+        nutrition.shown(servings: max(recipe.servings ?? 1, 1), whole: false)
+    }
+
+    var body: some View {
+        let mark = RecipeNutrition.dayMark(amount: Double(shown.kcal), reference: nutrition.dailyCalories)
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    Image(systemName: "chart.pie.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(carbsColor)
+                    Text("Nutrition")
+                        .font(AppFont.body(17, weight: .bold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                    Spacer(minLength: 8)
+                    Text("Per serving")
+                        .font(AppFont.body(15, weight: .medium))
+                        .foregroundStyle(AppTheme.textSecondary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AppTheme.textTertiary)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("\(shown.kcal)")
+                        .font(AppFont.display(40, weight: .bold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .monospacedDigit()
+                    Text(mark.over ? "kcal · a full day" : "kcal · \(mark.percent)% of daily goal")
+                        .font(AppFont.body(15, weight: .medium))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                macroBar
+            }
+            .padding(AppSpacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Nutrition, \(shown.kcal) kilocalories per serving, \(mark.over ? "a full day" : "\(mark.percent) percent of the daily goal")")
+    }
+
+    private var macroBar: some View {
+        let parts = [
+            (nutrition.proteinPercent, proteinColor),
+            (nutrition.carbsPercent, carbsColor),
+            (nutrition.fatPercent, fatColor)
+        ].filter { $0.0 > 0 }
+        let sum = parts.map(\.0).reduce(0, +)
+        return GeometryReader { geo in
+            let gap: CGFloat = 4
+            let usable = geo.size.width - gap * CGFloat(max(parts.count - 1, 0))
+            HStack(spacing: gap) {
+                ForEach(Array(parts.enumerated()), id: \.offset) { _, part in
+                    Capsule()
+                        .fill(part.1)
+                        .frame(width: sum > 0 ? usable * CGFloat(part.0) / CGFloat(sum) : 0)
+                }
+            }
+        }
+        .frame(height: 8)
+    }
 }

@@ -566,8 +566,6 @@ struct RecipeDetailScreen: View {
                 originChip
             }
 
-            nutritionButton
-
             actionRow
 
             PillButton(title: "Start Cooking", systemImage: "flame.fill", kind: .filled, fullWidth: true) {
@@ -603,6 +601,11 @@ struct RecipeDetailScreen: View {
             .tint(AppTheme.accentInk)
             // Swipes that start on this box toggle Ingredients⇄Directions; swipes elsewhere change recipe.
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("detail")) } action: { segmentFrame = $0 }
+
+            NutritionSummaryCard(recipe: recipe) {
+                Haptics.tap()
+                showNutrition = true
+            }
 
             Rectangle().fill(AppTheme.separator).frame(height: 1).padding(.top, AppSpacing.sm)
 
@@ -711,40 +714,6 @@ struct RecipeDetailScreen: View {
             .background(AppTheme.surface, in: Capsule())
             .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
         }
-    }
-
-    private var nutritionButton: some View {
-        let kcal = Int(recipe.nutritionOrEstimate.calories.rounded())
-        return Button {
-            Haptics.tap()
-            showNutrition = true
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "fork.knife")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(AppTheme.accentInk)
-                Text("Nutrition")
-                    .font(AppFont.body(16, weight: .bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                Spacer()
-                Text("\(kcal) kcal")
-                    .font(AppFont.body(14, weight: .semibold))
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .monospacedDigit()
-                Text("per serving")
-                    .font(AppFont.body(13, weight: .medium))
-                    .foregroundStyle(AppTheme.textTertiary)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppTheme.textTertiary)
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-            .background(AppTheme.surface, in: Capsule())
-            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Nutrition, \(kcal) kilocalories per serving")
     }
 
     private var metaLine: some View {
