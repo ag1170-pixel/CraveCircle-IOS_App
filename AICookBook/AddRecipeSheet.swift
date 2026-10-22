@@ -19,6 +19,7 @@ struct AddRecipeSheet: View {
     @State private var link = ""
     @State private var pickedPhoto: PhotosPickerItem?
     @State private var showWrite = false
+    @State private var showWeb = false
     @State private var showLink = false            // paste field is hidden until "Import from social media" is tapped
     @State private var blank = AddRecipeSheet.newBlank()
     @State private var contentHeight: CGFloat = 0  // drives a content-fitted sheet detent (no dead space)
@@ -43,6 +44,7 @@ struct AddRecipeSheet: View {
                     spacing: AppSpacing.sm
                 ) {
                     optionCard("Write from scratch", systemImage: "square.and.pencil") { startWrite() }
+                    optionCard("Import from web", systemImage: "globe") { showWeb = true }
                     photoCard
                 }
 
@@ -58,6 +60,13 @@ struct AddRecipeSheet: View {
         .background(AppTheme.background)
         .presentationDetents([.height(detentHeight)])
         .presentationDragIndicator(.visible)
+        .fullScreenCover(isPresented: $showWeb) {
+            WebImportScreen {
+                showWeb = false
+                showing = false
+            }
+            .environmentObject(environment)
+        }
         .fullScreenCover(isPresented: $showWrite) {
             NavigationStack {
                 RecipeEditScreen(recipe: Binding(get: { blank }, set: { blank = $0 })) { saved in

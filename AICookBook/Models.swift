@@ -181,6 +181,18 @@ struct Recipe: Codable, Identifiable, Hashable {
         let social: [String] = ["instagram.com", "tiktok.com", "youtube.com", "youtu.be", "facebook.com", "fb.watch"]
         return social.contains { host == $0 || host.hasSuffix(".\($0)") }
     }
+
+    /// A food-blog page saved from the in-app browser. Stays on this phone, like a social import.
+    static func isWebImportURL(_ raw: String?) -> Bool {
+        guard let raw, let url = URL(string: raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              let host = url.host?.lowercased(), !host.isEmpty
+        else { return false }
+        if host == "cravecircle.cc" || host.hasSuffix(".cravecircle.cc") { return false }
+        return !isSocialImportURL(raw)
+    }
+
+    var staysOnThisPhone: Bool { Self.isSocialImportURL(sourceUrl) || Self.isWebImportURL(sourceUrl) }
 }
 
 struct IngredientGroup: Codable, Hashable {

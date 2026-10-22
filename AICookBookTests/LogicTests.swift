@@ -670,6 +670,31 @@ final class DirectionLineTests: XCTestCase {
     }
 }
 
+final class WebRecipeParserTests: XCTestCase {
+    func testARecipePageBecomesADish() {
+        let html = """
+        <html><script type="application/ld+json">
+        {"@context":"https://schema.org","@graph":[{"@type":"Recipe","name":"Rajma Chawal","image":["https://example.com/rajma.jpg"],"recipeYield":"4 servings","cookTime":"PT45M","recipeIngredient":["1 cup rajma","2 cups rice","1 cup rajma"],"recipeInstructions":[{"@type":"HowToSection","name":"Cook","itemListElement":[{"@type":"HowToStep","text":"Soak the beans."},{"@type":"HowToStep","text":"<p>Pressure cook.</p>"}]}]}]}
+        </script></html>
+        """
+        let page = URL(string: "https://www.sharmispassions.com/rajma-chawal")!
+        let recipe = WebRecipeParser.recipe(html: html, pageURL: page, ownerId: "me")
+        XCTAssertEqual(recipe?.title, "Rajma Chawal")
+        XCTAssertEqual(recipe?.servings, 4)
+        XCTAssertEqual(recipe?.cookTime, "45 min")
+        XCTAssertEqual(recipe?.ingredients.first?.items, ["1 cup rajma", "2 cups rice"])
+        XCTAssertEqual(recipe?.directions.map(\.text), ["Soak the beans.", "Pressure cook."])
+        XCTAssertEqual(recipe?.thumbnailUrl, "https://example.com/rajma.jpg")
+        XCTAssertEqual(recipe?.sourceUrl, page.absoluteString)
+        XCTAssertEqual(recipe?.visibility, .followers)
+        XCTAssertEqual(recipe?.ownerUsername, "sharmispassions.com")
+        XCTAssertTrue(recipe?.staysOnThisPhone == true)
+        let google = URL(string: "https://www.google.com/search?q=rajma")!
+        XCTAssertNil(WebRecipeParser.recipe(html: html, pageURL: google, ownerId: "me"))
+        XCTAssertNil(WebRecipeParser.recipe(html: "<html>no recipe</html>", pageURL: page, ownerId: "me"))
+    }
+}
+
 final class CollectionMatchTests: XCTestCase {
     func testAnEmptyCollectionShowsNoRecipes() {
         let dish = Recipe(id: "a", ownerId: "me", title: "A", ingredients: [], directions: [])

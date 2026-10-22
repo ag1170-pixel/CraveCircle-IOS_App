@@ -647,7 +647,7 @@ final class AppEnvironment: ObservableObject {
             // stay private on the importer's device. Only an admin's own original recipes sync up
             // (see publishDraft).
             var dirty = recipes.filter {
-                unsyncedRecipeIds.contains($0.id) && $0.ownerId == uid && !$0.isImportedFromSocial
+                unsyncedRecipeIds.contains($0.id) && $0.ownerId == uid && !$0.staysOnThisPhone
             }
             if !dirty.isEmpty {
                 // Make each cover shareable (device-local file -> public Storage URL) BEFORE it hits the
@@ -1196,6 +1196,23 @@ final class AppEnvironment: ObservableObject {
         notifyImportDone(recipeTitle: recipe.title)
     }
 
+    /// A food page the person opened in the in-app browser. The recipe block is already parsed.
+    /// It stays on this phone and is not published.
+    func saveWebRecipe(_ recipe: Recipe) async {
+        var saved = recipe
+        saved.visibility = .followers
+        saved.ownerId = currentUser?.id ?? saved.ownerId
+        if let remote = saved.thumbnailUrl, remote.hasPrefix("http"),
+           let data = await Self.fetchCover(remote) {
+            let jpeg = ImageDownscale.jpeg(from: data, maxPixel: 720, quality: 0.6) ?? data
+            if LocalStore.saveData(jpeg, to: "thumb-\(saved.id).jpg") != nil {
+                saved.thumbnailUrl = "thumb-\(saved.id).jpg"
+            }
+        }
+        recipes.insert(saved, at: 0)
+        selectRecipe(saved)
+    }
+
     func importFromVideo(_ url: URL, caption: String? = nil, title: String? = nil, thumbnailUrl: String? = nil) async {
         importTask?.cancel()
         importState = .submitting
@@ -1658,7 +1675,7 @@ final class AppEnvironment: ObservableObject {
               isOwner(of: recipe),
               // Never publish a recipe imported from someone else's social post — creators may only
               // publish their OWN original recipes. Social imports stay private to the importer.
-              !recipe.isImportedFromSocial
+              !recipe.staysOnThisPhone
         else { return }
         studioDraftIds.remove(recipeId)
         // Publishing must actually push the recipe to the cloud so followers/everyone can see it —
