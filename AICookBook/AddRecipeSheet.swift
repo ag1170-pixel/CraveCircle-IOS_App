@@ -17,7 +17,8 @@ struct AddRecipeSheet: View {
     @Binding var showing: Bool
 
     @State private var link = ""
-    @State private var pickedPhoto: PhotosPickerItem?
+    @State private var pickedPhotos: [PhotosPickerItem] = []
+    @State private var importingPhotos = false
     @State private var showWrite = false
     @State private var showWeb = false
     @State private var showLink = false            // paste field is hidden until "Import from social media" is tapped
@@ -77,13 +78,22 @@ struct AddRecipeSheet: View {
                 .environmentObject(environment)
             }
         }
-        .onChange(of: pickedPhoto) { _, item in
-            guard let item else { return }
+        .onChange(of: pickedPhotos) { _, items in
+            guard !items.isEmpty, !importingPhotos else { return }
+            importingPhotos = true
             Task {
-                guard let data = try? await item.loadTransferable(type: Data.self),
-                      let img = UIImage(data: data) else { return }
+                var images: [UIImage] = []
+                for item in items.prefix(6) {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let img = UIImage(data: data) {
+                        images.append(img)
+                    }
+                }
+                pickedPhotos = []
+                importingPhotos = false
+                guard !images.isEmpty else { return }
                 showing = false
-                await environment.importFromPhoto(img)
+                await environment.importFromPhotos(images)
             }
         }
     }
@@ -143,7 +153,7 @@ struct AddRecipeSheet: View {
     }
 
     private var photoCard: some View {
-        PhotosPicker(selection: $pickedPhoto, matching: .images) {
+        PhotosPicker(selection: $pickedPhotos, maxSelectionCount: 6, matching: .images) {
             cardBody("Import from photo", "photo")
         }
         .buttonStyle(PressableStyle())

@@ -1151,22 +1151,48 @@ final class AppEnvironment: ObservableObject {
     /// Build a recipe from a photo of a written/printed recipe (Vision OCR → extractor). The photo
     /// becomes the cover (stored locally). It's the user's own content, so it syncs like any original.
     func importFromPhoto(_ image: UIImage, caption: String? = nil, recognized: String? = nil) async {
+        await importFromPhotos([image], caption: caption, recognized: recognized)
+    }
+
+    /// Same import, with every selected photo kept. The first is the cover; the rest page on the
+    /// recipe the same way a recipe written here does. Capped at 6, matching the editor.
+    func importFromPhotos(_ images: [UIImage], caption: String? = nil, recognized: String? = nil) async {
         importTask?.cancel()
         importState = .submitting
         let task = Task { [weak self] in
             guard let self else { return }
-            await self._importFromPhoto(image, caption: caption, recognized: recognized)
+            await self._importFromPhotos(images, caption: caption, recognized: recognized)
         }
         importTask = task
         await task.value
     }
 
-    private func _importFromPhoto(_ image: UIImage, caption: String? = nil, recognized: String? = nil) async {
+    /// One photo keeps `thumb-<id>.jpg`. Extra photos are `thumb-<id>-0.jpg` … so the detail page can page them.
+    nonisolated static func photoImportFilenames(recipeId: String, count: Int) -> [String] {
+        let n = min(max(count, 0), 6)
+        guard n > 0 else { return [] }
+        if n == 1 { return ["thumb-\(recipeId).jpg"] }
+        return (0..<n).map { "thumb-\(recipeId)-\($0).jpg" }
+    }
+
+    private func _importFromPhotos(_ images: [UIImage], caption: String? = nil, recognized: String? = nil) async {
+        let shots = Array(images.prefix(6))
+        guard !shots.isEmpty else {
+            importState = .failed(message: "Couldn't read that photo.")
+            return
+        }
         let ocr: String
         if let recognized {
             ocr = recognized
         } else {
-            ocr = await PhotoTextOCR.recognize(image)
+            var parts: [String] = []
+            for image in shots {
+                if Task.isCancelled { return }
+                let text = await PhotoTextOCR.recognize(image)
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.count > 10 { parts.append(trimmed) }
+            }
+            ocr = parts.joined(separator: "\n")
         }
         if Task.isCancelled { return }
         importState = .polling(jobId: "on-device", status: .extracting)
@@ -1190,10 +1216,16 @@ final class AppEnvironment: ObservableObject {
         }
         recipe = await translateToPreferredLanguage(recipe)
         if Task.isCancelled { return }
-        if let data = image.jpegData(compressionQuality: 0.8),
-           let _ = LocalStore.saveData(ImageDownscale.jpeg(from: data, maxPixel: 720, quality: 0.6) ?? data, to: "thumb-\(recipe.id).jpg") {
-            recipe.thumbnailUrl = "thumb-\(recipe.id).jpg"
+        let names = Self.photoImportFilenames(recipeId: recipe.id, count: shots.count)
+        var saved: [String] = []
+        for (image, name) in zip(shots, names) {
+            guard let data = image.jpegData(compressionQuality: 0.8),
+                  LocalStore.saveData(ImageDownscale.jpeg(from: data, maxPixel: 720, quality: 0.6) ?? data, to: name) != nil
+            else { continue }
+            saved.append(name)
         }
+        recipe.thumbnailUrl = saved.first
+        recipe.galleryUrls = saved.count > 1 ? saved : nil
         recipes.insert(recipe, at: 0)
         markRecipeDirty(recipe.id)
         Task { await syncRecipes() }

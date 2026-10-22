@@ -750,6 +750,20 @@ final class CollectionMatchTests: XCTestCase {
     }
 }
 
+final class PhotoImportGalleryTests: XCTestCase {
+    func testOnePhotoStaysACoverAndMoreBecomeAGallery() {
+        XCTAssertEqual(AppEnvironment.photoImportFilenames(recipeId: "abc", count: 1), ["thumb-abc.jpg"])
+        XCTAssertEqual(
+            AppEnvironment.photoImportFilenames(recipeId: "abc", count: 3),
+            ["thumb-abc-0.jpg", "thumb-abc-1.jpg", "thumb-abc-2.jpg"]
+        )
+        XCTAssertEqual(AppEnvironment.photoImportFilenames(recipeId: "abc", count: 9).count, 6)
+        let names = AppEnvironment.photoImportFilenames(recipeId: "abc", count: 2)
+        var recipe = Recipe(id: "abc", ownerId: "me", title: "A", ingredients: [], directions: [], thumbnailUrl: names.first, galleryUrls: names)
+        XCTAssertEqual(recipe.galleryImages, names)
+    }
+}
+
 final class ChecklistToggleTests: XCTestCase {
     func testToggleChecklistItemInsertsThenRemoves() {
         var ingredients: Set<String> = []
