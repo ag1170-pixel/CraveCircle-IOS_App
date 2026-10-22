@@ -11,7 +11,6 @@
 //  Reused APIs (per Ponytail):
 //   • `environment.suggestedRecipes` + fallback curated, filtered personal-use-safe.
 //   • Like: `toggleLikeRecipe` / `isLiked`.  Save: `toggleSaveRecipe` / `isSaved`.
-//   • Follow: `toggleFollow` / `isFollowing` (tap to follow / unfollow, same button).
 //   • Share: native iOS share sheet via `ShareLink` on the cravecircle.cc universal link.
 //   • Full detail: `environment.selectRecipe(_:in:)`.
 //
@@ -219,8 +218,6 @@ private struct ReelCell: View {
     private var liked: Bool  { environment.isLiked(recipeId: recipe.id) }
     private var saved: Bool  { environment.isSaved(recipeId: recipe.id) }
     private var commentsN: Int { environment.comments(for: recipe.id).count }
-    private var following: Bool { environment.isFollowing(creatorHandle: recipe.ownerUsername ?? "") }
-
     private var shareURL: URL { URL(string: AppConfig.recipeWebLink(recipe.id))! }
     private var shareText: String { "\(recipe.title) on CraveCircle" }
 
@@ -358,7 +355,6 @@ private struct ReelCell: View {
                 Text(recipe.ownerUsername ?? "@cravecircle")
                     .font(AppFont.body(12, weight: .semibold))
                     .foregroundStyle(.white)
-                followPill
             }
             Text(recipe.title)
                 .font(AppFont.body(14, weight: .semibold))
@@ -380,41 +376,6 @@ private struct ReelCell: View {
             .frame(width: 30, height: 30)
             .background(Color(hex: "EA5A38"), in: Circle())
             .overlay(Circle().stroke(.white, lineWidth: 1.5))
-    }
-
-    /// Same Follow control as the recipe page hero (`RecipeDetailScreen` creator row).
-    @ViewBuilder private var followPill: some View {
-        if let h = recipe.ownerUsername {
-            Button {
-                Haptics.select()
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
-                    environment.toggleFollow(creatorHandle: h)
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: following ? "checkmark" : "person.badge.plus")
-                        .font(.system(size: 11, weight: .bold))
-                        .contentTransition(.symbolEffect(.replace))
-                    Text(following ? "Following" : "Follow")
-                        .font(AppFont.body(12, weight: .bold))
-                }
-                .foregroundStyle(AppTheme.onBrand)
-                .padding(.horizontal, 11)
-                .frame(height: 28)
-                .background(
-                    following
-                        ? AnyShapeStyle(.ultraThinMaterial)
-                        : AnyShapeStyle(AppTheme.brand),
-                    in: Capsule()
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(.white.opacity(following ? 0.35 : 0.25), lineWidth: 0.8)
-                )
-                .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 2)
-            }
-            .buttonStyle(PressableStyle())
-        }
     }
 
     private func metaPill(icon: String, text: String) -> some View {

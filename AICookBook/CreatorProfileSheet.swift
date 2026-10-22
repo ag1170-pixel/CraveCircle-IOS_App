@@ -2,7 +2,7 @@
 //  CreatorProfileSheet.swift
 //  CraveCircle (AICookBook)
 //
-//  Rich creator profile sheet with follow/unfollow toggle and their recipe catalog.
+//  Creator profile sheet and their recipe catalog.
 //
 
 import SwiftUI
@@ -92,32 +92,6 @@ struct CreatorProfileSheet: View {
                 }
             }
 
-            let following = environment.isFollowing(creatorHandle: cleanHandle)
-            Button {
-                Haptics.select()
-                withAnimation(AppMotion.snappy) {
-                    environment.toggleFollow(creatorHandle: cleanHandle)
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: following ? "checkmark" : "plus")
-                        .font(.system(size: 13, weight: .bold))
-                    Text(following ? "Following" : "Follow")
-                        .font(AppFont.body(14, weight: .bold))
-                }
-                .foregroundStyle(following ? AppTheme.textPrimary : AppTheme.onAccent)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 9)
-                .background(
-                    following ? AnyShapeStyle(AppTheme.surface) : AnyShapeStyle(AppTheme.accent),
-                    in: Capsule()
-                )
-                .overlay(
-                    Capsule().stroke(following ? AppTheme.hairline : Color.clear, lineWidth: 1)
-                )
-            }
-            .buttonStyle(PressableStyle())
-            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
     }

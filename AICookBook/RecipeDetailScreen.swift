@@ -318,39 +318,6 @@ struct RecipeDetailScreen: View {
             }
             .buttonStyle(.plain)
 
-            if let handle = recipe.ownerUsername, !environment.isOwner(of: recipe) {
-                let following = environment.isFollowing(creatorHandle: handle)
-                Button {
-                    Haptics.select()
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
-                        environment.toggleFollow(creatorHandle: handle)
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: following ? "checkmark" : "person.badge.plus")
-                            .font(.system(size: 11, weight: .bold))
-                            .contentTransition(.symbolEffect(.replace))
-                        Text(following ? "Following" : "Follow")
-                            .font(AppFont.body(12, weight: .bold))
-                    }
-                    .foregroundStyle(AppTheme.onBrand)
-                    .padding(.horizontal, 11)
-                    .frame(height: 28)
-                    .background(
-                        following
-                            ? AnyShapeStyle(.ultraThinMaterial)
-                            : AnyShapeStyle(AppTheme.brand),
-                        in: Capsule()
-                    )
-                    .overlay(
-                        Capsule()
-                            .stroke(.white.opacity(following ? 0.35 : 0.25), lineWidth: 0.8)
-                    )
-                    .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 2)
-                }
-                .buttonStyle(PressableStyle())
-            }
-
             Spacer(minLength: 4)
 
             if recipe.isImportedFromSocial {
@@ -629,29 +596,11 @@ struct RecipeDetailScreen: View {
                 .font(AppFont.display(24, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
             
-            Text("Follow \(recipe.ownerUsername ?? "@creator") to unlock this recipe and see all their latest dishes.")
+            Text("This recipe is only shared with followers.")
                 .font(AppFont.body(16))
                 .foregroundStyle(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, AppSpacing.lg)
-            
-            Button {
-                Haptics.success()
-                if let handle = recipe.ownerUsername {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
-                        environment.toggleFollow(creatorHandle: handle)
-                    }
-                }
-            } label: {
-                Text("Follow to Unlock")
-                    .font(AppFont.body(16, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 14)
-                    .background(Color(hex: "1877F2"), in: Capsule())
-                    .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
-            }
-            .buttonStyle(PressableStyle())
         }
         .padding(.vertical, 80)
         .frame(maxWidth: .infinity)
