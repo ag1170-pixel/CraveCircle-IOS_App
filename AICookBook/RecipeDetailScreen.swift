@@ -318,6 +318,40 @@ struct RecipeDetailScreen: View {
             }
             .buttonStyle(.plain)
 
+            // Small Follow pill next to the creator handle in the hero. Hidden on your own recipe
+            // or when the recipe has no creator. Restored from commit 9de0d4a.
+            if let handle = recipe.ownerUsername, !environment.isOwner(of: recipe) {
+                let following = environment.isFollowing(creatorHandle: handle)
+                Button {
+                    Haptics.select()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
+                        environment.toggleFollow(creatorHandle: handle)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: following ? "checkmark" : "person.badge.plus")
+                            .font(.system(size: 11, weight: .bold))
+                            .contentTransition(.symbolEffect(.replace))
+                        Text(following ? "Following" : "Follow")
+                            .font(AppFont.body(12, weight: .bold))
+                    }
+                    .foregroundStyle(AppTheme.onBrand)
+                    .padding(.horizontal, 11)
+                    .frame(height: 28)
+                    .background(
+                        following
+                            ? AnyShapeStyle(.ultraThinMaterial)
+                            : AnyShapeStyle(AppTheme.brand),
+                        in: Capsule()
+                    )
+                    .overlay(
+                        Capsule().stroke(.white.opacity(following ? 0.35 : 0.25), lineWidth: 0.8)
+                    )
+                    .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 2)
+                }
+                .buttonStyle(PressableStyle())
+            }
+
             Spacer(minLength: 4)
 
             if recipe.isImportedFromSocial {
@@ -353,6 +387,53 @@ struct RecipeDetailScreen: View {
                         Haptics.tap()
                     } label: {
                         Label("Copy Reel Link", systemImage: "doc.on.doc")
+                    }
+                }
+            } else if Recipe.isWebImportURL(recipe.sourceUrl),
+                      let raw = recipe.sourceUrl,
+                      let webURL = URL(string: raw) {
+                // Imported from a food-blog page — the "Original" badge opens the saved source URL
+                // so the person can jump back to the original recipe on the web.
+                Button {
+                    Haptics.tap()
+                    UIApplication.shared.open(webURL)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "safari")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color(hex: "FFB340"))
+                        Text("Original")
+                            .font(AppFont.body(13, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color(hex: "FFB340").opacity(0.6), .white.opacity(0.25)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1.0
+                            )
+                    )
+                    .shadow(color: .black.opacity(0.2), radius: 3, x: 0, y: 1)
+                }
+                .buttonStyle(PressableStyle())
+                .contextMenu {
+                    Button {
+                        UIApplication.shared.open(webURL)
+                    } label: {
+                        Label("Open Original Page", systemImage: "safari")
+                    }
+                    Button {
+                        UIPasteboard.general.string = webURL.absoluteString
+                        Haptics.tap()
+                    } label: {
+                        Label("Copy Link", systemImage: "doc.on.doc")
                     }
                 }
             } else {
@@ -574,6 +655,14 @@ struct RecipeDetailScreen: View {
                 showNutrition = true
             }
 
+            // Community comments live at the bottom of the recipe — the reel rail's bubble icon
+            // scrolls here. Sits inside its own card so it matches the ingredients / nutrition panels.
+            RecipeCommentsSection(recipeId: recipe.id)
+                .padding(AppSpacing.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+
             Spacer(minLength: 60)
         }
         .padding(.horizontal, AppSpacing.md)
@@ -591,12 +680,30 @@ struct RecipeDetailScreen: View {
             Text("Followers Only")
                 .font(AppFont.display(24, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
-            
-            Text("This recipe is only shared with followers.")
+
+            Text("Follow \(recipe.ownerUsername ?? "@creator") to unlock this recipe and see all their latest dishes.")
                 .font(AppFont.body(16))
                 .foregroundStyle(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, AppSpacing.lg)
+
+            Button {
+                Haptics.success()
+                if let handle = recipe.ownerUsername {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
+                        environment.toggleFollow(creatorHandle: handle)
+                    }
+                }
+            } label: {
+                Text("Follow to Unlock")
+                    .font(AppFont.body(16, weight: .bold))
+                    .foregroundStyle(AppTheme.onBrand)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 14)
+                    .background(AppTheme.brand, in: Capsule())
+                    .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
+            }
+            .buttonStyle(PressableStyle())
         }
         .padding(.vertical, 80)
         .frame(maxWidth: .infinity)

@@ -101,10 +101,13 @@ struct HomeScreen: View {
             .navigationDestination(isPresented: $navigateToLibrary) {
                 LibraryScreen()
             }
-            .sheet(isPresented: $showNotifications) {
-                CircleNotificationsSheet()
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
+            .navigationDestination(isPresented: $showNotifications) {
+                CircleNotificationsScreen()
+                    .onDisappear {
+                        // Opening the page is proof they've seen the activity — clear the badge
+                        // so the bell on home stops saying "new" the moment they come back.
+                        environment.markAllNotificationsRead()
+                    }
             }
             .sheet(isPresented: $showShared) {
                 SharedScreen()

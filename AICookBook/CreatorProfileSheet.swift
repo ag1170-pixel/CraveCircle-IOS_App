@@ -92,8 +92,24 @@ struct CreatorProfileSheet: View {
                 }
             }
 
+            followButton
+                .padding(.top, 6)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// Hidden when the viewer IS the creator (you don't follow yourself).
+    @ViewBuilder private var followButton: some View {
+        let me = environment.currentUser?.username?.lowercased() ?? ""
+        let his = cleanHandle.replacingOccurrences(of: "@", with: "").lowercased()
+        let mineAt = me.hasPrefix("@") ? me : "@" + me
+        if his != me && his != mineAt.replacingOccurrences(of: "@", with: "") {
+            let on = environment.isFollowing(creatorHandle: cleanHandle)
+            FollowPill(isFollowing: on) {
+                Haptics.tap()
+                environment.toggleFollow(creatorHandle: cleanHandle)
+            }
+        }
     }
 
     // MARK: - Stats

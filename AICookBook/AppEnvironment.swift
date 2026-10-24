@@ -24,6 +24,14 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var avatarImageData: Data? { didSet { persist(avatarImageData, "avatar.json") } }
     @AppStorage("guest_user_id") private var guestUserId: String = ""
     @AppStorage("onboarded_user_ids") private var onboardedUserIdsRaw: String = ""
+    /// Device-wide flag so guests also see the first-run flow once. Flipped by `markOnboarded()`.
+    @AppStorage("device_onboarded") private var deviceOnboarded: Bool = false
+    // Picks captured by the first-run onboarding flow. Stored for future personalization
+    // (goals → suggestion ranking, decisionTime → when the daily nudge fires, etc.).
+    @AppStorage("onboarding.goals") private var onboardingGoalsRaw: String = ""
+    @AppStorage("onboarding.decisionTime") private var onboardingDecisionTimeRaw: String = ""
+    @AppStorage("onboarding.sources") private var onboardingSourcesRaw: String = ""
+    @AppStorage("onboarding.hearAbout") private var onboardingHearAboutRaw: String = ""
     /// Per signed-in user. Not @AppStorage — that key was one list for the whole phone.
     private var deletedRecipeIdsRaw: String = ""
     @Published private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
@@ -745,6 +753,17 @@ final class AppEnvironment: ObservableObject {
     }
 
     /// Mark a Circle notification read (clears its unread dot) — gives every tap visible feedback.
+    /// Opening the bell is proof the person has seen the activity — clear every unread flag so
+    /// the little dot on the home-screen icon goes away. Called when the sheet is presented.
+    func markAllNotificationsRead() {
+        var changed = false
+        for i in circleNotifications.indices where !circleNotifications[i].isRead {
+            circleNotifications[i].isRead = true
+            changed = true
+        }
+        if changed { persist(circleNotifications, "notifications.json") }
+    }
+
     func markNotificationRead(_ id: UUID) {
         if let i = circleNotifications.firstIndex(where: { $0.id == id }), !circleNotifications[i].isRead {
             circleNotifications[i].isRead = true
@@ -767,7 +786,8 @@ final class AppEnvironment: ObservableObject {
                 CircleNotificationItem(title: "Recipe shared with you",
                                        message: "Someone shared '\(title)' with you",
                                        timeAgo: "Just now", symbol: "tray.and.arrow.down.fill",
-                                       isRead: false, recipeId: rec.recipeId),
+                                       isRead: false, recipeId: rec.recipeId,
+                                       createdAt: Date()),
                 at: 0)
         }
     }
@@ -790,9 +810,12 @@ final class AppEnvironment: ObservableObject {
     var isAdmin: Bool { currentUser?.role == .admin }
     var isGuest: Bool { currentUser?.id.hasPrefix("guest_") == true || currentUser == nil }
 
-    /// Cuisine onboarding is per signed-in account. Guests skip. Returning ids are stored on-device.
+    /// Shown once per device on first launch (guest and signed-in). After someone signs in and
+    /// finishes it, their user id is also recorded so switching accounts doesn't re-trigger it.
     var needsOnboarding: Bool {
-        guard appState == .signedIn, let id = currentUser?.id, !isGuest else { return false }
+        guard appState == .signedIn else { return false }
+        if !deviceOnboarded { return true }
+        guard let id = currentUser?.id, !isGuest else { return false }
         return !onboardedUserIds.contains(id)
     }
 
@@ -806,6 +829,9 @@ final class AppEnvironment: ObservableObject {
     }
 
     func markOnboarded() {
+        // Device-wide flag so the first-run flow never re-shows on this install (guest or not).
+        deviceOnboarded = true
+        // Also record this user id so if they sign in later we don't re-trigger it on another device.
         guard let id = currentUser?.id, !isGuest else { return }
         var ids = onboardedUserIds
         ids.insert(id)
@@ -855,7 +881,8 @@ final class AppEnvironment: ObservableObject {
                     message: row.message,
                     timeAgo: "Just now",
                     symbol: "magnifyingglass",
-                    isRead: false
+                    isRead: false,
+                    createdAt: Date()
                 ),
                 at: 0
             )
@@ -1617,7 +1644,9 @@ final class AppEnvironment: ObservableObject {
                     message: "You liked '\(r.title)'",
                     timeAgo: "Just now",
                     symbol: "heart.fill",
-                    isRead: false
+                    isRead: false,
+                    recipeId: id,
+                    createdAt: Date()
                 )
                 circleNotifications.insert(notif, at: 0)
             }
@@ -1672,7 +1701,7 @@ final class AppEnvironment: ObservableObject {
         Task {
             guard await supabase.acceptFriendship(id: id) else { return }
             await loadFriendships()
-            let notif = CircleNotificationItem(title: "New friend", message: "You are now connected.", timeAgo: "Just now", symbol: "person.2.fill", isRead: false)
+            let notif = CircleNotificationItem(title: "New friend", message: "You are now connected.", timeAgo: "Just now", symbol: "person.2.fill", isRead: false, createdAt: Date())
             circleNotifications.insert(notif, at: 0)
         }
     }
@@ -1695,7 +1724,7 @@ final class AppEnvironment: ObservableObject {
     func shareRecipeWithFriend(recipeId: String, friend: FriendItem) async -> Bool {
         let ok = await shareRecipeToUsername(recipeId: recipeId, username: friend.username)
         guard ok, let recipe = recipes.first(where: { $0.id == recipeId }) else { return ok }
-        let notif = CircleNotificationItem(title: "Recipe Shared", message: "Shared '\(recipe.title)' with \(friend.name)", timeAgo: "Just now", symbol: "paperplane.fill", isRead: false, recipeId: recipeId)
+        let notif = CircleNotificationItem(title: "Recipe Shared", message: "Shared '\(recipe.title)' with \(friend.name)", timeAgo: "Just now", symbol: "paperplane.fill", isRead: false, recipeId: recipeId, createdAt: Date())
         circleNotifications.insert(notif, at: 0)
         return true
     }
@@ -1749,7 +1778,7 @@ final class AppEnvironment: ObservableObject {
         // Publishing must actually push the recipe to the cloud so followers/everyone can see it —
         // not just flip a local draft flag. Mark it dirty and sync now, then refresh the feed.
         markRecipeDirty(recipeId)
-        let notif = CircleNotificationItem(title: "Recipe Published", message: "Your recipe '\(recipe.title)' is now live on your profile.", timeAgo: "Just now", symbol: "sparkles", isRead: false, recipeId: recipeId)
+        let notif = CircleNotificationItem(title: "Recipe Published", message: "Your recipe '\(recipe.title)' is now live on your profile.", timeAgo: "Just now", symbol: "sparkles", isRead: false, recipeId: recipeId, createdAt: Date())
         circleNotifications.insert(notif, at: 0)
         Task { await syncRecipes() }
     }
@@ -1881,7 +1910,8 @@ final class AppEnvironment: ObservableObject {
             timeAgo: "Just now",
             symbol: "bubble.left.fill",
             isRead: false,
-            recipeId: recipeId
+            recipeId: recipeId,
+            createdAt: Date()
         )
         circleNotifications.insert(notif, at: 0)
         return nil
@@ -1941,7 +1971,22 @@ final class AppEnvironment: ObservableObject {
 
     /// Finish onboarding: store the taste picks and refresh the feed against them.
     func completeOnboarding(cuisines: Set<String>) {
+        completeOnboarding(cuisines: cuisines, goals: [], decisionTime: nil, sources: [], hearAbout: nil)
+    }
+
+    /// Full onboarding completion — the Osta-style flow calls this with every pick it collected.
+    /// Extras (goals / decisionTime / sources / hearAbout) are stored for future personalization
+    /// hooks; today only `cuisines` feeds the recommender.
+    func completeOnboarding(cuisines: Set<String>,
+                            goals: Set<String>,
+                            decisionTime: String?,
+                            sources: Set<String>,
+                            hearAbout: String?) {
         preferredCuisines = cuisines
+        onboardingGoalsRaw = goals.sorted().joined(separator: ",")
+        onboardingDecisionTimeRaw = decisionTime ?? ""
+        onboardingSourcesRaw = sources.sorted().joined(separator: ",")
+        onboardingHearAboutRaw = hearAbout ?? ""
         markOnboarded()
         Task { await fetchSuggestedFeed() }
     }

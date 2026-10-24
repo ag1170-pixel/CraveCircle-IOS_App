@@ -551,6 +551,9 @@ struct CircleNotificationItem: Codable, Identifiable, Hashable {
     var symbol: String
     var isRead: Bool = false
     var recipeId: String? = nil
+    /// Real event time so the screen can group rows into Today / Yesterday / Last 7 days.
+    /// Optional so saves written before this field exists still decode cleanly.
+    var createdAt: Date? = nil
 
     static let samples: [CircleNotificationItem] = [
         .init(title: "New Recipe in Circle", message: "@nada_dl shared 'Hot Honey Crispy Chicken Burger'", timeAgo: "10m ago", symbol: "fork.knife.circle.fill", isRead: false, recipeId: "recipe-hot-honey-chicken"),
