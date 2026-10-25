@@ -19,7 +19,8 @@ struct OnboardingView: View {
 
     @State private var step: Step = .welcome
     @State private var goals: Set<Goal> = []
-    @State private var decisionTime: DecisionTime? = nil
+    // .decisionTime step removed from the flow — kept the state nil-only so the migration path
+    // doesn't need a schema change on anything that already stored the value.
     @State private var sources: Set<RecipeSource> = []
     @State private var hearAbout: HearAbout? = nil
     @State private var cuisines: Set<String> = []
@@ -43,7 +44,8 @@ struct OnboardingView: View {
                 case .goals:            goalsStep
                 case .goalsAffirmation: goalsAffirmation
                 case .goalDetail:       goalDetail
-                case .decisionTime:     decisionTimeStep
+                // .decisionTime was removed — "when do you usually decide what's for dinner" with
+                // morning/lunch/evening options didn't make sense when the question is dinner.
                 case .recipeSources:    recipeSourcesStep
                 case .howHeard:         howHeardStep
                 case .cuisinesStep:     cuisinesStep
@@ -221,7 +223,7 @@ struct OnboardingView: View {
             Spacer()
             primaryButton("Continue") {
                 if isLast || picks.isEmpty {
-                    advance(to: .decisionTime)
+                    advance(to: .recipeSources)
                 } else {
                     Haptics.tap()
                     withAnimation(AppMotion.smooth) { goalDetailIndex += 1 }
@@ -245,29 +247,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: Step 4 — when do you decide
-
-    private var decisionTimeStep: some View {
-        onboardingPage(
-            title: "When do you usually decide what's for dinner?",
-            subtitle: "We'll check in at the right moment, not a random one.",
-            primaryTitle: "Continue",
-            primaryDisabled: decisionTime == nil,
-            primaryAction: { advance(to: .recipeSources) }
-        ) {
-            VStack(spacing: 12) {
-                ForEach(DecisionTime.allCases) { opt in
-                    optionRow(emoji: opt.emoji, label: opt.label, selected: decisionTime == opt) {
-                        Haptics.select()
-                        withAnimation(AppMotion.snappy) { decisionTime = opt }
-                    }
-                }
-            }
-            .padding(.top, AppSpacing.md)
-        }
-    }
-
-    // MARK: Step 5 — recipe sources
+    // MARK: Step 4 — recipe sources (previously came after decisionTime, which was removed)
 
     private var recipeSourcesStep: some View {
         onboardingPage(
@@ -598,7 +578,7 @@ struct OnboardingView: View {
         environment.completeOnboarding(
             cuisines: cuisines,
             goals: Set(goals.map(\.id)),
-            decisionTime: decisionTime?.id,
+            decisionTime: nil,   // step removed; keep the arg so the env API doesn't move
             sources: Set(sources.map(\.id)),
             hearAbout: hearAbout?.id
         )
@@ -625,7 +605,7 @@ struct OnboardingView: View {
 private extension OnboardingView {
     enum Step: Hashable {
         case welcome, goals, goalsAffirmation, goalDetail
-        case decisionTime, recipeSources, howHeard, cuisinesStep
+        case recipeSources, howHeard, cuisinesStep
         case awesome, tutorialShare, tutorialPanel, tutorialPickApp
 
         /// 0…1 progress for the top bar (welcome has no bar).
@@ -635,8 +615,7 @@ private extension OnboardingView {
             case .goals:            return 0.10
             case .goalsAffirmation: return 0.18
             case .goalDetail:       return 0.28
-            case .decisionTime:     return 0.40
-            case .recipeSources:    return 0.52
+            case .recipeSources:    return 0.46
             case .howHeard:         return 0.62
             case .cuisinesStep:     return 0.72
             case .awesome:          return 0.82
@@ -652,8 +631,7 @@ private extension OnboardingView {
             case .goals:            return .welcome
             case .goalsAffirmation: return .goals
             case .goalDetail:       return .goalsAffirmation
-            case .decisionTime:     return goalsPicked ? .goalDetail : .goalsAffirmation
-            case .recipeSources:    return .decisionTime
+            case .recipeSources:    return goalsPicked ? .goalDetail : .goalsAffirmation
             case .howHeard:         return .recipeSources
             case .cuisinesStep:     return .howHeard
             case .awesome:          return .cuisinesStep
@@ -717,26 +695,8 @@ private enum Goal: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
-private enum DecisionTime: String, CaseIterable, Identifiable, Hashable {
-    case morning, lunch, evening
-    var id: String { rawValue }
-
-    var emoji: String {
-        switch self {
-        case .morning: return "🌅"
-        case .lunch:   return "☀️"
-        case .evening: return "🌇"
-        }
-    }
-
-    var label: String {
-        switch self {
-        case .morning: return "In the morning"
-        case .lunch:   return "Around lunch time"
-        case .evening: return "In the evening"
-        }
-    }
-}
+// DecisionTime enum removed with the step — asking "when do you decide what's for dinner" with
+// morning/lunch/evening options didn't make sense when the subject is dinner.
 
 private enum RecipeSource: String, CaseIterable, Identifiable, Hashable {
     case social, websites, printed

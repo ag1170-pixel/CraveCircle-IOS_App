@@ -47,6 +47,24 @@ struct StudioScreen: View {
         .navigationTitle("Studio")
         .navigationBarTitleDisplayMode(.large)
         .toolbar(.hidden, for: .tabBar)
+        // Studio opens as a full-screen cover from the + sheet. A cover doesn't give you a
+        // back arrow for free — we add an explicit Close so the user is never trapped.
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button {
+                    Haptics.tap()
+                    dismiss()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 15, weight: .bold))
+                        Text("Close")
+                            .font(AppFont.body(16, weight: .semibold))
+                    }
+                    .foregroundStyle(AppTheme.accentInk)
+                }
+            }
+        }
     }
 
     // MARK: Stats
@@ -81,14 +99,12 @@ struct StudioScreen: View {
     private var publishCTA: some View {
         Button {
             Haptics.tap()
-            // Hop to Home so the full-screen editor presents on the main stack, then open it.
-            environment.requestTabSwitch(.home)
-            environment.pendingNewRecipe = true
+            openWriteFromScratch()
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "square.and.pencil")
                     .font(.system(size: 17, weight: .bold))
-                Text("Publish a new recipe")
+                Text("Write a new recipe")
                     .font(AppFont.body(16, weight: .bold))
                 Spacer()
                 Image(systemName: "arrow.forward")
@@ -104,10 +120,33 @@ struct StudioScreen: View {
         .buttonStyle(PressableStyle())
     }
 
+    /// Dismiss Studio FIRST, THEN flip pendingNewRecipe — otherwise the full-screen cover is
+    /// still on top of MainTabView and the blank-editor sheet never presents. The small delay
+    /// lets the dismiss animation finish before the editor pushes.
+    private func openWriteFromScratch() {
+        dismiss()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            environment.requestTabSwitch(.home)
+            environment.pendingNewRecipe = true
+        }
+    }
+
     // MARK: Share tiles — photo + video
 
     private var shareTilesRow: some View {
-        HStack(spacing: AppSpacing.sm) {
+        // Three tiles: Write from scratch (manual editor) · Share a photo (OCR) · Share a video
+        // (transcribe). Flows into a vertical stack so each tile has room for a subtitle; a 3-col
+        // grid on an iPhone 12 width makes the subtitles unreadable.
+        VStack(spacing: AppSpacing.sm) {
+            Button {
+                Haptics.tap()
+                openWriteFromScratch()
+            } label: {
+                shareTile(icon: "square.and.pencil", title: "Write from scratch",
+                          subtitle: "Open a blank editor. Add your ingredients and directions yourself.")
+            }
+            .buttonStyle(.plain)
+
             #if !XTOOL_WSL
             PhotosPicker(selection: $pickedPhotos, maxSelectionCount: 6, matching: .images) {
                 shareTile(icon: "photo.on.rectangle", title: "Share a photo",
@@ -181,9 +220,11 @@ struct StudioScreen: View {
         }
         guard !images.isEmpty else { return }
         Haptics.success()
-        // Hop back to Home before kicking off the import so the live progress banner is visible.
+        // Dismiss Studio first so the live import banner on Home isn't hidden behind the cover,
+        // then kick off the import after a short beat for the dismiss animation.
         dismiss()
         environment.requestTabSwitch(.home)
+        try? await Task.sleep(nanoseconds: 250_000_000)
         await environment.importFromPhotos(images)
     }
 
@@ -202,6 +243,7 @@ struct StudioScreen: View {
         Haptics.success()
         dismiss()
         environment.requestTabSwitch(.home)
+        try? await Task.sleep(nanoseconds: 250_000_000)
         await environment.importFromVideo(url)
     }
     #endif
