@@ -236,6 +236,67 @@ struct SupabaseData {
     }
 
     /// Admin decision — approve promotes the requester to creator (RLS + is_admin() enforced server-side).
+    // MARK: - Likes + Saves (server-mirrored so a user's state follows them across devices)
+
+    /// Toggle a like on a recipe. Does an INSERT on true, DELETE on false. Returns false silently
+    /// on no-session so the client falls back to its device-local set.
+    func setLike(recipeId: String, liked: Bool) async -> Bool {
+        guard hasSession, let uid = currentUserId() else { return false }
+        if liked {
+            guard var req = request(path: "rest/v1/recipe_likes", method: "POST") else { return false }
+            req.setValue("resolution=ignore-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
+            req.httpBody = try? JSONSerialization.data(withJSONObject: ["user_id": uid, "recipe_id": recipeId])
+            guard let (_, resp) = try? await URLSession.shared.data(for: req),
+                  let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+            return true
+        } else {
+            let path = "rest/v1/recipe_likes?user_id=eq.\(uid)&recipe_id=eq.\(recipeId)"
+            guard let req = request(path: path, method: "DELETE") else { return false }
+            guard let (_, resp) = try? await URLSession.shared.data(for: req),
+                  let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+            return true
+        }
+    }
+
+    /// Toggle a save (bookmark) — same shape as `setLike`, different table.
+    func setSave(recipeId: String, saved: Bool) async -> Bool {
+        guard hasSession, let uid = currentUserId() else { return false }
+        if saved {
+            guard var req = request(path: "rest/v1/recipe_saves", method: "POST") else { return false }
+            req.setValue("resolution=ignore-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
+            req.httpBody = try? JSONSerialization.data(withJSONObject: ["user_id": uid, "recipe_id": recipeId])
+            guard let (_, resp) = try? await URLSession.shared.data(for: req),
+                  let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+            return true
+        } else {
+            let path = "rest/v1/recipe_saves?user_id=eq.\(uid)&recipe_id=eq.\(recipeId)"
+            guard let req = request(path: path, method: "DELETE") else { return false }
+            guard let (_, resp) = try? await URLSession.shared.data(for: req),
+                  let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+            return true
+        }
+    }
+
+    /// Pull the signed-in user's most-recent likes + saves so the client can hydrate the local
+    /// sets at launch. Nil on failure so the caller keeps whatever's on device.
+    func fetchMyLikesAndSaves(limit: Int = 500) async -> (likes: Set<String>, saves: Set<String>)? {
+        guard hasSession else { return nil }
+        struct Row: Decodable { let recipe_id: String }
+        async let likesData: [Row]? = fetchRecent(table: "recipe_likes", limit: limit)
+        async let savesData: [Row]? = fetchRecent(table: "recipe_saves", limit: limit)
+        let (l, s) = await (likesData, savesData)
+        guard let l, let s else { return nil }
+        return (Set(l.map(\.recipe_id)), Set(s.map(\.recipe_id)))
+    }
+
+    private func fetchRecent<T: Decodable>(table: String, limit: Int) async -> [T]? {
+        guard let uid = currentUserId(),
+              let req = request(path: "rest/v1/\(table)?select=recipe_id&user_id=eq.\(uid)&order=created_at.desc&limit=\(limit)", method: "GET") else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return try? JSONDecoder().decode([T].self, from: data)
+    }
+
     func decideCreatorRequest(id: String, approve: Bool) async -> Bool {
         guard hasSession, var req = request(path: "rest/v1/rpc/decide_creator_request") else { return false }
         guard let body = try? JSONSerialization.data(withJSONObject: ["p_request_id": id, "p_approve": approve]) else { return false }

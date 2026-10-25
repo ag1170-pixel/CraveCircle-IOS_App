@@ -94,11 +94,12 @@ struct StudioScreen: View {
                 Image(systemName: "arrow.forward")
                     .font(.system(size: 14, weight: .bold))
             }
-            .foregroundStyle(AppTheme.onBrand)
+            // Charcoal, not coral — per the vault's Design-Philosophy.md: "One accent language.
+            // Charcoal for actions, Coral is the logo, not a second CTA color."
+            .foregroundStyle(AppTheme.onAccent)
             .padding(.horizontal, 16)
             .padding(.vertical, 16)
-            .background(AppTheme.brand, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-            .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
+            .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
         }
         .buttonStyle(PressableStyle())
     }

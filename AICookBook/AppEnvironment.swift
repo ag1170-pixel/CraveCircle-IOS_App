@@ -61,17 +61,23 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var outgoingRequests: [FriendRequestItem] = [] { didSet { persist(outgoingRequests, "friend_requests_out.json") } }
     
     // Collections
-    @Published private(set) var ownedCollections: [CollectionItem] = CollectionItem.ownedSamples { didSet { persist(ownedCollections, "owned_collections.json") } }
-    @Published private(set) var sharedCollections: [CollectionItem] = CollectionItem.sharedSamples { didSet { persist(sharedCollections, "shared_collections.json") } }
+    // New installs start with zero collections. The sample "Weeknight Dinners · 8" collections
+    // used to seed here but they looked like real content the user had created — a lie on first
+    // launch. Collections now appear only after the user actually makes one.
+    @Published private(set) var ownedCollections: [CollectionItem] = [] { didSet { persist(ownedCollections, "owned_collections.json") } }
+    @Published private(set) var sharedCollections: [CollectionItem] = [] { didSet { persist(sharedCollections, "shared_collections.json") } }
 
     // Studio Drafts & Published
-    @Published private(set) var studioDraftIds: Set<String> = ["recipe-hot-honey-chicken", "recipe-spicy-paneer-wrap"] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
+    // No preseeded drafts. A new creator sees "0 Drafts" in Studio until they actually write one.
+    @Published private(set) var studioDraftIds: Set<String> = [] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
     
     // Notifications & Activity
     @Published private(set) var circleNotifications: [CircleNotificationItem] = [] { didSet { persist(circleNotifications, "notifications.json") } }
 
     // Recipe Comments
-    @Published private(set) var recipeComments: [String: [RecipeComment]] = RecipeComment.defaultSamples { didSet { persist(recipeComments, "comments.json") } }
+    // Comments start empty. Server-synced comments populate per recipe on first open. The sample
+    // comments shipped as a default made every recipe look busier than it was.
+    @Published private(set) var recipeComments: [String: [RecipeComment]] = [:] { didSet { persist(recipeComments, "comments.json") } }
 
     let config: AppConfig
     private let tokenStore: TokenStore
@@ -182,7 +188,7 @@ final class AppEnvironment: ObservableObject {
         avatarImageData = loadScoped(Data.self, "avatar.json", userId: userId)
         pendingInteractions = loadScoped([InteractionEvent].self, "pending_interactions.json", userId: userId) ?? []
         interactionHistory = loadScoped([InteractionEvent].self, "interaction_history.json", userId: userId) ?? []
-        recipeComments = loadScoped([String: [RecipeComment]].self, "comments.json", userId: userId) ?? RecipeComment.defaultSamples
+        recipeComments = loadScoped([String: [RecipeComment]].self, "comments.json", userId: userId) ?? [:]
         circleNotifications = CircleNotificationItem.withoutSamples(
             loadScoped([CircleNotificationItem].self, "notifications.json", userId: userId) ?? []
         )
@@ -266,6 +272,7 @@ final class AppEnvironment: ObservableObject {
             appState = .signedIn
             hydrateLocal()
             await refreshRecipes()
+            await hydrateLikesAndSavesFromServer()
             await uploadDeviceTokenIfPossible()
             syncSharedUserId()
             return
@@ -375,8 +382,25 @@ final class AppEnvironment: ObservableObject {
         if !guestId.isEmpty { guestUserId = "" }
         appState = .signedIn
         await refreshRecipes()
+        await hydrateLikesAndSavesFromServer()
         await uploadDeviceTokenIfPossible()   // token may have arrived before login
         syncSharedUserId()
+    }
+
+    /// Pull the signed-in user's likes + saves from Supabase and union them with whatever's on
+    /// device. The server wins for the aggregate set — a like made on another device appears
+    /// here on next sign-in; a like only on this device also stays because we union, not replace.
+    func hydrateLikesAndSavesFromServer() async {
+        guard hasRealSession else { return }
+        guard let (serverLikes, serverSaves) = await supabase.fetchMyLikesAndSaves() else { return }
+        let mergedLikes = likedRecipeIds.union(serverLikes)
+        let mergedSaves = savedRecipeIds.union(serverSaves)
+        await MainActor.run {
+            likedRecipeIds = mergedLikes
+            savedRecipeIds = mergedSaves
+        }
+        storeRecipeIdSet(mergedLikes, key: "liked_recipe_ids")
+        storeRecipeIdSet(mergedSaves, key: "saved_recipe_ids")
     }
 
     /// Carry the guest's on-device state into the signed-in account, then wipe the guest's
@@ -1778,6 +1802,8 @@ final class AppEnvironment: ObservableObject {
     /// can show the card, not only the id.
     func toggleSaveRecipe(id: String, recipe: Recipe? = nil) {
         guard requireRealSessionOrPrompt(reason: .save) else { return }
+        let willSave = !savedRecipeIds.contains(id)
+        Task { _ = await supabase.setSave(recipeId: id, saved: willSave) }
         if savedRecipeIds.contains(id) {
             savedRecipeIds.remove(id)
             cancelCookNudge(recipeId: id)
@@ -1837,6 +1863,10 @@ final class AppEnvironment: ObservableObject {
 
     func toggleLikeRecipe(id: String) {
         guard requireRealSessionOrPrompt(reason: .like) else { return }
+        // Mirror to the server so the like follows the user across devices. Fire-and-forget:
+        // the local set still updates immediately so the heart's optimistic.
+        let willLike = !likedRecipeIds.contains(id)
+        Task { _ = await supabase.setLike(recipeId: id, liked: willLike) }
         if likedRecipeIds.contains(id) {
             likedRecipeIds.remove(id)
             Haptics.tap()

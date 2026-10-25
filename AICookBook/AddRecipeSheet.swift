@@ -185,12 +185,13 @@ struct AddRecipeSheet: View {
     }
 
     private func studioCard(icon: String, title: String, subtitle: String, accent: Bool) -> some View {
+        // Charcoal (accent) tile, not coral — the brand/coral is logo-only per Design-Philosophy.md.
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(accent ? AppTheme.onBrand : AppTheme.accentInk)
+                .foregroundStyle(accent ? AppTheme.onAccent : AppTheme.accentInk)
                 .frame(width: 40, height: 40)
-                .background(accent ? AppTheme.brand : AppTheme.accentSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(accent ? AppTheme.accent : AppTheme.accentSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(AppFont.body(15, weight: .bold))
@@ -214,7 +215,7 @@ struct AddRecipeSheet: View {
         .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
-                .stroke(accent ? AppTheme.brand.opacity(0.4) : AppTheme.hairline, lineWidth: 1)
+                .stroke(accent ? AppTheme.accent.opacity(0.35) : AppTheme.hairline, lineWidth: 1)
         )
     }
 
