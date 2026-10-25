@@ -1,12 +1,14 @@
 import Foundation
 
-/// App account role. Consumers and creators browse; only an admin can publish for now.
+/// App account role. Consumers browse; approved creators and admins can publish to the feed.
 enum AccountRole: String, Codable {
     case user
     case creator
     case admin
 
-    var canPublish: Bool { self == .admin }
+    /// Admins publish anything; approved creators publish their own recipes to the public feed.
+    /// A plain user can save and import for themselves, not publish.
+    var canPublish: Bool { self == .admin || self == .creator }
 
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
@@ -20,15 +22,30 @@ struct UserProfile: Codable, Identifiable {
     var fullName: String?
     var avatarUrl: String?
     var role: AccountRole
+    /// Short bio shown on the creator profile. Optional — a plain user can leave it blank.
+    var bio: String? = nil
+    /// Public social links the user chooses to show. Each is a full URL; nil / empty hides the icon.
+    var instagramUrl: String? = nil
+    var tiktokUrl: String? = nil
+    var youtubeUrl: String? = nil
+    var facebookUrl: String? = nil
 
     var canPublish: Bool { role.canPublish }
 
-    init(id: String, username: String? = nil, fullName: String? = nil, avatarUrl: String? = nil, role: AccountRole = .user) {
+    init(id: String, username: String? = nil, fullName: String? = nil, avatarUrl: String? = nil,
+         role: AccountRole = .user, bio: String? = nil,
+         instagramUrl: String? = nil, tiktokUrl: String? = nil,
+         youtubeUrl: String? = nil, facebookUrl: String? = nil) {
         self.id = id
         self.username = username
         self.fullName = fullName
         self.avatarUrl = avatarUrl
         self.role = role
+        self.bio = bio
+        self.instagramUrl = instagramUrl
+        self.tiktokUrl = tiktokUrl
+        self.youtubeUrl = youtubeUrl
+        self.facebookUrl = facebookUrl
     }
 
     init(from decoder: Decoder) throws {
@@ -38,6 +55,11 @@ struct UserProfile: Codable, Identifiable {
         fullName = try c.decodeIfPresent(String.self, forKey: .fullName)
         avatarUrl = try c.decodeIfPresent(String.self, forKey: .avatarUrl)
         role = try c.decodeIfPresent(AccountRole.self, forKey: .role) ?? .user
+        bio = try c.decodeIfPresent(String.self, forKey: .bio)
+        instagramUrl = try c.decodeIfPresent(String.self, forKey: .instagramUrl)
+        tiktokUrl = try c.decodeIfPresent(String.self, forKey: .tiktokUrl)
+        youtubeUrl = try c.decodeIfPresent(String.self, forKey: .youtubeUrl)
+        facebookUrl = try c.decodeIfPresent(String.self, forKey: .facebookUrl)
     }
 }
 
@@ -554,6 +576,19 @@ struct CircleNotificationItem: Codable, Identifiable, Hashable {
     /// Real event time so the screen can group rows into Today / Yesterday / Last 7 days.
     /// Optional so saves written before this field exists still decode cleanly.
     var createdAt: Date? = nil
+    /// Comma-separated recipe ids merged into this notification row. Used by the 30-minute
+    /// like-bundling logic in AppEnvironment — a single "You liked X and 2 others" row stays
+    /// one row even as more likes fire. Optional for back-compat with older saves.
+    var bundledRecipeIdsCSV: String? = nil
+
+    /// Convenience: the recipes rolled up into this bundle. Empty for everything except batched likes.
+    var bundledRecipeIds: Set<String> {
+        guard let csv = bundledRecipeIdsCSV, !csv.isEmpty else {
+            if let r = recipeId, !r.isEmpty { return [r] }
+            return []
+        }
+        return Set(csv.split(separator: ",").map(String.init))
+    }
 
     static let samples: [CircleNotificationItem] = [
         .init(title: "New Recipe in Circle", message: "@nada_dl shared 'Hot Honey Crispy Chicken Burger'", timeAgo: "10m ago", symbol: "fork.knife.circle.fill", isRead: false, recipeId: "recipe-hot-honey-chicken"),
@@ -647,7 +682,7 @@ enum CraveCircleInvariantChecks {
         precondition(Recipe.isSocialImportURL("https://tiktok.com/@x/video/1") == true)
         precondition(Recipe.isSocialImportURL("https://cravecircle.cc/recipes/1") == false)
         precondition(AccountRole.user.canPublish == false)
-        precondition(AccountRole.creator.canPublish == false)
+        precondition(AccountRole.creator.canPublish == true)
         precondition(AccountRole.admin.canPublish == true)
     }()
 }

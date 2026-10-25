@@ -262,6 +262,7 @@ final class AppEnvironment: ObservableObject {
         // across launches; fall back to the homelab profile, then a generic user.
         if let profile = await supabase.fetchMyProfile() {
             currentUser = profile
+            elevateFounderIfMatches(email: profile.username)
             appState = .signedIn
             hydrateLocal()
             await refreshRecipes()
@@ -300,6 +301,25 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
+    /// Founder gets admin automatically — needed to approve creator requests from day one.
+    /// Keyed to the exact email so a random account can't elevate itself.
+    private func elevateFounderIfMatches(email: String?) {
+        let founderEmail = "adityagupta2646@gmail.com"
+        guard let cur = currentUser else { return }
+        // Compare to the email the user typed in and to the profile's own username (which may be
+        // the email when fetchMyProfile has no handle).
+        let typed = email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        let handle = (cur.username ?? "").lowercased()
+        guard typed == founderEmail || handle == founderEmail else { return }
+        if cur.role == .admin { return }
+        currentUser = UserProfile(
+            id: cur.id, username: cur.username, fullName: cur.fullName, avatarUrl: cur.avatarUrl,
+            role: .admin, bio: cur.bio,
+            instagramUrl: cur.instagramUrl, tiktokUrl: cur.tiktokUrl,
+            youtubeUrl: cur.youtubeUrl, facebookUrl: cur.facebookUrl
+        )
+    }
+
     func signInWithGoogle() async {
         do {
             _ = try await authClient.signInWithGoogle()
@@ -322,6 +342,7 @@ final class AppEnvironment: ObservableObject {
             do { currentUser = try await apiClient.fetchProfile() }
             catch { currentUser = fallbackUser(email: email) }
         }
+        elevateFounderIfMatches(email: email)
         hydrateLocal()
         if let userId = currentUser?.id, !carried.isEmpty {
             for var recipe in carried {
@@ -361,13 +382,41 @@ final class AppEnvironment: ObservableObject {
                 username: (handle?.isEmpty == false) ? handle : cur.username,
                 fullName: (name?.isEmpty == false) ? name : cur.fullName,
                 avatarUrl: cur.avatarUrl,
-                role: cur.role
+                role: cur.role,
+                bio: cur.bio,
+                instagramUrl: cur.instagramUrl,
+                tiktokUrl: cur.tiktokUrl,
+                youtubeUrl: cur.youtubeUrl,
+                facebookUrl: cur.facebookUrl
             )
         }
         _ = await supabase.updateMyProfile(
             fullName: (name?.isEmpty == false) ? name : nil,
             username: (handle?.isEmpty == false) ? handle : nil,
             avatarUrl: nil
+        )
+    }
+
+    /// Save the user-written bio + social links. Stored on the local currentUser copy — the
+    /// backend table doesn't carry these columns yet, so this is per-device for now and will
+    /// mirror once the cloud schema catches up.
+    func updateProfileSocials(bio: String?, instagram: String?, tiktok: String?, youtube: String?, facebook: String?) {
+        guard let cur = currentUser else { return }
+        func clean(_ v: String?) -> String? {
+            let t = v?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return t.isEmpty ? nil : t
+        }
+        currentUser = UserProfile(
+            id: cur.id,
+            username: cur.username,
+            fullName: cur.fullName,
+            avatarUrl: cur.avatarUrl,
+            role: cur.role,
+            bio: clean(bio),
+            instagramUrl: clean(instagram),
+            tiktokUrl: clean(tiktok),
+            youtubeUrl: clean(youtube),
+            facebookUrl: clean(facebook)
         )
     }
 
@@ -753,6 +802,46 @@ final class AppEnvironment: ObservableObject {
     }
 
     /// Mark a Circle notification read (clears its unread dot) — gives every tap visible feedback.
+    /// Likes don't push a fresh row every tap — they merge into a single "You liked X and N others"
+    /// row within a 30-minute window. One like → "You liked 'Pasta'". A second like → "You liked
+    /// 'Pasta' and 1 other". After 30 min a new bundle starts. Keeps the bell quiet; still shows
+    /// the user what they've been saving.
+    private func bundleLikeNotification(for recipe: Recipe) {
+        let window: TimeInterval = 30 * 60
+        let now = Date()
+
+        // Find the most recent like notification; merge if it's inside the window.
+        if let idx = circleNotifications.firstIndex(where: { $0.title == "Liked Recipe" }),
+           let when = circleNotifications[idx].createdAt,
+           now.timeIntervalSince(when) < window {
+            var merged = circleNotifications[idx]
+            // Walk the recipe ids out of the message so repeat likes don't double-count.
+            let seen = merged.bundledRecipeIds.union([recipe.id])
+            let others = seen.count - 1
+            merged.message = others > 0
+                ? "You liked '\(recipe.title)' and \(others) other\(others == 1 ? "" : "s")"
+                : "You liked '\(recipe.title)'"
+            merged.recipeId = recipe.id   // tapping opens the one you most recently liked
+            merged.timeAgo = "Just now"
+            merged.isRead = false
+            merged.bundledRecipeIdsCSV = seen.sorted().joined(separator: ",")
+            circleNotifications.remove(at: idx)
+            circleNotifications.insert(merged, at: 0)
+        } else {
+            var fresh = CircleNotificationItem(
+                title: "Liked Recipe",
+                message: "You liked '\(recipe.title)'",
+                timeAgo: "Just now",
+                symbol: "heart.fill",
+                isRead: false,
+                recipeId: recipe.id,
+                createdAt: now
+            )
+            fresh.bundledRecipeIdsCSV = recipe.id
+            circleNotifications.insert(fresh, at: 0)
+        }
+    }
+
     /// Opening the bell is proof the person has seen the activity — clear every unread flag so
     /// the little dot on the home-screen icon goes away. Called when the sheet is presented.
     func markAllNotificationsRead() {
@@ -1639,16 +1728,7 @@ final class AppEnvironment: ObservableObject {
             logInteraction(recipeId: id, eventType: "like")
             Haptics.success()
             if let r = recipes.first(where: { $0.id == id }) {
-                let notif = CircleNotificationItem(
-                    title: "Liked Recipe",
-                    message: "You liked '\(r.title)'",
-                    timeAgo: "Just now",
-                    symbol: "heart.fill",
-                    isRead: false,
-                    recipeId: id,
-                    createdAt: Date()
-                )
-                circleNotifications.insert(notif, at: 0)
+                bundleLikeNotification(for: r)
             }
         }
         storeRecipeIdSet(likedRecipeIds, key: "liked_recipe_ids")

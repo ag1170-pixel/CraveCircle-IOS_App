@@ -24,6 +24,8 @@ struct AddRecipeSheet: View {
     @State private var showLink = false            // paste field is hidden until "Import from social media" is tapped
     @State private var blank = AddRecipeSheet.newBlank()
     @State private var contentHeight: CGFloat = 0  // drives a content-fitted sheet detent (no dead space)
+    @State private var showCreatorRequest = false
+    @State private var showStudio = false
     @FocusState private var linkFocused: Bool
 
     // Fit the sheet to its content; cap at 90% so a small screen still scrolls. Falls back before measure.
@@ -38,6 +40,13 @@ struct AddRecipeSheet: View {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 header
 
+                // Studio banner only shows up as its own card when the user is already a creator
+                // (so the Studio page is one tap from +). For regular users the entry sits inside
+                // the grid below as another small tile, matching the other import options.
+                if environment.canPublish || environment.hasPendingCreatorRequest {
+                    studioBanner
+                }
+
                 socialBanner
 
                 LazyVGrid(
@@ -47,6 +56,11 @@ struct AddRecipeSheet: View {
                     optionCard("Write from scratch", systemImage: "square.and.pencil") { startWrite() }
                     optionCard("Import from web", systemImage: "globe") { showWeb = true }
                     photoCard
+                    if !environment.canPublish && !environment.hasPendingCreatorRequest {
+                        optionCard("Become a Creator", systemImage: "person.badge.plus") {
+                            showCreatorRequest = true
+                        }
+                    }
                 }
 
                 if showLink {
@@ -67,6 +81,16 @@ struct AddRecipeSheet: View {
                 showing = false
             }
             .environmentObject(environment)
+        }
+        .sheet(isPresented: $showCreatorRequest) {
+            CreatorRequestSheet()
+                .environmentObject(environment)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .fullScreenCover(isPresented: $showStudio) {
+            NavigationStack { StudioScreen() }
+                .environmentObject(environment)
         }
         .fullScreenCover(isPresented: $showWrite) {
             NavigationStack {
@@ -116,6 +140,82 @@ struct AddRecipeSheet: View {
             }
             .buttonStyle(.plain)
         }
+    }
+
+    // MARK: Studio / Become-a-Creator banner (top of the import sheet)
+
+    @ViewBuilder private var studioBanner: some View {
+        if environment.canPublish {
+            // Approved creator / admin — straight to the Studio.
+            Button {
+                Haptics.tap()
+                showStudio = true
+            } label: {
+                studioCard(
+                    icon: "sparkles",
+                    title: "Open Studio",
+                    subtitle: "Publish a new recipe · Share a photo · Share a video",
+                    accent: true
+                )
+            }
+            .buttonStyle(PressableStyle())
+        } else if environment.hasPendingCreatorRequest {
+            // Submitted — thank-you waiting card. Non-interactive by design.
+            studioCard(
+                icon: "hourglass",
+                title: "Thanks for applying!",
+                subtitle: "Your creator request is with our team. You'll be able to publish once an admin approves.",
+                accent: false
+            )
+        } else {
+            // Regular user — invite them in.
+            Button {
+                Haptics.tap()
+                showCreatorRequest = true
+            } label: {
+                studioCard(
+                    icon: "person.badge.plus",
+                    title: "Become a Creator",
+                    subtitle: "Share your own recipes with everyone on CraveCircle.",
+                    accent: true
+                )
+            }
+            .buttonStyle(PressableStyle())
+        }
+    }
+
+    private func studioCard(icon: String, title: String, subtitle: String, accent: Bool) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(accent ? AppTheme.onBrand : AppTheme.accentInk)
+                .frame(width: 40, height: 40)
+                .background(accent ? AppTheme.brand : AppTheme.accentSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(AppFont.body(15, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text(subtitle)
+                    .font(AppFont.body(12))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+            Spacer(minLength: 4)
+            if accent {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .stroke(accent ? AppTheme.brand.opacity(0.4) : AppTheme.hairline, lineWidth: 1)
+        )
     }
 
     // MARK: Social banner (paste a reel link)

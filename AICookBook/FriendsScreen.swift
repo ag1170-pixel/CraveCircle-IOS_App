@@ -9,13 +9,19 @@
 //
 
 import SwiftUI
+import Contacts
 
 struct FriendsScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var query = ""
+    @AppStorage("recent_friend_searches") private var recentFriendSearchesCSV: String = ""
+    @FocusState private var searchFocused: Bool
     @State private var segment: Segment = .suggested
     @State private var selectedCreator: (handle: String, name: String?)?
     @State private var showAddFriend = false
+    @State private var contactsStatus: CNAuthorizationStatus = CNContactStore.authorizationStatus(for: .contacts)
+    @State private var contactsRows: [ContactRow] = []
+    @State private var isReadingContacts = false
 
     private enum Segment: String, CaseIterable, Identifiable {
         case suggested = "Suggested"
@@ -27,17 +33,24 @@ struct FriendsScreen: View {
         ScrollView {
             VStack(spacing: AppSpacing.md) {
                 searchField
+                if searchFocused && query.isEmpty && !recentFriendSearches.isEmpty {
+                    recentFriendsRow
+                }
                 if !environment.incomingRequests.isEmpty { requestsBanner }
                 segmentedControl
                 listSection
             }
             .padding(.horizontal, AppSpacing.md)
             .padding(.top, AppSpacing.xs)
-            .padding(.bottom, 140)   // room for the invite banner + FAB
+            .padding(.bottom, 90)    // room for the invite banner (tab bar is hidden)
         }
         .background(AppTheme.background.ignoresSafeArea())
         .scrollIndicators(.hidden)
-        // Invite banner only lives under the Suggested list — Contacts has its own CTA.
+        // Hide the floating app tab bar on this screen — otherwise the parent "+" FAB sits on top
+        // of the Invite button and the whole bottom looks jammed. Instagram's follow screens do
+        // the same thing: push into a focused page, lose the tab bar until you back out.
+        .toolbar(.hidden, for: .tabBar)
+        // Invite button only lives under the Suggested list — Contacts has its own CTA.
         .safeAreaInset(edge: .bottom) {
             if segment == .suggested { inviteBanner }
         }
@@ -76,6 +89,15 @@ struct FriendsScreen: View {
             await environment.loadFriendships()
             await environment.syncShares()
         }
+        .onChange(of: segment) { _, new in
+            // Flip to Contacts → if we already have permission, read the address book once and
+            // match. If not, the contactsBody shows the "Allow" button.
+            if new == .contacts,
+               contactsStatus == .authorized || contactsStatus == .limited,
+               contactsRows.isEmpty, !isReadingContacts {
+                readContactsAndMatch()
+            }
+        }
         .tint(AppTheme.accentInk)
     }
 
@@ -91,7 +113,9 @@ struct FriendsScreen: View {
                 .foregroundStyle(AppTheme.textPrimary)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .focused($searchFocused)
                 .submitLabel(.search)
+                .onSubmit { recordRecentFriendSearch(query) }
             if !query.isEmpty {
                 Button {
                     Haptics.tap()
@@ -180,7 +204,7 @@ struct FriendsScreen: View {
     @ViewBuilder private var listSection: some View {
         switch segment {
         case .suggested: suggestedList
-        case .contacts:  contactsEmpty
+        case .contacts:  contactsBody
         }
     }
 
@@ -193,7 +217,8 @@ struct FriendsScreen: View {
                     title: query.isEmpty ? "No one to suggest yet" : "No one by that name",
                     subtitle: query.isEmpty
                         ? "Import a recipe or two — people whose dishes you save start showing up here."
-                        : "Try a different username, or tap Add to send a request."
+                        : "Try a different username, or tap Add to send a request.",
+                    cta: nil, action: nil
                 )
             } else {
                 ForEach(people) { person in
@@ -202,6 +227,7 @@ struct FriendsScreen: View {
                         isFollowing: environment.isFollowing(creatorHandle: person.handle),
                         onTap: {
                             Haptics.tap()
+                            recordRecentFriendSearch(person.handle)
                             selectedCreator = (handle: person.handle, name: person.name)
                         },
                         onFollow: {
@@ -222,21 +248,172 @@ struct FriendsScreen: View {
         )
     }
 
-    private var contactsEmpty: some View {
-        emptyMessage(
-            icon: "person.crop.rectangle.stack",
-            title: "Connect your contacts",
-            subtitle: "Find friends who are already on CraveCircle. We'll ask once before reading your address book — it stays on your phone.",
-            cta: "Open Settings"
-        ) {
-            if let url = URL(string: UIApplication.openSettingsURLString) {
-                UIApplication.shared.open(url)
+    // MARK: Contacts — real permission flow (first tap triggers iOS alert; after that
+    // the Contacts toggle appears for the app in Settings).
+
+    @ViewBuilder private var contactsBody: some View {
+        switch contactsStatus {
+        case .notDetermined:
+            emptyMessage(
+                icon: "person.crop.rectangle.stack",
+                title: "Connect your contacts",
+                subtitle: "Find friends already on CraveCircle. Contacts stay on your phone — we only match on name.",
+                cta: "Allow Contacts Access",
+                action: requestContactsAccess
+            )
+        case .denied, .restricted:
+            emptyMessage(
+                icon: "lock",
+                title: "Contacts access is off",
+                subtitle: "Turn it on in Settings → CraveCircle → Contacts, then come back.",
+                cta: "Open Settings",
+                action: {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+            )
+        case .authorized, .limited:
+            if isReadingContacts {
+                ProgressView("Reading your contacts…")
+                    .padding(.vertical, 40)
+                    .frame(maxWidth: .infinity)
+            } else if contactsRows.isEmpty {
+                emptyMessage(
+                    icon: "person.crop.rectangle.stack",
+                    title: "No contacts found",
+                    subtitle: "Your address book is empty — or iOS gave the app only a limited set.",
+                    cta: nil, action: nil
+                )
+            } else {
+                contactsList
+            }
+        @unknown default:
+            emptyMessage(
+                icon: "person.crop.rectangle.stack",
+                title: "Connect your contacts",
+                subtitle: "Find friends already on CraveCircle. Contacts stay on your phone — we only match on name.",
+                cta: "Allow Contacts Access",
+                action: requestContactsAccess
+            )
+        }
+    }
+
+    /// All contacts in one list: known creators get a Follow row; everyone else gets an Invite
+    /// row with a system share sheet pre-filled with the app link.
+    private var contactsList: some View {
+        LazyVStack(spacing: 0) {
+            ForEach(contactsRows) { row in
+                if let person = row.person {
+                    PersonRow(
+                        person: person,
+                        isFollowing: environment.isFollowing(creatorHandle: person.handle),
+                        onTap: {
+                            Haptics.tap()
+                            selectedCreator = (handle: person.handle, name: person.name)
+                        },
+                        onFollow: {
+                            Haptics.tap()
+                            environment.toggleFollow(creatorHandle: person.handle)
+                        }
+                    )
+                } else {
+                    ContactInviteRow(contactName: row.name,
+                                     subtitle: row.subtitle,
+                                     initials: row.initials)
+                }
+                if row.id != contactsRows.last?.id {
+                    Divider().overlay(AppTheme.separator).padding(.leading, 74)
+                }
+            }
+        }
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .stroke(AppTheme.hairline, lineWidth: 1)
+        )
+    }
+
+    private func requestContactsAccess() {
+        Haptics.tap()
+        CNContactStore().requestAccess(for: .contacts) { granted, _ in
+            DispatchQueue.main.async {
+                contactsStatus = CNContactStore.authorizationStatus(for: .contacts)
+                if granted { readContactsAndMatch() }
             }
         }
     }
 
+    /// Read every contact and build a row for each: known creator → Follow row, otherwise an
+    /// Invite row. All matching stays on the phone; nothing's uploaded.
+    private func readContactsAndMatch() {
+        isReadingContacts = true
+        let known = suggestedPeople(matching: "")   // creators already in the catalog
+        Task.detached(priority: .userInitiated) {
+            let store = CNContactStore()
+            let keys = [
+                CNContactGivenNameKey, CNContactFamilyNameKey,
+                CNContactPhoneNumbersKey, CNContactEmailAddressesKey
+            ] as [CNKeyDescriptor]
+            let request = CNContactFetchRequest(keysToFetch: keys)
+
+            struct RawContact { let fullName: String; let subtitle: String }
+            var raws: [RawContact] = []
+            do {
+                try store.enumerateContacts(with: request) { c, _ in
+                    let name = "\(c.givenName) \(c.familyName)".trimmingCharacters(in: .whitespaces)
+                    guard !name.isEmpty else { return }
+                    let subtitle: String = {
+                        if let num = c.phoneNumbers.first?.value.stringValue, !num.isEmpty { return num }
+                        if let em = (c.emailAddresses.first?.value as String?), !em.isEmpty { return em }
+                        return ""
+                    }()
+                    raws.append(RawContact(fullName: name, subtitle: subtitle))
+                }
+            } catch { /* fall through — the list is just empty */ }
+
+            // De-dup, sort alphabetically — iOS address books often repeat the same person.
+            let unique = Dictionary(grouping: raws, by: { $0.fullName.lowercased() })
+                .compactMap { $0.value.first }
+                .sorted { $0.fullName.localizedCaseInsensitiveCompare($1.fullName) == .orderedAscending }
+
+            let rows: [ContactRow] = unique.map { raw in
+                let match = known.first { person in
+                    let p = person.name.lowercased(); let c = raw.fullName.lowercased()
+                    return p == c || p.contains(c) || c.contains(p)
+                }
+                return ContactRow(
+                    id: raw.fullName.lowercased(),
+                    name: raw.fullName,
+                    subtitle: raw.subtitle,
+                    person: match
+                )
+            }
+
+            await MainActor.run {
+                self.contactsRows = rows
+                self.isReadingContacts = false
+            }
+        }
+    }
+
+    private struct ContactRow: Identifiable {
+        let id: String
+        let name: String
+        let subtitle: String
+        let person: SuggestedPerson?
+
+        var initials: String {
+            let parts = name.split(separator: " ")
+            if parts.count >= 2 {
+                return String(parts[0].prefix(1) + parts[1].prefix(1)).uppercased()
+            }
+            return String(name.prefix(2)).uppercased()
+        }
+    }
+
     private func emptyMessage(icon: String, title: String, subtitle: String,
-                              cta: String? = nil, action: (() -> Void)? = nil) -> some View {
+                              cta: String?, action: (() -> Void)?) -> some View {
         VStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 32, weight: .light))
@@ -276,33 +453,27 @@ struct FriendsScreen: View {
     // MARK: Invite banner (safe-area inset at the bottom)
 
     private var inviteBanner: some View {
-        VStack(spacing: 6) {
-            Text("Invite friends that aren't on CraveCircle")
-                .font(AppFont.body(13, weight: .medium))
-                .foregroundStyle(AppTheme.textSecondary)
-                .multilineTextAlignment(.center)
-            ShareLink(item: URL(string: "https://cravecircle.cc")!,
-                      subject: Text("CraveCircle"),
-                      message: Text("Cook with me on CraveCircle — my living cookbook.")) {
-                HStack(spacing: 8) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 15, weight: .bold))
-                    Text("Invite")
-                        .font(AppFont.body(15, weight: .bold))
-                }
-                .foregroundStyle(AppTheme.onBrand)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(AppTheme.brand, in: Capsule())
+        ShareLink(item: URL(string: "https://cravecircle.cc")!,
+                  subject: Text("CraveCircle"),
+                  message: Text("Cook with me on CraveCircle — my living cookbook.")) {
+            HStack(spacing: 8) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 15, weight: .bold))
+                Text("Invite friends to CraveCircle")
+                    .font(AppFont.body(15, weight: .bold))
             }
-            .buttonStyle(.plain)
+            .foregroundStyle(AppTheme.onBrand)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(AppTheme.brand, in: Capsule())
         }
+        .buttonStyle(.plain)
         .padding(.horizontal, AppSpacing.md)
-        .padding(.top, 8)
-        .padding(.bottom, 8)
+        .padding(.bottom, 10)
         .background(
             LinearGradient(colors: [AppTheme.background.opacity(0), AppTheme.background],
                            startPoint: .top, endPoint: .bottom)
+                .allowsHitTesting(false)
         )
     }
 
@@ -345,6 +516,67 @@ struct FriendsScreen: View {
 }
 
 // MARK: - Supporting models
+
+// MARK: - Recent-search helpers surfaced on the FriendsScreen type
+extension FriendsScreen {
+    fileprivate var recentFriendSearches: [String] {
+        recentFriendSearchesCSV.split(separator: "\u{1F}").map(String.init)
+    }
+
+    @ViewBuilder fileprivate var recentFriendsRow: some View {
+        let items = Array(recentFriendSearches.prefix(5))
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Recent")
+                    .font(AppFont.body(12, weight: .bold))
+                    .foregroundStyle(AppTheme.textSecondary)
+                Spacer()
+                Button {
+                    Haptics.tap()
+                    recentFriendSearchesCSV = ""
+                } label: {
+                    Text("Clear")
+                        .font(AppFont.body(12, weight: .semibold))
+                        .foregroundStyle(AppTheme.textTertiary)
+                }
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(items, id: \.self) { item in
+                        HStack(spacing: 6) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(AppTheme.textTertiary)
+                            Text(item)
+                                .font(AppFont.body(13, weight: .semibold))
+                                .foregroundStyle(AppTheme.textPrimary)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(AppTheme.surface, in: Capsule())
+                        .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                        .onTapGesture {
+                            Haptics.tap()
+                            query = item
+                            searchFocused = false
+                        }
+                    }
+                }
+            }
+            .scrollClipDisabled()
+        }
+    }
+
+    fileprivate func recordRecentFriendSearch(_ raw: String) {
+        let q = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return }
+        var list = recentFriendSearches.filter { $0.lowercased() != q.lowercased() }
+        list.insert(q, at: 0)
+        if list.count > 5 { list = Array(list.prefix(5)) }
+        recentFriendSearchesCSV = list.joined(separator: "\u{1F}")
+    }
+}
 
 private struct IdentifiableCreator: Identifiable {
     var id: String { handle }
@@ -405,6 +637,53 @@ private struct PersonRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// A contact row for someone not on CraveCircle yet. Tap Invite → iOS share sheet with the app link.
+private struct ContactInviteRow: View {
+    let contactName: String
+    let subtitle: String
+    let initials: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(AppTheme.accentSoft)
+                .frame(width: 44, height: 44)
+                .overlay(
+                    Text(initials)
+                        .font(AppFont.serif(15, weight: .bold))
+                        .foregroundStyle(AppTheme.accentInk)
+                )
+            VStack(alignment: .leading, spacing: 1) {
+                Text(contactName)
+                    .font(AppFont.body(15, weight: .semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(1)
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(AppFont.body(12))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 4)
+            ShareLink(item: URL(string: "https://cravecircle.cc")!,
+                      subject: Text("CraveCircle"),
+                      message: Text("Cook with me on CraveCircle — my living cookbook.")) {
+                Text("Invite")
+                    .font(AppFont.body(13, weight: .bold))
+                    .foregroundStyle(AppTheme.accentInk)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 7)
+                    .background(AppTheme.surface, in: Capsule())
+                    .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 }
 
