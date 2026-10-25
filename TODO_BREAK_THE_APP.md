@@ -119,3 +119,137 @@
 - [ ] Hardcoded admin email `adityagupta2646@gmail.com` in source — anyone forking inherits it.
 - [ ] Device-token upload fires on bootstrap but never retries on failure.
 - [ ] Build still has pre-existing warnings in `DesignComponents`, `FlashcardCookScreen`, `SpeechReader` (actor isolation, implicit strong capture, Sendable).
+
+---
+
+## 🧑‍🍳 User journey tests — "cook one real recipe, nothing breaks"
+
+> Think like a real iOS user who installed the app yesterday and wants to make dinner tonight.
+> Every step must work smoothly, nothing jarring, no dead ends. Each line is one testable
+> moment the user actually passes through. Check them in order on a real device, not the
+> simulator, with a real reel from Instagram / TikTok / YouTube / Pinterest.
+
+### Fresh install → first dish
+- [ ] Launch cold → onboarding opens on the welcome card within 2s.
+- [ ] Finish onboarding → land on Home with Discover feed populated (not an empty state).
+- [ ] Browse Discover reel → swipe up 10 times. No stutter, video / image loads before the
+      card arrives on screen.
+- [ ] Tap a recipe → detail opens in < 500 ms. Hero image, ingredients, directions, nutrition
+      all present. No "0 min cook" or "Serves 0" placeholders.
+- [ ] Scroll to Comments at the bottom — section renders, previous comments load.
+- [ ] Tap "Cook Mode" → directions read full-screen, voice reads first step within 1 s.
+- [ ] Hands-free: say "next step" → advances. Say "repeat" → repeats. Say "pause" → stops.
+- [ ] Add every ingredient to the Grocery list → open Grocery tab → all there, no dupes.
+- [ ] Cross off ingredients → state persists across app relaunch.
+- [ ] Rate the recipe when done cooking → the rating lands in the server + bell logs it.
+
+### Save + come back later
+- [ ] Save a recipe → open Library → it's there, under Saved.
+- [ ] Kill the app (force-quit) → reopen → saved recipe still there, same slot.
+- [ ] Open on a different device signed in to the same account → saved recipe shows up.
+
+### Import a reel
+- [ ] Open Instagram → share a cooking reel → CraveCircle appears in the share sheet.
+- [ ] Tap it → app opens, import banner says "Getting the reel…" within 2 s.
+- [ ] Banner progresses: downloading → preparing → transcribing → extracting → "Recipe
+      Plated!" within 60 s for a 60 s reel. No silent failure.
+- [ ] Tap "View Recipe" → opens the imported recipe with ingredients + directions filled.
+- [ ] Repeat with a TikTok link, a YouTube Shorts link, a Pinterest pin — each works.
+- [ ] Try an unsupported URL (random blog) → import sheet shows the "Import from web" tile
+      instead, which opens the web importer. No disabled button with no explanation.
+
+### Guest flow
+- [ ] As a brand-new install, tap "Continue as Guest" on the login screen.
+- [ ] Browse Discover, Home, open 10 recipes — nothing walls you.
+- [ ] Tap Like → paywall sheet appears with "Sign in to save recipes you love".
+- [ ] Tap Follow on a creator → paywall "Sign in to follow creators and build your feed".
+- [ ] Tap + → tap Import from photo → paywall "Sign in to import this recipe".
+- [ ] Share a reel from Instagram → CraveCircle opens → paywall "You shared a recipe with
+      us — we'd love you to keep it. Sign in to add it to your library".
+- [ ] Dismiss the paywall → return to the exact spot you were in.
+- [ ] Sign up / sign in → the paywall vanishes and everything you were trying works now.
+- [ ] Verify: whatever cuisines you picked in onboarding as a guest are still your preferred
+      cuisines after sign-in; nothing is lost.
+
+### Multi-user on one phone
+- [ ] Sign in as user A → like 3 recipes, follow 2 creators.
+- [ ] Sign out → sign in as user B → likes and follows are EMPTY. Not user A's.
+- [ ] Sign back in as user A → likes + follows restored.
+
+### Creator flow (manual approval test)
+- [ ] As a plain user, tap + → Become a Creator → submit the request.
+- [ ] As the founder email, sign in → Admin Requests tab → approve the request.
+- [ ] As the original user, pull-to-refresh on Profile → role flips to creator.
+- [ ] Open + → Studio opens with Publish / Share a photo / Share a video tiles.
+- [ ] Publish a recipe → appears on Discover for other accounts.
+
+### Edge cases a real user will hit
+- [ ] Airplane mode mid-import → import banner shows "Import didn't finish" with a Retry.
+      Not stuck on a spinner forever.
+- [ ] Airplane mode while browsing → cached recipes still open. New Discover doesn't lie
+      "No results"; shows "You're offline — showing recipes you already saved".
+- [ ] Receive a shared link from a friend while the app is cold → tap the link → app opens
+      directly on the recipe, not Home.
+- [ ] Rotate device during Cook Mode → voice doesn't stop, text doesn't reflow weird.
+- [ ] Headphones in / out mid-voice step → voice continues on the active output, no gap.
+- [ ] Lock screen during Cook Mode → voice continues through lock, Now Playing shows the
+      recipe title + current step.
+- [ ] Low Power Mode → voice + import still work, animations gracefully reduce.
+- [ ] Battery hits 1% → the running import flushes to disk, resumes on next launch.
+- [ ] 1000 saved recipes → Library scrolls at 60 fps.
+- [ ] A recipe with 50 ingredients → ingredients list doesn't push Directions off screen.
+
+---
+
+## ⚡ Load / performance plan — fast imports, split work, no spinning wheels
+
+> "If I share a 10-minute YouTube cooking video to the app, I shouldn't wait 10 minutes to
+> see the recipe." The current import pipeline runs serially on one worker. These are the
+> breakpoints and the sharding plan.
+
+### What's slow today
+- Video transcription runs end-to-end on one server process (homelab laptop). A 10-min reel
+  blocks the queue for ~2–3 min.
+- Image OCR for photo import also runs on the homelab, single-threaded.
+- Recipe extraction (LLM call) blocks the user until the full transcript arrives.
+- The suggested-feed refresh pulls the whole catalog with every recipe row, not just the
+  cards the user is about to see.
+
+### Sharding plan — divide the work, stream the output
+
+1. **Chunk video audio at the server.** For any clip > 60 s, split into N ~45-second chunks
+   with 2-second overlap. Transcribe each chunk in parallel on separate workers; stitch the
+   captions by timestamp with overlap dedup. User sees the first chunk's text within 10 s
+   instead of waiting for the full clip.
+2. **Stream partial recipes to the client.** As each transcript chunk lands, send it to the
+   LLM for incremental extraction (ingredients first, directions next, nutrition last).
+   Push each piece through the existing `importState` with a new `.partial` case so the
+   recipe detail opens as soon as the title + first 3 ingredients are known.
+3. **Image OCR on-device for the first pass.** Vision framework runs Latin + CJK text
+   detection on the phone with no network round-trip. The server is only called when we
+   need the LLM to assemble a recipe from the recognised blocks.
+4. **Hedged requests for the Pinterest pin fetch.** Fire the og:image fetch and the direct
+   image fetch in parallel; use whichever returns first.
+5. **Recipe cards paginated at 20 per page** on Discover, with prefetching for the next 10
+   as the user swipes. Nutrition and gallery lazy-load per card as it arrives on screen.
+6. **Push the suggested-feed refresh to a Supabase edge function** so the heavy work doesn't
+   hit the homelab box, and so each client gets a cached response for ~60 s before the
+   worker recomputes.
+7. **Durable import queue.** A started import pins to a `imports` table row with `status`.
+   If the client disconnects (airplane mode, app killed), the row survives; on next launch
+   the client sees the row + resumes polling. Imports never "disappear".
+8. **CDN the server media** so the client never re-downloads the audio file for the second
+   import of the same reel. Cache by canonical URL + content hash.
+9. **Debounce the follow/like/save writes** — collect taps within a 500 ms window, send one
+   batched PATCH to Supabase. A rapid tap doesn't race the server.
+10. **Pre-warm the detail view** when the user is paused on a Discover card for > 1 s —
+    fetch the full recipe + comments before they tap, so detail opens in < 100 ms.
+
+### Think-like-a-user checklist for every performance change
+- [ ] First meaningful content on screen < 1 s.
+- [ ] Any action that takes > 1 s shows a progress affordance (spinner, bar, or shimmer).
+- [ ] Any action that takes > 10 s goes into the background and surfaces as a toast when
+      done, so the user isn't trapped on a loading screen.
+- [ ] No action loses user input on failure — drafts, imports, comments all persist locally
+      and retry.
+- [ ] Scroll performance is 60 fps on an iPhone 12 (our minimum target device).
