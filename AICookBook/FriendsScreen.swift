@@ -305,12 +305,16 @@ struct FriendsScreen: View {
         LazyVStack(spacing: 0) {
             ForEach(contactsRows) { row in
                 if let person = row.person {
-                    PersonRow(
+                    // Contact is a creator on CraveCircle — show the CreatorCircle handle as the
+                    // primary line, their contact name underneath. Matches how Instagram shows
+                    // "@username" + "Name · In your contacts".
+                    ContactCreatorRow(
                         person: person,
+                        contactName: row.name,
                         isFollowing: environment.isFollowing(creatorHandle: person.handle),
                         onTap: {
                             Haptics.tap()
-                            selectedCreator = (handle: person.handle, name: person.name)
+                            selectedCreator = (handle: person.handle, name: row.name)
                         },
                         onFollow: {
                             Haptics.tap()
@@ -625,6 +629,53 @@ private struct PersonRow: View {
                         .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
                     Text(person.subtitle)
+                        .font(AppFont.body(12))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                FollowPill(isFollowing: isFollowing, action: onFollow)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// A contact who IS on CraveCircle as a creator. Shows their @handle as primary (people recognise
+/// each other by handle on social apps) with their phone-contact name as the subtitle so you can
+/// still tell who it is from your address book.
+private struct ContactCreatorRow: View {
+    let person: SuggestedPerson
+    let contactName: String
+    let isFollowing: Bool
+    let onTap: () -> Void
+    let onFollow: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(AppTheme.accentSoft)
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Text(person.initials)
+                            .font(AppFont.serif(15, weight: .bold))
+                            .foregroundStyle(AppTheme.accentInk)
+                    )
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 4) {
+                        Text(person.handle.hasPrefix("@") ? person.handle : "@\(person.handle)")
+                            .font(AppFont.body(15, weight: .semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                            .lineLimit(1)
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(AppTheme.brand)
+                    }
+                    Text("\(contactName) · In your contacts")
                         .font(AppFont.body(12))
                         .foregroundStyle(AppTheme.textSecondary)
                         .lineLimit(1)

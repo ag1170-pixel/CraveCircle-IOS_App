@@ -134,14 +134,11 @@ struct HomeScreen: View {
             // Mail removed; import moved to the tab bar (+). Only the notifications bell remains (right).
             HStack {
                 Spacer()
-                // Badge counts both unread activity AND pending follow requests, so a new request
-                // lights up the bell on home — Instagram does the same thing.
-                iconButton(
-                    "bell",
-                    label: "Notifications",
-                    badgeCount: environment.circleNotifications.filter { !$0.isRead }.count
-                        + environment.incomingRequests.count
-                ) {
+                // Instagram pattern: a single red dot when there's anything new (unread activity
+                // or a pending follow request). No number — a count on the bell is noise.
+                let unread = environment.circleNotifications.contains { !$0.isRead }
+                            || !environment.incomingRequests.isEmpty
+                iconButton("bell", label: "Notifications", showsDot: unread) {
                     Haptics.tap(); showNotifications = true
                 }
             }
@@ -151,27 +148,28 @@ struct HomeScreen: View {
         // Transparent so the wallpaper runs uniformly behind the brand bar too (no opaque strip "cut").
     }
 
-    private func iconButton(_ symbol: String, label: String, badgeCount: Int? = nil, action: @escaping () -> Void) -> some View {
+    /// `showsDot` → simple red dot in the top-right corner. No number, no capsule — matches
+    /// Instagram's "there's something new" indicator.
+    private func iconButton(_ symbol: String, label: String, showsDot: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: symbol)
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(AppTheme.textPrimary)
                     .frame(width: 36, height: 36)
-                
-                if let count = badgeCount, count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(Color.red, in: Capsule())
-                        .offset(x: 4, y: -2)
+
+                if showsDot {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 9, height: 9)
+                        .overlay(Circle().stroke(AppTheme.background, lineWidth: 1.5))
+                        .offset(x: -4, y: 4)
+                        .accessibilityHidden(true)
                 }
             }
         }
         .buttonStyle(PressableStyle())
-        .accessibilityLabel(label)
+        .accessibilityLabel(showsDot ? "\(label), new activity" : label)
     }
 
     // MARK: Search (moved here from the old Search tab)

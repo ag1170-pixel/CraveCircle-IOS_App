@@ -438,9 +438,11 @@ struct MainTabView: View {
                 .environmentObject(environment)
         }
         .sheet(isPresented: $environment.showGuestPaywall) {
+            // Copy comes from `environment.guestPaywallMessage` so the paywall knows which action
+            // triggered it — "Sign in to import this recipe", "Sign in to join the conversation", etc.
             GuestWallView(
-                title: "Login Required",
-                message: "You've viewed 10 recipes! Please log in or sign up to continue full access."
+                title: "Sign in to continue",
+                message: environment.guestPaywallMessage
             )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)

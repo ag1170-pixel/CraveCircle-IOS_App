@@ -355,6 +355,12 @@ final class AppEnvironment: ObservableObject {
         // follow them in. The user's own likes/follows/saves are user-id-scoped elsewhere, so they
         // naturally start empty for a brand-new account.
         resetGuestViewCounter()
+        // Move everything the guest did on this device over to the signed-in account BEFORE we
+        // hydrate — likes, saves, follows, comments, notifications, drafts, grocery list, picked
+        // cuisines, interaction history. Nothing of theirs should get stranded on the guest id.
+        if let userId = currentUser?.id, !guestId.isEmpty, userId != guestId {
+            migrateGuestDataIfNeeded(fromGuestId: guestId, toUserId: userId)
+        }
         hydrateLocal()
         if let userId = currentUser?.id, !carried.isEmpty {
             for var recipe in carried {
@@ -371,6 +377,44 @@ final class AppEnvironment: ObservableObject {
         await refreshRecipes()
         await uploadDeviceTokenIfPossible()   // token may have arrived before login
         syncSharedUserId()
+    }
+
+    /// Carry the guest's on-device state into the signed-in account, then wipe the guest's
+    /// scoped files + defaults so nothing is left behind. Union-merge where the new account
+    /// already has data from a previous sign-in on this device; wholesale-move otherwise.
+    private func migrateGuestDataIfNeeded(fromGuestId guestId: String, toUserId userId: String) {
+        let defaults = UserDefaults.standard
+        // 1. UserDefaults sets (likes / saves / deleted ids) — union.
+        for key in AccountScope.personalDefaultsKeys {
+            let gKey = AccountScope.defaultsKey(userId: guestId, key: key)
+            let uKey = AccountScope.defaultsKey(userId: userId, key: key)
+            let guestVals = Set(defaults.array(forKey: gKey) as? [String] ?? [])
+            if guestVals.isEmpty { continue }
+            let existing = Set(defaults.array(forKey: uKey) as? [String] ?? [])
+            let merged = existing.union(guestVals)
+            defaults.set(Array(merged), forKey: uKey)
+            defaults.removeObject(forKey: gKey)
+        }
+        // 2. Scoped files — if target doesn't exist, move the guest file over; otherwise leave
+        //    the target in place (the new account's own data wins for anything decoded here).
+        //    This keeps the merge simple: guests rarely have overlapping state on first sign-in.
+        for file in AccountScope.personalFiles {
+            let gName = AccountScope.fileName(userId: guestId, file: file)
+            let uName = AccountScope.fileName(userId: userId, file: file)
+            LocalStore.moveIfTargetMissing(from: gName, to: uName)
+            LocalStore.remove(gName)
+        }
+        // 3. Deleted-recipe-ids key is a scoped String, not an array — carry it too.
+        let gDel = AccountScope.defaultsKey(userId: guestId, key: "deleted_recipe_ids")
+        if let s = defaults.string(forKey: gDel), !s.isEmpty {
+            let uDel = AccountScope.defaultsKey(userId: userId, key: "deleted_recipe_ids")
+            let existing = defaults.string(forKey: uDel) ?? ""
+            let union = Set(existing.split(separator: ",").map(String.init))
+                .union(Set(s.split(separator: ",").map(String.init)))
+                .filter { !$0.isEmpty }
+            defaults.set(union.sorted().joined(separator: ","), forKey: uDel)
+            defaults.removeObject(forKey: gDel)
+        }
     }
 
     func signUp(email: String, password: String) async throws {
@@ -573,38 +617,55 @@ final class AppEnvironment: ObservableObject {
     @AppStorage("guest_recipes_viewed") private var guestRecipesViewed = 0
     @Published var showGuestPaywall = false
 
-    /// How many recipes a guest can open before the hard sign-in wall. Owner-set: today 5 to
-    /// mirror what Osta does — enough to taste the product, not enough to live in it without an
-    /// account. Change here if the owner wants to tune the free sample size.
-    static let guestRecipeViewLimit = 5
+    /// Owner call (2026-10-25): a guest can browse the entire app — Discover, Home, recipes,
+    /// creators, grocery, cook mode — but cannot IMPORT, PUBLISH, FOLLOW, LIKE, SAVE or COMMENT.
+    /// The sign-in wall is now action-triggered rather than view-triggered. This mirrors the
+    /// Instagram pattern of "look all you want, log in to participate".
+    func canViewRecipe() -> Bool { true }
 
-    /// Called every time a recipe detail opens. Returns true when the view can proceed; false
-    /// when the guest has hit the cap — in that case `showGuestPaywall` is raised and the detail
-    /// pager is blocked. Signed-in users always get true.
-    func canViewRecipe() -> Bool {
-        guard isGuest else { return true }
-        if guestRecipesViewed >= Self.guestRecipeViewLimit {
-            showGuestPaywall = true
-            return false
-        }
-        guestRecipesViewed += 1
-        // One recipe before the limit → warn gently so the next tap doesn't feel abrupt.
-        if guestRecipesViewed == Self.guestRecipeViewLimit {
-            // No popup here — the paywall triggers on the next attempt. The counter is itself
-            // the signal: a bar at the bottom of the detail screen can read it to show a hint.
-        }
-        return true
-    }
-
-    /// Reset the free-view counter — called the moment a guest signs in or signs up, so an old
-    /// counter doesn't haunt them.
+    /// Any write path (import, publish, follow, like, save, comment) calls into
+    /// `requireRealSessionOrPrompt()` which raises `showGuestPaywall`. This method is kept so
+    /// a sign-in / sign-up transition clears whatever counter state might have accrued from an
+    /// older build that enforced a view cap.
     func resetGuestViewCounter() {
         guestRecipesViewed = 0
     }
 
-    /// How many free views the guest has left (0…`guestRecipeViewLimit`). UI can show this.
-    var guestViewsRemaining: Int {
-        max(0, Self.guestRecipeViewLimit - guestRecipesViewed)
+    /// Legacy UI hook — always returns a non-blocking "unlimited". Kept so any screen that was
+    /// reading this to show "N free recipes left" doesn't need a conditional removal.
+    var guestViewsRemaining: Int { Int.max }
+
+    /// Guest tried to import, publish, share, or do anything that writes to our catalog. Raises
+    /// the paywall with a message that invites them in rather than scolding them.
+    func promptGuestToSignIn(reason: GuestPromptReason) {
+        guestPaywallMessage = reason.copy
+        showGuestPaywall = true
+        Haptics.warning()
+    }
+
+    /// Copy for the paywall sheet. Changes based on what the guest tried to do.
+    @Published var guestPaywallMessage: String = GuestPromptReason.generic.copy
+
+    enum GuestPromptReason {
+        case generic, importRecipe, publishRecipe, follow, like, save, comment, share
+        var copy: String {
+            switch self {
+            case .generic:
+                return "You're exploring as a guest — sign in to use the full app."
+            case .importRecipe:
+                return "You're a guest. Sign in to import this recipe into your library."
+            case .publishRecipe:
+                return "You're a guest. Sign in to publish a recipe on CraveCircle."
+            case .follow:
+                return "You're a guest. Sign in to follow creators and build your feed."
+            case .like, .save:
+                return "You're a guest. Sign in to save recipes you love."
+            case .comment:
+                return "You're a guest. Sign in to join the conversation."
+            case .share:
+                return "You shared a recipe with us — we'd love you to keep it. Sign in to add it to your library."
+            }
+        }
     }
 
     @Published private(set) var recipeSwipeContext: [Recipe]?
@@ -1080,6 +1141,9 @@ final class AppEnvironment: ObservableObject {
     /// path, works with no App Group). When nil, falls back to the App-Group hand-off (paid team).
     /// No-op when there's nothing pending or an import is already running.
     func importFromSharedURL(_ passedURL: String? = nil) async {
+        // A share from outside the app is a write — gate it the same way the + button is gated,
+        // but with the share-specific copy that reads less punitive ("we'd love you to keep it").
+        guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .share) }) else { return }
         var urlString = passedURL?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if urlString?.isEmpty ?? true,
@@ -1153,6 +1217,8 @@ final class AppEnvironment: ObservableObject {
     /// actually terminates it: it cancels the in-flight server/download requests AND stops the
     /// on-device transcription/OCR/extraction, and no late state write can revive the banner.
     func startImport(from instagramURL: String, extraOnScreen: String? = nil, extraCaption: String? = nil) async {
+        // Guests browse everything, but importing is a write — route them to sign-in instead.
+        guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .importRecipe) }) else { return }
         importTask?.cancel()
         importState = .submitting
         let task = Task { [weak self] in
@@ -1305,6 +1371,7 @@ final class AppEnvironment: ObservableObject {
     /// Same import, with every selected photo kept. The first is the cover; the rest page on the
     /// recipe the same way a recipe written here does. Capped at 6, matching the editor.
     func importFromPhotos(_ images: [UIImage], caption: String? = nil, recognized: String? = nil) async {
+        guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .importRecipe) }) else { return }
         importTask?.cancel()
         importState = .submitting
         let task = Task { [weak self] in
@@ -1429,6 +1496,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     func importFromVideo(_ url: URL, caption: String? = nil, title: String? = nil, thumbnailUrl: String? = nil) async {
+        guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .importRecipe) }) else { return }
         importTask?.cancel()
         importState = .submitting
         let task = Task { [weak self] in
@@ -1676,7 +1744,7 @@ final class AppEnvironment: ObservableObject {
     func toggleFollow(creatorHandle: String) {
         // Guests have no server identity — the Follow would be local-only and lie to the user.
         // Route them to the sign-in prompt instead of flipping an unauthoritative pill.
-        guard requireRealSessionOrPrompt() else { return }
+        guard requireRealSessionOrPrompt(reason: .follow) else { return }
         let willFollow = !followedCreators.contains(creatorHandle)
         if willFollow { followedCreators.insert(creatorHandle) } else { followedCreators.remove(creatorHandle) }
         // Mirror to the cloud follow graph, then re-sync so a creator's followers-only recipes
@@ -1689,13 +1757,13 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
-    /// Shared guest gate for social writes (follow, like, save, comment). Returns true when the
-    /// caller can proceed; false when the paywall was shown and the action was blocked.
+    /// Shared guest gate for any write (follow, like, save, comment, import, publish, share).
+    /// Returns true when the caller can proceed; false when the paywall was shown and the action
+    /// was blocked. `reason` picks the paywall copy so the user sees context for what they tried.
     @discardableResult
-    func requireRealSessionOrPrompt() -> Bool {
+    func requireRealSessionOrPrompt(reason: GuestPromptReason = .generic) -> Bool {
         if isGuest || !hasRealSession {
-            showGuestPaywall = true
-            Haptics.warning()
+            promptGuestToSignIn(reason: reason)
             return false
         }
         return true
@@ -1709,7 +1777,7 @@ final class AppEnvironment: ObservableObject {
     /// Bookmark. The recipe is kept in `recipes` so Library's Saved folder and Home's library
     /// can show the card, not only the id.
     func toggleSaveRecipe(id: String, recipe: Recipe? = nil) {
-        guard requireRealSessionOrPrompt() else { return }
+        guard requireRealSessionOrPrompt(reason: .save) else { return }
         if savedRecipeIds.contains(id) {
             savedRecipeIds.remove(id)
             cancelCookNudge(recipeId: id)
@@ -1768,7 +1836,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     func toggleLikeRecipe(id: String) {
-        guard requireRealSessionOrPrompt() else { return }
+        guard requireRealSessionOrPrompt(reason: .like) else { return }
         if likedRecipeIds.contains(id) {
             likedRecipeIds.remove(id)
             Haptics.tap()
@@ -1896,6 +1964,7 @@ final class AppEnvironment: ObservableObject {
     }
     
     func publishDraft(recipeId: String) {
+        guard requireRealSessionOrPrompt(reason: .publishRecipe) else { return }
         guard canPublish,
               let recipe = recipes.first(where: { $0.id == recipeId }),
               isOwner(of: recipe),
@@ -1997,7 +2066,7 @@ final class AppEnvironment: ObservableObject {
     func addComment(recipeId: String, text: String, image: UIImage? = nil) async -> String? {
         // Guests can't post — the comment would never leave the device.
         if isGuest || !hasRealSession {
-            await MainActor.run { showGuestPaywall = true }
+            await MainActor.run { promptGuestToSignIn(reason: .comment) }
             return "Sign in to post a comment."
         }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
