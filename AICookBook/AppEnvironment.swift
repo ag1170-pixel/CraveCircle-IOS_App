@@ -302,15 +302,20 @@ final class AppEnvironment: ObservableObject {
     }
 
     /// Founder gets admin automatically — needed to approve creator requests from day one.
-    /// Keyed to the exact email so a random account can't elevate itself.
+    /// Keyed to the exact email so a random account can't elevate itself. We check three sources
+    /// so the Google sign-in path (which never carries a typed email) still works:
+    ///   1. the email the caller typed into the sign-in form,
+    ///   2. the authenticated JWT's `email` claim (Supabase populates this for OAuth too),
+    ///   3. the profile's username, as a last-resort fallback.
+    /// On a match we also PATCH the role on Supabase so RLS-gated writes line up with the local
+    /// `role = .admin`; without that server-side truth every publish would still be rejected.
     private func elevateFounderIfMatches(email: String?) {
         let founderEmail = "adityagupta2646@gmail.com"
         guard let cur = currentUser else { return }
-        // Compare to the email the user typed in and to the profile's own username (which may be
-        // the email when fetchMyProfile has no handle).
         let typed = email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        let authEmail = (supabase.currentUserEmail() ?? "").lowercased()
         let handle = (cur.username ?? "").lowercased()
-        guard typed == founderEmail || handle == founderEmail else { return }
+        guard typed == founderEmail || authEmail == founderEmail || handle == founderEmail else { return }
         if cur.role == .admin { return }
         currentUser = UserProfile(
             id: cur.id, username: cur.username, fullName: cur.fullName, avatarUrl: cur.avatarUrl,
@@ -318,6 +323,9 @@ final class AppEnvironment: ObservableObject {
             instagramUrl: cur.instagramUrl, tiktokUrl: cur.tiktokUrl,
             youtubeUrl: cur.youtubeUrl, facebookUrl: cur.facebookUrl
         )
+        // Mirror the role to Supabase. Fire-and-forget: if it fails, the local admin role still
+        // works for client UI, but server writes may be rejected until the next launch retries.
+        Task { _ = await supabase.updateMyRole(.admin) }
     }
 
     func signInWithGoogle() async {
@@ -343,6 +351,10 @@ final class AppEnvironment: ObservableObject {
             catch { currentUser = fallbackUser(email: email) }
         }
         elevateFounderIfMatches(email: email)
+        // Fresh sign-in → clear the guest free-view counter so the previous session's taps don't
+        // follow them in. The user's own likes/follows/saves are user-id-scoped elsewhere, so they
+        // naturally start empty for a brand-new account.
+        resetGuestViewCounter()
         hydrateLocal()
         if let userId = currentUser?.id, !carried.isEmpty {
             for var recipe in carried {
@@ -561,18 +573,38 @@ final class AppEnvironment: ObservableObject {
     @AppStorage("guest_recipes_viewed") private var guestRecipesViewed = 0
     @Published var showGuestPaywall = false
 
-    /// ponytail: TEMPORARY testing bypass — set to false to restore the 10-recipe guest cap.
-    private let guestPaywallDisabled = true
+    /// How many recipes a guest can open before the hard sign-in wall. Owner-set: today 5 to
+    /// mirror what Osta does — enough to taste the product, not enough to live in it without an
+    /// account. Change here if the owner wants to tune the free sample size.
+    static let guestRecipeViewLimit = 5
 
+    /// Called every time a recipe detail opens. Returns true when the view can proceed; false
+    /// when the guest has hit the cap — in that case `showGuestPaywall` is raised and the detail
+    /// pager is blocked. Signed-in users always get true.
     func canViewRecipe() -> Bool {
-        if isGuest && !guestPaywallDisabled {
-            if guestRecipesViewed >= 10 {
-                showGuestPaywall = true
-                return false
-            }
-            guestRecipesViewed += 1
+        guard isGuest else { return true }
+        if guestRecipesViewed >= Self.guestRecipeViewLimit {
+            showGuestPaywall = true
+            return false
+        }
+        guestRecipesViewed += 1
+        // One recipe before the limit → warn gently so the next tap doesn't feel abrupt.
+        if guestRecipesViewed == Self.guestRecipeViewLimit {
+            // No popup here — the paywall triggers on the next attempt. The counter is itself
+            // the signal: a bar at the bottom of the detail screen can read it to show a hint.
         }
         return true
+    }
+
+    /// Reset the free-view counter — called the moment a guest signs in or signs up, so an old
+    /// counter doesn't haunt them.
+    func resetGuestViewCounter() {
+        guestRecipesViewed = 0
+    }
+
+    /// How many free views the guest has left (0…`guestRecipeViewLimit`). UI can show this.
+    var guestViewsRemaining: Int {
+        max(0, Self.guestRecipeViewLimit - guestRecipesViewed)
     }
 
     @Published private(set) var recipeSwipeContext: [Recipe]?
@@ -1642,6 +1674,9 @@ final class AppEnvironment: ObservableObject {
 
     // MARK: - Follow Actions
     func toggleFollow(creatorHandle: String) {
+        // Guests have no server identity — the Follow would be local-only and lie to the user.
+        // Route them to the sign-in prompt instead of flipping an unauthoritative pill.
+        guard requireRealSessionOrPrompt() else { return }
         let willFollow = !followedCreators.contains(creatorHandle)
         if willFollow { followedCreators.insert(creatorHandle) } else { followedCreators.remove(creatorHandle) }
         // Mirror to the cloud follow graph, then re-sync so a creator's followers-only recipes
@@ -1653,6 +1688,18 @@ final class AppEnvironment: ObservableObject {
             await syncRecipes()
         }
     }
+
+    /// Shared guest gate for social writes (follow, like, save, comment). Returns true when the
+    /// caller can proceed; false when the paywall was shown and the action was blocked.
+    @discardableResult
+    func requireRealSessionOrPrompt() -> Bool {
+        if isGuest || !hasRealSession {
+            showGuestPaywall = true
+            Haptics.warning()
+            return false
+        }
+        return true
+    }
     
     func isFollowing(creatorHandle: String) -> Bool {
         followedCreators.contains(creatorHandle)
@@ -1662,6 +1709,7 @@ final class AppEnvironment: ObservableObject {
     /// Bookmark. The recipe is kept in `recipes` so Library's Saved folder and Home's library
     /// can show the card, not only the id.
     func toggleSaveRecipe(id: String, recipe: Recipe? = nil) {
+        guard requireRealSessionOrPrompt() else { return }
         if savedRecipeIds.contains(id) {
             savedRecipeIds.remove(id)
             cancelCookNudge(recipeId: id)
@@ -1720,6 +1768,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     func toggleLikeRecipe(id: String) {
+        guard requireRealSessionOrPrompt() else { return }
         if likedRecipeIds.contains(id) {
             likedRecipeIds.remove(id)
             Haptics.tap()
@@ -1946,6 +1995,11 @@ final class AppEnvironment: ObservableObject {
 
     /// Nil when the comment is shared. A message means it was not posted.
     func addComment(recipeId: String, text: String, image: UIImage? = nil) async -> String? {
+        // Guests can't post — the comment would never leave the device.
+        if isGuest || !hasRealSession {
+            await MainActor.run { showGuestPaywall = true }
+            return "Sign in to post a comment."
+        }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if CommentModeration.isBlocked(trimmed) {
             return "That comment isn't allowed."

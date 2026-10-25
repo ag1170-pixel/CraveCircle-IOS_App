@@ -72,6 +72,18 @@ struct SupabaseData {
 
     /// The signed-in user's Supabase auth id (the JWT `sub` claim), or nil when not really signed in.
     func currentUserId() -> String? {
+        jwtClaims()?["sub"] as? String
+    }
+
+    /// The signed-in user's email as stored on the Supabase auth row. Returned by Google / email
+    /// providers in the JWT's `email` claim — needed for things like the founder-admin check that
+    /// must work after a Google sign-in (where the caller never typed an email).
+    func currentUserEmail() -> String? {
+        if let s = jwtClaims()?["email"] as? String, !s.isEmpty { return s }
+        return nil
+    }
+
+    private func jwtClaims() -> [String: Any]? {
         guard let t = tokenStore.readAccessToken(), !t.isEmpty, t != "dev-preview-token" else { return nil }
         let parts = t.split(separator: ".")
         guard parts.count == 3 else { return nil }
@@ -79,7 +91,7 @@ struct SupabaseData {
         while p.count % 4 != 0 { p += "=" }
         guard let d = Data(base64Encoded: p),
               let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
-        return j["sub"] as? String
+        return j
     }
 
     /// The signed-in user's own profile row (id = auth uid), so ownership + RLS writes line up.
@@ -89,6 +101,19 @@ struct SupabaseData {
         guard let (data, resp) = try? await URLSession.shared.data(for: req),
               let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
         return (try? Self.decoder().decode([UserProfile].self, from: data))?.first
+    }
+
+    /// Patch the signed-in user's role (RLS must permit the caller; founder self-elevate relies
+    /// on a policy that lets `id = auth.uid()` set role in {.user, .creator, .admin}). Nil-safe:
+    /// returns false if the write failed so the caller doesn't claim an elevation that didn't land.
+    func updateMyRole(_ role: AccountRole) async -> Bool {
+        guard let uid = currentUserId(),
+              var req = request(path: "rest/v1/profiles?id=eq.\(uid)", method: "PATCH") else { return false }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["role": role.rawValue])
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
     }
 
     /// Update the signed-in user's own profile (RLS profiles_update_own allows id = auth.uid()).

@@ -151,14 +151,16 @@ struct OnboardingView: View {
     // MARK: Step 2 — "That's great!" affirmation
 
     private var goalsAffirmation: some View {
-        let highlight = goals.first?.label.lowercased() ?? "your goals"
         return VStack(spacing: AppSpacing.lg) {
             Spacer()
             VStack(spacing: 10) {
                 Text("That's great!")
                     .font(AppFont.display(30, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
-                Text("92% of CraveCircle users say we help them \(highlight).")
+                // No fabricated statistics — we won't promise a success rate we haven't measured.
+                Text(goals.count > 1
+                     ? "We'll shape your feed around every goal you picked."
+                     : "We'll shape your feed around the goal you picked.")
                     .font(AppFont.body(15))
                     .foregroundStyle(AppTheme.textSecondary)
                     .multilineTextAlignment(.center)
@@ -369,7 +371,9 @@ struct OnboardingView: View {
                 Text("Awesome!")
                     .font(AppFont.display(30, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
-                Text("CraveCircle can import recipes from Instagram, TikTok, Facebook, Pinterest, and YouTube.")
+                // Lists exactly what the importer accepts — see `ReelURL.isValid`. Pinterest is
+                // supported via the generic web/photo path (pin → og:image → OCR / web importer).
+                Text("CraveCircle can import cooking reels from Instagram, TikTok, YouTube, and recipe pins from Pinterest.")
                     .font(AppFont.body(15))
                     .foregroundStyle(AppTheme.textSecondary)
                     .multilineTextAlignment(.center)
@@ -386,12 +390,12 @@ struct OnboardingView: View {
     }
 
     private var socialIconsRow: some View {
+        // Icons must match what the importer actually accepts — see `ReelURL.isValid`.
         HStack(spacing: 14) {
-            socialIcon(name: "camera.fill", color: Color(hex: "E1306C"))      // Instagram-ish
+            socialIcon(name: "camera.fill", color: Color(hex: "E1306C"))      // Instagram
             socialIcon(name: "music.note",  color: Color(hex: "111111"))      // TikTok
-            socialIcon(name: "f.square.fill", color: Color(hex: "1877F2"))    // Facebook
-            socialIcon(name: "pin.fill",    color: Color(hex: "E60023"))      // Pinterest
             socialIcon(name: "play.rectangle.fill", color: Color(hex: "FF0000")) // YouTube
+            socialIcon(name: "pin.fill",   color: Color(hex: "E60023"))       // Pinterest
         }
     }
 

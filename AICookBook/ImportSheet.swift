@@ -13,12 +13,15 @@ import PhotosUI
 #endif
 
 enum ReelURL {
-    /// Accepts Instagram reels/posts, TikTok, and YouTube Shorts links.
+    /// Accepts Instagram reels/posts, TikTok, YouTube Shorts, and Pinterest pins. Pinterest
+    /// pins route through the generic web importer (the pin's og:image is treated as the recipe
+    /// photo) — if the user prefers, they can also screenshot the pin and use Import from photo.
     static func isValid(_ raw: String) -> Bool {
         let s = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard s.contains(".") else { return false }
         let hosts = ["instagram.com/reel", "instagram.com/reels", "instagram.com/p/",
-                     "tiktok.com/", "vm.tiktok.com/", "youtube.com/shorts", "youtu.be/"]
+                     "tiktok.com/", "vm.tiktok.com/", "youtube.com/shorts", "youtu.be/",
+                     "pinterest.com/pin", "pin.it/"]
         return hosts.contains { s.contains($0) }
     }
 }

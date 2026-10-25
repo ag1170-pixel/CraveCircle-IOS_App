@@ -12,9 +12,18 @@
 //
 
 import SwiftUI
+#if !XTOOL_WSL
+import PhotosUI
+#endif
+import UniformTypeIdentifiers
 
 struct StudioScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var pickedPhotos: [PhotosPickerItem] = []
+    @State private var pickedVideo: PhotosPickerItem?
+    @State private var isLoadingMedia = false
 
     private let gridColumns = [
         GridItem(.flexible(), spacing: AppSpacing.sm),
@@ -26,6 +35,7 @@ struct StudioScreen: View {
             VStack(alignment: .leading, spacing: AppSpacing.lg) {
                 statsRow
                 publishCTA
+                shareTilesRow
                 draftsSection
                 publishedSection
             }
@@ -42,17 +52,14 @@ struct StudioScreen: View {
     // MARK: Stats
 
     private var statsRow: some View {
+        // Followers tile was removed — the backend doesn't expose a real follower count yet, and
+        // showing "0 Followers" to a creator with real followers lies to them. Put it back once
+        // the server surfaces the number.
         HStack(spacing: AppSpacing.sm) {
             stat("Published", "\(environment.myPublished.count)")
             stat("Drafts",    "\(environment.myDrafts.count)")
-            stat("Followers", "\(followerCount)")
         }
     }
-
-    /// Rough indicator — the server doesn't surface the public follower count yet, so this
-    /// mirrors what the user themselves follows for now. Replace with the real number once
-    /// the backend exposes it.
-    private var followerCount: Int { 0 }
 
     private func stat(_ label: String, _ value: String) -> some View {
         VStack(spacing: 2) {
@@ -95,6 +102,108 @@ struct StudioScreen: View {
         }
         .buttonStyle(PressableStyle())
     }
+
+    // MARK: Share tiles — photo + video
+
+    private var shareTilesRow: some View {
+        HStack(spacing: AppSpacing.sm) {
+            #if !XTOOL_WSL
+            PhotosPicker(selection: $pickedPhotos, maxSelectionCount: 6, matching: .images) {
+                shareTile(icon: "photo.on.rectangle", title: "Share a photo",
+                          subtitle: "Pick up to 6 photos — we'll pull the ingredients and steps.")
+            }
+            .buttonStyle(.plain)
+            .disabled(isLoadingMedia)
+
+            PhotosPicker(selection: $pickedVideo, matching: .videos) {
+                shareTile(icon: "video", title: "Share a video",
+                          subtitle: "Pick a short cooking clip — we'll transcribe it.")
+            }
+            .buttonStyle(.plain)
+            .disabled(isLoadingMedia)
+            #else
+            shareTile(icon: "photo.on.rectangle", title: "Share a photo",
+                      subtitle: "Photo picker is unavailable on this build.")
+            shareTile(icon: "video", title: "Share a video",
+                      subtitle: "Video picker is unavailable on this build.")
+            #endif
+        }
+        .onChange(of: pickedPhotos) { _, items in
+            guard !items.isEmpty, !isLoadingMedia else { return }
+            Task { await handlePickedPhotos(items) }
+        }
+        .onChange(of: pickedVideo) { _, item in
+            guard let item, !isLoadingMedia else { return }
+            Task { await handlePickedVideo(item) }
+        }
+        .overlay {
+            if isLoadingMedia {
+                ProgressView().padding().background(.ultraThinMaterial, in: Capsule())
+            }
+        }
+    }
+
+    private func shareTile(icon: String, title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(AppTheme.accentInk)
+                .frame(width: 36, height: 36)
+                .background(AppTheme.accentSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            Text(title)
+                .font(AppFont.body(14, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+            Text(subtitle)
+                .font(AppFont.body(11))
+                .foregroundStyle(AppTheme.textSecondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+    }
+
+    #if !XTOOL_WSL
+    @MainActor
+    private func handlePickedPhotos(_ items: [PhotosPickerItem]) async {
+        isLoadingMedia = true
+        defer { isLoadingMedia = false; pickedPhotos = [] }
+        var images: [UIImage] = []
+        for item in items.prefix(6) {
+            if let data = try? await item.loadTransferable(type: Data.self),
+               let img = UIImage(data: data) {
+                images.append(img)
+            }
+        }
+        guard !images.isEmpty else { return }
+        Haptics.success()
+        // Hop back to Home before kicking off the import so the live progress banner is visible.
+        dismiss()
+        environment.requestTabSwitch(.home)
+        await environment.importFromPhotos(images)
+    }
+
+    @MainActor
+    private func handlePickedVideo(_ item: PhotosPickerItem) async {
+        isLoadingMedia = true
+        defer { isLoadingMedia = false; pickedVideo = nil }
+        guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+        let tempDir = FileManager.default.temporaryDirectory
+        let url = tempDir.appendingPathComponent("studio-\(UUID().uuidString).mov")
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            return
+        }
+        Haptics.success()
+        dismiss()
+        environment.requestTabSwitch(.home)
+        await environment.importFromVideo(url)
+    }
+    #endif
 
     // MARK: Drafts
 
