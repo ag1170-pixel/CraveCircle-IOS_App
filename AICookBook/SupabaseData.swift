@@ -297,6 +297,16 @@ struct SupabaseData {
         return try? JSONDecoder().decode([T].self, from: data)
     }
 
+    /// Permanently delete the caller's account: wipes every `cravecircle.*` row they own and
+    /// deletes the `auth.users` row so sign-in no longer works. Backed by the `delete_me()`
+    /// SECURITY DEFINER RPC. Returns true on 2xx.
+    func deleteMyAccount() async -> Bool {
+        guard hasSession, let req = request(path: "rest/v1/rpc/delete_me", method: "POST") else { return false }
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
     func decideCreatorRequest(id: String, approve: Bool) async -> Bool {
         guard hasSession, var req = request(path: "rest/v1/rpc/decide_creator_request") else { return false }
         guard let body = try? JSONSerialization.data(withJSONObject: ["p_request_id": id, "p_approve": approve]) else { return false }

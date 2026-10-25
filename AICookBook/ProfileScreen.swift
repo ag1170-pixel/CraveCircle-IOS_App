@@ -1070,11 +1070,21 @@ struct DeleteAccountSheet: View {
     
     private func deleteAccount() {
         isDeleting = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            Haptics.success()
-            isDeleting = false
-            dismiss()
-            environment.signOut()
+        Task {
+            // Real server-side deletion — see supabase/delete_me.sql. Required for App Store
+            // Guideline 5.1.1(v): a fake sign-out used to live here and would be a rejection.
+            let ok = await environment.deleteAccountEverywhere()
+            await MainActor.run {
+                isDeleting = false
+                if ok {
+                    Haptics.success()
+                    dismiss()
+                    environment.signOut()
+                } else {
+                    Haptics.warning()
+                    environment.errorMessage = "We couldn't delete your account. Please check your connection and try again."
+                }
+            }
         }
     }
 }

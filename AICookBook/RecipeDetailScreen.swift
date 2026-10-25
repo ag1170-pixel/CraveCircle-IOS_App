@@ -881,8 +881,25 @@ struct RecipeDetailScreen: View {
                 }
             }
             .frame(maxWidth: .infinity)
+
+            // "Save" used to live inside the ⋯ menu — buried. Promoted to the bottom action row
+            // per vault roadmap item #2 so adding a recipe to the library is one obvious tap.
+            // Toggle state: Save ⇄ Saved (bookmark → bookmark.fill).
+            PillButton(
+                title: saved ? "Saved" : "Save",
+                systemImage: saved ? "bookmark.fill" : "bookmark",
+                kind: saved ? .filled : .surface,
+                fullWidth: true
+            ) {
+                Haptics.tap()
+                environment.toggleSaveRecipe(id: recipe.id, recipe: recipe)
+            }
+            .frame(maxWidth: .infinity)
         }
     }
+
+    /// Reads the current saved state so the Save pill flips immediately on tap.
+    private var saved: Bool { environment.isSaved(recipeId: recipe.id) }
 
     // MARK: Ingredients
 

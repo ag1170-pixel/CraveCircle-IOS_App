@@ -253,3 +253,20 @@
 - [ ] No action loses user input on failure — drafts, imports, comments all persist locally
       and retry.
 - [ ] Scroll performance is 60 fps on an iPhone 12 (our minimum target device).
+
+---
+
+## 🍳 Meal Plan — design captured, implementation pending
+
+Full design lives in the vault: [[Projects/CraveCircle/Meal-Plan-Design]].
+
+Highlights:
+- Entry point: a **Plan** pill in the recipe-detail action row (not the top chip row), icon `calendar.badge.plus`.
+- Picker is one native sheet with Today / Tomorrow / Weekend quick picks + Apple's graphical `DatePicker` + Breakfast/Lunch/Dinner/Snack segmented control + Save button. No typing.
+- Chart lives on Profile → Meal Plan: week strip + four slot rows per day + daily macro roll-up + "Add week to grocery".
+- Local `UNNotificationRequest` fires 30 min before cook time; tap opens Cook Mode.
+- Server: `cravecircle.meal_plan` table, owner-RLS, same pattern as `recipe_saves`.
+- Guest gate: raises paywall with the save-copy.
+- All free in v1, no Premium gate (owner call).
+
+**Do not implement until the owner says go** — this is here so the next session has the shape.

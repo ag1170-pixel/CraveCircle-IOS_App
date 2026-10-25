@@ -1096,6 +1096,27 @@ final class AppEnvironment: ObservableObject {
     }
 
     /// Admin: approve/reject a request; approval promotes the requester to creator server-side.
+    /// Permanent, real account deletion. Required by App Store Guideline 5.1.1(v) — the old
+    /// "wait 1s + sign out" would have been a rejection. Wipes the server (delete_me RPC),
+    /// then clears every local scope on this device so no cached state survives.
+    func deleteAccountEverywhere() async -> Bool {
+        guard await supabase.deleteMyAccount() else { return false }
+        // Clear every per-user file + defaults on this device for the account that just died.
+        if let id = currentUser?.id { eraseAllLocalState(forUserId: id) }
+        return true
+    }
+
+    private func eraseAllLocalState(forUserId id: String) {
+        let defaults = UserDefaults.standard
+        for key in AccountScope.personalDefaultsKeys {
+            defaults.removeObject(forKey: AccountScope.defaultsKey(userId: id, key: key))
+        }
+        defaults.removeObject(forKey: AccountScope.defaultsKey(userId: id, key: "deleted_recipe_ids"))
+        for file in AccountScope.personalFiles {
+            LocalStore.remove(AccountScope.fileName(userId: id, file: file))
+        }
+    }
+
     func decideCreatorRequest(_ request: CreatorRequest, approve: Bool) async {
         if await supabase.decideCreatorRequest(id: request.id, approve: approve) {
             pendingCreatorRequests.removeAll { $0.id == request.id }
