@@ -108,10 +108,22 @@ struct OnboardingView: View {
     private var welcome: some View {
         VStack(spacing: AppSpacing.lg) {
             Spacer()
-            ChefHatLogo(size: 72)
+            // Centered badge — big circular surface with the chef-hat logo. Matches the Figma
+            // reference frame OB1 • Welcome: a grounded hero element, not just a logo floating.
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(colors: [AppTheme.brand.opacity(0.95), Color(hex: "E58BB8").opacity(0.95)],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 160, height: 160)
+                    .shadow(color: AppTheme.brand.opacity(0.25), radius: 20, y: 8)
+                Circle()
+                    .fill(AppTheme.surface)
+                    .frame(width: 112, height: 112)
+                ChefHatLogo(size: 72)
+            }
             VStack(spacing: 10) {
                 Text("CraveCircle")
-                    .font(AppFont.serif(34, weight: .bold)).italic()
+                    .font(AppFont.serif(38, weight: .bold)).italic()
                     .foregroundStyle(AppTheme.textPrimary)
                 Text("Your living cookbook. Save a reel, get a clean recipe, cook hands-free.")
                     .font(AppFont.body(16))

@@ -410,13 +410,13 @@ struct MainTabView: View {
                 .environmentObject(environment)
         }
         .fullScreenCover(item: $newRecipe) { recipe in
-            NavigationStack {
-                RecipeEditScreen(recipe: Binding(get: { newRecipe ?? recipe }, set: { newRecipe = $0 })) { saved in
-                    environment.updateRecipe(saved)
-                    newRecipe = nil
-                }
-                .environmentObject(environment)
+            // Figma-aligned wizard. Fires on `pendingNewRecipe = true` from Studio, the Home
+            // widget "Write from scratch" quick action, and the cravecircle://new deep link.
+            NewRecipeWizard(draft: recipe) { saved in
+                environment.updateRecipe(saved)
+                newRecipe = nil
             }
+            .environmentObject(environment)
         }
         .sheet(isPresented: $showingProgressDetail) {
             ImportProgressScreen(reopenImport: { showingImportSheet = true })

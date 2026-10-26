@@ -96,14 +96,15 @@ struct AddRecipeSheet: View {
                 .environmentObject(environment)
         }
         .fullScreenCover(isPresented: $showWrite) {
-            NavigationStack {
-                RecipeEditScreen(recipe: Binding(get: { blank }, set: { blank = $0 })) { saved in
-                    environment.updateRecipe(saved)
-                    showWrite = false
-                    showing = false
-                }
-                .environmentObject(environment)
+            // Figma-aligned 4-step wizard: Photo → Basics → Ingredients → Method.
+            // The old Form-based RecipeEditScreen is still used for the Edit flow from the
+            // recipe detail ⋯ menu — we didn't delete it.
+            NewRecipeWizard(draft: blank) { saved in
+                environment.updateRecipe(saved)
+                showWrite = false
+                showing = false
             }
+            .environmentObject(environment)
         }
         .onChange(of: pickedPhotos) { _, items in
             guard !items.isEmpty, !importingPhotos else { return }
