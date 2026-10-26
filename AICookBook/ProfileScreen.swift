@@ -533,8 +533,11 @@ struct AccountSheet: View {
                 .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
                 
+                // User-controlled data erasure — a lighter alternative to full account delete.
+                MyDataSection()
+
                 Spacer()
-                
+
                 NavigationLink {
                     DeleteAccountScreen()
                 } label: {
@@ -1216,5 +1219,119 @@ struct EditProfileSheet: View {
         let renderer = UIGraphicsImageRenderer(size: target)
         let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: target)) }
         return resized.jpegData(compressionQuality: 0.8)
+    }
+}
+
+// MARK: - My Data (self-service erasure)
+
+/// Three destructive buttons so a user can scrub their footprint without closing the whole
+/// account. Each one asks for confirmation first — iOS native alert, no custom chrome — and
+/// shows a running-state label so a slow server call doesn't look frozen.
+private struct MyDataSection: View {
+    @EnvironmentObject private var environment: AppEnvironment
+    @State private var showConfirm: Which?
+    @State private var running: Which?
+    @State private var toast: String?
+
+    private enum Which: String, Identifiable { case likes, saves, comments; var id: String { rawValue } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            Text("My Data").sectionLabelStyle()
+
+            VStack(spacing: 0) {
+                row(title: "Delete my likes",
+                    subtitle: "Clears every recipe you've liked, on this device and the server.",
+                    icon: "heart.slash",
+                    which: .likes)
+                Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                row(title: "Delete my saves",
+                    subtitle: "Clears your saved / bookmarked recipes everywhere.",
+                    icon: "bookmark.slash",
+                    which: .saves)
+                Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                row(title: "Delete my comments",
+                    subtitle: "Removes every comment you've posted on any recipe.",
+                    icon: "bubble.left.and.exclamationmark.bubble.right",
+                    which: .comments)
+            }
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+
+            if let toast {
+                Text(toast)
+                    .font(AppFont.body(12, weight: .semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .padding(.horizontal, 4)
+            }
+        }
+        .padding(.top, AppSpacing.sm)
+        .alert("Delete your \(showConfirm?.rawValue ?? "data")?",
+               isPresented: Binding(get: { showConfirm != nil }, set: { if !$0 { showConfirm = nil } })) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                if let w = showConfirm { performErase(w) }
+            }
+        } message: {
+            Text("This can't be undone. You'll still be signed in and keep your account.")
+        }
+    }
+
+    private func row(title: String, subtitle: String, icon: String, which: Which) -> some View {
+        Button {
+            Haptics.tap()
+            showConfirm = which
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(AppTheme.destructive)
+                    .frame(width: 32, height: 32)
+                    .background(AppTheme.destructive.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(AppFont.body(15, weight: .semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                    Text(subtitle)
+                        .font(AppFont.body(12))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 4)
+                if running == which {
+                    ProgressView()
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(AppTheme.textTertiary)
+                }
+            }
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(running != nil)
+    }
+
+    private func performErase(_ which: Which) {
+        running = which
+        toast = nil
+        Task {
+            let ok: Bool
+            switch which {
+            case .likes:    ok = await environment.deleteAllMyLikes()
+            case .saves:    ok = await environment.deleteAllMySaves()
+            case .comments: ok = await environment.deleteAllMyComments()
+            }
+            await MainActor.run {
+                running = nil
+                toast = ok ? "Deleted. Thanks for the clean-up." : "Couldn't delete right now — try again."
+                Haptics.success()
+            }
+            // Fade the toast after a few seconds so it doesn't park there forever.
+            try? await Task.sleep(nanoseconds: 3_500_000_000)
+            await MainActor.run { toast = nil }
+        }
     }
 }

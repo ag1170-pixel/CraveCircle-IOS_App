@@ -1100,6 +1100,34 @@ final class AppEnvironment: ObservableObject {
     }
 
     /// Admin: approve/reject a request; approval promotes the requester to creator server-side.
+    // MARK: - Self-service data controls (users deleting their own data without closing their account)
+
+    /// Erase every like this user has made, server + device. Guarded on real session so a guest
+    /// can't accidentally invoke it (there's nothing on the server to erase anyway).
+    func deleteAllMyLikes() async -> Bool {
+        guard await supabase.deleteAllMine(from: "recipe_likes") else { return false }
+        await MainActor.run { likedRecipeIds = [] }
+        storeRecipeIdSet([], key: "liked_recipe_ids")
+        return true
+    }
+
+    /// Erase every save. Same shape as likes.
+    func deleteAllMySaves() async -> Bool {
+        guard await supabase.deleteAllMine(from: "recipe_saves") else { return false }
+        await MainActor.run { savedRecipeIds = [] }
+        storeRecipeIdSet([], key: "saved_recipe_ids")
+        return true
+    }
+
+    /// Erase every comment the user has posted across the app. Local comment cache is cleared
+    /// too; it'll re-hydrate from the server on next recipe open and show nothing authored by
+    /// this user because the server just emptied them out.
+    func deleteAllMyComments() async -> Bool {
+        guard await supabase.deleteAllMine(from: "comments") else { return false }
+        await MainActor.run { recipeComments = [:] }
+        return true
+    }
+
     /// Permanent, real account deletion. Required by App Store Guideline 5.1.1(v) — the old
     /// "wait 1s + sign out" would have been a rejection. Wipes the server (delete_me RPC),
     /// then clears every local scope on this device so no cached state survives.

@@ -479,6 +479,19 @@ struct SupabaseData {
         return true
     }
 
+    /// Bulk-delete every row the caller owns in one of the simple user-scoped tables. Returns
+    /// true on 2xx. Used by the "Delete my likes / saves / comments" controls so a user can
+    /// erase their footprint without closing the account.
+    func deleteAllMine(from table: String) async -> Bool {
+        guard hasSession, let uid = currentUserId() else { return false }
+        // Column name differs per table: comments uses `author_id`, everyone else `user_id`.
+        let col = (table == "comments") ? "author_id" : "user_id"
+        guard let req = request(path: "rest/v1/\(table)?\(col)=eq.\(uid)", method: "DELETE") else { return false }
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
     /// Delete a single comment by id. RLS enforces who can call this: author of the comment,
     /// owner of the recipe the comment lives on, or an admin. Anyone else gets 0 rows affected
     /// (which Postgres still returns as a 2xx; the UI already re-fetches so a no-op is harmless).
