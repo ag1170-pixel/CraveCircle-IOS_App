@@ -196,14 +196,6 @@ every tappable element, Smart Invert correctness.
 
 If anything doesn't work, open `TODO_BREAK_THE_APP.md` and `APPSTORE_READINESS_PLAN.md`
 in the repo root — the known gaps are catalogued there honestly.
-
----
-
-## 7. License
-
-Private repository — all rights reserved for now. Reach out before forking or
-re-using any code.
-
 ---
 
 Built with care by Aditya Gupta and the CraveCircle team.
