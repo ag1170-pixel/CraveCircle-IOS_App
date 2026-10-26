@@ -2183,6 +2183,37 @@ final class AppEnvironment: ObservableObject {
             .filter { !CommentModeration.isBlocked($0.text) }
     }
 
+    /// Delete a comment. Server-side RLS enforces who's allowed (author, recipe owner, admin);
+    /// the UI only shows the delete affordance to those three roles so no one else even sees it.
+    /// Optimistic: pop from the local list first, then mirror server-side. On failure we re-sync
+    /// so the comment reappears instead of staying missing on a stale view.
+    func deleteComment(recipeId: String, commentId: UUID) {
+        guard var list = recipeComments[recipeId] else { return }
+        list.removeAll { $0.id == commentId }
+        recipeComments[recipeId] = list
+        Task {
+            let ok = await supabase.deleteComment(id: commentId)
+            if !ok { await refreshComments(for: recipeId) }
+        }
+    }
+
+    /// Can the current viewer delete this comment? Mirrors the server-side RLS so the UI shows
+    /// Delete only where it will actually work: the comment's author, the owner of the recipe
+    /// the comment lives on, or an admin.
+    func canDeleteComment(_ comment: RecipeComment, recipeId: String) -> Bool {
+        if isAdmin { return true }
+        let myHandle = (currentUser?.username ?? "").lowercased()
+        let mineAt   = myHandle.hasPrefix("@") ? myHandle : "@" + myHandle
+        let author   = comment.authorUsername.lowercased()
+        if !myHandle.isEmpty, author == myHandle || author == mineAt || author.replacingOccurrences(of: "@", with: "") == myHandle.replacingOccurrences(of: "@", with: "") {
+            return true
+        }
+        if let r = recipes.first(where: { $0.id == recipeId }), isOwner(of: r) {
+            return true
+        }
+        return false
+    }
+
     func toggleCommentLike(recipeId: String, commentId: UUID) {
         guard var list = recipeComments[recipeId],
               let idx = list.firstIndex(where: { $0.id == commentId }) else { return }

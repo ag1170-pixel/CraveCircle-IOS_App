@@ -479,6 +479,28 @@ struct SupabaseData {
         return true
     }
 
+    /// Delete a single comment by id. RLS enforces who can call this: author of the comment,
+    /// owner of the recipe the comment lives on, or an admin. Anyone else gets 0 rows affected
+    /// (which Postgres still returns as a 2xx; the UI already re-fetches so a no-op is harmless).
+    func deleteComment(id: UUID) async -> Bool {
+        guard hasSession,
+              let enc = id.uuidString.lowercased().addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let req = request(path: "rest/v1/comments?id=eq.\(enc)", method: "DELETE") else { return false }
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
+    /// Admin-only nuclear remove-a-user. Fires the `admin_delete_user` RPC which checks the role
+    /// server-side before deleting the auth.users row (everything else cascades off profiles.id).
+    func adminDeleteUser(id: UUID) async -> Bool {
+        guard hasSession, var req = request(path: "rest/v1/rpc/admin_delete_user", method: "POST") else { return false }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["p_user_id": id.uuidString.lowercased()])
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
     /// Decoder that maps snake_case columns and parses Postgres ISO-8601 timestamps (with fractional seconds).
     static func decoder() -> JSONDecoder {
         let d = JSONDecoder()
