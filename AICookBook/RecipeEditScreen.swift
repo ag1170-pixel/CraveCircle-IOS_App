@@ -23,6 +23,13 @@ struct RecipeEditScreen: View {
     @State private var photos: [UIImage] = []           // the working gallery (max 6; first = cover)
     @State private var loadedExisting = false
 
+    // Autosave: a debounced on-disk snapshot of the current draft. If the editor is closed by
+    // accident (swipe-down the sheet, app killed, battery dies) the next open restores it. The
+    // snapshot is per-user, per-recipe-id, and cleared the moment the user hits Save.
+    @State private var autosaveTask: Task<Void, Never>?
+    @State private var pendingRestore: Recipe?
+    @State private var showRestorePrompt = false
+
     private let maxPhotos = 6
 
     init(recipe: Binding<Recipe>, onSave: @escaping (Recipe) -> Void) {
@@ -127,7 +134,30 @@ struct RecipeEditScreen: View {
             }
             .tint(AppTheme.accentInk)
             .onChange(of: pickedItems) { _, items in loadPicked(items) }
-            .task { loadExistingPhotos() }
+            .onChange(of: draft) { _, _ in scheduleAutosave() }
+            .task {
+                loadExistingPhotos()
+                // Look for a prior autosaved snapshot the user left behind. Prompt them to
+                // restore rather than silently overwriting — editing twice is their call.
+                if let saved = loadAutosaveIfAny(), saved != draft {
+                    pendingRestore = saved
+                    showRestorePrompt = true
+                }
+            }
+            .alert("Pick up where you left off?",
+                   isPresented: $showRestorePrompt,
+                   presenting: pendingRestore) { _ in
+                Button("Restore draft") {
+                    if let saved = pendingRestore { draft = saved }
+                    pendingRestore = nil
+                }
+                Button("Start fresh", role: .destructive) {
+                    clearAutosave()
+                    pendingRestore = nil
+                }
+            } message: { _ in
+                Text("We saved what you were typing before this editor closed. Restore it, or start from the current recipe?")
+            }
         }
     }
 
@@ -272,7 +302,41 @@ struct RecipeEditScreen: View {
 
         recipe = draft
         onSave(draft)
+        // Explicit save means the user is done with this draft. Drop the autosave so it
+        // doesn't offer to restore the SAME content next time they open the editor.
+        clearAutosave()
         dismiss()
+    }
+
+    // MARK: - Autosave
+
+    /// Debounces disk writes so every keystroke doesn't hit the filesystem. 1.2 s is slow
+    /// enough that typing feels free, fast enough that killing the app usually loses less than
+    /// one sentence of work.
+    private func scheduleAutosave() {
+        autosaveTask?.cancel()
+        autosaveTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            guard !Task.isCancelled else { return }
+            saveAutosave()
+        }
+    }
+
+    private var autosaveName: String {
+        let uid = environment.currentUser?.id ?? "guest"
+        return AccountScope.fileName(userId: uid, file: "editor_draft_\(draft.id).json")
+    }
+
+    private func saveAutosave() {
+        LocalStore.save(draft, to: autosaveName)
+    }
+
+    private func loadAutosaveIfAny() -> Recipe? {
+        LocalStore.load(Recipe.self, from: autosaveName)
+    }
+
+    private func clearAutosave() {
+        LocalStore.remove(autosaveName)
     }
 }
 
