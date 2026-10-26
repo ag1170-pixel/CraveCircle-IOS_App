@@ -18,6 +18,11 @@ struct ProfileScreen: View {
     @AppStorage("kitchen_cat_enabled") private var kitchenCatEnabled = true   // the playful chef-cat on Home
     @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
     
+    private var plannedCountDetail: String? {
+        let n = environment.plannedMeals.count
+        return n == 0 ? "None yet" : (n == 1 ? "1 planned" : "\(n) planned")
+    }
+
     private var unreadSharedCount: Int {
         let lastDate = Date(timeIntervalSince1970: lastOpenedSharedScreen)
         let myId = environment.currentUser?.id ?? "me"
@@ -227,6 +232,15 @@ struct ProfileScreen: View {
                 SettingRow(icon: "bell.badge", title: "Notifications", detail: "On", tint: .orange) {
                     showNotifications = true
                 }
+                Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                NavigationLink {
+                    MealPlanScreen()
+                } label: {
+                    SettingRow(icon: "calendar", title: "Meal Plan",
+                               detail: plannedCountDetail, tint: .green) {}
+                        .allowsHitTesting(false)
+                }
+                .buttonStyle(.plain)
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
                 SettingRow(icon: "tray.and.arrow.down", title: "Shared with you", detail: nil, badgeCount: unreadSharedCount, tint: .pink) {
                     lastOpenedSharedScreen = Date().timeIntervalSince1970

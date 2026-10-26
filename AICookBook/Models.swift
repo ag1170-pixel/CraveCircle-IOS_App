@@ -675,6 +675,56 @@ struct RecipeComment: Codable, Identifiable, Hashable {
 }
 
 #if DEBUG
+// MARK: - Meal Plan
+
+enum MealSlot: String, Codable, CaseIterable, Hashable, Identifiable {
+    case breakfast, lunch, dinner, snack
+    var id: String { rawValue }
+
+    /// Default slot picked from a cook time — "when it is" nudges the user to the right slot
+    /// without them having to tap anything. User can override, of course.
+    static func suggested(for date: Date, in calendar: Calendar = .current) -> MealSlot {
+        let hour = calendar.component(.hour, from: date)
+        switch hour {
+        case 0..<10:   return .breakfast
+        case 10..<15:  return .lunch
+        case 17..<22:  return .dinner
+        default:       return .snack
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .breakfast: return "Breakfast"
+        case .lunch:     return "Lunch"
+        case .dinner:    return "Dinner"
+        case .snack:     return "Snack"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .breakfast: return "sunrise"
+        case .lunch:     return "sun.max"
+        case .dinner:    return "moon.stars"
+        case .snack:     return "cup.and.saucer"
+        }
+    }
+}
+
+/// One scheduled cook. Each row = "I want to make recipe X on this date, in this slot."
+/// Lives locally in a per-user JSON file + mirrors to `cravecircle.meal_plan` on Supabase.
+struct PlannedMeal: Codable, Identifiable, Hashable {
+    var id: UUID = UUID()
+    var recipeId: String
+    var when: Date
+    var slot: MealSlot
+    /// UNNotificationRequest identifier we scheduled for this cook. Kept so cancelling the
+    /// plan can cancel the local notification too.
+    var reminderIdentifier: String?
+    var createdAt: Date = Date()
+}
+
 enum CraveCircleInvariantChecks {
     static let _runChecks: Void = {
         precondition(Recipe.isSocialImportURL(nil) == false)

@@ -480,6 +480,56 @@ struct SupabaseData {
         return true
     }
 
+    // MARK: - Meal Plan (owner-only read/write)
+
+    func insertPlannedMeal(_ meal: PlannedMeal) async -> Bool {
+        guard hasSession, let uid = currentUserId(), var req = request(path: "rest/v1/meal_plan") else { return false }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        let iso = ISO8601DateFormatter(); iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let row: [String: Any] = [
+            "id": meal.id.uuidString.lowercased(),
+            "user_id": uid,
+            "recipe_id": meal.recipeId,
+            "when_ts": iso.string(from: meal.when),
+            "slot": meal.slot.rawValue
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: row)
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
+    func deletePlannedMeal(id: UUID) async -> Bool {
+        guard hasSession,
+              let enc = id.uuidString.lowercased().addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let req = request(path: "rest/v1/meal_plan?id=eq.\(enc)", method: "DELETE") else { return false }
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
+    /// Pull every planned meal for the signed-in user. Returns nil on failure so the caller
+    /// keeps whatever is on-device.
+    func fetchMyMealPlan() async -> [PlannedMeal]? {
+        guard hasSession, let uid = currentUserId(),
+              let req = request(path: "rest/v1/meal_plan?select=id,recipe_id,when_ts,slot,created_at&user_id=eq.\(uid)&order=when_ts.asc", method: "GET") else { return nil }
+        struct Row: Decodable {
+            let id: UUID
+            let recipe_id: String
+            let when_ts: Date
+            let slot: String
+            let created_at: Date?
+        }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        let rows = (try? Self.decoder().decode([Row].self, from: data)) ?? []
+        return rows.compactMap { r in
+            guard let slot = MealSlot(rawValue: r.slot) else { return nil }
+            return PlannedMeal(id: r.id, recipeId: r.recipe_id, when: r.when_ts, slot: slot,
+                               reminderIdentifier: nil, createdAt: r.created_at ?? Date())
+        }
+    }
+
     /// Bulk-delete every row the caller owns in one of the simple user-scoped tables. Returns
     /// true on 2xx. Used by the "Delete my likes / saves / comments" controls so a user can
     /// erase their footprint without closing the account.

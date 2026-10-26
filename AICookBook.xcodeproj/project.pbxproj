@@ -609,9 +609,9 @@
 				INFOPLIST_FILE = "Config/AICookBook-Info.plist";
 				INFOPLIST_KEY_API_BASE_URL = "https://import.cravecircle.cc";
 				INFOPLIST_KEY_NSAllowsLocalNetworking = YES;
+				INFOPLIST_KEY_NSContactsUsageDescription = "CraveCircle finds the friends in your contacts who are already using the app, so you can follow them.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "CraveCircle uses the microphone so you can speak to search recipes and to cook hands-free with voice.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "CraveCircle transcribes cooking-video audio on your device to turn reels into recipes.";
-				INFOPLIST_KEY_NSContactsUsageDescription = "CraveCircle finds the friends in your contacts who are already using the app, so you can follow them.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg0MzIzMjk1LCJleHAiOjIwOTk2ODMyOTV9.rfoxjE7PA4mov-tN7nebaT_BbdN5fLiiDCJDrE_kJeM";
 				INFOPLIST_KEY_SUPABASE_URL = "http://100.70.151.71:54321";
@@ -651,9 +651,9 @@
 				INFOPLIST_FILE = "Config/AICookBook-Info.plist";
 				INFOPLIST_KEY_API_BASE_URL = "https://import.cravecircle.cc";
 				INFOPLIST_KEY_NSAllowsLocalNetworking = YES;
+				INFOPLIST_KEY_NSContactsUsageDescription = "CraveCircle finds the friends in your contacts who are already using the app, so you can follow them.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "CraveCircle uses the microphone so you can speak to search recipes and to cook hands-free with voice.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "CraveCircle transcribes cooking-video audio on your device to turn reels into recipes.";
-				INFOPLIST_KEY_NSContactsUsageDescription = "CraveCircle finds the friends in your contacts who are already using the app, so you can follow them.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg0MzIzMjk1LCJleHAiOjIwOTk2ODMyOTV9.rfoxjE7PA4mov-tN7nebaT_BbdN5fLiiDCJDrE_kJeM";
 				INFOPLIST_KEY_SUPABASE_URL = "http://100.70.151.71:54321";

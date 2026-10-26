@@ -70,6 +70,8 @@ final class AppEnvironment: ObservableObject {
     // Studio Drafts & Published
     // No preseeded drafts. A new creator sees "0 Drafts" in Studio until they actually write one.
     @Published private(set) var studioDraftIds: Set<String> = [] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
+    /// Scheduled cooks. Sorted by `when` ascending for display convenience.
+    @Published private(set) var plannedMeals: [PlannedMeal] = [] { didSet { persist(plannedMeals, "meal_plan.json") } }
     
     // Notifications & Activity
     @Published private(set) var circleNotifications: [CircleNotificationItem] = [] { didSet { persist(circleNotifications, "notifications.json") } }
@@ -181,6 +183,7 @@ final class AppEnvironment: ObservableObject {
         sharedCollections = loadScoped([CollectionItem].self, "shared_collections.json", userId: userId) ?? []
         groceryItems = loadScoped([GroceryItem].self, "grocery.json", userId: userId) ?? []
         studioDraftIds = Set(loadScoped([String].self, "studio_drafts.json", userId: userId) ?? [])
+        plannedMeals = loadScoped([PlannedMeal].self, "meal_plan.json", userId: userId) ?? []
         followedCreators = Set(loadScoped([String].self, "followed_creators.json", userId: userId) ?? [])
         sharedLog = loadScoped([SharedRecipeRecord].self, "shared_log.json", userId: userId) ?? []
         unsyncedRecipeIds = Set(loadScoped([String].self, "unsynced_recipes.json", userId: userId) ?? [])
@@ -274,6 +277,7 @@ final class AppEnvironment: ObservableObject {
             hydrateLocal()
             await refreshRecipes()
             await hydrateLikesAndSavesFromServer()
+            await hydrateMealPlanFromServer()
             await uploadDeviceTokenIfPossible()
             syncSharedUserId()
             return
@@ -387,6 +391,7 @@ final class AppEnvironment: ObservableObject {
         showGuestPaywall = false
         await refreshRecipes()
         await hydrateLikesAndSavesFromServer()
+        await hydrateMealPlanFromServer()
         await uploadDeviceTokenIfPossible()   // token may have arrived before login
         syncSharedUserId()
     }
@@ -1117,6 +1122,80 @@ final class AppEnvironment: ObservableObject {
     }
 
     /// Admin: approve/reject a request; approval promotes the requester to creator server-side.
+    // MARK: - Meal Plan
+
+    /// Add a planned cook. Optimistic locally; mirrors to Supabase if signed in. Also schedules
+    /// a local notification 30 minutes before `when` so the kitchen reminder actually fires.
+    func planMeal(recipeId: String, when: Date, slot: MealSlot) async -> PlannedMeal? {
+        guard requireRealSessionOrPrompt(reason: .save) else { return nil }
+        // Suggest a slot if the caller passed .snack-as-default; but we trust the caller too.
+        let safeSlot = slot
+        var meal = PlannedMeal(recipeId: recipeId, when: when, slot: safeSlot)
+        // Schedule the local notification BEFORE recording so we can stash its identifier.
+        let title = recipes.first(where: { $0.id == recipeId })?.title ?? "a recipe"
+        meal.reminderIdentifier = await scheduleCookReminder(for: meal, title: title)
+        await MainActor.run {
+            plannedMeals.append(meal)
+            plannedMeals.sort { $0.when < $1.when }
+        }
+        _ = await supabase.insertPlannedMeal(meal)
+        return meal
+    }
+
+    /// Remove a planned cook. Cancels the local reminder too.
+    func unplanMeal(id: UUID) async {
+        guard let idx = plannedMeals.firstIndex(where: { $0.id == id }) else { return }
+        let meal = plannedMeals[idx]
+        if let rid = meal.reminderIdentifier {
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [rid])
+        }
+        await MainActor.run { plannedMeals.remove(at: idx) }
+        _ = await supabase.deletePlannedMeal(id: meal.id)
+    }
+
+    func plannedMeals(for recipeId: String) -> [PlannedMeal] {
+        plannedMeals.filter { $0.recipeId == recipeId }
+    }
+
+    /// Pull planned meals from Supabase and reconcile with local. Server wins for ids the
+    /// server has; local-only rows stay (same union pattern as likes/saves).
+    func hydrateMealPlanFromServer() async {
+        guard hasRealSession else { return }
+        guard let remote = await supabase.fetchMyMealPlan() else { return }
+        var byId = Dictionary(uniqueKeysWithValues: plannedMeals.map { ($0.id, $0) })
+        for row in remote { byId[row.id] = row }
+        let merged = Array(byId.values).sorted { $0.when < $1.when }
+        await MainActor.run { plannedMeals = merged }
+    }
+
+    /// Schedule a UNNotificationRequest 30 min before `when`. If the user hasn't granted alerts
+    /// yet, we ask once; if they decline we silently skip (plan still saves). Returns the
+    /// request identifier so the caller can cancel it later.
+    private func scheduleCookReminder(for meal: PlannedMeal, title recipeTitle: String) async -> String? {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        if settings.authorizationStatus == .notDetermined {
+            _ = try? await center.requestAuthorization(options: [.alert, .sound])
+        }
+        let fresh = await center.notificationSettings()
+        guard fresh.authorizationStatus == .authorized || fresh.authorizationStatus == .provisional else { return nil }
+
+        let fireAt = meal.when.addingTimeInterval(-30 * 60)
+        guard fireAt > Date() else { return nil }   // already too late; don't schedule in the past
+
+        let content = UNMutableNotificationContent()
+        content.title = "Time to cook: \(recipeTitle)"
+        content.body  = "Your \(meal.slot.displayName.lowercased()) is in 30 minutes."
+        content.sound = .default
+        content.userInfo = ["recipeId": meal.recipeId]
+
+        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireAt)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        let identifier = "cook-\(meal.id.uuidString)"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        do { try await center.add(request); return identifier } catch { return nil }
+    }
+
     // MARK: - Self-service data controls (users deleting their own data without closing their account)
 
     /// Erase every like this user has made, server + device. Guarded on real session so a guest

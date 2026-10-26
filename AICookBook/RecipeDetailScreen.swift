@@ -29,6 +29,7 @@ struct RecipeDetailScreen: View {
     @State private var showEdit = false
     @State private var showShareSheet = false
     @State private var showCreatorSheet = false
+    @State private var showMealPlanner = false
     @State private var showWatchReel = false
     @State private var showDeleteConfirm = false
     @AppStorage(LanguagePrefs.key) private var preferredLang = LanguagePrefs.default.rawValue
@@ -158,6 +159,11 @@ struct RecipeDetailScreen: View {
         }
         .fullScreenCover(isPresented: $showNutrition) {
             NutritionScreen(recipe: recipe)
+        }
+        .sheet(isPresented: $showMealPlanner) {
+            MealPlanPickerSheet(recipe: recipe)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .fullScreenCover(isPresented: $showEdit) {
             RecipeEditScreen(recipe: $recipe, onSave: { environment.updateRecipe($0) })
@@ -809,11 +815,20 @@ struct RecipeDetailScreen: View {
     }
 
     private var actionRow: some View {
-        // Single row, two pills — servings on the left, Add to Grocery on the right. Matches
-        // the owner reference screenshot. Keeps Add to Grocery short enough to fit on one line
-        // because the HStack only has two items now (the third item that caused the wrap is gone).
-        HStack(spacing: 10) {
-            servingsStepper
+        // Two rows now that Plan is a first-class action. Row 1 = servings + plan. Row 2 =
+        // Add to Grocery (full-width). Keeps the reference screenshot's spirit (short labels,
+        // no wrap) while making the meal-plan feature discoverable at the moment a user is
+        // deciding whether to cook something.
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                servingsStepper
+                PillButton(title: planLabel, systemImage: "calendar.badge.plus",
+                           kind: isPlanned ? .filled : .surface, fullWidth: true) {
+                    Haptics.tap()
+                    showMealPlanner = true
+                }
+                .frame(maxWidth: .infinity)
+            }
 
             PillButton(title: "Add to Grocery", systemImage: "basket.fill", kind: .surface, fullWidth: true) {
                 Haptics.success()
@@ -827,6 +842,11 @@ struct RecipeDetailScreen: View {
             .frame(maxWidth: .infinity)
         }
     }
+
+    /// Live state from the env — "Plan" when nothing is scheduled, "Planned" when there's at
+    /// least one scheduled cook for this recipe. Keeps the pill honest at a glance.
+    private var isPlanned: Bool { !environment.plannedMeals(for: recipe.id).isEmpty }
+    private var planLabel: String { isPlanned ? "Planned" : "Plan" }
 
     /// Just the servings stepper, split out so the two-row action layout stays readable.
     private var servingsStepper: some View {
