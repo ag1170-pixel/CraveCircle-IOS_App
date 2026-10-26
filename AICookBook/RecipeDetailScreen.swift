@@ -809,17 +809,12 @@ struct RecipeDetailScreen: View {
     }
 
     private var actionRow: some View {
-        // Two rows instead of one. On iPhone widths, three equal-width buttons in a row made
-        // "Add to Grocery" wrap into three stacked words. Now: servings pill is on its own line
-        // (center-left), then a full-width row of Save + Add to Grocery that scales to any
-        // phone width without wrapping.
-        VStack(spacing: 10) {
-            HStack {
-                servingsStepper
-                Spacer()
-            }
+        // Single row, two pills — servings on the left, Add to Grocery on the right. Matches
+        // the owner reference screenshot. Keeps Add to Grocery short enough to fit on one line
+        // because the HStack only has two items now (the third item that caused the wrap is gone).
+        HStack(spacing: 10) {
+            servingsStepper
 
-            // Save lives on the hero (heart icon) + the ⋯ menu — not duplicated at the bottom.
             PillButton(title: "Add to Grocery", systemImage: "basket.fill", kind: .surface, fullWidth: true) {
                 Haptics.success()
                 let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
