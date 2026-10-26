@@ -270,6 +270,7 @@ final class AppEnvironment: ObservableObject {
             currentUser = profile
             elevateFounderIfMatches(email: profile.username)
             appState = .signedIn
+            showGuestPaywall = false
             hydrateLocal()
             await refreshRecipes()
             await hydrateLikesAndSavesFromServer()
@@ -381,6 +382,9 @@ final class AppEnvironment: ObservableObject {
         }
         if !guestId.isEmpty { guestUserId = "" }
         appState = .signedIn
+        // The user is now a real signed-in account — if any guest-era paywall was still raised
+        // the sheet would re-present on MainTabView. Drop it unconditionally.
+        showGuestPaywall = false
         await refreshRecipes()
         await hydrateLikesAndSavesFromServer()
         await uploadDeviceTokenIfPossible()   // token may have arrived before login

@@ -1094,6 +1094,11 @@ struct GuestWallView: View {
             
             Button {
                 Haptics.tap()
+                // Clear the paywall flag BEFORE signing out — otherwise the sheet stays bound
+                // to true and will re-present itself on MainTabView after the next sign-in,
+                // which is exactly what the user kept seeing ("Sign in to continue" after a
+                // successful login).
+                environment.showGuestPaywall = false
                 environment.signOut() // Goes back to login
             } label: {
                 Text("Log In or Sign Up")

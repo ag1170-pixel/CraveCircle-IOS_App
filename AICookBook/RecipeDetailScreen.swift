@@ -729,18 +729,8 @@ struct RecipeDetailScreen: View {
             .padding(.vertical, 7)
             .background(AppTheme.accentSoft, in: Capsule())
         } else if isManual {
-            HStack(spacing: 6) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color(hex: "EA5A38"))
-                Text("Handcrafted Recipe")
-                    .font(AppFont.body(13, weight: .semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(AppTheme.surface, in: Capsule())
-            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            // "Handcrafted Recipe" chip removed — the user didn't want it on the detail screen.
+            EmptyView()
         } else if let src = AppLanguage.from(code: recipe.sourceLanguage), src != userLang {
             HStack(spacing: 6) {
                 Image(systemName: "globe")
@@ -829,29 +819,17 @@ struct RecipeDetailScreen: View {
                 Spacer()
             }
 
-            HStack(spacing: 10) {
-                PillButton(
-                    title: saved ? "Saved" : "Save",
-                    systemImage: saved ? "bookmark.fill" : "bookmark",
-                    kind: saved ? .filled : .surface,
-                    fullWidth: true
-                ) {
-                    Haptics.tap()
-                    environment.toggleSaveRecipe(id: recipe.id, recipe: recipe)
+            // Save lives on the hero (heart icon) + the ⋯ menu — not duplicated at the bottom.
+            PillButton(title: "Add to Grocery", systemImage: "basket.fill", kind: .surface, fullWidth: true) {
+                Haptics.success()
+                let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
+                addedGroceryCount = count
+                withAnimation { showGroceryBanner = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    withAnimation { showGroceryBanner = false }
                 }
-                .frame(maxWidth: .infinity)
-
-                PillButton(title: "Add to Grocery", systemImage: "basket.fill", kind: .surface, fullWidth: true) {
-                    Haptics.success()
-                    let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
-                    addedGroceryCount = count
-                    withAnimation { showGroceryBanner = true }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                        withAnimation { showGroceryBanner = false }
-                    }
-                }
-                .frame(maxWidth: .infinity)
             }
+            .frame(maxWidth: .infinity)
         }
     }
 
