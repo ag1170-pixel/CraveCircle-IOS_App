@@ -21,6 +21,7 @@ struct HomeScreen: View {
     @Binding var showingImportSheet: Bool
     @State private var showNotifications = false
     @State private var query = ""                       // search moved here from the old Search tab
+    @AppStorage("recent_home_searches") private var recentSearchesCSV: String = ""
     @State private var filters = RecipeFilters()
     @State private var navigateToLibrary = false
     @State private var showShared = false
@@ -54,7 +55,9 @@ struct HomeScreen: View {
                     // down and returns at the top (Instagram-style), instead of staying pinned.
                     topBar
                     searchSection.id("home-search")
-                    if isSearching {
+                    if searchFocused && !isSearching {
+                        searchSuggestions
+                    } else if isSearching {
                         searchResultsSection
                     } else {
                         if !libraryGridRecipes.isEmpty {
@@ -101,10 +104,13 @@ struct HomeScreen: View {
             .navigationDestination(isPresented: $navigateToLibrary) {
                 LibraryScreen()
             }
-            .sheet(isPresented: $showNotifications) {
-                CircleNotificationsSheet()
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
+            .navigationDestination(isPresented: $showNotifications) {
+                CircleNotificationsScreen()
+                    .onDisappear {
+                        // Opening the page is proof they've seen the activity — clear the badge
+                        // so the bell on home stops saying "new" the moment they come back.
+                        environment.markAllNotificationsRead()
+                    }
             }
             .sheet(isPresented: $showShared) {
                 SharedScreen()
@@ -128,7 +134,11 @@ struct HomeScreen: View {
             // Mail removed; import moved to the tab bar (+). Only the notifications bell remains (right).
             HStack {
                 Spacer()
-                iconButton("bell", label: "Notifications", badgeCount: environment.circleNotifications.filter { !$0.isRead }.count) {
+                // Instagram pattern: a single red dot when there's anything new (unread activity
+                // or a pending follow request). No number — a count on the bell is noise.
+                let unread = environment.circleNotifications.contains { !$0.isRead }
+                            || !environment.incomingRequests.isEmpty
+                iconButton("bell", label: "Notifications", showsDot: unread) {
                     Haptics.tap(); showNotifications = true
                 }
             }
@@ -138,27 +148,28 @@ struct HomeScreen: View {
         // Transparent so the wallpaper runs uniformly behind the brand bar too (no opaque strip "cut").
     }
 
-    private func iconButton(_ symbol: String, label: String, badgeCount: Int? = nil, action: @escaping () -> Void) -> some View {
+    /// `showsDot` → simple red dot in the top-right corner. No number, no capsule — matches
+    /// Instagram's "there's something new" indicator.
+    private func iconButton(_ symbol: String, label: String, showsDot: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: symbol)
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(AppTheme.textPrimary)
                     .frame(width: 36, height: 36)
-                
-                if let count = badgeCount, count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(Color.red, in: Capsule())
-                        .offset(x: 4, y: -2)
+
+                if showsDot {
+                    Circle()
+                        .fill(Color.red)
+                        .frame(width: 9, height: 9)
+                        .overlay(Circle().stroke(AppTheme.background, lineWidth: 1.5))
+                        .offset(x: -4, y: 4)
+                        .accessibilityHidden(true)
                 }
             }
         }
         .buttonStyle(PressableStyle())
-        .accessibilityLabel(label)
+        .accessibilityLabel(showsDot ? "\(label), new activity" : label)
     }
 
     // MARK: Search (moved here from the old Search tab)
@@ -209,6 +220,8 @@ struct HomeScreen: View {
                 .foregroundStyle(AppTheme.textPrimary)
                 .autocorrectionDisabled()
                 .focused($searchFocused)
+                .submitLabel(.search)
+                .onSubmit { recordRecentSearch(query) }
                 .overlay(alignment: .leading) {
                     if query.isEmpty {
                         CyclingPlaceholder(prefix: "Search for ", phrases: Self.searchHints)
@@ -232,6 +245,175 @@ struct HomeScreen: View {
         .onChange(of: voiceSearch.transcript) { _, t in
             if !t.isEmpty { query = t }
         }
+    }
+
+    // MARK: Search suggestions — show when the field is focused and empty
+
+    /// Loose focus → the chips disappear. Everything inside stays trimmed, phone-view-friendly:
+    /// three short sections max, three rows each, no illustrations or extra chrome.
+    @ViewBuilder private var searchSuggestions: some View {
+        let recents = recentSearches
+        let creators = creatorSuggestions
+        let trending = trendingSuggestions
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            if !recents.isEmpty {
+                suggestionHeader("Recent") {
+                    recentSearchesCSV = ""
+                }
+                suggestionChipRow(items: recents, onTap: { q in
+                    query = q
+                    searchFocused = false
+                }, onRemove: { q in
+                    recentSearchesCSV = recents.filter { $0 != q }.joined(separator: "\u{1F}")
+                })
+            }
+            if !creators.isEmpty {
+                suggestionHeader("Your creators", clearAction: nil)
+                creatorRow(creators: creators)
+            }
+            if !trending.isEmpty {
+                suggestionHeader("Trending in your cuisines", clearAction: nil)
+                suggestionChipRow(items: trending, onTap: { q in
+                    query = q
+                    recordRecentSearch(q)
+                    searchFocused = false
+                }, onRemove: nil)
+            }
+            if recents.isEmpty && creators.isEmpty && trending.isEmpty {
+                Text("Start typing to search your recipes.")
+                    .font(AppFont.body(13))
+                    .foregroundStyle(AppTheme.textTertiary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, AppSpacing.md)
+            }
+        }
+        .padding(.horizontal, AppSpacing.md)
+    }
+
+    private func suggestionHeader(_ title: String, clearAction: (() -> Void)? = nil) -> some View {
+        HStack {
+            Text(title)
+                .font(AppFont.body(13, weight: .bold))
+                .foregroundStyle(AppTheme.textSecondary)
+            Spacer()
+            if let clearAction {
+                Button {
+                    Haptics.tap()
+                    clearAction()
+                } label: {
+                    Text("Clear")
+                        .font(AppFont.body(12, weight: .semibold))
+                        .foregroundStyle(AppTheme.textTertiary)
+                }
+            }
+        }
+        .padding(.horizontal, 2)
+    }
+
+    private func suggestionChipRow(items: [String], onTap: @escaping (String) -> Void,
+                                   onRemove: ((String) -> Void)?) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(items, id: \.self) { item in
+                    HStack(spacing: 6) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(AppTheme.textTertiary)
+                        Text(item)
+                            .font(AppFont.body(13, weight: .semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                            .lineLimit(1)
+                        if let onRemove {
+                            Button {
+                                Haptics.tap()
+                                onRemove(item)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(AppTheme.textTertiary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.surface, in: Capsule())
+                    .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                    .onTapGesture { Haptics.tap(); onTap(item) }
+                }
+            }
+        }
+        .scrollClipDisabled()
+    }
+
+    private func creatorRow(creators: [String]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 14) {
+                ForEach(creators, id: \.self) { handle in
+                    Button {
+                        Haptics.tap()
+                        query = handle
+                        searchFocused = false
+                    } label: {
+                        VStack(spacing: 4) {
+                            CreatorAvatarView(handle: handle, size: 44)
+                            Text(handle.hasPrefix("@") ? handle : "@\(handle)")
+                                .font(AppFont.body(11, weight: .semibold))
+                                .foregroundStyle(AppTheme.textSecondary)
+                                .lineLimit(1)
+                        }
+                        .frame(width: 56)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .scrollClipDisabled()
+    }
+
+    // MARK: Suggestion data
+
+    private var recentSearches: [String] {
+        recentSearchesCSV.split(separator: "\u{1F}").map(String.init)
+    }
+
+    /// Up to 3 handles — followed first, then any circle friend who isn't already in the followed list.
+    private var creatorSuggestions: [String] {
+        let followed = Array(environment.followedCreators.prefix(3))
+        if followed.count >= 3 { return followed }
+        let friendHandles = environment.circleFriends
+            .map { $0.username.replacingOccurrences(of: "@", with: "") }
+            .filter { !followed.contains($0) }
+        return (followed + friendHandles).prefix(3).map { $0 }
+    }
+
+    /// Up to 3 dish names from the suggested feed, filtered to the user's preferred cuisines when set.
+    private var trendingSuggestions: [String] {
+        let pool: [Recipe] = {
+            if environment.preferredCuisines.isEmpty { return environment.suggestedRecipes }
+            let cuisines = environment.preferredCuisines.map { $0.lowercased() }
+            return environment.suggestedRecipes.filter { r in
+                let hay = (r.title + " " + (r.description ?? "")).lowercased()
+                return cuisines.contains { hay.contains($0) }
+            }
+        }()
+        let seed = pool.isEmpty ? environment.suggestedRecipes : pool
+        var seen = Set<String>()
+        var out: [String] = []
+        for r in seed where out.count < 3 {
+            let title = r.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if seen.insert(title.lowercased()).inserted { out.append(title) }
+        }
+        return out
+    }
+
+    private func recordRecentSearch(_ raw: String) {
+        let q = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return }
+        var list = recentSearches.filter { $0.lowercased() != q.lowercased() }
+        list.insert(q, at: 0)
+        if list.count > 5 { list = Array(list.prefix(5)) }
+        recentSearchesCSV = list.joined(separator: "\u{1F}")
     }
 
     /// Tap to search by voice; shows a listening state while recording. Routes to Settings if the

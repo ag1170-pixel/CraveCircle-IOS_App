@@ -49,6 +49,22 @@ enum LocalStore {
         try? FileManager.default.removeItem(at: url(name))
     }
 
+    /// Alias of `delete(_:)` — easier to read at call sites that are talking about an on-disk
+    /// cache rather than a user-facing object.
+    static func remove(_ name: String) { delete(name) }
+
+    /// Move a scoped file to a new scoped name, but only if the destination doesn't already
+    /// exist. Used by the guest → signed-in migration: if the user has nothing of their own
+    /// yet, inherit the guest file; if they do, leave their file alone and the caller is
+    /// responsible for whatever merge policy fits the data type.
+    static func moveIfTargetMissing(from: String, to: String) {
+        let fm = FileManager.default
+        let src = url(from)
+        let dst = url(to)
+        guard fm.fileExists(atPath: src.path), !fm.fileExists(atPath: dst.path) else { return }
+        try? fm.moveItem(at: src, to: dst)
+    }
+
     /// Write raw bytes (e.g. a JPEG thumbnail) and return the file URL to reference it by.
     @discardableResult
     static func saveData(_ data: Data, to name: String) -> URL? {
@@ -71,7 +87,8 @@ enum AccountScope {
         "unsynced_recipes.json", "shared_log.json", "pending_interactions.json",
         "interaction_history.json", "preferred_cuisines.json",
         "comments.json", "notifications.json", "circle_friends.json",
-        "friend_requests_in.json", "friend_requests_out.json"
+        "friend_requests_in.json", "friend_requests_out.json",
+        "meal_plan.json"
     ]
     static let personalDefaultsKeys = ["saved_recipe_ids", "liked_recipe_ids", "deleted_recipe_ids"]
 

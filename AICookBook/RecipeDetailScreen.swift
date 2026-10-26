@@ -29,6 +29,7 @@ struct RecipeDetailScreen: View {
     @State private var showEdit = false
     @State private var showShareSheet = false
     @State private var showCreatorSheet = false
+    @State private var showMealPlanner = false
     @State private var showWatchReel = false
     @State private var showDeleteConfirm = false
     @AppStorage(LanguagePrefs.key) private var preferredLang = LanguagePrefs.default.rawValue
@@ -158,6 +159,11 @@ struct RecipeDetailScreen: View {
         }
         .fullScreenCover(isPresented: $showNutrition) {
             NutritionScreen(recipe: recipe)
+        }
+        .sheet(isPresented: $showMealPlanner) {
+            MealPlanPickerSheet(recipe: recipe)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .fullScreenCover(isPresented: $showEdit) {
             RecipeEditScreen(recipe: $recipe, onSave: { environment.updateRecipe($0) })
@@ -318,6 +324,40 @@ struct RecipeDetailScreen: View {
             }
             .buttonStyle(.plain)
 
+            // Small Follow pill next to the creator handle in the hero. Hidden on your own recipe
+            // or when the recipe has no creator. Restored from commit 9de0d4a.
+            if let handle = recipe.ownerUsername, !environment.isOwner(of: recipe) {
+                let following = environment.isFollowing(creatorHandle: handle)
+                Button {
+                    Haptics.select()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
+                        environment.toggleFollow(creatorHandle: handle)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: following ? "checkmark" : "person.badge.plus")
+                            .font(.system(size: 11, weight: .bold))
+                            .contentTransition(.symbolEffect(.replace))
+                        Text(following ? "Following" : "Follow")
+                            .font(AppFont.body(12, weight: .bold))
+                    }
+                    .foregroundStyle(AppTheme.onBrand)
+                    .padding(.horizontal, 11)
+                    .frame(height: 28)
+                    .background(
+                        following
+                            ? AnyShapeStyle(.ultraThinMaterial)
+                            : AnyShapeStyle(AppTheme.brand),
+                        in: Capsule()
+                    )
+                    .overlay(
+                        Capsule().stroke(.white.opacity(following ? 0.35 : 0.25), lineWidth: 0.8)
+                    )
+                    .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 2)
+                }
+                .buttonStyle(PressableStyle())
+            }
+
             Spacer(minLength: 4)
 
             if recipe.isImportedFromSocial {
@@ -353,6 +393,53 @@ struct RecipeDetailScreen: View {
                         Haptics.tap()
                     } label: {
                         Label("Copy Reel Link", systemImage: "doc.on.doc")
+                    }
+                }
+            } else if Recipe.isWebImportURL(recipe.sourceUrl),
+                      let raw = recipe.sourceUrl,
+                      let webURL = URL(string: raw) {
+                // Imported from a food-blog page — the "Original" badge opens the saved source URL
+                // so the person can jump back to the original recipe on the web.
+                Button {
+                    Haptics.tap()
+                    UIApplication.shared.open(webURL)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "safari")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Color(hex: "FFB340"))
+                        Text("Original")
+                            .font(AppFont.body(13, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color(hex: "FFB340").opacity(0.6), .white.opacity(0.25)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1.0
+                            )
+                    )
+                    .shadow(color: .black.opacity(0.2), radius: 3, x: 0, y: 1)
+                }
+                .buttonStyle(PressableStyle())
+                .contextMenu {
+                    Button {
+                        UIApplication.shared.open(webURL)
+                    } label: {
+                        Label("Open Original Page", systemImage: "safari")
+                    }
+                    Button {
+                        UIPasteboard.general.string = webURL.absoluteString
+                        Haptics.tap()
+                    } label: {
+                        Label("Copy Link", systemImage: "doc.on.doc")
                     }
                 }
             } else {
@@ -574,6 +661,14 @@ struct RecipeDetailScreen: View {
                 showNutrition = true
             }
 
+            // Community comments live at the bottom of the recipe — the reel rail's bubble icon
+            // scrolls here. Sits inside its own card so it matches the ingredients / nutrition panels.
+            RecipeCommentsSection(recipeId: recipe.id)
+                .padding(AppSpacing.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+
             Spacer(minLength: 60)
         }
         .padding(.horizontal, AppSpacing.md)
@@ -591,12 +686,30 @@ struct RecipeDetailScreen: View {
             Text("Followers Only")
                 .font(AppFont.display(24, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
-            
-            Text("This recipe is only shared with followers.")
+
+            Text("Follow \(recipe.ownerUsername ?? "@creator") to unlock this recipe and see all their latest dishes.")
                 .font(AppFont.body(16))
                 .foregroundStyle(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, AppSpacing.lg)
+
+            Button {
+                Haptics.success()
+                if let handle = recipe.ownerUsername {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
+                        environment.toggleFollow(creatorHandle: handle)
+                    }
+                }
+            } label: {
+                Text("Follow to Unlock")
+                    .font(AppFont.body(16, weight: .bold))
+                    .foregroundStyle(AppTheme.onBrand)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 14)
+                    .background(AppTheme.brand, in: Capsule())
+                    .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
+            }
+            .buttonStyle(PressableStyle())
         }
         .padding(.vertical, 80)
         .frame(maxWidth: .infinity)
@@ -622,18 +735,8 @@ struct RecipeDetailScreen: View {
             .padding(.vertical, 7)
             .background(AppTheme.accentSoft, in: Capsule())
         } else if isManual {
-            HStack(spacing: 6) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color(hex: "EA5A38"))
-                Text("Handcrafted Recipe")
-                    .font(AppFont.body(13, weight: .semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(AppTheme.surface, in: Capsule())
-            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            // "Handcrafted Recipe" chip removed — the user didn't want it on the detail screen.
+            EmptyView()
         } else if let src = AppLanguage.from(code: recipe.sourceLanguage), src != userLang {
             HStack(spacing: 6) {
                 Image(systemName: "globe")
@@ -712,9 +815,42 @@ struct RecipeDetailScreen: View {
     }
 
     private var actionRow: some View {
-        HStack(spacing: 10) {
-            // Direct interactive Servings Stepper
-            HStack(spacing: 8) {
+        // Two rows now that Plan is a first-class action. Row 1 = servings + plan. Row 2 =
+        // Add to Grocery (full-width). Keeps the reference screenshot's spirit (short labels,
+        // no wrap) while making the meal-plan feature discoverable at the moment a user is
+        // deciding whether to cook something.
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                servingsStepper
+                PillButton(title: planLabel, systemImage: "calendar.badge.plus",
+                           kind: isPlanned ? .filled : .surface, fullWidth: true) {
+                    Haptics.tap()
+                    showMealPlanner = true
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            PillButton(title: "Add to Grocery", systemImage: "basket.fill", kind: .surface, fullWidth: true) {
+                Haptics.success()
+                let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
+                addedGroceryCount = count
+                withAnimation { showGroceryBanner = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    withAnimation { showGroceryBanner = false }
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    /// Live state from the env — "Plan" when nothing is scheduled, "Planned" when there's at
+    /// least one scheduled cook for this recipe. Keeps the pill honest at a glance.
+    private var isPlanned: Bool { !environment.plannedMeals(for: recipe.id).isEmpty }
+    private var planLabel: String { isPlanned ? "Planned" : "Plan" }
+
+    /// Just the servings stepper, split out so the two-row action layout stays readable.
+    private var servingsStepper: some View {
+        HStack(spacing: 8) {
                 Button {
                     if servings > 1 {
                         Haptics.tap()
@@ -763,19 +899,10 @@ struct RecipeDetailScreen: View {
             .padding(.vertical, 5)
             .background(AppTheme.surface, in: Capsule())
             .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
-
-            PillButton(title: "Add to Grocery", systemImage: "basket.fill", kind: .surface, fullWidth: true) {
-                Haptics.success()
-                let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
-                addedGroceryCount = count
-                withAnimation { showGroceryBanner = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                    withAnimation { showGroceryBanner = false }
-                }
-            }
-            .frame(maxWidth: .infinity)
-        }
     }
+
+    /// Reads the current saved state so the Save pill flips immediately on tap.
+    private var saved: Bool { environment.isSaved(recipeId: recipe.id) }
 
     // MARK: Ingredients
 

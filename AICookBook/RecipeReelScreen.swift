@@ -213,6 +213,7 @@ private struct ReelCell: View {
     @State private var showReport = false
     @State private var reportAfterMenu = false
     @State private var pendingOpen: DispatchWorkItem?
+    @State private var showComments = false
 
     private var liked: Bool  { environment.isLiked(recipeId: recipe.id) }
     private var saved: Bool  { environment.isSaved(recipeId: recipe.id) }
@@ -256,6 +257,28 @@ private struct ReelCell: View {
             .sheet(isPresented: $showReport) {
                 ReportIssueSheet(recipe: recipe)
             }
+            .sheet(isPresented: $showComments) {
+                NavigationStack {
+                    ScrollView {
+                        RecipeCommentsSection(recipeId: recipe.id)
+                            .padding(.horizontal, AppSpacing.md)
+                            .padding(.top, AppSpacing.md)
+                            .padding(.bottom, AppSpacing.xl)
+                    }
+                    .background(AppTheme.background.ignoresSafeArea())
+                    .navigationTitle("Comments")
+                    .navigationBarTitleDisplayMode(.inline)
+                }
+                .presentationDetents([.fraction(0.75), .large])
+                .presentationDragIndicator(.visible)
+            }
+    }
+
+    /// nil hides the badge below the bubble icon; a short "12", "99+" otherwise.
+    private var commentCountLabel: String? {
+        let n = environment.comments(for: recipe.id).count
+        guard n > 0 else { return nil }
+        return n > 99 ? "99+" : "\(n)"
     }
 
     // MARK: - Recipe content
@@ -331,6 +354,7 @@ private struct ReelCell: View {
                 Text(recipe.ownerUsername ?? "@cravecircle")
                     .font(AppFont.body(12, weight: .semibold))
                     .foregroundStyle(.white)
+                followPill
             }
             Text(recipe.title)
                 .font(AppFont.body(14, weight: .semibold))
@@ -340,6 +364,38 @@ private struct ReelCell: View {
                 if let c = recipe.cookTime, !c.isEmpty { metaPill(icon: "clock", text: c) }
                 if let k = recipe.nutrition?.calories { metaPill(icon: "flame", text: "\(Int(k)) kcal") }
             }
+        }
+    }
+
+    /// Same Follow control as the recipe-page hero. Hidden on the user's own recipe or when
+    /// there's no creator handle to follow. Restored from commit 9de0d4a.
+    @ViewBuilder private var followPill: some View {
+        if let h = recipe.ownerUsername, !environment.isOwner(of: recipe) {
+            let following = environment.isFollowing(creatorHandle: h)
+            Button {
+                Haptics.select()
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) {
+                    environment.toggleFollow(creatorHandle: h)
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: following ? "checkmark" : "person.badge.plus")
+                        .font(.system(size: 11, weight: .bold))
+                        .contentTransition(.symbolEffect(.replace))
+                    Text(following ? "Following" : "Follow")
+                        .font(AppFont.body(12, weight: .bold))
+                }
+                .foregroundStyle(AppTheme.onBrand)
+                .padding(.horizontal, 11)
+                .frame(height: 28)
+                .background(
+                    following ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(AppTheme.brand),
+                    in: Capsule()
+                )
+                .overlay(Capsule().stroke(.white.opacity(following ? 0.35 : 0.25), lineWidth: 0.8))
+                .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 2)
+            }
+            .buttonStyle(PressableStyle())
         }
     }
 
@@ -371,6 +427,12 @@ private struct ReelCell: View {
             railButton(icon: liked ? "heart.fill" : "heart",
                        tint: liked ? .red : .white,
                        bounceValue: liked, count: nil, label: "Like", action: like)
+            railButton(icon: "bubble.right",
+                       tint: .white, bounceValue: false,
+                       count: commentCountLabel, label: "Comments") {
+                Haptics.tap()
+                showComments = true
+            }
             ShareLink(item: shareURL, subject: Text(recipe.title), message: Text(shareText)) {
                 Image(systemName: "paperplane")
                     .font(.system(size: 22, weight: .semibold))

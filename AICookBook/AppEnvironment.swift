@@ -24,6 +24,14 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var avatarImageData: Data? { didSet { persist(avatarImageData, "avatar.json") } }
     @AppStorage("guest_user_id") private var guestUserId: String = ""
     @AppStorage("onboarded_user_ids") private var onboardedUserIdsRaw: String = ""
+    /// Device-wide flag so guests also see the first-run flow once. Flipped by `markOnboarded()`.
+    @AppStorage("device_onboarded") private var deviceOnboarded: Bool = false
+    // Picks captured by the first-run onboarding flow. Stored for future personalization
+    // (goals → suggestion ranking, decisionTime → when the daily nudge fires, etc.).
+    @AppStorage("onboarding.goals") private var onboardingGoalsRaw: String = ""
+    @AppStorage("onboarding.decisionTime") private var onboardingDecisionTimeRaw: String = ""
+    @AppStorage("onboarding.sources") private var onboardingSourcesRaw: String = ""
+    @AppStorage("onboarding.hearAbout") private var onboardingHearAboutRaw: String = ""
     /// Per signed-in user. Not @AppStorage — that key was one list for the whole phone.
     private var deletedRecipeIdsRaw: String = ""
     @Published private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
@@ -53,17 +61,25 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var outgoingRequests: [FriendRequestItem] = [] { didSet { persist(outgoingRequests, "friend_requests_out.json") } }
     
     // Collections
-    @Published private(set) var ownedCollections: [CollectionItem] = CollectionItem.ownedSamples { didSet { persist(ownedCollections, "owned_collections.json") } }
-    @Published private(set) var sharedCollections: [CollectionItem] = CollectionItem.sharedSamples { didSet { persist(sharedCollections, "shared_collections.json") } }
+    // New installs start with zero collections. The sample "Weeknight Dinners · 8" collections
+    // used to seed here but they looked like real content the user had created — a lie on first
+    // launch. Collections now appear only after the user actually makes one.
+    @Published private(set) var ownedCollections: [CollectionItem] = [] { didSet { persist(ownedCollections, "owned_collections.json") } }
+    @Published private(set) var sharedCollections: [CollectionItem] = [] { didSet { persist(sharedCollections, "shared_collections.json") } }
 
     // Studio Drafts & Published
-    @Published private(set) var studioDraftIds: Set<String> = ["recipe-hot-honey-chicken", "recipe-spicy-paneer-wrap"] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
+    // No preseeded drafts. A new creator sees "0 Drafts" in Studio until they actually write one.
+    @Published private(set) var studioDraftIds: Set<String> = [] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
+    /// Scheduled cooks. Sorted by `when` ascending for display convenience.
+    @Published private(set) var plannedMeals: [PlannedMeal] = [] { didSet { persist(plannedMeals, "meal_plan.json") } }
     
     // Notifications & Activity
     @Published private(set) var circleNotifications: [CircleNotificationItem] = [] { didSet { persist(circleNotifications, "notifications.json") } }
 
     // Recipe Comments
-    @Published private(set) var recipeComments: [String: [RecipeComment]] = RecipeComment.defaultSamples { didSet { persist(recipeComments, "comments.json") } }
+    // Comments start empty. Server-synced comments populate per recipe on first open. The sample
+    // comments shipped as a default made every recipe look busier than it was.
+    @Published private(set) var recipeComments: [String: [RecipeComment]] = [:] { didSet { persist(recipeComments, "comments.json") } }
 
     let config: AppConfig
     private let tokenStore: TokenStore
@@ -167,6 +183,7 @@ final class AppEnvironment: ObservableObject {
         sharedCollections = loadScoped([CollectionItem].self, "shared_collections.json", userId: userId) ?? []
         groceryItems = loadScoped([GroceryItem].self, "grocery.json", userId: userId) ?? []
         studioDraftIds = Set(loadScoped([String].self, "studio_drafts.json", userId: userId) ?? [])
+        plannedMeals = loadScoped([PlannedMeal].self, "meal_plan.json", userId: userId) ?? []
         followedCreators = Set(loadScoped([String].self, "followed_creators.json", userId: userId) ?? [])
         sharedLog = loadScoped([SharedRecipeRecord].self, "shared_log.json", userId: userId) ?? []
         unsyncedRecipeIds = Set(loadScoped([String].self, "unsynced_recipes.json", userId: userId) ?? [])
@@ -174,7 +191,7 @@ final class AppEnvironment: ObservableObject {
         avatarImageData = loadScoped(Data.self, "avatar.json", userId: userId)
         pendingInteractions = loadScoped([InteractionEvent].self, "pending_interactions.json", userId: userId) ?? []
         interactionHistory = loadScoped([InteractionEvent].self, "interaction_history.json", userId: userId) ?? []
-        recipeComments = loadScoped([String: [RecipeComment]].self, "comments.json", userId: userId) ?? RecipeComment.defaultSamples
+        recipeComments = loadScoped([String: [RecipeComment]].self, "comments.json", userId: userId) ?? [:]
         circleNotifications = CircleNotificationItem.withoutSamples(
             loadScoped([CircleNotificationItem].self, "notifications.json", userId: userId) ?? []
         )
@@ -254,9 +271,13 @@ final class AppEnvironment: ObservableObject {
         // across launches; fall back to the homelab profile, then a generic user.
         if let profile = await supabase.fetchMyProfile() {
             currentUser = profile
+            elevateFounderIfMatches(email: profile.username)
             appState = .signedIn
+            showGuestPaywall = false
             hydrateLocal()
             await refreshRecipes()
+            await hydrateLikesAndSavesFromServer()
+            await hydrateMealPlanFromServer()
             await uploadDeviceTokenIfPossible()
             syncSharedUserId()
             return
@@ -292,6 +313,33 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
+    /// Founder gets admin automatically — needed to approve creator requests from day one.
+    /// Keyed to the exact email so a random account can't elevate itself. We check three sources
+    /// so the Google sign-in path (which never carries a typed email) still works:
+    ///   1. the email the caller typed into the sign-in form,
+    ///   2. the authenticated JWT's `email` claim (Supabase populates this for OAuth too),
+    ///   3. the profile's username, as a last-resort fallback.
+    /// On a match we also PATCH the role on Supabase so RLS-gated writes line up with the local
+    /// `role = .admin`; without that server-side truth every publish would still be rejected.
+    private func elevateFounderIfMatches(email: String?) {
+        let founderEmail = "adityagupta2646@gmail.com"
+        guard let cur = currentUser else { return }
+        let typed = email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        let authEmail = (supabase.currentUserEmail() ?? "").lowercased()
+        let handle = (cur.username ?? "").lowercased()
+        guard typed == founderEmail || authEmail == founderEmail || handle == founderEmail else { return }
+        if cur.role == .admin { return }
+        currentUser = UserProfile(
+            id: cur.id, username: cur.username, fullName: cur.fullName, avatarUrl: cur.avatarUrl,
+            role: .admin, bio: cur.bio,
+            instagramUrl: cur.instagramUrl, tiktokUrl: cur.tiktokUrl,
+            youtubeUrl: cur.youtubeUrl, facebookUrl: cur.facebookUrl
+        )
+        // Mirror the role to Supabase. Fire-and-forget: if it fails, the local admin role still
+        // works for client UI, but server writes may be rejected until the next launch retries.
+        Task { _ = await supabase.updateMyRole(.admin) }
+    }
+
     func signInWithGoogle() async {
         do {
             _ = try await authClient.signInWithGoogle()
@@ -314,6 +362,17 @@ final class AppEnvironment: ObservableObject {
             do { currentUser = try await apiClient.fetchProfile() }
             catch { currentUser = fallbackUser(email: email) }
         }
+        elevateFounderIfMatches(email: email)
+        // Fresh sign-in → clear the guest free-view counter so the previous session's taps don't
+        // follow them in. The user's own likes/follows/saves are user-id-scoped elsewhere, so they
+        // naturally start empty for a brand-new account.
+        resetGuestViewCounter()
+        // Move everything the guest did on this device over to the signed-in account BEFORE we
+        // hydrate — likes, saves, follows, comments, notifications, drafts, grocery list, picked
+        // cuisines, interaction history. Nothing of theirs should get stranded on the guest id.
+        if let userId = currentUser?.id, !guestId.isEmpty, userId != guestId {
+            migrateGuestDataIfNeeded(fromGuestId: guestId, toUserId: userId)
+        }
         hydrateLocal()
         if let userId = currentUser?.id, !carried.isEmpty {
             for var recipe in carried {
@@ -327,9 +386,85 @@ final class AppEnvironment: ObservableObject {
         }
         if !guestId.isEmpty { guestUserId = "" }
         appState = .signedIn
+        // The user is now a real signed-in account — if any guest-era paywall was still raised
+        // the sheet would re-present on MainTabView. Drop it unconditionally.
+        showGuestPaywall = false
         await refreshRecipes()
+        await hydrateLikesAndSavesFromServer()
+        await hydrateMealPlanFromServer()
         await uploadDeviceTokenIfPossible()   // token may have arrived before login
         syncSharedUserId()
+    }
+
+    /// Pull the signed-in user's likes + saves from Supabase and reconcile with the device.
+    /// Three cases:
+    ///   * Server has it, device doesn't → add locally. Covers "I liked on another phone".
+    ///   * Device has it, server doesn't → re-POST to the server. Covers the ghost-like case
+    ///     where an airplane-mode tap flipped the local set but the write never landed, OR a
+    ///     recipe got re-id'd and the local like is for an id the server never saw.
+    ///   * Both have it → leave it.
+    ///
+    /// Keys we can't reconcile (recipe id isn't in our catalog AND isn't on the server) are
+    /// treated as the user's intention anyway and left locally; the server stays authoritative,
+    /// but we don't silently drop a like just because we don't recognise its id yet.
+    func hydrateLikesAndSavesFromServer() async {
+        guard hasRealSession else { return }
+        guard let (serverLikes, serverSaves) = await supabase.fetchMyLikesAndSaves() else { return }
+
+        let localLikesOnly = likedRecipeIds.subtracting(serverLikes)
+        let localSavesOnly = savedRecipeIds.subtracting(serverSaves)
+
+        // Re-post the local-only ones to catch up the server. Fire-and-forget — the next
+        // hydrate will handle anything that still fails.
+        for id in localLikesOnly { Task { _ = await supabase.setLike(recipeId: id, liked: true) } }
+        for id in localSavesOnly { Task { _ = await supabase.setSave(recipeId: id, saved: true) } }
+
+        let mergedLikes = likedRecipeIds.union(serverLikes)
+        let mergedSaves = savedRecipeIds.union(serverSaves)
+        await MainActor.run {
+            likedRecipeIds = mergedLikes
+            savedRecipeIds = mergedSaves
+        }
+        storeRecipeIdSet(mergedLikes, key: "liked_recipe_ids")
+        storeRecipeIdSet(mergedSaves, key: "saved_recipe_ids")
+    }
+
+    /// Carry the guest's on-device state into the signed-in account, then wipe the guest's
+    /// scoped files + defaults so nothing is left behind. Union-merge where the new account
+    /// already has data from a previous sign-in on this device; wholesale-move otherwise.
+    private func migrateGuestDataIfNeeded(fromGuestId guestId: String, toUserId userId: String) {
+        let defaults = UserDefaults.standard
+        // 1. UserDefaults sets (likes / saves / deleted ids) — union.
+        for key in AccountScope.personalDefaultsKeys {
+            let gKey = AccountScope.defaultsKey(userId: guestId, key: key)
+            let uKey = AccountScope.defaultsKey(userId: userId, key: key)
+            let guestVals = Set(defaults.array(forKey: gKey) as? [String] ?? [])
+            if guestVals.isEmpty { continue }
+            let existing = Set(defaults.array(forKey: uKey) as? [String] ?? [])
+            let merged = existing.union(guestVals)
+            defaults.set(Array(merged), forKey: uKey)
+            defaults.removeObject(forKey: gKey)
+        }
+        // 2. Scoped files — if target doesn't exist, move the guest file over; otherwise leave
+        //    the target in place (the new account's own data wins for anything decoded here).
+        //    This keeps the merge simple: guests rarely have overlapping state on first sign-in.
+        for file in AccountScope.personalFiles {
+            let gName = AccountScope.fileName(userId: guestId, file: file)
+            let uName = AccountScope.fileName(userId: userId, file: file)
+            LocalStore.moveIfTargetMissing(from: gName, to: uName)
+            LocalStore.remove(gName)
+        }
+        // 3. Deleted-recipe-ids key is a scoped String, not an array — carry it too.
+        let gDel = AccountScope.defaultsKey(userId: guestId, key: "deleted_recipe_ids")
+        if let s = defaults.string(forKey: gDel), !s.isEmpty {
+            let uDel = AccountScope.defaultsKey(userId: userId, key: "deleted_recipe_ids")
+            let existing = defaults.string(forKey: uDel) ?? ""
+            let union = Set(existing.split(separator: ",").map(String.init))
+                .union(Set(s.split(separator: ",").map(String.init)))
+                .filter { !$0.isEmpty }
+            defaults.set(union.sorted().joined(separator: ","), forKey: uDel)
+            defaults.removeObject(forKey: gDel)
+        }
     }
 
     func signUp(email: String, password: String) async throws {
@@ -353,13 +488,41 @@ final class AppEnvironment: ObservableObject {
                 username: (handle?.isEmpty == false) ? handle : cur.username,
                 fullName: (name?.isEmpty == false) ? name : cur.fullName,
                 avatarUrl: cur.avatarUrl,
-                role: cur.role
+                role: cur.role,
+                bio: cur.bio,
+                instagramUrl: cur.instagramUrl,
+                tiktokUrl: cur.tiktokUrl,
+                youtubeUrl: cur.youtubeUrl,
+                facebookUrl: cur.facebookUrl
             )
         }
         _ = await supabase.updateMyProfile(
             fullName: (name?.isEmpty == false) ? name : nil,
             username: (handle?.isEmpty == false) ? handle : nil,
             avatarUrl: nil
+        )
+    }
+
+    /// Save the user-written bio + social links. Stored on the local currentUser copy — the
+    /// backend table doesn't carry these columns yet, so this is per-device for now and will
+    /// mirror once the cloud schema catches up.
+    func updateProfileSocials(bio: String?, instagram: String?, tiktok: String?, youtube: String?, facebook: String?) {
+        guard let cur = currentUser else { return }
+        func clean(_ v: String?) -> String? {
+            let t = v?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return t.isEmpty ? nil : t
+        }
+        currentUser = UserProfile(
+            id: cur.id,
+            username: cur.username,
+            fullName: cur.fullName,
+            avatarUrl: cur.avatarUrl,
+            role: cur.role,
+            bio: clean(bio),
+            instagramUrl: clean(instagram),
+            tiktokUrl: clean(tiktok),
+            youtubeUrl: clean(youtube),
+            facebookUrl: clean(facebook)
         )
     }
 
@@ -504,18 +667,55 @@ final class AppEnvironment: ObservableObject {
     @AppStorage("guest_recipes_viewed") private var guestRecipesViewed = 0
     @Published var showGuestPaywall = false
 
-    /// ponytail: TEMPORARY testing bypass — set to false to restore the 10-recipe guest cap.
-    private let guestPaywallDisabled = true
+    /// Owner call (2026-10-25): a guest can browse the entire app — Discover, Home, recipes,
+    /// creators, grocery, cook mode — but cannot IMPORT, PUBLISH, FOLLOW, LIKE, SAVE or COMMENT.
+    /// The sign-in wall is now action-triggered rather than view-triggered. This mirrors the
+    /// Instagram pattern of "look all you want, log in to participate".
+    func canViewRecipe() -> Bool { true }
 
-    func canViewRecipe() -> Bool {
-        if isGuest && !guestPaywallDisabled {
-            if guestRecipesViewed >= 10 {
-                showGuestPaywall = true
-                return false
+    /// Any write path (import, publish, follow, like, save, comment) calls into
+    /// `requireRealSessionOrPrompt()` which raises `showGuestPaywall`. This method is kept so
+    /// a sign-in / sign-up transition clears whatever counter state might have accrued from an
+    /// older build that enforced a view cap.
+    func resetGuestViewCounter() {
+        guestRecipesViewed = 0
+    }
+
+    /// Legacy UI hook — always returns a non-blocking "unlimited". Kept so any screen that was
+    /// reading this to show "N free recipes left" doesn't need a conditional removal.
+    var guestViewsRemaining: Int { Int.max }
+
+    /// Guest tried to import, publish, share, or do anything that writes to our catalog. Raises
+    /// the paywall with a message that invites them in rather than scolding them.
+    func promptGuestToSignIn(reason: GuestPromptReason) {
+        guestPaywallMessage = reason.copy
+        showGuestPaywall = true
+        Haptics.warning()
+    }
+
+    /// Copy for the paywall sheet. Changes based on what the guest tried to do.
+    @Published var guestPaywallMessage: String = GuestPromptReason.generic.copy
+
+    enum GuestPromptReason {
+        case generic, importRecipe, publishRecipe, follow, like, save, comment, share
+        var copy: String {
+            switch self {
+            case .generic:
+                return "You're exploring as a guest — sign in to use the full app."
+            case .importRecipe:
+                return "You're a guest. Sign in to import this recipe into your library."
+            case .publishRecipe:
+                return "You're a guest. Sign in to publish a recipe on CraveCircle."
+            case .follow:
+                return "You're a guest. Sign in to follow creators and build your feed."
+            case .like, .save:
+                return "You're a guest. Sign in to save recipes you love."
+            case .comment:
+                return "You're a guest. Sign in to join the conversation."
+            case .share:
+                return "You shared a recipe with us — we'd love you to keep it. Sign in to add it to your library."
             }
-            guestRecipesViewed += 1
         }
-        return true
     }
 
     @Published private(set) var recipeSwipeContext: [Recipe]?
@@ -745,6 +945,57 @@ final class AppEnvironment: ObservableObject {
     }
 
     /// Mark a Circle notification read (clears its unread dot) — gives every tap visible feedback.
+    /// Likes don't push a fresh row every tap — they merge into a single "You liked X and N others"
+    /// row within a 30-minute window. One like → "You liked 'Pasta'". A second like → "You liked
+    /// 'Pasta' and 1 other". After 30 min a new bundle starts. Keeps the bell quiet; still shows
+    /// the user what they've been saving.
+    private func bundleLikeNotification(for recipe: Recipe) {
+        let window: TimeInterval = 30 * 60
+        let now = Date()
+
+        // Find the most recent like notification; merge if it's inside the window.
+        if let idx = circleNotifications.firstIndex(where: { $0.title == "Liked Recipe" }),
+           let when = circleNotifications[idx].createdAt,
+           now.timeIntervalSince(when) < window {
+            var merged = circleNotifications[idx]
+            // Walk the recipe ids out of the message so repeat likes don't double-count.
+            let seen = merged.bundledRecipeIds.union([recipe.id])
+            let others = seen.count - 1
+            merged.message = others > 0
+                ? "You liked '\(recipe.title)' and \(others) other\(others == 1 ? "" : "s")"
+                : "You liked '\(recipe.title)'"
+            merged.recipeId = recipe.id   // tapping opens the one you most recently liked
+            merged.timeAgo = "Just now"
+            merged.isRead = false
+            merged.bundledRecipeIdsCSV = seen.sorted().joined(separator: ",")
+            circleNotifications.remove(at: idx)
+            circleNotifications.insert(merged, at: 0)
+        } else {
+            var fresh = CircleNotificationItem(
+                title: "Liked Recipe",
+                message: "You liked '\(recipe.title)'",
+                timeAgo: "Just now",
+                symbol: "heart.fill",
+                isRead: false,
+                recipeId: recipe.id,
+                createdAt: now
+            )
+            fresh.bundledRecipeIdsCSV = recipe.id
+            circleNotifications.insert(fresh, at: 0)
+        }
+    }
+
+    /// Opening the bell is proof the person has seen the activity — clear every unread flag so
+    /// the little dot on the home-screen icon goes away. Called when the sheet is presented.
+    func markAllNotificationsRead() {
+        var changed = false
+        for i in circleNotifications.indices where !circleNotifications[i].isRead {
+            circleNotifications[i].isRead = true
+            changed = true
+        }
+        if changed { persist(circleNotifications, "notifications.json") }
+    }
+
     func markNotificationRead(_ id: UUID) {
         if let i = circleNotifications.firstIndex(where: { $0.id == id }), !circleNotifications[i].isRead {
             circleNotifications[i].isRead = true
@@ -767,7 +1018,8 @@ final class AppEnvironment: ObservableObject {
                 CircleNotificationItem(title: "Recipe shared with you",
                                        message: "Someone shared '\(title)' with you",
                                        timeAgo: "Just now", symbol: "tray.and.arrow.down.fill",
-                                       isRead: false, recipeId: rec.recipeId),
+                                       isRead: false, recipeId: rec.recipeId,
+                                       createdAt: Date()),
                 at: 0)
         }
     }
@@ -790,9 +1042,12 @@ final class AppEnvironment: ObservableObject {
     var isAdmin: Bool { currentUser?.role == .admin }
     var isGuest: Bool { currentUser?.id.hasPrefix("guest_") == true || currentUser == nil }
 
-    /// Cuisine onboarding is per signed-in account. Guests skip. Returning ids are stored on-device.
+    /// Shown once per device on first launch (guest and signed-in). After someone signs in and
+    /// finishes it, their user id is also recorded so switching accounts doesn't re-trigger it.
     var needsOnboarding: Bool {
-        guard appState == .signedIn, let id = currentUser?.id, !isGuest else { return false }
+        guard appState == .signedIn else { return false }
+        if !deviceOnboarded { return true }
+        guard let id = currentUser?.id, !isGuest else { return false }
         return !onboardedUserIds.contains(id)
     }
 
@@ -806,6 +1061,9 @@ final class AppEnvironment: ObservableObject {
     }
 
     func markOnboarded() {
+        // Device-wide flag so the first-run flow never re-shows on this install (guest or not).
+        deviceOnboarded = true
+        // Also record this user id so if they sign in later we don't re-trigger it on another device.
         guard let id = currentUser?.id, !isGuest else { return }
         var ids = onboardedUserIds
         ids.insert(id)
@@ -855,7 +1113,8 @@ final class AppEnvironment: ObservableObject {
                     message: row.message,
                     timeAgo: "Just now",
                     symbol: "magnifyingglass",
-                    isRead: false
+                    isRead: false,
+                    createdAt: Date()
                 ),
                 at: 0
             )
@@ -863,15 +1122,168 @@ final class AppEnvironment: ObservableObject {
     }
 
     /// Admin: approve/reject a request; approval promotes the requester to creator server-side.
+    // MARK: - Meal Plan
+
+    /// Add a planned cook. Optimistic locally; mirrors to Supabase if signed in. Also schedules
+    /// a local notification 30 minutes before `when` so the kitchen reminder actually fires.
+    func planMeal(recipeId: String, when: Date, slot: MealSlot) async -> PlannedMeal? {
+        guard requireRealSessionOrPrompt(reason: .save) else { return nil }
+        // Suggest a slot if the caller passed .snack-as-default; but we trust the caller too.
+        let safeSlot = slot
+        var meal = PlannedMeal(recipeId: recipeId, when: when, slot: safeSlot)
+        // Schedule the local notification BEFORE recording so we can stash its identifier.
+        let title = recipes.first(where: { $0.id == recipeId })?.title ?? "a recipe"
+        meal.reminderIdentifier = await scheduleCookReminder(for: meal, title: title)
+        await MainActor.run {
+            plannedMeals.append(meal)
+            plannedMeals.sort { $0.when < $1.when }
+        }
+        _ = await supabase.insertPlannedMeal(meal)
+        return meal
+    }
+
+    /// Remove a planned cook. Cancels the local reminder too.
+    func unplanMeal(id: UUID) async {
+        guard let idx = plannedMeals.firstIndex(where: { $0.id == id }) else { return }
+        let meal = plannedMeals[idx]
+        if let rid = meal.reminderIdentifier {
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [rid])
+        }
+        await MainActor.run { plannedMeals.remove(at: idx) }
+        _ = await supabase.deletePlannedMeal(id: meal.id)
+    }
+
+    func plannedMeals(for recipeId: String) -> [PlannedMeal] {
+        plannedMeals.filter { $0.recipeId == recipeId }
+    }
+
+    /// Pull planned meals from Supabase and reconcile with local. Server wins for ids the
+    /// server has; local-only rows stay (same union pattern as likes/saves).
+    func hydrateMealPlanFromServer() async {
+        guard hasRealSession else { return }
+        guard let remote = await supabase.fetchMyMealPlan() else { return }
+        var byId = Dictionary(uniqueKeysWithValues: plannedMeals.map { ($0.id, $0) })
+        for row in remote { byId[row.id] = row }
+        let merged = Array(byId.values).sorted { $0.when < $1.when }
+        await MainActor.run { plannedMeals = merged }
+    }
+
+    /// Schedule a UNNotificationRequest 30 min before `when`. If the user hasn't granted alerts
+    /// yet, we ask once; if they decline we silently skip (plan still saves). Returns the
+    /// request identifier so the caller can cancel it later.
+    private func scheduleCookReminder(for meal: PlannedMeal, title recipeTitle: String) async -> String? {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        if settings.authorizationStatus == .notDetermined {
+            _ = try? await center.requestAuthorization(options: [.alert, .sound])
+        }
+        let fresh = await center.notificationSettings()
+        guard fresh.authorizationStatus == .authorized || fresh.authorizationStatus == .provisional else { return nil }
+
+        let fireAt = meal.when.addingTimeInterval(-30 * 60)
+        guard fireAt > Date() else { return nil }   // already too late; don't schedule in the past
+
+        let content = UNMutableNotificationContent()
+        content.title = "Time to cook: \(recipeTitle)"
+        content.body  = "Your \(meal.slot.displayName.lowercased()) is in 30 minutes."
+        content.sound = .default
+        content.userInfo = ["recipeId": meal.recipeId]
+
+        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireAt)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        let identifier = "cook-\(meal.id.uuidString)"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        do { try await center.add(request); return identifier } catch { return nil }
+    }
+
+    // MARK: - Self-service data controls (users deleting their own data without closing their account)
+
+    /// Erase every like this user has made, server + device. Guarded on real session so a guest
+    /// can't accidentally invoke it (there's nothing on the server to erase anyway).
+    func deleteAllMyLikes() async -> Bool {
+        guard await supabase.deleteAllMine(from: "recipe_likes") else { return false }
+        await MainActor.run { likedRecipeIds = [] }
+        storeRecipeIdSet([], key: "liked_recipe_ids")
+        return true
+    }
+
+    /// Erase every save. Same shape as likes.
+    func deleteAllMySaves() async -> Bool {
+        guard await supabase.deleteAllMine(from: "recipe_saves") else { return false }
+        await MainActor.run { savedRecipeIds = [] }
+        storeRecipeIdSet([], key: "saved_recipe_ids")
+        return true
+    }
+
+    /// Erase every comment the user has posted across the app. Local comment cache is cleared
+    /// too; it'll re-hydrate from the server on next recipe open and show nothing authored by
+    /// this user because the server just emptied them out.
+    func deleteAllMyComments() async -> Bool {
+        guard await supabase.deleteAllMine(from: "comments") else { return false }
+        await MainActor.run { recipeComments = [:] }
+        return true
+    }
+
+    /// Permanent, real account deletion. Required by App Store Guideline 5.1.1(v) — the old
+    /// "wait 1s + sign out" would have been a rejection. Wipes the server (delete_me RPC),
+    /// then clears every local scope on this device so no cached state survives.
+    func deleteAccountEverywhere() async -> Bool {
+        guard await supabase.deleteMyAccount() else { return false }
+        // Clear every per-user file + defaults on this device for the account that just died.
+        if let id = currentUser?.id { eraseAllLocalState(forUserId: id) }
+        return true
+    }
+
+    private func eraseAllLocalState(forUserId id: String) {
+        let defaults = UserDefaults.standard
+        for key in AccountScope.personalDefaultsKeys {
+            defaults.removeObject(forKey: AccountScope.defaultsKey(userId: id, key: key))
+        }
+        defaults.removeObject(forKey: AccountScope.defaultsKey(userId: id, key: "deleted_recipe_ids"))
+        for file in AccountScope.personalFiles {
+            LocalStore.remove(AccountScope.fileName(userId: id, file: file))
+        }
+    }
+
     func decideCreatorRequest(_ request: CreatorRequest, approve: Bool) async {
         if await supabase.decideCreatorRequest(id: request.id, approve: approve) {
             pendingCreatorRequests.removeAll { $0.id == request.id }
         }
     }
 
-    /// Re-fetch the signed-in user's Supabase profile (e.g. after an approval flips role → creator).
+    /// Re-fetch the signed-in user's Supabase profile (e.g. after an approval flips role →
+    /// creator). If the role actually went up (user → creator, or creator → admin) we also push
+    /// a congratulatory notification into the bell so the user has an in-app signal that their
+    /// request got approved. A true APNS push would need a server-side send; this covers the
+    /// in-app half, which is what the user sees when they next open the app.
     func refreshMyRole() async {
-        if let profile = await supabase.fetchMyProfile() { currentUser = profile }
+        let previousRole = currentUser?.role
+        guard let profile = await supabase.fetchMyProfile() else { return }
+        currentUser = profile
+        notifyIfRoleBumped(from: previousRole, to: profile.role)
+    }
+
+    /// Fire a one-time "You're a creator!" bell notification the first time we observe the
+    /// elevated role. Idempotent via a per-user `@AppStorage` flag so a re-fetch doesn't ding
+    /// the user over and over.
+    private func notifyIfRoleBumped(from previous: AccountRole?, to current: AccountRole) {
+        // Only celebrate .user → .creator for now; admin elevation is silent (founder-only).
+        guard previous == .user, current == .creator else { return }
+        let defaults = UserDefaults.standard
+        let key = AccountScope.defaultsKey(userId: currentUser?.id ?? "", key: "creator_welcome_shown")
+        if defaults.bool(forKey: key) { return }
+        defaults.set(true, forKey: key)
+        let notif = CircleNotificationItem(
+            title: "You're a creator!",
+            message: "Your creator request was approved. Open Studio from the + sheet to publish your first recipe.",
+            timeAgo: "Just now",
+            symbol: "sparkles",
+            isRead: false,
+            recipeId: nil,
+            createdAt: Date()
+        )
+        circleNotifications.insert(notif, at: 0)
+        Haptics.success()
     }
 
     func continueAsGuest() {
@@ -932,6 +1344,9 @@ final class AppEnvironment: ObservableObject {
     /// path, works with no App Group). When nil, falls back to the App-Group hand-off (paid team).
     /// No-op when there's nothing pending or an import is already running.
     func importFromSharedURL(_ passedURL: String? = nil) async {
+        // A share from outside the app is a write — gate it the same way the + button is gated,
+        // but with the share-specific copy that reads less punitive ("we'd love you to keep it").
+        guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .share) }) else { return }
         var urlString = passedURL?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if urlString?.isEmpty ?? true,
@@ -1005,6 +1420,8 @@ final class AppEnvironment: ObservableObject {
     /// actually terminates it: it cancels the in-flight server/download requests AND stops the
     /// on-device transcription/OCR/extraction, and no late state write can revive the banner.
     func startImport(from instagramURL: String, extraOnScreen: String? = nil, extraCaption: String? = nil) async {
+        // Guests browse everything, but importing is a write — route them to sign-in instead.
+        guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .importRecipe) }) else { return }
         importTask?.cancel()
         importState = .submitting
         let task = Task { [weak self] in
@@ -1151,22 +1568,49 @@ final class AppEnvironment: ObservableObject {
     /// Build a recipe from a photo of a written/printed recipe (Vision OCR → extractor). The photo
     /// becomes the cover (stored locally). It's the user's own content, so it syncs like any original.
     func importFromPhoto(_ image: UIImage, caption: String? = nil, recognized: String? = nil) async {
+        await importFromPhotos([image], caption: caption, recognized: recognized)
+    }
+
+    /// Same import, with every selected photo kept. The first is the cover; the rest page on the
+    /// recipe the same way a recipe written here does. Capped at 6, matching the editor.
+    func importFromPhotos(_ images: [UIImage], caption: String? = nil, recognized: String? = nil) async {
+        guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .importRecipe) }) else { return }
         importTask?.cancel()
         importState = .submitting
         let task = Task { [weak self] in
             guard let self else { return }
-            await self._importFromPhoto(image, caption: caption, recognized: recognized)
+            await self._importFromPhotos(images, caption: caption, recognized: recognized)
         }
         importTask = task
         await task.value
     }
 
-    private func _importFromPhoto(_ image: UIImage, caption: String? = nil, recognized: String? = nil) async {
+    /// One photo keeps `thumb-<id>.jpg`. Extra photos are `thumb-<id>-0.jpg` … so the detail page can page them.
+    nonisolated static func photoImportFilenames(recipeId: String, count: Int) -> [String] {
+        let n = min(max(count, 0), 6)
+        guard n > 0 else { return [] }
+        if n == 1 { return ["thumb-\(recipeId).jpg"] }
+        return (0..<n).map { "thumb-\(recipeId)-\($0).jpg" }
+    }
+
+    private func _importFromPhotos(_ images: [UIImage], caption: String? = nil, recognized: String? = nil) async {
+        let shots = Array(images.prefix(6))
+        guard !shots.isEmpty else {
+            importState = .failed(message: "Couldn't read that photo.")
+            return
+        }
         let ocr: String
         if let recognized {
             ocr = recognized
         } else {
-            ocr = await PhotoTextOCR.recognize(image)
+            var parts: [String] = []
+            for image in shots {
+                if Task.isCancelled { return }
+                let text = await PhotoTextOCR.recognize(image)
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.count > 10 { parts.append(trimmed) }
+            }
+            ocr = parts.joined(separator: "\n")
         }
         if Task.isCancelled { return }
         importState = .polling(jobId: "on-device", status: .extracting)
@@ -1190,10 +1634,16 @@ final class AppEnvironment: ObservableObject {
         }
         recipe = await translateToPreferredLanguage(recipe)
         if Task.isCancelled { return }
-        if let data = image.jpegData(compressionQuality: 0.8),
-           let _ = LocalStore.saveData(ImageDownscale.jpeg(from: data, maxPixel: 720, quality: 0.6) ?? data, to: "thumb-\(recipe.id).jpg") {
-            recipe.thumbnailUrl = "thumb-\(recipe.id).jpg"
+        let names = Self.photoImportFilenames(recipeId: recipe.id, count: shots.count)
+        var saved: [String] = []
+        for (image, name) in zip(shots, names) {
+            guard let data = image.jpegData(compressionQuality: 0.8),
+                  LocalStore.saveData(ImageDownscale.jpeg(from: data, maxPixel: 720, quality: 0.6) ?? data, to: name) != nil
+            else { continue }
+            saved.append(name)
         }
+        recipe.thumbnailUrl = saved.first
+        recipe.galleryUrls = saved.count > 1 ? saved : nil
         recipes.insert(recipe, at: 0)
         markRecipeDirty(recipe.id)
         Task { await syncRecipes() }
@@ -1249,6 +1699,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     func importFromVideo(_ url: URL, caption: String? = nil, title: String? = nil, thumbnailUrl: String? = nil) async {
+        guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .importRecipe) }) else { return }
         importTask?.cancel()
         importState = .submitting
         let task = Task { [weak self] in
@@ -1493,17 +1944,47 @@ final class AppEnvironment: ObservableObject {
     }
 
     // MARK: - Follow Actions
+
+    /// Pending follow writes keyed by handle. A rapid double-tap on Follow used to race the
+    /// server (two POSTs fighting over which state wins). We debounce by only firing the server
+    /// call after the local state has settled for ~400 ms, and we send the FINAL state at that
+    /// moment — not every intermediate tap.
+    private var pendingFollowTasks: [String: Task<Void, Never>] = [:]
+
     func toggleFollow(creatorHandle: String) {
+        // Guests have no server identity — the Follow would be local-only and lie to the user.
+        // Route them to the sign-in prompt instead of flipping an unauthoritative pill.
+        guard requireRealSessionOrPrompt(reason: .follow) else { return }
         let willFollow = !followedCreators.contains(creatorHandle)
         if willFollow { followedCreators.insert(creatorHandle) } else { followedCreators.remove(creatorHandle) }
-        // Mirror to the cloud follow graph, then re-sync so a creator's followers-only recipes
-        // (RLS-gated) appear right after you follow.
-        Task {
-            if let cid = await supabase.resolveProfileId(username: creatorHandle) {
-                _ = await supabase.setFollow(creatorId: cid, following: willFollow)
+        scheduleFollowSync(creatorHandle: creatorHandle)
+    }
+
+    private func scheduleFollowSync(creatorHandle: String) {
+        pendingFollowTasks[creatorHandle]?.cancel()
+        pendingFollowTasks[creatorHandle] = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard let self, !Task.isCancelled else { return }
+            // Snapshot the FINAL state after the debounce window closes.
+            let finalFollowing = await MainActor.run { self.followedCreators.contains(creatorHandle) }
+            if let cid = await self.supabase.resolveProfileId(username: creatorHandle) {
+                _ = await self.supabase.setFollow(creatorId: cid, following: finalFollowing)
             }
-            await syncRecipes()
+            await self.syncRecipes()
+            await MainActor.run { self.pendingFollowTasks[creatorHandle] = nil }
         }
+    }
+
+    /// Shared guest gate for any write (follow, like, save, comment, import, publish, share).
+    /// Returns true when the caller can proceed; false when the paywall was shown and the action
+    /// was blocked. `reason` picks the paywall copy so the user sees context for what they tried.
+    @discardableResult
+    func requireRealSessionOrPrompt(reason: GuestPromptReason = .generic) -> Bool {
+        if isGuest || !hasRealSession {
+            promptGuestToSignIn(reason: reason)
+            return false
+        }
+        return true
     }
     
     func isFollowing(creatorHandle: String) -> Bool {
@@ -1514,6 +1995,16 @@ final class AppEnvironment: ObservableObject {
     /// Bookmark. The recipe is kept in `recipes` so Library's Saved folder and Home's library
     /// can show the card, not only the id.
     func toggleSaveRecipe(id: String, recipe: Recipe? = nil) {
+        guard requireRealSessionOrPrompt(reason: .save) else { return }
+        // Debounced server mirror — same pattern as like/follow.
+        pendingSaveTasks[id]?.cancel()
+        pendingSaveTasks[id] = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard let self, !Task.isCancelled else { return }
+            let finalSaved = await MainActor.run { self.savedRecipeIds.contains(id) }
+            _ = await self.supabase.setSave(recipeId: id, saved: finalSaved)
+            await MainActor.run { self.pendingSaveTasks[id] = nil }
+        }
         if savedRecipeIds.contains(id) {
             savedRecipeIds.remove(id)
             cancelCookNudge(recipeId: id)
@@ -1571,7 +2062,21 @@ final class AppEnvironment: ObservableObject {
         likedRecipeIds.contains(recipeId)
     }
 
+    private var pendingLikeTasks: [String: Task<Void, Never>] = [:]
+    private var pendingSaveTasks: [String: Task<Void, Never>] = [:]
+
     func toggleLikeRecipe(id: String) {
+        guard requireRealSessionOrPrompt(reason: .like) else { return }
+        // Debounce the server call — see scheduleFollowSync for the same pattern. A rapid
+        // double-tap used to race the server with two POSTs; now we send the final state.
+        pendingLikeTasks[id]?.cancel()
+        pendingLikeTasks[id] = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard let self, !Task.isCancelled else { return }
+            let finalLiked = await MainActor.run { self.likedRecipeIds.contains(id) }
+            _ = await self.supabase.setLike(recipeId: id, liked: finalLiked)
+            await MainActor.run { self.pendingLikeTasks[id] = nil }
+        }
         if likedRecipeIds.contains(id) {
             likedRecipeIds.remove(id)
             Haptics.tap()
@@ -1580,14 +2085,7 @@ final class AppEnvironment: ObservableObject {
             logInteraction(recipeId: id, eventType: "like")
             Haptics.success()
             if let r = recipes.first(where: { $0.id == id }) {
-                let notif = CircleNotificationItem(
-                    title: "Liked Recipe",
-                    message: "You liked '\(r.title)'",
-                    timeAgo: "Just now",
-                    symbol: "heart.fill",
-                    isRead: false
-                )
-                circleNotifications.insert(notif, at: 0)
+                bundleLikeNotification(for: r)
             }
         }
         storeRecipeIdSet(likedRecipeIds, key: "liked_recipe_ids")
@@ -1640,7 +2138,7 @@ final class AppEnvironment: ObservableObject {
         Task {
             guard await supabase.acceptFriendship(id: id) else { return }
             await loadFriendships()
-            let notif = CircleNotificationItem(title: "New friend", message: "You are now connected.", timeAgo: "Just now", symbol: "person.2.fill", isRead: false)
+            let notif = CircleNotificationItem(title: "New friend", message: "You are now connected.", timeAgo: "Just now", symbol: "person.2.fill", isRead: false, createdAt: Date())
             circleNotifications.insert(notif, at: 0)
         }
     }
@@ -1663,7 +2161,7 @@ final class AppEnvironment: ObservableObject {
     func shareRecipeWithFriend(recipeId: String, friend: FriendItem) async -> Bool {
         let ok = await shareRecipeToUsername(recipeId: recipeId, username: friend.username)
         guard ok, let recipe = recipes.first(where: { $0.id == recipeId }) else { return ok }
-        let notif = CircleNotificationItem(title: "Recipe Shared", message: "Shared '\(recipe.title)' with \(friend.name)", timeAgo: "Just now", symbol: "paperplane.fill", isRead: false, recipeId: recipeId)
+        let notif = CircleNotificationItem(title: "Recipe Shared", message: "Shared '\(recipe.title)' with \(friend.name)", timeAgo: "Just now", symbol: "paperplane.fill", isRead: false, recipeId: recipeId, createdAt: Date())
         circleNotifications.insert(notif, at: 0)
         return true
     }
@@ -1706,6 +2204,7 @@ final class AppEnvironment: ObservableObject {
     }
     
     func publishDraft(recipeId: String) {
+        guard requireRealSessionOrPrompt(reason: .publishRecipe) else { return }
         guard canPublish,
               let recipe = recipes.first(where: { $0.id == recipeId }),
               isOwner(of: recipe),
@@ -1717,7 +2216,7 @@ final class AppEnvironment: ObservableObject {
         // Publishing must actually push the recipe to the cloud so followers/everyone can see it —
         // not just flip a local draft flag. Mark it dirty and sync now, then refresh the feed.
         markRecipeDirty(recipeId)
-        let notif = CircleNotificationItem(title: "Recipe Published", message: "Your recipe '\(recipe.title)' is now live on your profile.", timeAgo: "Just now", symbol: "sparkles", isRead: false, recipeId: recipeId)
+        let notif = CircleNotificationItem(title: "Recipe Published", message: "Your recipe '\(recipe.title)' is now live on your profile.", timeAgo: "Just now", symbol: "sparkles", isRead: false, recipeId: recipeId, createdAt: Date())
         circleNotifications.insert(notif, at: 0)
         Task { await syncRecipes() }
     }
@@ -1805,6 +2304,11 @@ final class AppEnvironment: ObservableObject {
 
     /// Nil when the comment is shared. A message means it was not posted.
     func addComment(recipeId: String, text: String, image: UIImage? = nil) async -> String? {
+        // Guests can't post — the comment would never leave the device.
+        if isGuest || !hasRealSession {
+            await MainActor.run { promptGuestToSignIn(reason: .comment) }
+            return "Sign in to post a comment."
+        }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if CommentModeration.isBlocked(trimmed) {
             return "That comment isn't allowed."
@@ -1849,7 +2353,8 @@ final class AppEnvironment: ObservableObject {
             timeAgo: "Just now",
             symbol: "bubble.left.fill",
             isRead: false,
-            recipeId: recipeId
+            recipeId: recipeId,
+            createdAt: Date()
         )
         circleNotifications.insert(notif, at: 0)
         return nil
@@ -1861,6 +2366,37 @@ final class AppEnvironment: ObservableObject {
         let local = (recipeComments[recipeId] ?? []).filter { !CommentModeration.isBlocked($0.text) }
         recipeComments[recipeId] = RecipeComment.synced(remote: remote, local: local)
             .filter { !CommentModeration.isBlocked($0.text) }
+    }
+
+    /// Delete a comment. Server-side RLS enforces who's allowed (author, recipe owner, admin);
+    /// the UI only shows the delete affordance to those three roles so no one else even sees it.
+    /// Optimistic: pop from the local list first, then mirror server-side. On failure we re-sync
+    /// so the comment reappears instead of staying missing on a stale view.
+    func deleteComment(recipeId: String, commentId: UUID) {
+        guard var list = recipeComments[recipeId] else { return }
+        list.removeAll { $0.id == commentId }
+        recipeComments[recipeId] = list
+        Task {
+            let ok = await supabase.deleteComment(id: commentId)
+            if !ok { await refreshComments(for: recipeId) }
+        }
+    }
+
+    /// Can the current viewer delete this comment? Mirrors the server-side RLS so the UI shows
+    /// Delete only where it will actually work: the comment's author, the owner of the recipe
+    /// the comment lives on, or an admin.
+    func canDeleteComment(_ comment: RecipeComment, recipeId: String) -> Bool {
+        if isAdmin { return true }
+        let myHandle = (currentUser?.username ?? "").lowercased()
+        let mineAt   = myHandle.hasPrefix("@") ? myHandle : "@" + myHandle
+        let author   = comment.authorUsername.lowercased()
+        if !myHandle.isEmpty, author == myHandle || author == mineAt || author.replacingOccurrences(of: "@", with: "") == myHandle.replacingOccurrences(of: "@", with: "") {
+            return true
+        }
+        if let r = recipes.first(where: { $0.id == recipeId }), isOwner(of: r) {
+            return true
+        }
+        return false
     }
 
     func toggleCommentLike(recipeId: String, commentId: UUID) {
@@ -1909,7 +2445,22 @@ final class AppEnvironment: ObservableObject {
 
     /// Finish onboarding: store the taste picks and refresh the feed against them.
     func completeOnboarding(cuisines: Set<String>) {
+        completeOnboarding(cuisines: cuisines, goals: [], decisionTime: nil, sources: [], hearAbout: nil)
+    }
+
+    /// Full onboarding completion — the Osta-style flow calls this with every pick it collected.
+    /// Extras (goals / decisionTime / sources / hearAbout) are stored for future personalization
+    /// hooks; today only `cuisines` feeds the recommender.
+    func completeOnboarding(cuisines: Set<String>,
+                            goals: Set<String>,
+                            decisionTime: String?,
+                            sources: Set<String>,
+                            hearAbout: String?) {
         preferredCuisines = cuisines
+        onboardingGoalsRaw = goals.sorted().joined(separator: ",")
+        onboardingDecisionTimeRaw = decisionTime ?? ""
+        onboardingSourcesRaw = sources.sorted().joined(separator: ",")
+        onboardingHearAboutRaw = hearAbout ?? ""
         markOnboarded()
         Task { await fetchSuggestedFeed() }
     }

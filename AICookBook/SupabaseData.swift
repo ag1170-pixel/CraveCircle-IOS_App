@@ -72,6 +72,18 @@ struct SupabaseData {
 
     /// The signed-in user's Supabase auth id (the JWT `sub` claim), or nil when not really signed in.
     func currentUserId() -> String? {
+        jwtClaims()?["sub"] as? String
+    }
+
+    /// The signed-in user's email as stored on the Supabase auth row. Returned by Google / email
+    /// providers in the JWT's `email` claim — needed for things like the founder-admin check that
+    /// must work after a Google sign-in (where the caller never typed an email).
+    func currentUserEmail() -> String? {
+        if let s = jwtClaims()?["email"] as? String, !s.isEmpty { return s }
+        return nil
+    }
+
+    private func jwtClaims() -> [String: Any]? {
         guard let t = tokenStore.readAccessToken(), !t.isEmpty, t != "dev-preview-token" else { return nil }
         let parts = t.split(separator: ".")
         guard parts.count == 3 else { return nil }
@@ -79,7 +91,7 @@ struct SupabaseData {
         while p.count % 4 != 0 { p += "=" }
         guard let d = Data(base64Encoded: p),
               let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
-        return j["sub"] as? String
+        return j
     }
 
     /// The signed-in user's own profile row (id = auth uid), so ownership + RLS writes line up.
@@ -89,6 +101,19 @@ struct SupabaseData {
         guard let (data, resp) = try? await URLSession.shared.data(for: req),
               let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
         return (try? Self.decoder().decode([UserProfile].self, from: data))?.first
+    }
+
+    /// Patch the signed-in user's role (RLS must permit the caller; founder self-elevate relies
+    /// on a policy that lets `id = auth.uid()` set role in {.user, .creator, .admin}). Nil-safe:
+    /// returns false if the write failed so the caller doesn't claim an elevation that didn't land.
+    func updateMyRole(_ role: AccountRole) async -> Bool {
+        guard let uid = currentUserId(),
+              var req = request(path: "rest/v1/profiles?id=eq.\(uid)", method: "PATCH") else { return false }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["role": role.rawValue])
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
     }
 
     /// Update the signed-in user's own profile (RLS profiles_update_own allows id = auth.uid()).
@@ -211,6 +236,77 @@ struct SupabaseData {
     }
 
     /// Admin decision — approve promotes the requester to creator (RLS + is_admin() enforced server-side).
+    // MARK: - Likes + Saves (server-mirrored so a user's state follows them across devices)
+
+    /// Toggle a like on a recipe. Does an INSERT on true, DELETE on false. Returns false silently
+    /// on no-session so the client falls back to its device-local set.
+    func setLike(recipeId: String, liked: Bool) async -> Bool {
+        guard hasSession, let uid = currentUserId() else { return false }
+        if liked {
+            guard var req = request(path: "rest/v1/recipe_likes", method: "POST") else { return false }
+            req.setValue("resolution=ignore-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
+            req.httpBody = try? JSONSerialization.data(withJSONObject: ["user_id": uid, "recipe_id": recipeId])
+            guard let (_, resp) = try? await URLSession.shared.data(for: req),
+                  let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+            return true
+        } else {
+            let path = "rest/v1/recipe_likes?user_id=eq.\(uid)&recipe_id=eq.\(recipeId)"
+            guard let req = request(path: path, method: "DELETE") else { return false }
+            guard let (_, resp) = try? await URLSession.shared.data(for: req),
+                  let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+            return true
+        }
+    }
+
+    /// Toggle a save (bookmark) — same shape as `setLike`, different table.
+    func setSave(recipeId: String, saved: Bool) async -> Bool {
+        guard hasSession, let uid = currentUserId() else { return false }
+        if saved {
+            guard var req = request(path: "rest/v1/recipe_saves", method: "POST") else { return false }
+            req.setValue("resolution=ignore-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
+            req.httpBody = try? JSONSerialization.data(withJSONObject: ["user_id": uid, "recipe_id": recipeId])
+            guard let (_, resp) = try? await URLSession.shared.data(for: req),
+                  let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+            return true
+        } else {
+            let path = "rest/v1/recipe_saves?user_id=eq.\(uid)&recipe_id=eq.\(recipeId)"
+            guard let req = request(path: path, method: "DELETE") else { return false }
+            guard let (_, resp) = try? await URLSession.shared.data(for: req),
+                  let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+            return true
+        }
+    }
+
+    /// Pull the signed-in user's most-recent likes + saves so the client can hydrate the local
+    /// sets at launch. Nil on failure so the caller keeps whatever's on device.
+    func fetchMyLikesAndSaves(limit: Int = 500) async -> (likes: Set<String>, saves: Set<String>)? {
+        guard hasSession else { return nil }
+        struct Row: Decodable { let recipe_id: String }
+        async let likesData: [Row]? = fetchRecent(table: "recipe_likes", limit: limit)
+        async let savesData: [Row]? = fetchRecent(table: "recipe_saves", limit: limit)
+        let (l, s) = await (likesData, savesData)
+        guard let l, let s else { return nil }
+        return (Set(l.map(\.recipe_id)), Set(s.map(\.recipe_id)))
+    }
+
+    private func fetchRecent<T: Decodable>(table: String, limit: Int) async -> [T]? {
+        guard let uid = currentUserId(),
+              let req = request(path: "rest/v1/\(table)?select=recipe_id&user_id=eq.\(uid)&order=created_at.desc&limit=\(limit)", method: "GET") else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return try? JSONDecoder().decode([T].self, from: data)
+    }
+
+    /// Permanently delete the caller's account: wipes every `cravecircle.*` row they own and
+    /// deletes the `auth.users` row so sign-in no longer works. Backed by the `delete_me()`
+    /// SECURITY DEFINER RPC. Returns true on 2xx.
+    func deleteMyAccount() async -> Bool {
+        guard hasSession, let req = request(path: "rest/v1/rpc/delete_me", method: "POST") else { return false }
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
     func decideCreatorRequest(id: String, approve: Bool) async -> Bool {
         guard hasSession, var req = request(path: "rest/v1/rpc/decide_creator_request") else { return false }
         guard let body = try? JSONSerialization.data(withJSONObject: ["p_request_id": id, "p_approve": approve]) else { return false }
@@ -353,8 +449,9 @@ struct SupabaseData {
     /// Comments on one recipe, newest first. Nil when there is no session or the request fails,
     /// so the caller keeps whatever is already on the phone.
     func fetchComments(recipeId: String) async -> [RecipeComment]? {
-        guard hasSession,
-              let enc = recipeId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+        // Comments are a public thread — a signed-out viewer should see them, same as Instagram.
+        // The anon key in `request()` is enough: the SELECT policy allows the anon role.
+        guard let enc = recipeId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let req = request(
                 path: "rest/v1/comments?recipe_id=eq.\(enc)&select=id,recipe_id,author_name,author_username,body,created_at&order=created_at.desc&limit=200",
                 method: "GET"
@@ -378,6 +475,91 @@ struct SupabaseData {
         ]
         guard let body = try? JSONSerialization.data(withJSONObject: row) else { return false }
         req.httpBody = body
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
+    // MARK: - Meal Plan (owner-only read/write)
+
+    func insertPlannedMeal(_ meal: PlannedMeal) async -> Bool {
+        guard hasSession, let uid = currentUserId(), var req = request(path: "rest/v1/meal_plan") else { return false }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        let iso = ISO8601DateFormatter(); iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let row: [String: Any] = [
+            "id": meal.id.uuidString.lowercased(),
+            "user_id": uid,
+            "recipe_id": meal.recipeId,
+            "when_ts": iso.string(from: meal.when),
+            "slot": meal.slot.rawValue
+        ]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: row)
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
+    func deletePlannedMeal(id: UUID) async -> Bool {
+        guard hasSession,
+              let enc = id.uuidString.lowercased().addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let req = request(path: "rest/v1/meal_plan?id=eq.\(enc)", method: "DELETE") else { return false }
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
+    /// Pull every planned meal for the signed-in user. Returns nil on failure so the caller
+    /// keeps whatever is on-device.
+    func fetchMyMealPlan() async -> [PlannedMeal]? {
+        guard hasSession, let uid = currentUserId(),
+              let req = request(path: "rest/v1/meal_plan?select=id,recipe_id,when_ts,slot,created_at&user_id=eq.\(uid)&order=when_ts.asc", method: "GET") else { return nil }
+        struct Row: Decodable {
+            let id: UUID
+            let recipe_id: String
+            let when_ts: Date
+            let slot: String
+            let created_at: Date?
+        }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        let rows = (try? Self.decoder().decode([Row].self, from: data)) ?? []
+        return rows.compactMap { r in
+            guard let slot = MealSlot(rawValue: r.slot) else { return nil }
+            return PlannedMeal(id: r.id, recipeId: r.recipe_id, when: r.when_ts, slot: slot,
+                               reminderIdentifier: nil, createdAt: r.created_at ?? Date())
+        }
+    }
+
+    /// Bulk-delete every row the caller owns in one of the simple user-scoped tables. Returns
+    /// true on 2xx. Used by the "Delete my likes / saves / comments" controls so a user can
+    /// erase their footprint without closing the account.
+    func deleteAllMine(from table: String) async -> Bool {
+        guard hasSession, let uid = currentUserId() else { return false }
+        // Column name differs per table: comments uses `author_id`, everyone else `user_id`.
+        let col = (table == "comments") ? "author_id" : "user_id"
+        guard let req = request(path: "rest/v1/\(table)?\(col)=eq.\(uid)", method: "DELETE") else { return false }
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
+    /// Delete a single comment by id. RLS enforces who can call this: author of the comment,
+    /// owner of the recipe the comment lives on, or an admin. Anyone else gets 0 rows affected
+    /// (which Postgres still returns as a 2xx; the UI already re-fetches so a no-op is harmless).
+    func deleteComment(id: UUID) async -> Bool {
+        guard hasSession,
+              let enc = id.uuidString.lowercased().addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let req = request(path: "rest/v1/comments?id=eq.\(enc)", method: "DELETE") else { return false }
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
+    /// Admin-only nuclear remove-a-user. Fires the `admin_delete_user` RPC which checks the role
+    /// server-side before deleting the auth.users row (everything else cascades off profiles.id).
+    func adminDeleteUser(id: UUID) async -> Bool {
+        guard hasSession, var req = request(path: "rest/v1/rpc/admin_delete_user", method: "POST") else { return false }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["p_user_id": id.uuidString.lowercased()])
         guard let (_, resp) = try? await URLSession.shared.data(for: req),
               let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
         return true

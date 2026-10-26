@@ -159,6 +159,21 @@ struct RecipeCommentsSection: View {
                                 environment.toggleCommentLike(recipeId: recipeId, commentId: comment.id)
                             }
                         }
+                        // Long-press menu only appears for the three roles that can actually
+                        // delete server-side (author, recipe owner, admin). Everyone else sees
+                        // no affordance, so it doesn't look like a broken button.
+                        .contextMenu {
+                            if environment.canDeleteComment(comment, recipeId: recipeId) {
+                                Button(role: .destructive) {
+                                    Haptics.warning()
+                                    withAnimation(AppMotion.snappy) {
+                                        environment.deleteComment(recipeId: recipeId, commentId: comment.id)
+                                    }
+                                } label: {
+                                    Label("Delete comment", systemImage: "trash")
+                                }
+                            }
+                        }
                     }
                 }
             }
