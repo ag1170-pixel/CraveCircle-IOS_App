@@ -1818,19 +1818,34 @@ final class AppEnvironment: ObservableObject {
     }
 
     // MARK: - Follow Actions
+
+    /// Pending follow writes keyed by handle. A rapid double-tap on Follow used to race the
+    /// server (two POSTs fighting over which state wins). We debounce by only firing the server
+    /// call after the local state has settled for ~400 ms, and we send the FINAL state at that
+    /// moment — not every intermediate tap.
+    private var pendingFollowTasks: [String: Task<Void, Never>] = [:]
+
     func toggleFollow(creatorHandle: String) {
         // Guests have no server identity — the Follow would be local-only and lie to the user.
         // Route them to the sign-in prompt instead of flipping an unauthoritative pill.
         guard requireRealSessionOrPrompt(reason: .follow) else { return }
         let willFollow = !followedCreators.contains(creatorHandle)
         if willFollow { followedCreators.insert(creatorHandle) } else { followedCreators.remove(creatorHandle) }
-        // Mirror to the cloud follow graph, then re-sync so a creator's followers-only recipes
-        // (RLS-gated) appear right after you follow.
-        Task {
-            if let cid = await supabase.resolveProfileId(username: creatorHandle) {
-                _ = await supabase.setFollow(creatorId: cid, following: willFollow)
+        scheduleFollowSync(creatorHandle: creatorHandle)
+    }
+
+    private func scheduleFollowSync(creatorHandle: String) {
+        pendingFollowTasks[creatorHandle]?.cancel()
+        pendingFollowTasks[creatorHandle] = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard let self, !Task.isCancelled else { return }
+            // Snapshot the FINAL state after the debounce window closes.
+            let finalFollowing = await MainActor.run { self.followedCreators.contains(creatorHandle) }
+            if let cid = await self.supabase.resolveProfileId(username: creatorHandle) {
+                _ = await self.supabase.setFollow(creatorId: cid, following: finalFollowing)
             }
-            await syncRecipes()
+            await self.syncRecipes()
+            await MainActor.run { self.pendingFollowTasks[creatorHandle] = nil }
         }
     }
 
@@ -1855,8 +1870,15 @@ final class AppEnvironment: ObservableObject {
     /// can show the card, not only the id.
     func toggleSaveRecipe(id: String, recipe: Recipe? = nil) {
         guard requireRealSessionOrPrompt(reason: .save) else { return }
-        let willSave = !savedRecipeIds.contains(id)
-        Task { _ = await supabase.setSave(recipeId: id, saved: willSave) }
+        // Debounced server mirror — same pattern as like/follow.
+        pendingSaveTasks[id]?.cancel()
+        pendingSaveTasks[id] = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard let self, !Task.isCancelled else { return }
+            let finalSaved = await MainActor.run { self.savedRecipeIds.contains(id) }
+            _ = await self.supabase.setSave(recipeId: id, saved: finalSaved)
+            await MainActor.run { self.pendingSaveTasks[id] = nil }
+        }
         if savedRecipeIds.contains(id) {
             savedRecipeIds.remove(id)
             cancelCookNudge(recipeId: id)
@@ -1914,12 +1936,21 @@ final class AppEnvironment: ObservableObject {
         likedRecipeIds.contains(recipeId)
     }
 
+    private var pendingLikeTasks: [String: Task<Void, Never>] = [:]
+    private var pendingSaveTasks: [String: Task<Void, Never>] = [:]
+
     func toggleLikeRecipe(id: String) {
         guard requireRealSessionOrPrompt(reason: .like) else { return }
-        // Mirror to the server so the like follows the user across devices. Fire-and-forget:
-        // the local set still updates immediately so the heart's optimistic.
-        let willLike = !likedRecipeIds.contains(id)
-        Task { _ = await supabase.setLike(recipeId: id, liked: willLike) }
+        // Debounce the server call — see scheduleFollowSync for the same pattern. A rapid
+        // double-tap used to race the server with two POSTs; now we send the final state.
+        pendingLikeTasks[id]?.cancel()
+        pendingLikeTasks[id] = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard let self, !Task.isCancelled else { return }
+            let finalLiked = await MainActor.run { self.likedRecipeIds.contains(id) }
+            _ = await self.supabase.setLike(recipeId: id, liked: finalLiked)
+            await MainActor.run { self.pendingLikeTasks[id] = nil }
+        }
         if likedRecipeIds.contains(id) {
             likedRecipeIds.remove(id)
             Haptics.tap()

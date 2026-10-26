@@ -449,8 +449,9 @@ struct SupabaseData {
     /// Comments on one recipe, newest first. Nil when there is no session or the request fails,
     /// so the caller keeps whatever is already on the phone.
     func fetchComments(recipeId: String) async -> [RecipeComment]? {
-        guard hasSession,
-              let enc = recipeId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+        // Comments are a public thread — a signed-out viewer should see them, same as Instagram.
+        // The anon key in `request()` is enough: the SELECT policy allows the anon role.
+        guard let enc = recipeId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let req = request(
                 path: "rest/v1/comments?recipe_id=eq.\(enc)&select=id,recipe_id,author_name,author_username,body,created_at&order=created_at.desc&limit=200",
                 method: "GET"
