@@ -71,6 +71,11 @@ struct ProfileScreen: View {
             UserDefaults(suiteName: AppEnvironment.appGroupID)?.set(langCode, forKey: "shared_recipe_language")
             await environment.loadFriendships()
             await environment.syncShares()
+            // Pick up a role bump the admin may have just approved — this quietly refreshes
+            // profile + request status every time the user visits their Profile, and
+            // notifyIfRoleBumped fires a bell notification the first time it sees .creator.
+            await environment.refreshMyRole()
+            await environment.loadMyCreatorRequestStatus()
         }
         .sheet(isPresented: $showEditProfile) {
             EditProfileSheet()

@@ -391,12 +391,29 @@ final class AppEnvironment: ObservableObject {
         syncSharedUserId()
     }
 
-    /// Pull the signed-in user's likes + saves from Supabase and union them with whatever's on
-    /// device. The server wins for the aggregate set — a like made on another device appears
-    /// here on next sign-in; a like only on this device also stays because we union, not replace.
+    /// Pull the signed-in user's likes + saves from Supabase and reconcile with the device.
+    /// Three cases:
+    ///   * Server has it, device doesn't → add locally. Covers "I liked on another phone".
+    ///   * Device has it, server doesn't → re-POST to the server. Covers the ghost-like case
+    ///     where an airplane-mode tap flipped the local set but the write never landed, OR a
+    ///     recipe got re-id'd and the local like is for an id the server never saw.
+    ///   * Both have it → leave it.
+    ///
+    /// Keys we can't reconcile (recipe id isn't in our catalog AND isn't on the server) are
+    /// treated as the user's intention anyway and left locally; the server stays authoritative,
+    /// but we don't silently drop a like just because we don't recognise its id yet.
     func hydrateLikesAndSavesFromServer() async {
         guard hasRealSession else { return }
         guard let (serverLikes, serverSaves) = await supabase.fetchMyLikesAndSaves() else { return }
+
+        let localLikesOnly = likedRecipeIds.subtracting(serverLikes)
+        let localSavesOnly = savedRecipeIds.subtracting(serverSaves)
+
+        // Re-post the local-only ones to catch up the server. Fire-and-forget — the next
+        // hydrate will handle anything that still fails.
+        for id in localLikesOnly { Task { _ = await supabase.setLike(recipeId: id, liked: true) } }
+        for id in localSavesOnly { Task { _ = await supabase.setSave(recipeId: id, saved: true) } }
+
         let mergedLikes = likedRecipeIds.union(serverLikes)
         let mergedSaves = savedRecipeIds.union(serverSaves)
         await MainActor.run {
@@ -1155,9 +1172,39 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
-    /// Re-fetch the signed-in user's Supabase profile (e.g. after an approval flips role → creator).
+    /// Re-fetch the signed-in user's Supabase profile (e.g. after an approval flips role →
+    /// creator). If the role actually went up (user → creator, or creator → admin) we also push
+    /// a congratulatory notification into the bell so the user has an in-app signal that their
+    /// request got approved. A true APNS push would need a server-side send; this covers the
+    /// in-app half, which is what the user sees when they next open the app.
     func refreshMyRole() async {
-        if let profile = await supabase.fetchMyProfile() { currentUser = profile }
+        let previousRole = currentUser?.role
+        guard let profile = await supabase.fetchMyProfile() else { return }
+        currentUser = profile
+        notifyIfRoleBumped(from: previousRole, to: profile.role)
+    }
+
+    /// Fire a one-time "You're a creator!" bell notification the first time we observe the
+    /// elevated role. Idempotent via a per-user `@AppStorage` flag so a re-fetch doesn't ding
+    /// the user over and over.
+    private func notifyIfRoleBumped(from previous: AccountRole?, to current: AccountRole) {
+        // Only celebrate .user → .creator for now; admin elevation is silent (founder-only).
+        guard previous == .user, current == .creator else { return }
+        let defaults = UserDefaults.standard
+        let key = AccountScope.defaultsKey(userId: currentUser?.id ?? "", key: "creator_welcome_shown")
+        if defaults.bool(forKey: key) { return }
+        defaults.set(true, forKey: key)
+        let notif = CircleNotificationItem(
+            title: "You're a creator!",
+            message: "Your creator request was approved. Open Studio from the + sheet to publish your first recipe.",
+            timeAgo: "Just now",
+            symbol: "sparkles",
+            isRead: false,
+            recipeId: nil,
+            createdAt: Date()
+        )
+        circleNotifications.insert(notif, at: 0)
+        Haptics.success()
     }
 
     func continueAsGuest() {
