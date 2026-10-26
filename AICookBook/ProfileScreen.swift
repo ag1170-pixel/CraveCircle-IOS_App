@@ -276,29 +276,34 @@ struct ProfileScreen: View {
                     SettingRow(icon: "waveform", title: "On-device transcription", detail: "Beta", tint: AppTheme.accent) { showTranscribeTest = true }
                 }
                 
-                Divider().overlay(AppTheme.separator).padding(.leading, 56)
-                NavigationLink {
-                    LiveActivityPreviewScreen()
-                } label: {
-                    HStack(spacing: AppSpacing.sm) {
-                        Image(systemName: "sparkles.rectangle.stack.fill")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(AppTheme.onBrand)
-                            .frame(width: 30, height: 30)
-                            .background(AppTheme.brand, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        Text("Preview cooking island")
-                            .font(AppFont.body(16, weight: .medium))
-                            .foregroundStyle(AppTheme.textPrimary)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(AppTheme.textTertiary)
+                // "Preview cooking island" is a dev-only demo of the Live Activity. Hidden from
+                // end-users because it isn't a feature they'd want; admin-gated so we can still
+                // show the Dynamic Island render during reviews or debugging.
+                if environment.isAdmin {
+                    Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                    NavigationLink {
+                        LiveActivityPreviewScreen()
+                    } label: {
+                        HStack(spacing: AppSpacing.sm) {
+                            Image(systemName: "sparkles.rectangle.stack.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(AppTheme.onBrand)
+                                .frame(width: 30, height: 30)
+                                .background(AppTheme.brand, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            Text("Preview cooking island")
+                                .font(AppFont.body(16, weight: .medium))
+                                .foregroundStyle(AppTheme.textPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(AppTheme.textTertiary)
+                        }
+                        .padding(.horizontal, AppSpacing.md)
+                        .padding(.vertical, 13)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.horizontal, AppSpacing.md)
-                    .padding(.vertical, 13)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
 
                 if environment.isAdmin {
                     Divider().overlay(AppTheme.separator).padding(.leading, 56)

@@ -310,7 +310,7 @@ struct MainTabView: View {
             }
             Tab(value: AppTab.discover) {
                 // Discover is now the full-screen recipe reel (Instagram/TikTok style, Hinge swipes).
-                // The old SearchScreen stays in the repo — search lives on Home now.
+                // Search lives on Home now (SearchScreen was removed in the cleanup pass).
                 RecipeReelScreen(tabSignal: discoverSignal, reel: $discoverReel, currentID: $discoverCurrentID)
             } label: {
                 Image(systemName: AppTab.discover.icon)

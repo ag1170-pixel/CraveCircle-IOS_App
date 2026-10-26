@@ -41,3 +41,10 @@ Config/Local.xcconfig
 /test_*.swift
 /fix_*.py
 *.tailspin
+
+# Cursor editor local settings
+.cursor/
+
+# Xcode crash + runloop logs that appear in AICookBookTests
+AICookBookTests/*.ips
+AICookBookTests/*.tailspin.gz
