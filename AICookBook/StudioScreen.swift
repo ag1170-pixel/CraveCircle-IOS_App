@@ -34,7 +34,8 @@ struct StudioScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.lg) {
                 statsRow
-                publishCTA
+                // The big "Write a new recipe" CTA used to live here but it duplicated the
+                // "Write from scratch" tile below. One entry point per action — iOS native.
                 shareTilesRow
                 draftsSection
                 publishedSection
@@ -95,30 +96,6 @@ struct StudioScreen: View {
     }
 
     // MARK: Primary CTA
-
-    private var publishCTA: some View {
-        Button {
-            Haptics.tap()
-            openWriteFromScratch()
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "square.and.pencil")
-                    .font(.system(size: 17, weight: .bold))
-                Text("Write a new recipe")
-                    .font(AppFont.body(16, weight: .bold))
-                Spacer()
-                Image(systemName: "arrow.forward")
-                    .font(.system(size: 14, weight: .bold))
-            }
-            // Charcoal, not coral — per the vault's Design-Philosophy.md: "One accent language.
-            // Charcoal for actions, Coral is the logo, not a second CTA color."
-            .foregroundStyle(AppTheme.onAccent)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 16)
-            .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-        }
-        .buttonStyle(PressableStyle())
-    }
 
     /// Dismiss Studio FIRST, THEN flip pendingNewRecipe — otherwise the full-screen cover is
     /// still on top of MainTabView and the blank-editor sheet never presents. The small delay
@@ -183,22 +160,31 @@ struct StudioScreen: View {
         }
     }
 
+    /// iOS-native action row: icon tile on the left, title + subtitle middle, chevron right.
+    /// Reads at any width; scales down text instead of wrapping into stacked words.
     private func shareTile(icon: String, title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(AppTheme.accentInk)
-                .frame(width: 36, height: 36)
+                .frame(width: 40, height: 40)
                 .background(AppTheme.accentSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            Text(title)
-                .font(AppFont.body(14, weight: .bold))
-                .foregroundStyle(AppTheme.textPrimary)
-            Text(subtitle)
-                .font(AppFont.body(11))
-                .foregroundStyle(AppTheme.textSecondary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(AppFont.body(15, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(AppFont.body(12))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(AppTheme.textTertiary)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)

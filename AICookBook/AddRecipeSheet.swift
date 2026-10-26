@@ -40,10 +40,10 @@ struct AddRecipeSheet: View {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 header
 
-                // Studio banner only shows up as its own card when the user is already a creator
-                // (so the Studio page is one tap from +). For regular users the entry sits inside
-                // the grid below as another small tile, matching the other import options.
-                if environment.canPublish || environment.hasPendingCreatorRequest {
+                // Pending creator request keeps its "Thanks, waiting on approval" banner.
+                // Approved creators / admins get Studio as a tile in the grid (not a top banner)
+                // so the layout stays uniform at any iPhone width.
+                if environment.hasPendingCreatorRequest && !environment.canPublish {
                     studioBanner
                 }
 
@@ -56,7 +56,10 @@ struct AddRecipeSheet: View {
                     optionCard("Write from scratch", systemImage: "square.and.pencil") { startWrite() }
                     optionCard("Import from web", systemImage: "globe") { showWeb = true }
                     photoCard
-                    if !environment.canPublish && !environment.hasPendingCreatorRequest {
+                    if environment.canPublish {
+                        // Creator / admin — Studio sits next to Import from photo, same shape.
+                        optionCard("Open Studio", systemImage: "sparkles") { showStudio = true }
+                    } else if !environment.hasPendingCreatorRequest {
                         optionCard("Become a Creator", systemImage: "person.badge.plus") {
                             showCreatorRequest = true
                         }

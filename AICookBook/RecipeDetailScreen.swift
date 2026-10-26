@@ -819,9 +819,45 @@ struct RecipeDetailScreen: View {
     }
 
     private var actionRow: some View {
-        HStack(spacing: 10) {
-            // Direct interactive Servings Stepper
-            HStack(spacing: 8) {
+        // Two rows instead of one. On iPhone widths, three equal-width buttons in a row made
+        // "Add to Grocery" wrap into three stacked words. Now: servings pill is on its own line
+        // (center-left), then a full-width row of Save + Add to Grocery that scales to any
+        // phone width without wrapping.
+        VStack(spacing: 10) {
+            HStack {
+                servingsStepper
+                Spacer()
+            }
+
+            HStack(spacing: 10) {
+                PillButton(
+                    title: saved ? "Saved" : "Save",
+                    systemImage: saved ? "bookmark.fill" : "bookmark",
+                    kind: saved ? .filled : .surface,
+                    fullWidth: true
+                ) {
+                    Haptics.tap()
+                    environment.toggleSaveRecipe(id: recipe.id, recipe: recipe)
+                }
+                .frame(maxWidth: .infinity)
+
+                PillButton(title: "Add to Grocery", systemImage: "basket.fill", kind: .surface, fullWidth: true) {
+                    Haptics.success()
+                    let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
+                    addedGroceryCount = count
+                    withAnimation { showGroceryBanner = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                        withAnimation { showGroceryBanner = false }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    /// Just the servings stepper, split out so the two-row action layout stays readable.
+    private var servingsStepper: some View {
+        HStack(spacing: 8) {
                 Button {
                     if servings > 1 {
                         Haptics.tap()
@@ -870,32 +906,6 @@ struct RecipeDetailScreen: View {
             .padding(.vertical, 5)
             .background(AppTheme.surface, in: Capsule())
             .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
-
-            PillButton(title: "Add to Grocery", systemImage: "basket.fill", kind: .surface, fullWidth: true) {
-                Haptics.success()
-                let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
-                addedGroceryCount = count
-                withAnimation { showGroceryBanner = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                    withAnimation { showGroceryBanner = false }
-                }
-            }
-            .frame(maxWidth: .infinity)
-
-            // "Save" used to live inside the ⋯ menu — buried. Promoted to the bottom action row
-            // per vault roadmap item #2 so adding a recipe to the library is one obvious tap.
-            // Toggle state: Save ⇄ Saved (bookmark → bookmark.fill).
-            PillButton(
-                title: saved ? "Saved" : "Save",
-                systemImage: saved ? "bookmark.fill" : "bookmark",
-                kind: saved ? .filled : .surface,
-                fullWidth: true
-            ) {
-                Haptics.tap()
-                environment.toggleSaveRecipe(id: recipe.id, recipe: recipe)
-            }
-            .frame(maxWidth: .infinity)
-        }
     }
 
     /// Reads the current saved state so the Save pill flips immediately on tap.
