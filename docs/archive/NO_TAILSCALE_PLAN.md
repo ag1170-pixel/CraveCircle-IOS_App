@@ -1,7 +1,7 @@
 # CraveCircle — "No Tailscale, any iPhone" plan
 
 Goal: hand someone an install, they open it, it works — **no Tailscale, no per-user server setup,
-no Xcode**. This is a plan, not yet built. See also `PRIORITIZED_TASKS.md` P3.1.
+no Xcode**. This is a plan, not yet built. See also `docs/PRIORITIZED_TASKS.md` P3.1.
 
 ## What actually ties us to Tailscale today
 **Only one thing:** the **link/URL reel-import** backend (yt-dlp + Whisper) at the homelab IP

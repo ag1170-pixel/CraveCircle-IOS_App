@@ -48,7 +48,7 @@ Extraction is table stakes; the **social living-cookbook layer** (collections, f
 ## Evidence on Hand
 
 - Working iOS codebase (`AICookBook/`) — auth, recipe grid, recipe detail, import polling state machine, grocery list, profile. Kitchen/checklist, collections, and social are partial/placeholder.
-- Master spec: `AICookbook_iOS_Master_Prompt.md` (in repo).
+- Master spec: `docs/archive/AICookbook_iOS_Master_Prompt.md` (in repo).
 - Market/demand validation compiled: vault [[Projects/CraveCircle/Market-Research]] + showcase artifact.
 - Do NOT fabricate: user counts, testimonials, download numbers, or press — none confirmed.
 

@@ -114,7 +114,7 @@ recipe,cook,instagram,tiktok,pinterest,reel,import,grocery,aisle,nutrition,hands
 ## 9. Screenshot captions (5 iPhone screenshots, 6.9" / 6.7" / 5.5")
 
 Each has a bold headline + one-liner. Shot the real app with real data (strip sample content
-first, use the "no fake content" list in `APPSTORE_READINESS_PLAN.md`).
+first, use the "no fake content" list in `docs/APPSTORE_READINESS_PLAN.md`).
 
 ### Screen 1 — Discover feed
 > **A cookbook that fills itself.**

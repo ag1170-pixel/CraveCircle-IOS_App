@@ -194,7 +194,7 @@ every tappable element, Smart Invert correctness.
 5. Any recipe → **Plan** pill → pick Today / Dinner → Save → check **Profile →
    Meal Plan**. A local notification is scheduled 30 min before.
 
-If anything doesn't work, open `TODO_BREAK_THE_APP.md` and `APPSTORE_READINESS_PLAN.md`
+If anything doesn't work, open `docs/TODO_BREAK_THE_APP.md` and `docs/APPSTORE_READINESS_PLAN.md`
 in the repo root — the known gaps are catalogued there honestly.
 ---
 

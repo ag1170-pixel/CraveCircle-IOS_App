@@ -58,6 +58,6 @@ Cover **breakfast, lunch, dinner, dessert, snacks, drinks**; **veg + non-veg + v
 - [ ] ~15–20 new recipes added to `SampleRecipes.swift`, each with a matching image imageset.
 - [ ] `** BUILD SUCCEEDED **` (run the app — new recipes show on Home/Library, images load, a kcal number appears).
 - [ ] Ingredients have quantities; directions are clear; times realistic.
-- [ ] Commit with a clear message; `git pull --rebase` before pushing (shared repo — see `WORK_DIVISION.md`).
+- [ ] Commit with a clear message; `git pull --rebase` before pushing (shared repo — see `docs/archive/WORK_DIVISION.md`).
 
 *(If you add brand-new creators, you can optionally add them to the sample creator/friends lists so their profile opens — ask Claude if unsure where.)*
