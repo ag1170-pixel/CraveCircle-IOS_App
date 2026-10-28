@@ -84,21 +84,25 @@ struct NewRecipeWizard: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     HStack(spacing: 8) {
-                        // Figma: Save = dark pill, Publish = white pill.
+                        // Figma: Save = dark pill with white text, Publish = white pill with dark
+                        // text. Use fixed colors (not theme tokens that flip) so both pills stay
+                        // legible in BOTH light and dark mode. Dulled when the draft isn't valid.
                         Button("Save") { save(publishing: false) }
                             .font(AppFont.body(14, weight: .bold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 7)
-                            .background(AppTheme.textPrimary, in: Capsule())
+                            .background(Color(red: 0.11, green: 0.11, blue: 0.12).opacity(canPublish ? 1 : 0.35),
+                                        in: Capsule())
+                            .disabled(!canPublish)
                         if environment.canPublish {
                             Button("Publish") { save(publishing: true) }
                                 .font(AppFont.body(14, weight: .bold))
-                                .foregroundStyle(AppTheme.textPrimary)
+                                .foregroundStyle(.black.opacity(canPublish ? 1 : 0.35))
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 7)
-                                .background(Color.white, in: Capsule())
-                                .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                                .background(Color.white.opacity(canPublish ? 1 : 0.45), in: Capsule())
+                                .overlay(Capsule().stroke(Color.black.opacity(0.08), lineWidth: 1))
                                 .disabled(!canPublish)
                         }
                     }
@@ -430,6 +434,9 @@ struct NewRecipeWizard: View {
                     .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
                 }
             }
+            // On Method the primary button saves — disable until the draft actually has a title
+            // + at least one ingredient + at least one direction. Dulls so it looks "not yet".
+            let primaryDisabled = (step == .method) && !canPublish
             Button {
                 Haptics.tap()
                 if step == .method {
@@ -445,11 +452,12 @@ struct NewRecipeWizard: View {
                     }
                 }
                 .font(AppFont.body(15, weight: .bold))
-                .foregroundStyle(AppTheme.onAccent)
+                .foregroundStyle(AppTheme.onAccent.opacity(primaryDisabled ? 0.5 : 1))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(AppTheme.accent, in: Capsule())
+                .background(AppTheme.accent.opacity(primaryDisabled ? 0.35 : 1), in: Capsule())
             }
+            .disabled(primaryDisabled)
         }
         .padding(.horizontal, AppSpacing.md)
         .padding(.top, 8)
