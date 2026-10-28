@@ -167,6 +167,24 @@ struct SupabaseData {
         return .failed
     }
 
+    /// Push the user's onboarding answers to their profile row so recommendations survive a
+    /// reinstall or a sign-in on another device. All fields are overwritten, including with [].
+    func saveOnboardingAnswers(cuisines: [String], goals: [String], sources: [String], hearAbout: String?) async -> Bool {
+        guard let uid = currentUserId(),
+              var req = request(path: "rest/v1/profiles?id=eq.\(uid)", method: "PATCH") else { return false }
+        let body: [String: Any] = [
+            "preferred_cuisines": cuisines,
+            "goals": goals,
+            "recipe_sources": sources,
+            "hear_about": hearAbout as Any? ?? NSNull()
+        ]
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
     /// Admin-only: toggle another user's blue tick. Protected by the `verified_admin_only` RLS
     /// policy so a non-admin's PATCH is rejected server-side even if the UI slips through.
     func setUserVerified(userId: String, verified: Bool) async -> Bool {

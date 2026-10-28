@@ -35,6 +35,12 @@ struct UserProfile: Codable, Identifiable {
     /// Set the first time this account finishes onboarding. Non-nil → skip the flow on any
     /// fresh install this id signs into. Server-authoritative so it syncs across devices.
     var onboardedAt: Date? = nil
+    /// Onboarding answers that shape the home recommender. Stored on the profile so sign-in
+    /// on a fresh device carries the user's cuisines + goals + sources with them.
+    var preferredCuisines: [String] = []
+    var goals: [String] = []
+    var recipeSources: [String] = []
+    var hearAbout: String? = nil
 
     var canPublish: Bool { role.canPublish }
 
@@ -42,7 +48,9 @@ struct UserProfile: Codable, Identifiable {
          role: AccountRole = .user, bio: String? = nil,
          instagramUrl: String? = nil, tiktokUrl: String? = nil,
          youtubeUrl: String? = nil, facebookUrl: String? = nil,
-         pinterestUrl: String? = nil, verified: Bool = false, onboardedAt: Date? = nil) {
+         pinterestUrl: String? = nil, verified: Bool = false, onboardedAt: Date? = nil,
+         preferredCuisines: [String] = [], goals: [String] = [],
+         recipeSources: [String] = [], hearAbout: String? = nil) {
         self.id = id
         self.username = username
         self.fullName = fullName
@@ -56,6 +64,10 @@ struct UserProfile: Codable, Identifiable {
         self.pinterestUrl = pinterestUrl
         self.verified = verified
         self.onboardedAt = onboardedAt
+        self.preferredCuisines = preferredCuisines
+        self.goals = goals
+        self.recipeSources = recipeSources
+        self.hearAbout = hearAbout
     }
 
     init(from decoder: Decoder) throws {
@@ -73,6 +85,10 @@ struct UserProfile: Codable, Identifiable {
         pinterestUrl = try c.decodeIfPresent(String.self, forKey: .pinterestUrl)
         verified = (try c.decodeIfPresent(Bool.self, forKey: .verified)) ?? false
         onboardedAt = try c.decodeIfPresent(Date.self, forKey: .onboardedAt)
+        preferredCuisines = (try c.decodeIfPresent([String].self, forKey: .preferredCuisines)) ?? []
+        goals             = (try c.decodeIfPresent([String].self, forKey: .goals)) ?? []
+        recipeSources     = (try c.decodeIfPresent([String].self, forKey: .recipeSources)) ?? []
+        hearAbout         = try c.decodeIfPresent(String.self, forKey: .hearAbout)
     }
 }
 

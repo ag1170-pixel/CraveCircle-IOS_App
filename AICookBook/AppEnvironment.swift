@@ -278,6 +278,7 @@ final class AppEnvironment: ObservableObject {
             appState = .signedIn
             showGuestPaywall = false
             hydrateLocal()
+            hydrateOnboardingAnswersFromProfile()
             await refreshRecipes()
             await hydrateLikesAndSavesFromServer()
             await hydrateMealPlanFromServer()
@@ -388,6 +389,7 @@ final class AppEnvironment: ObservableObject {
             }
         }
         if !guestId.isEmpty { guestUserId = "" }
+        hydrateOnboardingAnswersFromProfile()   // carry recommender state over from the profile
         appState = .signedIn
         // The user is now a real signed-in account — if any guest-era paywall was still raised
         // the sheet would re-present on MainTabView. Drop it unconditionally.
@@ -2536,7 +2538,29 @@ final class AppEnvironment: ObservableObject {
         onboardingSourcesRaw = sources.sorted().joined(separator: ",")
         onboardingHearAboutRaw = hearAbout ?? ""
         markOnboarded()
+        // Mirror the answers to the profile row so the recommender survives reinstalls / new
+        // devices. Fire-and-forget — the local copy above is the source of truth until the
+        // round-trip lands, and a failed call just means the user re-answers on next install.
+        if !isGuest {
+            Task { _ = await supabase.saveOnboardingAnswers(
+                cuisines: Array(cuisines).sorted(),
+                goals: Array(goals).sorted(),
+                sources: Array(sources).sorted(),
+                hearAbout: hearAbout
+            ) }
+        }
         Task { await fetchSuggestedFeed() }
+    }
+
+    /// Pull server-side onboarding answers into the local recommender inputs. Called after the
+    /// profile is fetched on sign-in so a fresh install on a new device inherits the user's
+    /// cuisines/goals immediately instead of starting cold.
+    func hydrateOnboardingAnswersFromProfile() {
+        guard let p = currentUser else { return }
+        if !p.preferredCuisines.isEmpty { preferredCuisines = Set(p.preferredCuisines) }
+        if !p.goals.isEmpty             { onboardingGoalsRaw = p.goals.sorted().joined(separator: ",") }
+        if !p.recipeSources.isEmpty     { onboardingSourcesRaw = p.recipeSources.sorted().joined(separator: ",") }
+        if let h = p.hearAbout, !h.isEmpty { onboardingHearAboutRaw = h }
     }
 
     private let maxPendingInteractions = 200
