@@ -225,6 +225,9 @@ struct CraveCircleApp: App {
                             AppDelegate.handleShortcut(s)
                         }
                         environment.checkPendingSharedImport()   // resume a share's server job (paid-team App Group)
+                        // Re-fetch the profile so a role change made server-side while the app was
+                        // backgrounded (admin approved a creator request) takes effect without a reinstall.
+                        Task { await environment.refreshMyProfile() }
                         Task {
                             await environment.importFromSharedURL()
                             for gap in [UInt64(0), 30, 60] {   // refresh at ~0s, ~30s, ~90s

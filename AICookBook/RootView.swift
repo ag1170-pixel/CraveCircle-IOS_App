@@ -12,6 +12,10 @@ struct RootView: View {
                 LottieView(name: "Flow_4")
                     .frame(width: 80, height: 80)
                     .foregroundStyle(AppTheme.textPrimary)
+            } else if environment.showPreAuthOnboarding {
+                // First run on this install: pitch the app BEFORE asking for sign-in.
+                // On completion we remember the choice and surface the login screen.
+                OnboardingView()
             } else if environment.appState == .signedOut {
                 LoginView()
             } else if environment.needsOnboarding {
@@ -278,7 +282,9 @@ struct MainTabView: View {
     private var importFAB: some View {
         Button {
             Haptics.tap()
-            if tab == .groceries { showingAddGrocery = true } else { showingImportSheet = true }
+            if tab == .groceries { showingAddGrocery = true }
+            else if environment.isGuest { environment.promptGuestToSignIn(reason: .importRecipe) }
+            else { showingImportSheet = true }
         } label: {
             // Brand coral in BOTH light and dark (owner call) — the + FAB is our brand primary, not the
             // charcoal UI accent. White glyph, plain drop shadow, no glow.
@@ -390,16 +396,20 @@ struct MainTabView: View {
         }
         .onChange(of: environment.pendingImportRequest) { _, requested in
             // Onboarding asked to import a first reel — open the sheet once, then clear the flag.
+            // Guest hits the sign-in wall (import writes to their library and the server).
             if requested {
-                showingImportSheet = true
                 environment.pendingImportRequest = false
+                if environment.isGuest { environment.promptGuestToSignIn(reason: .importRecipe) }
+                else { showingImportSheet = true }
             }
         }
         .onChange(of: environment.pendingNewRecipe) { _, requested in
-            // "Write from scratch" widget tile → open a blank recipe editor.
+            // "Write from scratch" widget tile → open a blank recipe editor. Guest hits the wall
+            // instead; writing a recipe needs an account to save it to.
             if requested {
-                newRecipe = AddRecipeSheet.newBlank()
                 environment.pendingNewRecipe = false
+                if environment.isGuest { environment.promptGuestToSignIn(reason: .publishRecipe) }
+                else { newRecipe = AddRecipeSheet.newBlank() }
             }
         }
         .onChange(of: environment.pendingFeedback) { _, requested in
