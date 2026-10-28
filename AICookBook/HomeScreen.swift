@@ -260,19 +260,23 @@ struct HomeScreen: View {
                 suggestionHeader("Recent") {
                     recentSearchesCSV = ""
                 }
-                suggestionChipRow(items: recents, onTap: { q in
-                    query = q
-                    searchFocused = false
-                }, onRemove: { q in
-                    recentSearchesCSV = recents.filter { $0 != q }.joined(separator: "\u{1F}")
-                })
+                VStack(spacing: 8) {
+                    ForEach(recents, id: \.self) { q in
+                        recentRow(q, onTap: {
+                            query = q
+                            searchFocused = false
+                        }, onRemove: {
+                            recentSearchesCSV = recents.filter { $0 != q }.joined(separator: "\u{1F}")
+                        })
+                    }
+                }
             }
             if !creators.isEmpty {
                 suggestionHeader("Your creators", clearAction: nil)
                 creatorRow(creators: creators)
             }
             if !trending.isEmpty {
-                suggestionHeader("Trending in your cuisines", clearAction: nil)
+                suggestionHeader("Trending in your Circle", clearAction: nil)
                 suggestionChipRow(items: trending, onTap: { q in
                     query = q
                     recordRecentSearch(q)
@@ -301,13 +305,42 @@ struct HomeScreen: View {
                     Haptics.tap()
                     clearAction()
                 } label: {
-                    Text("Clear")
-                        .font(AppFont.body(12, weight: .semibold))
-                        .foregroundStyle(AppTheme.textTertiary)
+                    HStack(spacing: 2) {
+                        Text("Clear").font(AppFont.body(13, weight: .semibold))
+                        Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold))
+                    }
+                    .foregroundStyle(AppTheme.brand)
                 }
             }
         }
         .padding(.horizontal, 2)
+    }
+
+    private func recentRow(_ text: String, onTap: @escaping () -> Void, onRemove: @escaping () -> Void) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "clock")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+            Text(text)
+                .font(AppFont.body(15, weight: .semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+            Spacer(minLength: 0)
+            Button {
+                Haptics.tap(); onRemove()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .padding(6)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+        .contentShape(Rectangle())
+        .onTapGesture { Haptics.tap(); onTap() }
     }
 
     private func suggestionChipRow(items: [String], onTap: @escaping (String) -> Void,

@@ -53,6 +53,8 @@ struct OnboardingView: View {
                 case .tutorialShare:    tutorialShare
                 case .tutorialPanel:    tutorialPanel
                 case .tutorialPickApp:  tutorialPickApp
+                case .tutorialWebsite:  tutorialWebsite
+                case .tutorialCamera:   tutorialCamera
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -406,6 +408,7 @@ struct OnboardingView: View {
     private var tutorialShare: some View {
         tutorialPage(
             title: "Smart social media imports",
+            source: .instagram,
             chip: TutorialChip(text: "Tap here", align: .bottomCenter, yOffset: -40),
             phoneContent: .reel,
             primary: "Next"
@@ -417,6 +420,7 @@ struct OnboardingView: View {
     private var tutorialPanel: some View {
         tutorialPage(
             title: "Smart social media imports",
+            source: .instagram,
             chip: TutorialChip(text: "Tap here", align: .bottomLeading, yOffset: -70),
             phoneContent: .sharePanel,
             primary: "Next"
@@ -428,8 +432,33 @@ struct OnboardingView: View {
     private var tutorialPickApp: some View {
         tutorialPage(
             title: "Pick CraveCircle",
+            source: .instagram,
             chip: TutorialChip(text: "Tap here", align: .topLeading, yOffset: 90),
             phoneContent: .appPicker,
+            primary: "Next"
+        ) {
+            advance(to: .tutorialWebsite)
+        }
+    }
+
+    private var tutorialWebsite: some View {
+        tutorialPage(
+            title: "Works with any recipe website",
+            source: .website,
+            chip: TutorialChip(text: "Tap here", align: .bottomCenter, yOffset: -30),
+            phoneContent: .recipeWebsite,
+            primary: "Next"
+        ) {
+            advance(to: .tutorialCamera)
+        }
+    }
+
+    private var tutorialCamera: some View {
+        tutorialPage(
+            title: "Even handwritten notes",
+            source: .camera,
+            chip: TutorialChip(text: "Tap to scan", align: .bottomCenter, yOffset: -40),
+            phoneContent: .cameraScan,
             primary: "Try it now"
         ) {
             finishOnboarding(thenImport: true)
@@ -437,6 +466,7 @@ struct OnboardingView: View {
     }
 
     private func tutorialPage(title: String,
+                              source: TutorialSource,
                               chip: TutorialChip,
                               phoneContent: PhoneContent,
                               primary: String,
@@ -446,7 +476,8 @@ struct OnboardingView: View {
                 Text(title)
                     .font(AppFont.display(26, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
-                socialIconsRow
+                    .multilineTextAlignment(.center)
+                sourceChipsRow(active: source)
             }
             .padding(.top, AppSpacing.sm)
 
@@ -619,6 +650,7 @@ private extension OnboardingView {
         case welcome, goals, goalsAffirmation, goalDetail
         case recipeSources, howHeard, cuisinesStep
         case awesome, tutorialShare, tutorialPanel, tutorialPickApp
+        case tutorialWebsite, tutorialCamera
 
         /// 0…1 progress for the top bar (welcome has no bar).
         var progress: CGFloat {
@@ -631,9 +663,11 @@ private extension OnboardingView {
             case .howHeard:         return 0.62
             case .cuisinesStep:     return 0.72
             case .awesome:          return 0.82
-            case .tutorialShare:    return 0.88
-            case .tutorialPanel:    return 0.93
-            case .tutorialPickApp:  return 0.98
+            case .tutorialShare:    return 0.86
+            case .tutorialPanel:    return 0.89
+            case .tutorialPickApp:  return 0.92
+            case .tutorialWebsite:  return 0.96
+            case .tutorialCamera:   return 0.99
             }
         }
 
@@ -650,6 +684,8 @@ private extension OnboardingView {
             case .tutorialShare:    return .awesome
             case .tutorialPanel:    return .tutorialShare
             case .tutorialPickApp:  return .tutorialPanel
+            case .tutorialWebsite:  return .tutorialPickApp
+            case .tutorialCamera:   return .tutorialWebsite
             }
         }
     }
@@ -799,15 +835,173 @@ private struct TutorialChip {
 }
 
 private enum PhoneContent {
-    case reel, sharePanel, appPicker
+    case reel, sharePanel, appPicker, recipeWebsite, cameraScan
 
     @ViewBuilder
     var view: some View {
         switch self {
-        case .reel:        PhoneReel()
-        case .sharePanel:  PhoneSharePanel()
-        case .appPicker:   PhoneAppPicker()
+        case .reel:          PhoneReel()
+        case .sharePanel:    PhoneSharePanel()
+        case .appPicker:     PhoneAppPicker()
+        case .recipeWebsite: PhoneRecipeWebsite()
+        case .cameraScan:    PhoneCameraScan()
         }
+    }
+}
+
+// MARK: Source chip strip (Instagram / Website / Camera)
+
+enum TutorialSource { case instagram, website, camera }
+
+private extension OnboardingView {
+    func sourceChipsRow(active: TutorialSource) -> some View {
+        HStack(spacing: 8) {
+            sourceChip(icon: "camera.fill", label: "Instagram", on: active == .instagram)
+            sourceChip(icon: "globe",       label: "Website",   on: active == .website)
+            sourceChip(icon: "camera.viewfinder", label: "Camera", on: active == .camera)
+        }
+    }
+
+    func sourceChip(icon: String, label: String, on: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).font(.system(size: 11, weight: .semibold))
+            Text(label).font(AppFont.body(13, weight: .semibold))
+        }
+        .foregroundStyle(on ? AppTheme.onAccent : AppTheme.textSecondary)
+        .padding(.horizontal, 12).padding(.vertical, 7)
+        .background(on ? AppTheme.textPrimary : AppTheme.surface, in: Capsule())
+        .overlay(Capsule().stroke(on ? Color.clear : AppTheme.hairline, lineWidth: 1))
+    }
+}
+
+private struct PhoneRecipeWebsite: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "lock.fill").font(.system(size: 9))
+                Text("tasty-kitchen.com").font(.system(size: 10, weight: .semibold))
+            }
+            .foregroundStyle(AppTheme.textSecondary)
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(AppTheme.surface, in: Capsule())
+
+            RoundedRectangle(cornerRadius: 12)
+                .fill(AppTheme.accentSoft)
+                .overlay(
+                    Image(systemName: "fork.knife.circle.fill")
+                        .font(.system(size: 44))
+                        .foregroundStyle(AppTheme.brand.opacity(0.75))
+                )
+                .frame(height: 90)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("One-Pot Creamy Tomato & Basil Rigatoni")
+                    .font(.system(size: 11, weight: .bold))
+                    .lineLimit(2)
+                HStack(spacing: 10) {
+                    Label("35 min", systemImage: "clock").font(.system(size: 9))
+                    Label("4 servings", systemImage: "person.2").font(.system(size: 9))
+                }
+                .foregroundStyle(AppTheme.textSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(spacing: 3) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Capsule().fill(AppTheme.hairline).frame(height: 4)
+                }
+            }
+            Spacer(minLength: 0)
+
+            HStack(spacing: 20) {
+                Image(systemName: "chevron.left")
+                Image(systemName: "chevron.right")
+                Spacer()
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(AppTheme.brand, lineWidth: 2).frame(width: 32, height: 32)
+                    Image(systemName: "square.and.arrow.up")
+                        .foregroundStyle(AppTheme.brand)
+                }
+                Image(systemName: "bookmark")
+                Image(systemName: "list.bullet")
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(AppTheme.textPrimary)
+        }
+    }
+}
+
+private struct PhoneCameraScan: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Image(systemName: "xmark").foregroundStyle(.white)
+                Spacer()
+                Image(systemName: "bolt.fill").foregroundStyle(.white)
+            }
+            .font(.system(size: 13, weight: .semibold))
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(hex: "F7F0E4"))
+                    .overlay(
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Nani's chole masala")
+                                .font(.custom("Snell Roundhand", size: 13))
+                            Text("2 cups chickpeas, soaked")
+                                .font(.custom("Snell Roundhand", size: 9))
+                            Text("1 big onion, browned")
+                                .font(.custom("Snell Roundhand", size: 9))
+                            Text("tea bag for the colour!")
+                                .font(.custom("Snell Roundhand", size: 9))
+                            Text("simmer till it smells right")
+                                .font(.custom("Snell Roundhand", size: 9))
+                        }
+                        .foregroundStyle(Color(hex: "2A1B10"))
+                        .padding(10),
+                        alignment: .topLeading
+                    )
+                    .padding(14)
+
+                // Viewfinder corners
+                GeometryReader { geo in
+                    let w: CGFloat = 8
+                    let len: CGFloat = 14
+                    Path { p in
+                        let r = CGRect(x: 10, y: 10, width: geo.size.width - 20, height: geo.size.height - 20)
+                        for corner in [(r.minX, r.minY, 1, 1), (r.maxX, r.minY, -1, 1),
+                                       (r.minX, r.maxY, 1, -1), (r.maxX, r.maxY, -1, -1)] {
+                            let (x, y, sx, sy) = (corner.0, corner.1, CGFloat(corner.2), CGFloat(corner.3))
+                            p.move(to: CGPoint(x: x, y: y + sy * len))
+                            p.addLine(to: CGPoint(x: x, y: y))
+                            p.addLine(to: CGPoint(x: x + sx * len, y: y))
+                        }
+                        _ = w
+                    }
+                    .stroke(Color.white, lineWidth: 2)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Text("Reading recipe…")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white)
+
+            HStack {
+                Image(systemName: "photo.on.rectangle")
+                    .foregroundStyle(.white)
+                    .frame(width: 32, height: 32)
+                    .background(Color.white.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+                Spacer()
+                Circle().fill(Color.white).frame(width: 46, height: 46)
+                    .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 3).padding(-3))
+                Spacer()
+                Color.clear.frame(width: 32, height: 32)
+            }
+        }
+        .padding(2)
+        .background(Color.black, in: RoundedRectangle(cornerRadius: 14))
     }
 }
 

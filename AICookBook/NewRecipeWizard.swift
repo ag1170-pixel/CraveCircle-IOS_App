@@ -84,20 +84,21 @@ struct NewRecipeWizard: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     HStack(spacing: 8) {
+                        // Figma: Save = dark pill, Publish = white pill.
                         Button("Save") { save(publishing: false) }
-                            .font(AppFont.body(14, weight: .semibold))
-                            .foregroundStyle(AppTheme.textPrimary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(AppTheme.surface, in: Capsule())
-                            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                            .font(AppFont.body(14, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .background(AppTheme.textPrimary, in: Capsule())
                         if environment.canPublish {
                             Button("Publish") { save(publishing: true) }
                                 .font(AppFont.body(14, weight: .bold))
-                                .foregroundStyle(AppTheme.onAccent)
+                                .foregroundStyle(AppTheme.textPrimary)
                                 .padding(.horizontal, 14)
-                                .padding(.vertical, 6)
-                                .background(AppTheme.accent, in: Capsule())
+                                .padding(.vertical, 7)
+                                .background(Color.white, in: Capsule())
+                                .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
                                 .disabled(!canPublish)
                         }
                     }
