@@ -2,7 +2,7 @@
 
 **Date:** September 3, 2026  
 **Author:** Antigravity (UI/Content Lane)  
-**Context:** Content library expansion per `ANTIGRAVITY_CONTENT_TASK.md` and Ponytail engineering standard integration per user request.
+**Context:** Content library expansion per `docs/archive/ANTIGRAVITY_CONTENT_TASK.md` and Ponytail engineering standard integration per user request.
 
 ---
 
@@ -17,7 +17,7 @@
 
 2. **Ponytail Integration (GitHub & Coding Architecture):**
    - **GitHub Fork:** Forked upstream `DietrichGebert/ponytail` to Anas's GitHub: [`ag1170-pixel/ponytail`](https://github.com/ag1170-pixel/ponytail).
-   - **Repository Rules:** Added `AGENTS.md` and `.cursor/rules/ponytail.mdc` in the root of `CraveCircle-IOS_App` so all coding assistants (Claude Code, Cursor, Copilot, Codex, Antigravity) enforce the 7-rung decision ladder.
+   - **Repository Rules:** Added `docs/AGENTS.md` and `.cursor/rules/ponytail.mdc` in the root of `CraveCircle-IOS_App` so all coding assistants (Claude Code, Cursor, Copilot, Codex, Antigravity) enforce the 7-rung decision ladder.
    - **Obsidian Architecture:** Created canonical standard `Punctualities/Ponytail-Methodology.md` in `SergantSwaggBase`, updated `Punctualities/00-Read-First.md`, `Punctualities/How-Agents-Act.md`, `Projects/CraveCircle/iOS-Architecture-and-Methods.md`, and `Projects/CraveCircle/CraveCircle.md`.
 
 ---
@@ -26,10 +26,10 @@
 
 ### 1. `AICookBook/SampleRecipes.swift`
 * **Changes:** Appended 16 fully formed `Recipe(...)` entries to `Recipe.placeholderRecipes` (total = 26 recipes).
-* **Why:** Fulfills `ANTIGRAVITY_CONTENT_TASK.md` goal of growing the starter catalog so the Home feed, Library, and search feel vibrant and production-ready on launch.
+* **Why:** Fulfills `docs/archive/ANTIGRAVITY_CONTENT_TASK.md` goal of growing the starter catalog so the Home feed, Library, and search feel vibrant and production-ready on launch.
 * **Integrity:** Kept `nutrition: nil` on new recipes to leverage on-device macro estimation; all ingredients strictly include units.
 
-### 2. `AGENTS.md` (Repo Root)
+### 2. `docs/AGENTS.md` (Repo Root)
 * **Changes:** Added Ponytail "lazy senior developer" rule definitions and 7-rung decision ladder:
   1. YAGNI?
   2. Already in codebase?
@@ -44,7 +44,7 @@
 * **Changes:** Added Cursor-specific system rule mapping Ponytail YAGNI principles.
 * **Why:** Enforces the same senior developer discipline when editing via Cursor IDE.
 
-### 4. Untouched Architect Files (Respecting `WORK_DIVISION.md`)
+### 4. Untouched Architect Files (Respecting `docs/archive/WORK_DIVISION.md`)
 * Preserved your unstaged working-tree additions in:
   - `AICookBook/AppEnvironment.swift` (`ownedRecipes`, `myDrafts`, `myPublished`)
   - `AICookBook/LibraryScreen.swift`

@@ -27,7 +27,7 @@
 **Defers (hidden from UI until ready)**
 
 - Share-a-video from Studio (today's `importFromVideo` isn't built for a local pick → see
-  `TODO_BREAK_THE_APP.md` P1).
+  `docs/TODO_BREAK_THE_APP.md` P1).
 - Followers count anywhere (no server endpoint yet).
 - Push notifications for inbound follows / likes / comments (hooks exist; no push server).
 - iPad / landscape adaptation.
@@ -146,7 +146,7 @@ Owner call: a guest can open **5 recipes**, after which the sign-in wall is non-
 - No "0 Followers" when the server doesn't know. (Fixed: tile hidden.)
 - Loading states on every network call that can take > 300 ms. (Audit outstanding.)
 - Error states, not silent fail, on: addComment, publishDraft, submitCreatorRequest,
-  toggleFollow. (Audit outstanding — see `TODO_BREAK_THE_APP.md`.)
+  toggleFollow. (Audit outstanding — see `docs/TODO_BREAK_THE_APP.md`.)
 
 ---
 
@@ -192,6 +192,6 @@ Owner call: a guest can open **5 recipes**, after which the sign-in wall is non-
 
 ## 8. Rolling backlog
 
-The item-level open list lives in `TODO_BREAK_THE_APP.md`. The architectural pieces above
+The item-level open list lives in `docs/TODO_BREAK_THE_APP.md`. The architectural pieces above
 reference it where applicable. Keep that file current; this one holds the shape, not the
 items.

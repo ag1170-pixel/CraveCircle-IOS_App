@@ -3,7 +3,7 @@
 > **Focus (2026-09-03, revised by founder):** make the **app itself perfect and feature-complete
 > first** — every button/flow working, features connected end-to-end, more content. **Launch/auth/App-Store
 > paperwork is deferred** (don't optimize for public release yet). Antigravity's first job = **recipe
-> content** (`ANTIGRAVITY_CONTENT_TASK.md`), then the UI polish lane below.
+> content** (`docs/archive/ANTIGRAVITY_CONTENT_TASK.md`), then the UI polish lane below.
 
 Goal: finish the app to a shippable, everything-works state. We share one repo
 (`/Users/user38/Projects/CraveCircle.cc` → `ag1170-pixel/CraveCircle-IOS_App`), so this splits by
@@ -81,7 +81,7 @@ other's file, leave a `// TODO(other-agent): …` and note it in your handoff co
 **P2 — polish & platform**
 6. **Accessibility pass** — VoiceOver labels on all controls/images, Dynamic Type, contrast.
 7. **Device-size/dark-mode parity** — check small iPhones + iPad, full light/dark.
-8. **Web** — build `/privacy`, `/terms`, `/support` on the site from `POLICIES_CraveCircle.md`; verify which repo serves `cravecircle.cc` first (hero repo vs the main Next.js app).
+8. **Web** — build `/privacy`, `/terms`, `/support` on the site from `docs/POLICIES_CraveCircle.md`; verify which repo serves `cravecircle.cc` first (hero repo vs the main Next.js app).
 9. **App Store visual assets** — screenshots, marketing copy.
 
 ## 🟨 Shared / User
