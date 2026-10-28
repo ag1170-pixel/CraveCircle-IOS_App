@@ -10,7 +10,6 @@ import SwiftUI
 
 struct AdminRequestsScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
-    @State private var busyId: String?
 
     var body: some View {
         List {
@@ -20,7 +19,7 @@ struct AdminRequestsScreen: View {
                                        description: Text("New creator requests will appear here for review."))
             } else {
                 ForEach(environment.pendingCreatorRequests) { req in
-                    VStack(alignment: .leading, spacing: 10) {
+                    NavigationLink { CreatorRequestDetailView(request: req) } label: {
                         HStack(spacing: 10) {
                             Image(systemName: platformIcon(req.socialPlatform))
                                 .font(.system(size: 18, weight: .semibold))
@@ -30,29 +29,13 @@ struct AdminRequestsScreen: View {
                                 Text("\(req.socialPlatform) · \(req.socialHandle)")
                                     .font(AppFont.body(15, weight: .semibold))
                                     .foregroundStyle(AppTheme.textPrimary)
-                                if let u = req.socialUrl, !u.isEmpty {
-                                    Text(u).font(AppFont.body(12)).foregroundStyle(AppTheme.textSecondary).lineLimit(1)
-                                }
+                                Text("Tap to review")
+                                    .font(AppFont.body(12))
+                                    .foregroundStyle(AppTheme.textSecondary)
                             }
                         }
-                        HStack(spacing: 10) {
-                            Button {
-                                decide(req, approve: true)
-                            } label: {
-                                Label("Approve", systemImage: "checkmark").frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent).tint(.green)
-
-                            Button(role: .destructive) {
-                                decide(req, approve: false)
-                            } label: {
-                                Label("Reject", systemImage: "xmark").frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                        .disabled(busyId == req.id)
+                        .padding(.vertical, 4)
                     }
-                    .padding(.vertical, 6)
                 }
             }
         }
@@ -61,21 +44,129 @@ struct AdminRequestsScreen: View {
         .refreshable { await environment.loadPendingCreatorRequests() }
     }
 
-    private func decide(_ req: CreatorRequest, approve: Bool) {
-        busyId = req.id
-        Haptics.select()
-        Task {
-            await environment.decideCreatorRequest(req, approve: approve)
-            await MainActor.run { busyId = nil }
-        }
-    }
-
-    private func platformIcon(_ platform: String) -> String {
+    fileprivate static func platformIcon(_ platform: String) -> String {
         switch platform.lowercased() {
         case "youtube": return "play.rectangle.fill"
         case "tiktok":  return "music.note"
         case "facebook": return "person.2.fill"
+        case "pinterest": return "pin.fill"
         default:        return "camera.fill"   // Instagram / other
+        }
+    }
+    private func platformIcon(_ platform: String) -> String { Self.platformIcon(platform) }
+}
+
+/// Admin opens a request to see everything the applicant submitted (platform, handle, URL, note,
+/// account id, time) so they can go verify the person on the actual network before approving.
+/// Approve ⇒ role flips to creator. The blue-tick toggle grants verified in the same action.
+private struct CreatorRequestDetailView: View {
+    let request: CreatorRequest
+    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(\.dismiss) private var dismiss
+    @State private var grantVerified = false
+    @State private var applicant: UserProfile?
+    @State private var busy = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        List {
+            Section("Applicant") {
+                HStack(spacing: 12) {
+                    CreatorAvatarView(handle: applicant?.username, size: 44)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(applicant?.fullName ?? "—")
+                            .font(AppFont.body(15, weight: .semibold))
+                        Text(applicant?.username.map { "@\($0)" } ?? request.userId)
+                            .font(AppFont.body(13))
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
+                }
+                row("Account id", value: request.userId, monospaced: true)
+                if let bio = applicant?.bio, !bio.isEmpty {
+                    row("Bio", value: bio)
+                }
+            }
+
+            Section("Submitted") {
+                row("Platform",  value: request.socialPlatform.capitalized)
+                row("Handle",    value: request.socialHandle, monospaced: true)
+                if let url = request.socialUrl, !url.isEmpty {
+                    Link(destination: URL(string: url) ?? URL(string: "about:blank")!) {
+                        HStack {
+                            Image(systemName: "link")
+                            Text("Open \(url)").lineLimit(1).truncationMode(.middle)
+                        }
+                        .font(AppFont.body(14, weight: .semibold))
+                        .foregroundStyle(AppTheme.accentInk)
+                    }
+                }
+                if let note = request.note, !note.isEmpty {
+                    row("Note", value: note)
+                }
+                row("Requested", value: request.createdAt.formatted(date: .abbreviated, time: .shortened))
+            }
+
+            Section {
+                Toggle(isOn: $grantVerified) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.seal.fill").foregroundStyle(Color.blue)
+                        Text("Grant blue tick").font(AppFont.body(15, weight: .semibold))
+                    }
+                }
+            } footer: {
+                Text("Toggle on if you've verified this person off-platform and want their profile to show a blue tick.")
+            }
+
+            if let errorMessage {
+                Text(errorMessage).foregroundStyle(AppTheme.destructive)
+            }
+
+            Section {
+                Button {
+                    decide(approve: true)
+                } label: {
+                    Label("Approve as creator", systemImage: "checkmark").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent).tint(.green).disabled(busy)
+
+                Button(role: .destructive) {
+                    decide(approve: false)
+                } label: {
+                    Label("Reject", systemImage: "xmark").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered).disabled(busy)
+            }
+        }
+        .navigationTitle("Review")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            applicant = await environment.fetchPublicProfileById(request.userId)
+        }
+    }
+
+    private func row(_ label: String, value: String, monospaced: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(AppFont.body(12)).foregroundStyle(AppTheme.textTertiary)
+            Text(value)
+                .font(monospaced ? .system(.body, design: .monospaced) : AppFont.body(15))
+                .foregroundStyle(AppTheme.textPrimary)
+                .textSelection(.enabled)
+        }
+    }
+
+    private func decide(approve: Bool) {
+        busy = true; errorMessage = nil
+        Haptics.select()
+        Task {
+            await environment.decideCreatorRequest(request, approve: approve)
+            if approve, grantVerified {
+                let ok = await environment.setUserVerified(userId: request.userId, verified: true)
+                if !ok { await MainActor.run { errorMessage = "Approved, but couldn't set verified. Retry from Supabase if needed." } }
+            }
+            await MainActor.run {
+                busy = false
+                if errorMessage == nil { dismiss() }
+            }
         }
     }
 }

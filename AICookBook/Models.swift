@@ -29,13 +29,20 @@ struct UserProfile: Codable, Identifiable {
     var tiktokUrl: String? = nil
     var youtubeUrl: String? = nil
     var facebookUrl: String? = nil
+    var pinterestUrl: String? = nil
+    /// Admin-granted blue tick. UI shows the checkmark badge only when this is true.
+    var verified: Bool = false
+    /// Set the first time this account finishes onboarding. Non-nil → skip the flow on any
+    /// fresh install this id signs into. Server-authoritative so it syncs across devices.
+    var onboardedAt: Date? = nil
 
     var canPublish: Bool { role.canPublish }
 
     init(id: String, username: String? = nil, fullName: String? = nil, avatarUrl: String? = nil,
          role: AccountRole = .user, bio: String? = nil,
          instagramUrl: String? = nil, tiktokUrl: String? = nil,
-         youtubeUrl: String? = nil, facebookUrl: String? = nil) {
+         youtubeUrl: String? = nil, facebookUrl: String? = nil,
+         pinterestUrl: String? = nil, verified: Bool = false, onboardedAt: Date? = nil) {
         self.id = id
         self.username = username
         self.fullName = fullName
@@ -46,6 +53,9 @@ struct UserProfile: Codable, Identifiable {
         self.tiktokUrl = tiktokUrl
         self.youtubeUrl = youtubeUrl
         self.facebookUrl = facebookUrl
+        self.pinterestUrl = pinterestUrl
+        self.verified = verified
+        self.onboardedAt = onboardedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -60,6 +70,9 @@ struct UserProfile: Codable, Identifiable {
         tiktokUrl = try c.decodeIfPresent(String.self, forKey: .tiktokUrl)
         youtubeUrl = try c.decodeIfPresent(String.self, forKey: .youtubeUrl)
         facebookUrl = try c.decodeIfPresent(String.self, forKey: .facebookUrl)
+        pinterestUrl = try c.decodeIfPresent(String.self, forKey: .pinterestUrl)
+        verified = (try c.decodeIfPresent(Bool.self, forKey: .verified)) ?? false
+        onboardedAt = try c.decodeIfPresent(Date.self, forKey: .onboardedAt)
     }
 }
 

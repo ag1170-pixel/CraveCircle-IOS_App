@@ -12,6 +12,7 @@ struct CreatorProfileSheet: View {
     let name: String?
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss
+    @State private var profile: UserProfile?
 
     private var cleanHandle: String {
         handle.hasPrefix("@") ? handle : "@\(handle)"
@@ -45,6 +46,14 @@ struct CreatorProfileSheet: View {
             ScrollView {
                 VStack(spacing: AppSpacing.lg) {
                     headerSection
+                    if let bio = profile?.bio, !bio.isEmpty {
+                        Text(bio)
+                            .font(AppFont.body(14))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, AppSpacing.md)
+                    }
+                    socialsSection
                     statsSection
                     recipesSection
                 }
@@ -61,6 +70,7 @@ struct CreatorProfileSheet: View {
                         .foregroundStyle(AppTheme.accentInk)
                 }
             }
+            .task { profile = await environment.fetchPublicProfile(username: cleanHandle) }
         }
     }
 
@@ -86,9 +96,12 @@ struct CreatorProfileSheet: View {
                     Text(cleanHandle)
                         .font(AppFont.body(14, weight: .medium))
                         .foregroundStyle(AppTheme.textSecondary)
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(AppTheme.accentInk)
+                    // Blue tick only shows for admin-verified accounts, not everyone.
+                    if profile?.verified == true {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.blue)
+                    }
                 }
             }
 
@@ -109,6 +122,56 @@ struct CreatorProfileSheet: View {
                 Haptics.tap()
                 environment.toggleFollow(creatorHandle: cleanHandle)
             }
+        }
+    }
+
+    // MARK: - Socials row
+
+    /// First 4 populated social links as tappable chips. Anything beyond collapses into a
+    /// chevron Menu so the row stays single-line even if the creator has 5 platforms. Fixed
+    /// order (IG, TikTok, YT, Pinterest, FB) — no drag-drop; at 5 total it isn't worth it.
+    @ViewBuilder private var socialsSection: some View {
+        let links: [(String, String, String)] = [    // (platform, systemImage, url)
+            ("Instagram", "camera.fill",         profile?.instagramUrl ?? ""),
+            ("TikTok",    "music.note",          profile?.tiktokUrl    ?? ""),
+            ("YouTube",   "play.rectangle.fill", profile?.youtubeUrl   ?? ""),
+            ("Pinterest", "pin.fill",            profile?.pinterestUrl ?? ""),
+            ("Facebook",  "person.2.fill",       profile?.facebookUrl  ?? ""),
+        ].filter { !$0.2.isEmpty }
+
+        if !links.isEmpty {
+            HStack(spacing: 10) {
+                ForEach(Array(links.prefix(4)), id: \.0) { label, icon, urlStr in
+                    socialChip(label: label, icon: icon, urlStr: urlStr)
+                }
+                if links.count > 4 {
+                    Menu {
+                        ForEach(links.dropFirst(4), id: \.0) { label, _, urlStr in
+                            Link(label, destination: URL(string: urlStr) ?? URL(string: "about:blank")!)
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .frame(width: 42, height: 36)
+                            .background(AppTheme.surface, in: Capsule())
+                            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                    }
+                }
+            }
+        }
+    }
+
+    private func socialChip(label: String, icon: String, urlStr: String) -> some View {
+        Link(destination: URL(string: urlStr) ?? URL(string: "about:blank")!) {
+            HStack(spacing: 6) {
+                Image(systemName: icon).font(.system(size: 12, weight: .semibold))
+                Text(label).font(AppFont.body(12, weight: .semibold)).lineLimit(1)
+            }
+            .foregroundStyle(AppTheme.textPrimary)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(AppTheme.surface, in: Capsule())
+            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
         }
     }
 

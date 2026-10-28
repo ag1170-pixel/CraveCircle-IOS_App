@@ -24,6 +24,9 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var avatarImageData: Data? { didSet { persist(avatarImageData, "avatar.json") } }
     @AppStorage("guest_user_id") private var guestUserId: String = ""
     @AppStorage("onboarded_user_ids") private var onboardedUserIdsRaw: String = ""
+    /// Set when the first-run onboarding is completed BEFORE the user signs in. On successful
+    /// sign-in we attribute it to their account so they don't go through it again. Cleared then.
+    @AppStorage("pre_auth_onboarding_done") private var preAuthOnboardingDone: Bool = false
     /// Device-wide flag so guests also see the first-run flow once. Flipped by `markOnboarded()`.
     @AppStorage("device_onboarded") private var deviceOnboarded: Bool = false
     // Picks captured by the first-run onboarding flow. Stored for future personalization
@@ -389,6 +392,12 @@ final class AppEnvironment: ObservableObject {
         // The user is now a real signed-in account — if any guest-era paywall was still raised
         // the sheet would re-present on MainTabView. Drop it unconditionally.
         showGuestPaywall = false
+        // If the user went through onboarding before signing in, attribute it to this id so they
+        // don't see it a second time (locally + server-side).
+        if preAuthOnboardingDone, currentUser?.onboardedAt == nil, !isGuest {
+            markOnboarded()
+            preAuthOnboardingDone = false
+        }
         await refreshRecipes()
         await hydrateLikesAndSavesFromServer()
         await hydrateMealPlanFromServer()
@@ -478,52 +487,68 @@ final class AppEnvironment: ObservableObject {
 
     /// Edit display name / username. Updates locally right away and pushes to the profile row so it
     /// persists and is visible to others. Empty fields are ignored.
-    func updateProfile(fullName: String?, username: String?) async {
-        let name = fullName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        var handle = username?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let h = handle, h.hasPrefix("@") { handle = String(h.dropFirst()) }   // store without '@'
-        if let cur = currentUser {
-            currentUser = UserProfile(
-                id: cur.id,
-                username: (handle?.isEmpty == false) ? handle : cur.username,
-                fullName: (name?.isEmpty == false) ? name : cur.fullName,
-                avatarUrl: cur.avatarUrl,
-                role: cur.role,
-                bio: cur.bio,
-                instagramUrl: cur.instagramUrl,
-                tiktokUrl: cur.tiktokUrl,
-                youtubeUrl: cur.youtubeUrl,
-                facebookUrl: cur.facebookUrl
-            )
-        }
-        _ = await supabase.updateMyProfile(
-            fullName: (name?.isEmpty == false) ? name : nil,
-            username: (handle?.isEmpty == false) ? handle : nil,
-            avatarUrl: nil
+    enum ProfileSaveOutcome { case ok, usernameTaken, failed }
+
+    /// Patch any editable profile field. Username changes are protected server-side by a UNIQUE
+    /// constraint; .usernameTaken is bubbled up so the UI can show "that handle's taken".
+    func updateProfile(fullName: String? = nil,
+                       username: String? = nil,
+                       bio: String? = nil,
+                       instagram: String? = nil,
+                       tiktok: String? = nil,
+                       youtube: String? = nil,
+                       facebook: String? = nil,
+                       pinterest: String? = nil) async -> ProfileSaveOutcome {
+        func trim(_ v: String?) -> String? { v?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let name = trim(fullName)
+        var handle = trim(username); if let h = handle, h.hasPrefix("@") { handle = String(h.dropFirst()) }
+        let b = trim(bio), ig = trim(instagram), tt = trim(tiktok), yt = trim(youtube), fb = trim(facebook), pin = trim(pinterest)
+
+        let result = await supabase.updateMyProfile(
+            fullName:     name,
+            username:     (handle?.isEmpty == false) ? handle : nil,
+            avatarUrl:    nil,
+            bio:          b,
+            instagramUrl: ig,
+            tiktokUrl:    tt,
+            youtubeUrl:   yt,
+            facebookUrl:  fb,
+            pinterestUrl: pin
         )
+        guard result == .ok else {
+            return result == .usernameTaken ? .usernameTaken : .failed
+        }
+        // Mirror the write locally so the UI doesn't need a round-trip to reflect the change.
+        if var cur = currentUser {
+            if let n = name, !n.isEmpty { cur.fullName = n }
+            if let h = handle, !h.isEmpty { cur.username = h }
+            if let b { cur.bio = b.isEmpty ? nil : b }
+            if let ig { cur.instagramUrl = ig.isEmpty ? nil : ig }
+            if let tt { cur.tiktokUrl    = tt.isEmpty ? nil : tt }
+            if let yt { cur.youtubeUrl   = yt.isEmpty ? nil : yt }
+            if let fb { cur.facebookUrl  = fb.isEmpty ? nil : fb }
+            if let pin { cur.pinterestUrl = pin.isEmpty ? nil : pin }
+            currentUser = cur
+        }
+        return .ok
     }
 
-    /// Save the user-written bio + social links. Stored on the local currentUser copy — the
-    /// backend table doesn't carry these columns yet, so this is per-device for now and will
-    /// mirror once the cloud schema catches up.
-    func updateProfileSocials(bio: String?, instagram: String?, tiktok: String?, youtube: String?, facebook: String?) {
-        guard let cur = currentUser else { return }
-        func clean(_ v: String?) -> String? {
-            let t = v?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            return t.isEmpty ? nil : t
-        }
-        currentUser = UserProfile(
-            id: cur.id,
-            username: cur.username,
-            fullName: cur.fullName,
-            avatarUrl: cur.avatarUrl,
-            role: cur.role,
-            bio: clean(bio),
-            instagramUrl: clean(instagram),
-            tiktokUrl: clean(tiktok),
-            youtubeUrl: clean(youtube),
-            facebookUrl: clean(facebook)
-        )
+    /// Admin-only: toggle another user's blue tick. The admin-requests screen calls this when
+    /// approving a creator the admin wants to verify at the same time.
+    func setUserVerified(userId: String, verified: Bool) async -> Bool {
+        guard isAdmin else { return false }
+        return await supabase.setUserVerified(userId: userId, verified: verified)
+    }
+
+    /// Public profile fetch for CreatorProfileSheet — gets bio, socials, verified for any user.
+    func fetchPublicProfile(username: String) async -> UserProfile? {
+        await supabase.fetchProfile(username: username)
+    }
+
+    /// Same as above but by user id — used by the admin creator-request review to show the
+    /// applicant's profile card without the viewer having to search the directory.
+    func fetchPublicProfileById(_ userId: String) async -> UserProfile? {
+        await supabase.fetchProfile(id: userId)
     }
 
     func signOut() {
@@ -664,26 +689,40 @@ final class AppEnvironment: ObservableObject {
     /// whenever the caller has a narrower context (e.g. Library's Liked/Saved/Created tabs) so a
     /// left/right swipe stays inside what's actually on screen, not the full unfiltered library.
     
-    @AppStorage("guest_recipes_viewed") private var guestRecipesViewed = 0
+    /// Owner call (2026-10-28): a guest gets 10 free recipe opens, then a sign-in wall. We count
+     /// UNIQUE recipe ids so re-tapping the same card doesn't burn through the budget.
+    static let guestViewLimit = 10
+    @AppStorage("guest_viewed_ids") private var guestViewedIdsRaw: String = ""
     @Published var showGuestPaywall = false
 
-    /// Owner call (2026-10-25): a guest can browse the entire app — Discover, Home, recipes,
-    /// creators, grocery, cook mode — but cannot IMPORT, PUBLISH, FOLLOW, LIKE, SAVE or COMMENT.
-    /// The sign-in wall is now action-triggered rather than view-triggered. This mirrors the
-    /// Instagram pattern of "look all you want, log in to participate".
-    func canViewRecipe() -> Bool { true }
-
-    /// Any write path (import, publish, follow, like, save, comment) calls into
-    /// `requireRealSessionOrPrompt()` which raises `showGuestPaywall`. This method is kept so
-    /// a sign-in / sign-up transition clears whatever counter state might have accrued from an
-    /// older build that enforced a view cap.
-    func resetGuestViewCounter() {
-        guestRecipesViewed = 0
+    private var guestViewedIds: Set<String> {
+        get { Set(guestViewedIdsRaw.split(separator: ",").map(String.init).filter { !$0.isEmpty }) }
+        set { guestViewedIdsRaw = newValue.sorted().joined(separator: ",") }
     }
 
-    /// Legacy UI hook — always returns a non-blocking "unlimited". Kept so any screen that was
-    /// reading this to show "N free recipes left" doesn't need a conditional removal.
-    var guestViewsRemaining: Int { Int.max }
+    /// Signed-in users: always true. Guests: true until they've opened `guestViewLimit` distinct
+    /// recipes, then false (and the paywall is raised). Called from `selectRecipe`.
+    func canViewRecipe(_ recipeId: String? = nil) -> Bool {
+        if !isGuest { return true }
+        var seen = guestViewedIds
+        if let id = recipeId { seen.insert(id); guestViewedIds = seen }
+        if seen.count > Self.guestViewLimit {
+            promptGuestToSignIn(reason: .generic)
+            return false
+        }
+        return true
+    }
+
+    /// Clears the per-id counter on sign-in / sign-up so the next guest session starts fresh.
+    func resetGuestViewCounter() {
+        guestViewedIdsRaw = ""
+    }
+
+    /// How many free recipe views the guest has left. UI hint — a small chip under the search bar.
+    var guestViewsRemaining: Int {
+        guard isGuest else { return Int.max }
+        return max(0, Self.guestViewLimit - guestViewedIds.count)
+    }
 
     /// Guest tried to import, publish, share, or do anything that writes to our catalog. Raises
     /// the paywall with a message that invites them in rather than scolding them.
@@ -721,7 +760,9 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var recipeSwipeContext: [Recipe]?
 
     func selectRecipe(_ recipe: Recipe, in context: [Recipe]? = nil) {
-        guard canViewRecipe() else { return }
+        // For guests this records the recipe id in the view budget. Returns false (and raises
+        // the paywall) once they've opened `guestViewLimit` distinct recipes.
+        guard canViewRecipe(recipe.id) else { return }
         recipeSwipeContext = context
         selectedRecipe = recipe
         refreshAuthoritativeNutrition(for: recipe)
@@ -903,7 +944,21 @@ final class AppEnvironment: ObservableObject {
         return isOwner(of: recipe)
     }
 
-    var canPublish: Bool { currentUser?.role == .admin }
+    /// Admin OR creator can publish. Prior build hard-coded this to admin only, so friends who
+     /// got approved as creators still saw Publish disabled — defer to the role's own capability.
+    var canPublish: Bool { currentUser?.canPublish == true }
+
+    /// Pull the latest profile row (role, bio, links, onboarded_at). Called on foreground so a
+    /// creator-request approval made while the app was backgrounded unlocks Studio / Publish on
+    /// its own, no reinstall. Also drops the pending-request chip if the request landed.
+    func refreshMyProfile() async {
+        guard appState == .signedIn, !isGuest else { return }
+        guard let fresh = await supabase.fetchMyProfile() else { return }
+        await MainActor.run {
+            currentUser = fresh
+            if fresh.canPublish { myCreatorRequestStatus = nil }
+        }
+    }
 
     // MARK: - Community MVP Logic Stubs
     
@@ -1044,11 +1099,23 @@ final class AppEnvironment: ObservableObject {
 
     /// Shown once per device on first launch (guest and signed-in). After someone signs in and
     /// finishes it, their user id is also recorded so switching accounts doesn't re-trigger it.
+    /// First-run on this install: no user yet AND the device-wide onboarding flag isn't set.
+    /// RootView uses this to run the onboarding BEFORE the login screen.
+    var showPreAuthOnboarding: Bool {
+        appState == .signedOut && !deviceOnboarded
+    }
+
     var needsOnboarding: Bool {
         guard appState == .signedIn else { return false }
-        if !deviceOnboarded { return true }
-        guard let id = currentUser?.id, !isGuest else { return false }
-        return !onboardedUserIds.contains(id)
+        // Signed-in (non-guest): server flag wins (survives reinstalls / new devices), with
+        // the local per-user record as an offline-safe fallback.
+        if let user = currentUser, !isGuest {
+            if user.onboardedAt != nil { return false }
+            return !onboardedUserIds.contains(user.id)
+        }
+        // Guest / anonymous: fall back to the device-wide flag so the first-run flow still
+        // runs once per install, but never a second time.
+        return !deviceOnboarded
     }
 
     private var onboardedUserIds: Set<String> {
@@ -1063,11 +1130,18 @@ final class AppEnvironment: ObservableObject {
     func markOnboarded() {
         // Device-wide flag so the first-run flow never re-shows on this install (guest or not).
         deviceOnboarded = true
-        // Also record this user id so if they sign in later we don't re-trigger it on another device.
-        guard let id = currentUser?.id, !isGuest else { return }
+        // If no user is signed in (onboarding runs before login), park a flag that
+        // finishAuthenticatedSession will consume to credit the first signed-in id.
+        guard let id = currentUser?.id, !isGuest else {
+            preAuthOnboardingDone = true
+            return
+        }
         var ids = onboardedUserIds
         ids.insert(id)
         onboardedUserIdsRaw = ids.sorted().joined(separator: ",")
+        // Server-side flag — authoritative across devices and reinstalls.
+        currentUser?.onboardedAt = Date()
+        Task { _ = await supabase.markProfileOnboarded() }
     }
     var hasPendingCreatorRequest: Bool { myCreatorRequestStatus == "pending" }
     /// True when a real Supabase session exists (so the request flow can run); false under the

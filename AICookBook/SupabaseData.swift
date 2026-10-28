@@ -116,21 +116,86 @@ struct SupabaseData {
         return true
     }
 
-    /// Update the signed-in user's own profile (RLS profiles_update_own allows id = auth.uid()).
-    /// Only non-nil fields are sent. Returns true on success.
-    func updateMyProfile(fullName: String?, username: String?, avatarUrl: String?) async -> Bool {
+    /// Stamp `profiles.onboarded_at = now()` so this id skips the first-run flow on any device.
+    /// Idempotent — a repeat call just rewrites the timestamp.
+    func markProfileOnboarded() async -> Bool {
         guard let uid = currentUserId(),
               var req = request(path: "rest/v1/profiles?id=eq.\(uid)", method: "PATCH") else { return false }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["onboarded_at": ISO8601DateFormatter().string(from: Date())])
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
+    /// Update the signed-in user's own profile (RLS profiles_update_own allows id = auth.uid()).
+    /// Only non-nil fields are sent. Returns .ok on success, .usernameTaken on 23505 unique
+    /// violation for the username column, .failed on anything else. Callers surface the specific
+    /// case so the user can rename.
+    enum ProfileUpdateResult { case ok, usernameTaken, failed }
+    func updateMyProfile(fullName: String? = nil,
+                         username: String? = nil,
+                         avatarUrl: String? = nil,
+                         bio: String? = nil,
+                         instagramUrl: String? = nil,
+                         tiktokUrl: String? = nil,
+                         youtubeUrl: String? = nil,
+                         facebookUrl: String? = nil,
+                         pinterestUrl: String? = nil) async -> ProfileUpdateResult {
+        guard let uid = currentUserId(),
+              var req = request(path: "rest/v1/profiles?id=eq.\(uid)", method: "PATCH") else { return .failed }
         var body: [String: Any] = [:]
         if let fullName { body["full_name"] = fullName }
         if let username { body["username"] = username }
         if let avatarUrl { body["avatar_url"] = avatarUrl }
-        guard !body.isEmpty else { return true }
+        // Empty string clears the field server-side; nil leaves it untouched.
+        if let bio { body["bio"] = bio.isEmpty ? NSNull() : bio }
+        if let instagramUrl { body["instagram_url"] = instagramUrl.isEmpty ? NSNull() : instagramUrl }
+        if let tiktokUrl    { body["tiktok_url"]    = tiktokUrl.isEmpty ? NSNull() : tiktokUrl }
+        if let youtubeUrl   { body["youtube_url"]   = youtubeUrl.isEmpty ? NSNull() : youtubeUrl }
+        if let facebookUrl  { body["facebook_url"]  = facebookUrl.isEmpty ? NSNull() : facebookUrl }
+        if let pinterestUrl { body["pinterest_url"] = pinterestUrl.isEmpty ? NSNull() : pinterestUrl }
+        guard !body.isEmpty else { return .ok }
         req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse else { return .failed }
+        if (200..<300).contains(http.statusCode) { return .ok }
+        // Postgres unique-violation (SQLSTATE 23505). Supabase surfaces it as {code: "23505", …}.
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let code = json["code"] as? String, code == "23505" { return .usernameTaken }
+        return .failed
+    }
+
+    /// Admin-only: toggle another user's blue tick. Protected by the `verified_admin_only` RLS
+    /// policy so a non-admin's PATCH is rejected server-side even if the UI slips through.
+    func setUserVerified(userId: String, verified: Bool) async -> Bool {
+        guard var req = request(path: "rest/v1/profiles?id=eq.\(userId)", method: "PATCH") else { return false }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["verified": verified])
         guard let (_, resp) = try? await URLSession.shared.data(for: req),
               let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
         return true
+    }
+
+    /// Fetch any user's public profile by id — used by CreatorProfileSheet to show bio, socials
+    /// and verified status for a creator the viewer hasn't signed in as.
+    func fetchProfile(id: String) async -> UserProfile? {
+        guard let req = request(path: "rest/v1/profiles?select=*&id=eq.\(id)&limit=1", method: "GET") else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return (try? Self.decoder().decode([UserProfile].self, from: data))?.first
+    }
+
+    /// Fetch a public profile by username (CreatorProfileSheet reads this when it only has
+    /// the handle). Case-insensitive match against profiles.username.
+    func fetchProfile(username: String) async -> UserProfile? {
+        let clean = username.hasPrefix("@") ? String(username.dropFirst()) : username
+        let enc = clean.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? clean
+        guard let req = request(path: "rest/v1/profiles?select=*&username=ilike.\(enc)&limit=1", method: "GET") else { return nil }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return (try? Self.decoder().decode([UserProfile].self, from: data))?.first
     }
 
     // MARK: - Creator requests

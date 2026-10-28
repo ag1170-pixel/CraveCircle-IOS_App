@@ -23,6 +23,22 @@ struct ProfileScreen: View {
         return n == 0 ? "None yet" : (n == 1 ? "1 planned" : "\(n) planned")
     }
 
+    /// Next upcoming cook — drives the richer Meal Plan row preview below.
+    private var nextPlannedMeal: (meal: PlannedMeal, recipe: Recipe)? {
+        let now = Date()
+        guard let next = environment.plannedMeals.first(where: { $0.when >= now }) else { return nil }
+        guard let recipe = environment.recipes.first(where: { $0.id == next.recipeId }) else { return nil }
+        return (next, recipe)
+    }
+
+    private func whenPhrase(_ date: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(date)     { return "today" }
+        if cal.isDateInTomorrow(date)  { return "tomorrow" }
+        let fmt = DateFormatter(); fmt.dateFormat = "EEE"
+        return fmt.string(from: date)
+    }
+
     private var unreadSharedCount: Int {
         let lastDate = Date(timeIntervalSince1970: lastOpenedSharedScreen)
         let myId = environment.currentUser?.id ?? "me"
@@ -217,6 +233,55 @@ struct ProfileScreen: View {
 
     // MARK: Settings
 
+    /// Richer Meal Plan row: calendar icon on the left, title + next-cook preview on the
+     /// right (slot · recipe · when). Falls back to a clean empty state when nothing's planned.
+    private var mealPlanRow: some View {
+        HStack(spacing: AppSpacing.sm) {
+            Image(systemName: "calendar")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 30, height: 30)
+                .background(Color.green, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Meal Plan")
+                    .font(AppFont.body(16, weight: .medium))
+                    .foregroundStyle(AppTheme.textPrimary)
+                if let next = nextPlannedMeal {
+                    Text("\(next.meal.slot.displayName) \(whenPhrase(next.meal.when)) · \(next.recipe.title)")
+                        .font(AppFont.body(12))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(1)
+                } else {
+                    Text("Nothing planned · tap to add")
+                        .font(AppFont.body(12))
+                        .foregroundStyle(AppTheme.textTertiary)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            if let next = nextPlannedMeal {
+                RecipeCoverImage(recipe: next.recipe)
+                    .frame(width: 40, height: 40)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            } else if let n = Optional(environment.plannedMeals.count), n > 0 {
+                Text("\(n)")
+                    .font(AppFont.body(13, weight: .bold))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(AppTheme.accentSoft, in: Capsule())
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(AppTheme.textTertiary)
+        }
+        .padding(.horizontal, AppSpacing.md)
+        .padding(.vertical, 11)
+        .contentShape(Rectangle())
+    }
+
     private var settings: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             Text("Preferences").sectionLabelStyle()
@@ -233,14 +298,8 @@ struct ProfileScreen: View {
                     showNotifications = true
                 }
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
-                NavigationLink {
-                    MealPlanScreen()
-                } label: {
-                    SettingRow(icon: "calendar", title: "Meal Plan",
-                               detail: plannedCountDetail, tint: .green) {}
-                        .allowsHitTesting(false)
-                }
-                .buttonStyle(.plain)
+                NavigationLink { MealPlanScreen() } label: { mealPlanRow }
+                    .buttonStyle(.plain)
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
                 SettingRow(icon: "tray.and.arrow.down", title: "Shared with you", detail: nil, badgeCount: unreadSharedCount, tint: .pink) {
                     lastOpenedSharedScreen = Date().timeIntervalSince1970
@@ -1126,9 +1185,16 @@ struct EditProfileSheet: View {
 
     @State private var fullName = ""
     @State private var username = ""
+    @State private var bio = ""
+    @State private var instagram = ""
+    @State private var tiktok = ""
+    @State private var youtube = ""
+    @State private var pinterest = ""
+    @State private var facebook = ""
     @State private var pickerItem: PhotosPickerItem?
     @State private var newAvatar: Data?
     @State private var saving = false
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -1144,7 +1210,30 @@ struct EditProfileSheet: View {
                         .foregroundStyle(AppTheme.textTertiary)
 
                     field(title: "Name", text: $fullName, placeholder: "Your name")
-                    field(title: "Username", text: $username, placeholder: "yourname", prefix: "@")
+                    // Username is UNIQUE across the app, so it's locked after sign-up. If the user
+                    // really wants a new one they contact support — otherwise an edit here would
+                    // silently fail on the server's UNIQUE constraint and confuse everyone.
+                    lockedField(title: "Username", value: username.isEmpty ? "yourname" : username, prefix: "@")
+                    field(title: "Bio", text: $bio, placeholder: "A short line about your kitchen")
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Social links").sectionLabelStyle()
+                        Text("Optional. The app shows these on your public profile so people can follow you off-platform.")
+                            .font(AppFont.body(12))
+                            .foregroundStyle(AppTheme.textTertiary)
+                        socialField(title: "Instagram",    text: $instagram, icon: "camera.fill",       placeholder: "instagram.com/you")
+                        socialField(title: "TikTok",       text: $tiktok,    icon: "music.note",        placeholder: "tiktok.com/@you")
+                        socialField(title: "YouTube",      text: $youtube,   icon: "play.rectangle.fill", placeholder: "youtube.com/@you")
+                        socialField(title: "Pinterest",    text: $pinterest, icon: "pin.fill",          placeholder: "pinterest.com/you")
+                        socialField(title: "Facebook",     text: $facebook,  icon: "person.2.fill",     placeholder: "facebook.com/you")
+                    }
+
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(AppFont.body(13, weight: .semibold))
+                            .foregroundStyle(AppTheme.destructive)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
                 .padding(AppSpacing.lg)
             }
@@ -1165,9 +1254,16 @@ struct EditProfileSheet: View {
                 }
             }
             .onAppear {
-                fullName = environment.currentUser?.fullName ?? ""
-                let u = environment.currentUser?.username ?? ""
-                username = u.hasPrefix("@") ? String(u.dropFirst()) : u
+                let u = environment.currentUser
+                fullName = u?.fullName ?? ""
+                let raw = u?.username ?? ""
+                username = raw.hasPrefix("@") ? String(raw.dropFirst()) : raw
+                bio = u?.bio ?? ""
+                instagram = u?.instagramUrl ?? ""
+                tiktok    = u?.tiktokUrl    ?? ""
+                youtube   = u?.youtubeUrl   ?? ""
+                pinterest = u?.pinterestUrl ?? ""
+                facebook  = u?.facebookUrl  ?? ""
             }
             .onChange(of: pickerItem) { _, item in
                 guard let item else { return }
@@ -1226,12 +1322,68 @@ struct EditProfileSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Read-only variant of `field` for immutable values like the username. Still looks like a
+    /// field so the UI stays visually coherent, with a tiny lock glyph to say why.
+    @ViewBuilder
+    private func lockedField(title: String, value: String, prefix: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text(title).font(AppFont.body(13, weight: .semibold)).foregroundStyle(AppTheme.textSecondary)
+                Image(systemName: "lock.fill").font(.system(size: 10, weight: .semibold)).foregroundStyle(AppTheme.textTertiary)
+                Spacer()
+                Text("Can't change").font(AppFont.body(11)).foregroundStyle(AppTheme.textTertiary)
+            }
+            HStack(spacing: 4) {
+                if let prefix { Text(prefix).foregroundStyle(AppTheme.textTertiary) }
+                Text(value).foregroundStyle(AppTheme.textSecondary)
+                Spacer(minLength: 0)
+            }
+            .font(AppFont.body(16))
+            .padding(.horizontal, AppSpacing.md).padding(.vertical, 14)
+            .background(AppTheme.surface.opacity(0.7), in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func socialField(title: String, text: Binding<String>, icon: String, placeholder: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+                .frame(width: 28, height: 28)
+                .background(AppTheme.accentSoft, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            TextField(placeholder, text: text)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled(true)
+                .keyboardType(.URL)
+                .font(AppFont.body(15))
+        }
+        .padding(.horizontal, AppSpacing.md).padding(.vertical, 10)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+    }
+
     private func save() async {
-        saving = true
+        saving = true; errorMessage = nil
         if let newAvatar { environment.setAvatar(newAvatar) }
-        await environment.updateProfile(fullName: fullName, username: username)
+        // Username is locked, so we never send it. All other fields update in one PATCH.
+        let outcome = await environment.updateProfile(
+            fullName: fullName,
+            bio: bio,
+            instagram: instagram,
+            tiktok: tiktok,
+            youtube: youtube,
+            facebook: facebook,
+            pinterest: pinterest
+        )
         saving = false
-        dismiss()
+        switch outcome {
+        case .ok: dismiss()
+        case .usernameTaken: errorMessage = "That username is already taken. Pick another one."
+        case .failed: errorMessage = "Couldn't save right now. Try again in a moment."
+        }
     }
 
     /// Downscale to <=512px and JPEG-compress so the on-device avatar stays small.
