@@ -32,6 +32,8 @@ struct UserProfile: Codable, Identifiable {
     var pinterestUrl: String? = nil
     /// Admin-granted blue tick. UI shows the checkmark badge only when this is true.
     var verified: Bool = false
+    /// Admin-flipped block. Bootstrap signs the user out and the server rejects writes.
+    var disabled: Bool = false
     /// Set the first time this account finishes onboarding. Non-nil → skip the flow on any
     /// fresh install this id signs into. Server-authoritative so it syncs across devices.
     var onboardedAt: Date? = nil
@@ -48,7 +50,8 @@ struct UserProfile: Codable, Identifiable {
          role: AccountRole = .user, bio: String? = nil,
          instagramUrl: String? = nil, tiktokUrl: String? = nil,
          youtubeUrl: String? = nil, facebookUrl: String? = nil,
-         pinterestUrl: String? = nil, verified: Bool = false, onboardedAt: Date? = nil,
+         pinterestUrl: String? = nil, verified: Bool = false, disabled: Bool = false,
+         onboardedAt: Date? = nil,
          preferredCuisines: [String] = [], goals: [String] = [],
          recipeSources: [String] = [], hearAbout: String? = nil) {
         self.id = id
@@ -63,6 +66,7 @@ struct UserProfile: Codable, Identifiable {
         self.facebookUrl = facebookUrl
         self.pinterestUrl = pinterestUrl
         self.verified = verified
+        self.disabled = disabled
         self.onboardedAt = onboardedAt
         self.preferredCuisines = preferredCuisines
         self.goals = goals
@@ -84,6 +88,7 @@ struct UserProfile: Codable, Identifiable {
         facebookUrl = try c.decodeIfPresent(String.self, forKey: .facebookUrl)
         pinterestUrl = try c.decodeIfPresent(String.self, forKey: .pinterestUrl)
         verified = (try c.decodeIfPresent(Bool.self, forKey: .verified)) ?? false
+        disabled = (try c.decodeIfPresent(Bool.self, forKey: .disabled)) ?? false
         onboardedAt = try c.decodeIfPresent(Date.self, forKey: .onboardedAt)
         preferredCuisines = (try c.decodeIfPresent([String].self, forKey: .preferredCuisines)) ?? []
         goals             = (try c.decodeIfPresent([String].self, forKey: .goals)) ?? []
@@ -177,6 +182,21 @@ struct Recipe: Codable, Identifiable, Hashable {
     var nutrition: RecipeNutrition?   // per-serving; server-computed from ingredients, else estimated
     var sourceUrl: String?        // URL of the source Instagram / TikTok reel
     var visibility: RecipeVisibility = .everyone
+    /// Explicit meal slots the creator (or admin backfill) tagged this recipe with. Nil / empty
+    /// = classifier infers from title + ingredients. Optional so old local saves decode cleanly.
+    var mealTypes: [String]? = nil
+
+    /// Which meal slots this recipe fits — explicit `mealTypes` if the creator picked any,
+    /// otherwise the heuristic classifier. A recipe with no cues falls into lunch + dinner so
+    /// it still shows in the broad middle of the day.
+    var mealSlots: Set<MealSlot> {
+        if let tags = mealTypes, !tags.isEmpty {
+            return Set(tags.compactMap { MealSlot(rawValue: $0) })
+        }
+        let names = ingredients.flatMap { $0.items }
+        let inferred = MealSlot.classify(title: title, description: description, ingredients: names)
+        return inferred.isEmpty ? [.lunch, .dinner] : inferred
+    }
 
     /// True only when this recipe was imported from a social reel (Instagram / TikTok / YouTube / Facebook).
     var isImportedFromSocial: Bool { Self.isSocialImportURL(sourceUrl) }
@@ -720,6 +740,44 @@ enum MealSlot: String, Codable, CaseIterable, Hashable, Identifiable {
         case 17..<22:  return .dinner
         default:       return .snack
         }
+    }
+
+    /// Keyword set used by the heuristic classifier below. Covers the long tail without a model;
+    /// cheap to run on every recipe render. If a recipe ever stores an explicit `mealTypes`
+    /// array we fall back to this only when the array is empty.
+    private static let keywords: [MealSlot: Set<String>] = [
+        .breakfast: ["breakfast", "pancake", "waffle", "omelette", "omelet", "scramble",
+                     "oatmeal", "porridge", "granola", "muesli", "cereal", "smoothie",
+                     "yogurt", "toast", "bagel", "french toast", "crepe", "paratha",
+                     "idli", "dosa", "upma", "poha", "chilaquiles", "frittata", "quiche",
+                     "overnight oats", "eggs benedict", "shakshuka", "muffin"],
+        .lunch:     ["lunch", "sandwich", "wrap", "salad", "soup", "bowl", "burrito",
+                     "taco", "panini", "pita", "flatbread", "quesadilla", "poke",
+                     "grain bowl", "noodle soup", "ramen", "pho", "bun bowl"],
+        .dinner:    ["dinner", "curry", "biryani", "lasagna", "roast", "steak", "stew",
+                     "casserole", "risotto", "paella", "tagine", "shepherd", "bolognese",
+                     "pasta", "pizza", "stir fry", "stir-fry", "fried rice",
+                     "pot roast", "braise", "ribs", "schnitzel", "tikka masala",
+                     "butter chicken", "mac and cheese"],
+        .snack:     ["snack", "cookie", "cookies", "brownie", "chips", "popcorn", "dip",
+                     "hummus", "guacamole", "salsa", "nachos", "bite", "bites",
+                     "trail mix", "granola bar", "energy ball", "pastry", "scone",
+                     "cupcake", "cake", "pie", "tart", "crumble", "ice cream", "gelato",
+                     "sorbet", "pudding", "mousse"]
+    ]
+
+    /// Keyword classifier — scans title / description / ingredient names for familiar meal cues.
+    /// Returns the slots the recipe plausibly fits; empty if nothing matches, caller then
+    /// decides a fallback (we treat empty as "fits lunch + dinner" — the broad middle).
+    static func classify(title: String?, description: String?, ingredients: [String]) -> Set<MealSlot> {
+        let bag = ([title, description].compactMap { $0 } + ingredients)
+            .joined(separator: " ")
+            .lowercased()
+        var hits: Set<MealSlot> = []
+        for (slot, words) in keywords where words.contains(where: { bag.contains($0) }) {
+            hits.insert(slot)
+        }
+        return hits
     }
 
     var displayName: String {

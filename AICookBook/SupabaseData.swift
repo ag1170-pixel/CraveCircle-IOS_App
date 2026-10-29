@@ -196,6 +196,32 @@ struct SupabaseData {
         return true
     }
 
+    /// File a content/user report. `targetType` is 'recipe'/'comment'/'user'; `targetId` is the
+     /// recipe or comment id (text) or the user uuid as text. Returns true on 2xx.
+    func submitReport(targetType: String, targetId: String, reason: String, note: String?) async -> Bool {
+        guard let uid = currentUserId(), var req = request(path: "rest/v1/reports") else { return false }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        var row: [String: Any] = [
+            "reporter_id": uid, "target_type": targetType, "target_id": targetId, "reason": reason
+        ]
+        if let note, !note.isEmpty { row["note"] = note }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: row)
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
+    /// Admin-only: disable another user. The server trigger `enforce_disabled_admin_only`
+    /// rejects anything that isn't an admin even if the UI slips through.
+    func setUserDisabled(userId: String, disabled: Bool) async -> Bool {
+        guard var req = request(path: "rest/v1/profiles?id=eq.\(userId)", method: "PATCH") else { return false }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["disabled": disabled])
+        guard let (_, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
+        return true
+    }
+
     /// Fetch any user's public profile by id — used by CreatorProfileSheet to show bio, socials
     /// and verified status for a creator the viewer hasn't signed in as.
     func fetchProfile(id: String) async -> UserProfile? {

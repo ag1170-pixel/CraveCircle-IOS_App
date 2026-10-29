@@ -238,14 +238,14 @@ struct StudioScreen: View {
 
     @ViewBuilder private var draftsSection: some View {
         let drafts = environment.myDrafts
-        if !drafts.isEmpty {
-            VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                sectionHeader("Drafts", count: drafts.count)
+        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+            sectionHeader("Drafts", count: drafts.count)
+            if drafts.isEmpty {
+                emptyDrafts
+            } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: AppSpacing.sm) {
-                        ForEach(drafts) { r in
-                            draftCard(r)
-                        }
+                        ForEach(drafts) { r in draftCard(r) }
                     }
                 }
                 .scrollClipDisabled()
@@ -254,6 +254,26 @@ struct StudioScreen: View {
                 })
             }
         }
+    }
+
+    private var emptyDrafts: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 26, weight: .light))
+                .foregroundStyle(AppTheme.textTertiary)
+            Text("No drafts yet")
+                .font(AppFont.body(14, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+            Text("Recipes you save without publishing land here so you can finish them later.")
+                .font(AppFont.body(12))
+                .foregroundStyle(AppTheme.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, AppSpacing.md)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 22)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
     }
 
     private func draftCard(_ recipe: Recipe) -> some View {

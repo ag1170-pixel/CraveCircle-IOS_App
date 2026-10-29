@@ -409,7 +409,20 @@ struct MainTabView: View {
             if requested {
                 environment.pendingNewRecipe = false
                 if environment.isGuest { environment.promptGuestToSignIn(reason: .publishRecipe) }
-                else { newRecipe = AddRecipeSheet.newBlank() }
+                else {
+                    // Studio opens over AddRecipeSheet. If this fires from Studio, dismissing
+                    // Studio alone leaves the Add-Recipe sheet on top of MainTabView and the
+                    // editor's fullScreenCover can't present. Close it, then open the editor
+                    // after the sheet dismiss animation completes (~0.3s).
+                    if showingImportSheet {
+                        showingImportSheet = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            newRecipe = AddRecipeSheet.newBlank()
+                        }
+                    } else {
+                        newRecipe = AddRecipeSheet.newBlank()
+                    }
+                }
             }
         }
         .onChange(of: environment.pendingFeedback) { _, requested in

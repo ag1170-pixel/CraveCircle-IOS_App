@@ -14,6 +14,7 @@ struct MealPlanScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var focused: Date = Calendar.current.startOfDay(for: Date())
     @State private var weekAnchor: Date = Calendar.current.startOfDay(for: Date())
+    @State private var pickerSlot: MealSlot?    // non-nil → show the slot-filtered recipe picker
 
     var body: some View {
         ScrollView {
@@ -34,6 +35,10 @@ struct MealPlanScreen: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar(.hidden, for: .tabBar)
         .task { await environment.hydrateMealPlanFromServer() }
+        .sheet(item: $pickerSlot) { slot in
+            MealSlotRecipePickerSheet(slot: slot, day: focused)
+                .environmentObject(environment)
+        }
     }
 
     // MARK: Week strip
@@ -122,22 +127,33 @@ struct MealPlanScreen: View {
     }
 
     private func emptyTile(slot: MealSlot) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "plus.circle")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(AppTheme.textTertiary)
-            Text("Plan \(slot.displayName.lowercased())")
-                .font(AppFont.body(14))
-                .foregroundStyle(AppTheme.textTertiary)
-            Spacer()
+        // Tap → open the slot-filtered recipe grid so the user picks something to plan without
+        // leaving the Meal Plan screen. The picker only shows recipes classified for this slot.
+        Button {
+            Haptics.tap()
+            pickerSlot = slot
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(AppTheme.textTertiary)
+                Text("Plan \(slot.displayName.lowercased())")
+                    .font(AppFont.body(14))
+                    .foregroundStyle(AppTheme.textTertiary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                    .strokeBorder(AppTheme.hairline, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            )
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
-                .strokeBorder(AppTheme.hairline, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-        )
+        .buttonStyle(.plain)
     }
 
     private func planCard(for meal: PlannedMeal) -> some View {

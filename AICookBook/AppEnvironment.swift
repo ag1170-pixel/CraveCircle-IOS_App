@@ -542,6 +542,26 @@ final class AppEnvironment: ObservableObject {
         return await supabase.setUserVerified(userId: userId, verified: verified)
     }
 
+    /// Admin-only: deactivate (or re-activate) another account. Flips `profiles.disabled`. The
+     /// disabled user is signed out of this device the next time bootstrap runs; the server trigger
+     /// `enforce_disabled_admin_only` protects the column against anyone who isn't admin.
+    func setUserDisabled(userId: String, disabled: Bool) async -> Bool {
+        guard isAdmin else { return false }
+        return await supabase.setUserDisabled(userId: userId, disabled: disabled)
+    }
+
+    /// Any signed-in user can file a report against a recipe, a comment, or another user.
+    /// Guests go through the sign-in wall first — reporting needs an identity.
+    func submitReport(targetType: ReportTargetType, targetId: String, reason: String, note: String? = nil) async -> Bool {
+        if isGuest {
+            promptGuestToSignIn(reason: .generic)
+            return false
+        }
+        return await supabase.submitReport(targetType: targetType.rawValue, targetId: targetId, reason: reason, note: note)
+    }
+
+    enum ReportTargetType: String { case recipe, comment, user }
+
     /// Public profile fetch for CreatorProfileSheet — gets bio, socials, verified for any user.
     func fetchPublicProfile(username: String) async -> UserProfile? {
         await supabase.fetchProfile(username: username)
@@ -2627,6 +2647,15 @@ final class AppEnvironment: ObservableObject {
             let unseen = recipes.filter { !own.contains($0.id) && !seen.contains($0.id) }
             picks = unseen.isEmpty ? recipes.filter { !own.contains($0.id) } : unseen
         }
+        // Time-aware re-order: whatever the user could cook RIGHT NOW floats to the top. Stable
+        // sort so the recommender's ranking inside each bucket survives. Breakfast at 8am sees
+        // breakfast recipes first; dinner at 7pm sees dinners first; after that, anything.
+        let nowSlot = MealSlot.suggested(for: Date())
+        picks = picks.enumerated().sorted {
+            let a = $0.element.mealSlots.contains(nowSlot) ? 0 : 1
+            let b = $1.element.mealSlots.contains(nowSlot) ? 0 : 1
+            return a == b ? $0.offset < $1.offset : a < b
+        }.map(\.element)
         let library = recipes.filter { (isOwner(of: $0) || isSaved(recipeId: $0.id)) && !rejected.contains($0.id) }
         return DiscoveryReelRefresh.mixedReel(
             library: library,

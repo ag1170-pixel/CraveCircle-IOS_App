@@ -815,22 +815,13 @@ struct RecipeDetailScreen: View {
     }
 
     private var actionRow: some View {
-        // Two rows now that Plan is a first-class action. Row 1 = servings + plan. Row 2 =
-        // Add to Grocery (full-width). Keeps the reference screenshot's spirit (short labels,
-        // no wrap) while making the meal-plan feature discoverable at the moment a user is
-        // deciding whether to cook something.
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                servingsStepper
-                PillButton(title: planLabel, systemImage: "calendar.badge.plus",
-                           kind: isPlanned ? .filled : .surface, fullWidth: true) {
-                    Haptics.tap()
-                    showMealPlanner = true
-                }
+        // Single row: Serves (left) · Grocery (middle) · Plan (right). Each takes a third of the
+        // width so the layout is identical on every iPhone size + iPad split-view. Labels are
+        // short to fit at phone widths without wrapping.
+        HStack(spacing: 8) {
+            servingsStepper
                 .frame(maxWidth: .infinity)
-            }
-
-            PillButton(title: "Add to Grocery", systemImage: "basket.fill", kind: .surface, fullWidth: true) {
+            PillButton(title: "Grocery", systemImage: "basket.fill", kind: .surface, fullWidth: true) {
                 Haptics.success()
                 let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
                 addedGroceryCount = count
@@ -838,6 +829,12 @@ struct RecipeDetailScreen: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
                     withAnimation { showGroceryBanner = false }
                 }
+            }
+            .frame(maxWidth: .infinity)
+            PillButton(title: planLabel, systemImage: "calendar.badge.plus",
+                       kind: isPlanned ? .filled : .surface, fullWidth: true) {
+                Haptics.tap()
+                showMealPlanner = true
             }
             .frame(maxWidth: .infinity)
         }
