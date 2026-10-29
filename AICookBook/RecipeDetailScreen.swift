@@ -845,57 +845,56 @@ struct RecipeDetailScreen: View {
     private var isPlanned: Bool { !environment.plannedMeals(for: recipe.id).isEmpty }
     private var planLabel: String { isPlanned ? "Planned" : "Plan" }
 
-    /// Just the servings stepper, split out so the two-row action layout stays readable.
+    /// Compact stepper: `[−] 2 [+]` — number only, no "Servings" word. The ± icons already imply
+    /// what the number is. Prior build showed "2 Servings" + base label and wrapped onto two
+    /// lines on 390pt iPhones once the row became a three-pill layout. Fits every size now;
+    /// VoiceOver still announces "N servings" via the accessibility value on the container.
     private var servingsStepper: some View {
-        HStack(spacing: 8) {
-                Button {
-                    if servings > 1 {
-                        Haptics.tap()
-                        withAnimation(AppMotion.snappy) { servings -= 1 }
-                    }
-                } label: {
-                    Image(systemName: "minus")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(servings > 1 ? AppTheme.accentInk : AppTheme.textTertiary)
-                        .frame(width: 26, height: 26)
-                        .background(AppTheme.accentSoft, in: Circle())
+        HStack(spacing: 6) {
+            Button {
+                if servings > 1 {
+                    Haptics.tap()
+                    withAnimation(AppMotion.snappy) { servings -= 1 }
                 }
-                .buttonStyle(.plain)
-                .disabled(servings <= 1)
-                .accessibilityLabel("Decrease servings")
-
-                VStack(spacing: 0) {
-                    Text("\(servings) Servings")
-                        .font(AppFont.body(13, weight: .bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                    let base = recipe.servings ?? 2
-                    if servings != base {
-                        Text("Base: \(base)")
-                            .font(AppFont.body(10))
-                            .foregroundStyle(AppTheme.accentInk)
-                    }
-                }
-                .padding(.horizontal, 2)
-
-                Button {
-                    if servings < 24 {
-                        Haptics.tap()
-                        withAnimation(AppMotion.snappy) { servings += 1 }
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(AppTheme.accentInk)
-                        .frame(width: 26, height: 26)
-                        .background(AppTheme.accentSoft, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Increase servings")
+            } label: {
+                Image(systemName: "minus")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(servings > 1 ? AppTheme.accentInk : AppTheme.textTertiary)
+                    .frame(width: 24, height: 24)
+                    .background(AppTheme.accentSoft, in: Circle())
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(AppTheme.surface, in: Capsule())
-            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            .buttonStyle(.plain)
+            .disabled(servings <= 1)
+            .accessibilityLabel("Decrease servings")
+
+            Text("\(servings)")
+                .font(AppFont.body(15, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .monospacedDigit()
+                .frame(minWidth: 18)
+
+            Button {
+                if servings < 24 {
+                    Haptics.tap()
+                    withAnimation(AppMotion.snappy) { servings += 1 }
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(AppTheme.accentInk)
+                    .frame(width: 24, height: 24)
+                    .background(AppTheme.accentSoft, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Increase servings")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity)
+        .background(AppTheme.surface, in: Capsule())
+        .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+        .accessibilityElement(children: .combine)
+        .accessibilityValue("\(servings) servings")
     }
 
     /// Reads the current saved state so the Save pill flips immediately on tap.
