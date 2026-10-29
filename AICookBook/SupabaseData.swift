@@ -185,6 +185,16 @@ struct SupabaseData {
         return true
     }
 
+    /// Admin-only: call the `admin_signals(top_n)` RPC and decode the three ranked lists.
+    /// Returns nil on non-admin / network / parse errors — caller shows an empty state.
+    func adminSignals(topN: Int = 10) async -> AdminSignals? {
+        guard var req = request(path: "rest/v1/rpc/admin_signals", method: "POST") else { return nil }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["top_n": topN])
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return try? Self.decoder().decode(AdminSignals.self, from: data)
+    }
+
     /// Admin-only: toggle another user's blue tick. Protected by the `verified_admin_only` RLS
     /// policy so a non-admin's PATCH is rejected server-side even if the UI slips through.
     func setUserVerified(userId: String, verified: Bool) async -> Bool {

@@ -765,9 +765,35 @@ struct RecipeDetailScreen: View {
     }
 
     private var metaLine: some View {
+        // Cook time on the left, Grocery pill on the right — frees the action row below from
+        // squeezing three pills into one line. Grocery is still a one-tap add.
         HStack(spacing: 10) {
             if let cook = recipe.totalTimeText { metaItem("Cook", cook) }
+            Spacer(minLength: 8)
+            groceryHeaderButton
         }
+    }
+
+    private var groceryHeaderButton: some View {
+        Button {
+            Haptics.success()
+            let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
+            addedGroceryCount = count
+            withAnimation { showGroceryBanner = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                withAnimation { showGroceryBanner = false }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "basket.fill").font(.system(size: 12, weight: .semibold))
+                Text("Grocery").font(AppFont.body(13, weight: .semibold))
+            }
+            .foregroundStyle(AppTheme.textPrimary)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(AppTheme.surface, in: Capsule())
+            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 
     private func metaItem(_ label: String, _ value: String) -> some View {
@@ -815,22 +841,10 @@ struct RecipeDetailScreen: View {
     }
 
     private var actionRow: some View {
-        // Single row: Serves (left) · Grocery (middle) · Plan (right). Each takes a third of the
-        // width so the layout is identical on every iPhone size + iPad split-view. Labels are
-        // short to fit at phone widths without wrapping.
-        HStack(spacing: 8) {
+        // Servings stepper (left) + Plan pill (right). Grocery moved up to the metaLine next to
+        // cook time so this row has room to breathe.
+        HStack(spacing: 10) {
             servingsStepper
-                .frame(maxWidth: .infinity)
-            PillButton(title: "Grocery", systemImage: "basket.fill", kind: .surface, fullWidth: true) {
-                Haptics.success()
-                let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
-                addedGroceryCount = count
-                withAnimation { showGroceryBanner = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                    withAnimation { showGroceryBanner = false }
-                }
-            }
-            .frame(maxWidth: .infinity)
             PillButton(title: planLabel, systemImage: "calendar.badge.plus",
                        kind: isPlanned ? .filled : .surface, fullWidth: true) {
                 Haptics.tap()
@@ -845,12 +859,11 @@ struct RecipeDetailScreen: View {
     private var isPlanned: Bool { !environment.plannedMeals(for: recipe.id).isEmpty }
     private var planLabel: String { isPlanned ? "Planned" : "Plan" }
 
-    /// Compact stepper: `[−] 2 [+]` — number only, no "Servings" word. The ± icons already imply
-    /// what the number is. Prior build showed "2 Servings" + base label and wrapped onto two
-    /// lines on 390pt iPhones once the row became a three-pill layout. Fits every size now;
-    /// VoiceOver still announces "N servings" via the accessibility value on the container.
+    /// `[−] N Servings [+]` — the number stays labelled so a cold reader knows what it means.
+    /// Grocery now lives up by the cook-time line, so this row only has Serves + Plan and the
+    /// word fits on every iPhone from SE to Pro Max without wrapping.
     private var servingsStepper: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Button {
                 if servings > 1 {
                     Haptics.tap()
@@ -858,20 +871,21 @@ struct RecipeDetailScreen: View {
                 }
             } label: {
                 Image(systemName: "minus")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(servings > 1 ? AppTheme.accentInk : AppTheme.textTertiary)
-                    .frame(width: 24, height: 24)
+                    .frame(width: 26, height: 26)
                     .background(AppTheme.accentSoft, in: Circle())
             }
             .buttonStyle(.plain)
             .disabled(servings <= 1)
             .accessibilityLabel("Decrease servings")
 
-            Text("\(servings)")
-                .font(AppFont.body(15, weight: .bold))
+            Text("\(servings) Servings")
+                .font(AppFont.body(13, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
-                .monospacedDigit()
-                .frame(minWidth: 18)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .fixedSize()
 
             Button {
                 if servings < 24 {
@@ -880,21 +894,18 @@ struct RecipeDetailScreen: View {
                 }
             } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(AppTheme.accentInk)
-                    .frame(width: 24, height: 24)
+                    .frame(width: 26, height: 26)
                     .background(AppTheme.accentSoft, in: Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Increase servings")
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .frame(maxWidth: .infinity)
+        .padding(.vertical, 5)
         .background(AppTheme.surface, in: Capsule())
         .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
-        .accessibilityElement(children: .combine)
-        .accessibilityValue("\(servings) servings")
     }
 
     /// Reads the current saved state so the Save pill flips immediately on tap.

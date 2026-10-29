@@ -542,6 +542,13 @@ final class AppEnvironment: ObservableObject {
         return await supabase.setUserVerified(userId: userId, verified: verified)
     }
 
+    /// Admin-only pull of the Signals aggregates (most liked / saved / viewed). Returns nil
+    /// if the caller isn't an admin or the server rejected the RPC.
+    func loadAdminSignals(topN: Int = 10) async -> AdminSignals? {
+        guard isAdmin else { return nil }
+        return await supabase.adminSignals(topN: topN)
+    }
+
     /// Admin-only: deactivate (or re-activate) another account. Flips `profiles.disabled`. The
      /// disabled user is signed out of this device the next time bootstrap runs; the server trigger
      /// `enforce_disabled_admin_only` protects the column against anyone who isn't admin.
