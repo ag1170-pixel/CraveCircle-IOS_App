@@ -1,0 +1,6 @@
+{
+  "images" : [
+    { "filename" : "imported_recipe_mock.png", "idiom" : "universal" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}

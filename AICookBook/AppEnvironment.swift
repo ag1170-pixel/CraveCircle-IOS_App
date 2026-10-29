@@ -40,8 +40,19 @@ final class AppEnvironment: ObservableObject {
     @Published private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
     @Published private(set) var selectedRecipe: Recipe?
     @Published private(set) var importState: ImportFlowState = .idle {
-        didSet { reflectImportInLiveActivity() }
+        didSet {
+            reflectImportInLiveActivity()
+            pumpImportQueueIfIdle(after: oldValue)
+        }
     }
+
+    /// FIFO of URLs the user shared while another import was running. Each new share lands here
+    /// instead of being dropped; the pump auto-starts the next one as soon as the current import
+    /// finishes, fails (after a 15s grace so the user sees why), or is cancelled.
+    @Published private(set) var importQueue: [String] = []
+
+    /// Set while a 15s "failed, auto-dismiss" timer is in flight so we don't stack cancellations.
+    private var queuePumpTask: Task<Void, Never>?
     /// The running "recipe cooking" Live Activity (Dynamic Island + Lock Screen), if any.
     private var cookingActivity: Activity<CookingImportAttributes>?
     @Published private(set) var groceryItems: [GroceryItem] = [] { didSet { persist(groceryItems, "grocery.json") } }
@@ -1460,9 +1471,26 @@ final class AppEnvironment: ObservableObject {
         }
 
         guard let urlString, !urlString.isEmpty else { return }
-        guard importState == .idle else { return }
+        // Busy? Queue it instead of dropping. The pump will auto-start it when the current
+        // import finishes, fails (after a 15s grace) or is cancelled.
+        if importState != .idle {
+            await MainActor.run { enqueueImport(urlString) }
+            return
+        }
         await startImport(from: urlString)
     }
+
+    /// Append a URL to the import queue if it isn't already there (either currently importing
+    /// or already queued). Dedupes so a double-tap doesn't book the same reel twice.
+    func enqueueImport(_ url: String) {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if importQueue.contains(trimmed) { return }
+        importQueue.append(trimmed)
+    }
+
+    /// User-facing: how many imports are stacked up behind the one that's running.
+    var pendingImportCount: Int { importQueue.count }
 
     /// On launch/foreground, resume a share's server job if the extension left one in the App Group
     /// (paid-team builds). No-op on free teams (no App Group) — there the deep link or refresh covers it.
@@ -1525,6 +1553,13 @@ final class AppEnvironment: ObservableObject {
     func startImport(from instagramURL: String, extraOnScreen: String? = nil, extraCaption: String? = nil) async {
         // Guests browse everything, but importing is a write — route them to sign-in instead.
         guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .importRecipe) }) else { return }
+        // Busy with another import? Queue plain-URL calls (no caption/OCR extras) and bail.
+        // The pump will auto-start the queued URL when the current one finishes/fails/cancels.
+        let plainURLCall = (extraOnScreen == nil) && (extraCaption == nil)
+        if plainURLCall, await MainActor.run(body: { importState != .idle }) {
+            await MainActor.run { enqueueImport(instagramURL) }
+            return
+        }
         importTask?.cancel()
         importState = .submitting
         let task = Task { [weak self] in
@@ -2713,6 +2748,45 @@ final class AppEnvironment: ObservableObject {
         importState = .idle
     }
 
+    /// Pop the next queued URL and start importing it. Cancels any pending auto-dismiss timer.
+    func startNextQueuedImport() {
+        guard !importQueue.isEmpty else { return }
+        let next = importQueue.removeFirst()
+        queuePumpTask?.cancel()
+        queuePumpTask = nil
+        Task { await startImport(from: next) }
+    }
+
+    /// Called from `importState`'s didSet. Looks at the OLD → NEW transition and decides whether
+    /// to pop the next queued import:
+    ///   .done / .idle          → start next immediately
+    ///   .failed                → keep the banner up for 15s so the user sees why, then auto-dismiss
+    ///                            and start next. The user can also cancel to skip the wait.
+    ///   .submitting / .polling → busy, do nothing
+    private func pumpImportQueueIfIdle(after oldValue: ImportFlowState) {
+        guard !importQueue.isEmpty else { return }
+        switch importState {
+        case .idle, .done:
+            // Fire-and-forget — switching MainActor contexts without racing the didSet.
+            queuePumpTask?.cancel()
+            queuePumpTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard let self else { return }
+                if self.importState == .idle || self.importState.isDone { self.startNextQueuedImport() }
+            }
+        case .failed:
+            queuePumpTask?.cancel()
+            queuePumpTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 15 * 1_000_000_000)
+                guard let self, case .failed = self.importState else { return }
+                self.importState = .idle   // auto-dismiss the failed banner
+                // The .idle transition's didSet re-enters this pump and starts the next item.
+            }
+        case .submitting, .polling:
+            return
+        }
+    }
+
     // MARK: - Live Activity (Dynamic Island + Lock Screen) for the import
 
     /// Start / update / end the "recipe cooking" Live Activity to mirror the import state. Driven by
@@ -2908,4 +2982,6 @@ enum ImportFlowState: Equatable {
     case polling(jobId: String, status: ImportStatus)
     case done(recipeId: String)
     case failed(message: String)
+
+    var isDone: Bool { if case .done = self { return true }; return false }
 }

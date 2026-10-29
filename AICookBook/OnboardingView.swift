@@ -55,6 +55,7 @@ struct OnboardingView: View {
                 case .tutorialPickApp:  tutorialPickApp
                 case .tutorialWebsite:  tutorialWebsite
                 case .tutorialCamera:   tutorialCamera
+                case .tutorialImported: tutorialImported
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -406,68 +407,86 @@ struct OnboardingView: View {
     // MARK: Steps 9–11 — three share-sheet coachmarks
 
     private var tutorialShare: some View {
-        tutorialPage(
-            title: "Smart social media imports",
-            source: .instagram,
-            chip: TutorialChip(text: "Tap here", align: .bottomCenter, yOffset: -40),
-            phoneContent: .reel,
-            primary: "Next"
-        ) {
+        tutorialPage(title: "Smart social media imports", source: .instagram,
+                     chip: nil, phoneContent: .reel, primary: "Next") {
             advance(to: .tutorialPanel)
         }
     }
 
     private var tutorialPanel: some View {
-        tutorialPage(
-            title: "Smart social media imports",
-            source: .instagram,
-            chip: TutorialChip(text: "Tap here", align: .bottomLeading, yOffset: -70),
-            phoneContent: .sharePanel,
-            primary: "Next"
-        ) {
+        tutorialPage(title: "Smart social media imports", source: .instagram,
+                     chip: nil, phoneContent: .sharePanel, primary: "Next") {
             advance(to: .tutorialPickApp)
         }
     }
 
     private var tutorialPickApp: some View {
-        tutorialPage(
-            title: "Pick CraveCircle",
-            source: .instagram,
-            chip: TutorialChip(text: "Tap here", align: .topLeading, yOffset: 90),
-            phoneContent: .appPicker,
-            primary: "Next"
-        ) {
+        tutorialPage(title: "Pick CraveCircle", source: .instagram,
+                     chip: nil, phoneContent: .appPicker, primary: "Next") {
             advance(to: .tutorialWebsite)
         }
     }
 
     private var tutorialWebsite: some View {
-        tutorialPage(
-            title: "Works with any recipe website",
-            source: .website,
-            chip: TutorialChip(text: "Tap here", align: .bottomCenter, yOffset: -30),
-            phoneContent: .recipeWebsite,
-            primary: "Next"
-        ) {
+        tutorialPage(title: "Works with any recipe website", source: .website,
+                     chip: nil, phoneContent: .recipeWebsite, primary: "Next") {
             advance(to: .tutorialCamera)
         }
     }
 
     private var tutorialCamera: some View {
-        tutorialPage(
-            title: "Even handwritten notes",
-            source: .camera,
-            chip: TutorialChip(text: "Tap to scan", align: .bottomCenter, yOffset: -40),
-            phoneContent: .cameraScan,
-            primary: "Try it now"
-        ) {
-            finishOnboarding(thenImport: true)
+        tutorialPage(title: "Even handwritten notes", source: .camera,
+                     chip: nil, phoneContent: .cameraScan, primary: "Next") {
+            advance(to: .tutorialImported)
         }
     }
 
+    /// Celebration slide — shows what the imported recipe actually looks like in the app, using
+    /// a real screenshot of the recipe detail bundled as `ImportedRecipeMock`.
+    private var tutorialImported: some View {
+        VStack(spacing: AppSpacing.lg) {
+            VStack(spacing: 10) {
+                Text("Recipe imported!")
+                    .font(AppFont.display(26, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .multilineTextAlignment(.center)
+                Text("This is how it lands in your library — ready to cook, scale and plan.")
+                    .font(AppFont.body(14))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, AppSpacing.lg)
+            }
+            .padding(.top, AppSpacing.sm)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(AppTheme.surfaceElevated)
+                    .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(AppTheme.hairline, lineWidth: 1))
+                Image("ImportedRecipeMock")
+                    .resizable()
+                    .scaledToFit()
+                    .padding(10)
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            }
+            .frame(maxWidth: 280)
+            .aspectRatio(0.52, contentMode: .fit)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            primaryButton("Try it now") { finishOnboarding(thenImport: true) }
+            Button("Skip for now") { finishOnboarding(thenImport: false) }
+                .font(AppFont.body(15, weight: .semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+        }
+        .padding(AppSpacing.lg)
+    }
+
+    /// Big centered title, tappable source chip row, mock card below, primary pill + skip link.
+    /// Each mock paints its own coral ring over its target control (inline) — no overlay system,
+    /// so a ring can't drift onto empty space.
     private func tutorialPage(title: String,
                               source: TutorialSource,
-                              chip: TutorialChip,
+                              chip: TutorialChip?,
                               phoneContent: PhoneContent,
                               primary: String,
                               onPrimary: @escaping () -> Void) -> some View {
@@ -481,7 +500,7 @@ struct OnboardingView: View {
             }
             .padding(.top, AppSpacing.sm)
 
-            phoneMockup(dim: true, chip: chip, content: phoneContent)
+            phoneMockup(chip: chip, content: phoneContent)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             primaryButton(primary, action: onPrimary)
@@ -494,12 +513,14 @@ struct OnboardingView: View {
         .padding(AppSpacing.lg)
     }
 
-    // Overload used by `awesome` where no chip or dim is needed.
+    // Overload used by `awesome` (hero slide) where no chip is needed.
     private func phoneMockup(dim: Bool, chip: TutorialChip?) -> some View {
-        phoneMockup(dim: dim, chip: chip, content: .reel)
+        phoneMockup(chip: chip, content: .reel)
     }
 
-    private func phoneMockup(dim: Bool, chip: TutorialChip?, content: PhoneContent) -> some View {
+    /// Soft rounded card mock with the content inside and an optional coachmark chip. Any
+    /// highlight ring over a target control is painted inside the mock itself, not here.
+    private func phoneMockup(chip: TutorialChip?, content: PhoneContent) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(AppTheme.surfaceElevated)
@@ -510,7 +531,6 @@ struct OnboardingView: View {
             content.view
                 .padding(14)
                 .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .opacity(dim ? 0.45 : 1)
             if let chip {
                 chip.view
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: chip.align.alignment)
@@ -650,7 +670,7 @@ private extension OnboardingView {
         case welcome, goals, goalsAffirmation, goalDetail
         case recipeSources, howHeard, cuisinesStep
         case awesome, tutorialShare, tutorialPanel, tutorialPickApp
-        case tutorialWebsite, tutorialCamera
+        case tutorialWebsite, tutorialCamera, tutorialImported
 
         /// 0…1 progress for the top bar (welcome has no bar).
         var progress: CGFloat {
@@ -666,8 +686,9 @@ private extension OnboardingView {
             case .tutorialShare:    return 0.86
             case .tutorialPanel:    return 0.89
             case .tutorialPickApp:  return 0.92
-            case .tutorialWebsite:  return 0.96
-            case .tutorialCamera:   return 0.99
+            case .tutorialWebsite:  return 0.95
+            case .tutorialCamera:   return 0.97
+            case .tutorialImported: return 1.00
             }
         }
 
@@ -686,6 +707,7 @@ private extension OnboardingView {
             case .tutorialPickApp:  return .tutorialPanel
             case .tutorialWebsite:  return .tutorialPickApp
             case .tutorialCamera:   return .tutorialWebsite
+            case .tutorialImported: return .tutorialCamera
             }
         }
     }
@@ -835,42 +857,55 @@ private struct TutorialChip {
 }
 
 private enum PhoneContent {
-    case reel, sharePanel, appPicker, recipeWebsite, cameraScan
+    case reel, sharePanel, appPicker, recipeWebsite, cameraScan, importedRecipe
 
     @ViewBuilder
     var view: some View {
         switch self {
-        case .reel:          PhoneReel()
-        case .sharePanel:    PhoneSharePanel()
-        case .appPicker:     PhoneAppPicker()
-        case .recipeWebsite: PhoneRecipeWebsite()
-        case .cameraScan:    PhoneCameraScan()
+        case .reel:            PhoneReel()
+        case .sharePanel:      PhoneSharePanel()
+        case .appPicker:       PhoneAppPicker()
+        case .recipeWebsite:   PhoneRecipeWebsite()
+        case .cameraScan:      PhoneCameraScan()
+        case .importedRecipe:  PhoneImportedRecipe()
         }
     }
 }
 
-// MARK: Source chip strip (Instagram / Website / Camera)
+// MARK: Highlight ring — coral ring that marks the target control on each tutorial step.
+
+// MARK: Source selector — Instagram / Website / Camera
 
 enum TutorialSource { case instagram, website, camera }
 
 private extension OnboardingView {
+    /// Tappable chip row — jump between the three tutorial tracks without going step-by-step.
     func sourceChipsRow(active: TutorialSource) -> some View {
         HStack(spacing: 8) {
-            sourceChip(icon: "camera.fill", label: "Instagram", on: active == .instagram)
-            sourceChip(icon: "globe",       label: "Website",   on: active == .website)
-            sourceChip(icon: "camera.viewfinder", label: "Camera", on: active == .camera)
+            sourceChip(icon: "camera.fill", label: "Instagram", on: active == .instagram) {
+                advance(to: .tutorialShare)
+            }
+            sourceChip(icon: "globe", label: "Website", on: active == .website) {
+                advance(to: .tutorialWebsite)
+            }
+            sourceChip(icon: "camera.viewfinder", label: "Camera", on: active == .camera) {
+                advance(to: .tutorialCamera)
+            }
         }
     }
 
-    func sourceChip(icon: String, label: String, on: Bool) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon).font(.system(size: 11, weight: .semibold))
-            Text(label).font(AppFont.body(13, weight: .semibold))
+    func sourceChip(icon: String, label: String, on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon).font(.system(size: 11, weight: .semibold))
+                Text(label).font(AppFont.body(13, weight: .semibold))
+            }
+            .foregroundStyle(on ? AppTheme.onAccent : AppTheme.textSecondary)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(on ? AppTheme.textPrimary : AppTheme.surface, in: Capsule())
+            .overlay(Capsule().stroke(on ? Color.clear : AppTheme.hairline, lineWidth: 1))
         }
-        .foregroundStyle(on ? AppTheme.onAccent : AppTheme.textSecondary)
-        .padding(.horizontal, 12).padding(.vertical, 7)
-        .background(on ? AppTheme.textPrimary : AppTheme.surface, in: Capsule())
-        .overlay(Capsule().stroke(on ? Color.clear : AppTheme.hairline, lineWidth: 1))
+        .buttonStyle(.plain)
     }
 }
 
@@ -943,25 +978,13 @@ private struct PhoneCameraScan: View {
             .font(.system(size: 13, weight: .semibold))
 
             ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color(hex: "F7F0E4"))
-                    .overlay(
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Nani's chole masala")
-                                .font(.custom("Snell Roundhand", size: 13))
-                            Text("2 cups chickpeas, soaked")
-                                .font(.custom("Snell Roundhand", size: 9))
-                            Text("1 big onion, browned")
-                                .font(.custom("Snell Roundhand", size: 9))
-                            Text("tea bag for the colour!")
-                                .font(.custom("Snell Roundhand", size: 9))
-                            Text("simmer till it smells right")
-                                .font(.custom("Snell Roundhand", size: 9))
-                        }
-                        .foregroundStyle(Color(hex: "2A1B10"))
-                        .padding(10),
-                        alignment: .topLeading
-                    )
+                // Real handwritten-note asset (public-domain-ish personal content, bundled
+                // under /HandwrittenRecipe). Keeps the viewfinder scan feel without SwiftUI's
+                // Snell Roundhand fake looking stiff.
+                Image("HandwrittenRecipe")
+                    .resizable()
+                    .scaledToFill()
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
                     .padding(14)
 
                 // Viewfinder corners
@@ -1007,121 +1030,274 @@ private struct PhoneCameraScan: View {
 
 private struct PhoneReel: View {
     var body: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "chevron.left").font(.system(size: 12, weight: .bold))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Posts").font(.system(size: 11, weight: .bold))
-                    Text("cravecircle").font(.system(size: 9))
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
-                Spacer()
-                Text("Follow").font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(AppTheme.brand)
-            }
+        // Reference OB9: full-bleed vertical reel with a right rail of counts (heart / comment
+        // / reshare / share / bookmark) and a bottom creator strip. We draw it stylised so no
+        // real Instagram UI is shipped; the highlighted icon is the paper-plane share.
+        ZStack {
             RoundedRectangle(cornerRadius: 10)
                 .fill(AppTheme.accentSoft)
                 .overlay(
                     Image(systemName: "fork.knife.circle.fill")
-                        .font(.system(size: 48))
+                        .font(.system(size: 44))
                         .foregroundStyle(AppTheme.brand.opacity(0.7))
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            HStack(spacing: 14) {
-                Image(systemName: "heart")
-                Image(systemName: "bubble.right")
-                Image(systemName: "paperplane")
-                Spacer()
-                Image(systemName: "bookmark")
+
+            // Right rail — counts under each icon
+            VStack(spacing: 8) {
+                reelRailItem(icon: "heart.fill", label: "827K")
+                reelRailItem(icon: "bubble.right.fill", label: "1,288")
+                reelRailItem(icon: "arrow.2.squarepath", label: "16.4K")
+                reelRailItem(icon: "paperplane.fill", label: "266K", highlighted: true)
+                reelRailItem(icon: "bookmark.fill", label: "183K")
             }
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(AppTheme.textPrimary)
+            .padding(.trailing, 6)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+
+            // Bottom creator strip — handle is a grey bar (no real id shown)
+            VStack {
+                Spacer()
+                HStack(spacing: 6) {
+                    Circle().fill(AppTheme.hairline).frame(width: 18, height: 18)
+                    Capsule().fill(AppTheme.hairline).frame(width: 52, height: 7)
+                    Spacer()
+                    Text("Follow")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Color.white.opacity(0.2), in: Capsule())
+                }
+                .padding(8)
+                .background(LinearGradient(colors: [.clear, Color.black.opacity(0.4)],
+                                           startPoint: .top, endPoint: .bottom))
+            }
+        }
+    }
+
+    private func reelRailItem(icon: String, label: String, highlighted: Bool = false) -> some View {
+        VStack(spacing: 2) {
+            ZStack {
+                if highlighted {
+                    Circle().fill(AppTheme.brand.opacity(0.25)).frame(width: 24, height: 24)
+                }
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+            Text(label).font(.system(size: 7, weight: .semibold)).foregroundStyle(.white)
         }
     }
 }
 
 private struct PhoneSharePanel: View {
     var body: some View {
+        // Reference OB10: thumbnail at top, search bar, contact grid with handles as grey bars
+        // (no real IDs), bottom app row with Share-to… highlighted.
         VStack(spacing: 8) {
             Capsule().fill(AppTheme.hairline).frame(width: 36, height: 4)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ForEach(0..<9, id: \.self) { _ in
-                    VStack(spacing: 4) {
-                        Circle().fill(AppTheme.accentSoft).frame(width: 36, height: 36)
-                        Capsule().fill(AppTheme.hairline).frame(width: 30, height: 5)
+            RoundedRectangle(cornerRadius: 8)
+                .fill(AppTheme.accentSoft)
+                .overlay(Image(systemName: "fork.knife.circle.fill")
+                    .font(.system(size: 22))
+                    .foregroundStyle(AppTheme.brand.opacity(0.7)))
+                .frame(height: 56)
+            HStack(spacing: 6) {
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass").font(.system(size: 9))
+                    Capsule().fill(AppTheme.hairline).frame(height: 5)
+                }
+                .padding(.horizontal, 8).padding(.vertical, 5)
+                .background(AppTheme.surface, in: Capsule())
+                Image(systemName: "person.badge.plus")
+                    .font(.system(size: 10, weight: .semibold))
+                    .frame(width: 22, height: 22)
+                    .background(AppTheme.surface, in: Circle())
+            }
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                ForEach(0..<6, id: \.self) { _ in
+                    VStack(spacing: 3) {
+                        Circle().fill(AppTheme.accentSoft).frame(width: 30, height: 30)
+                        Capsule().fill(AppTheme.hairline).frame(width: 28, height: 5)
                     }
                 }
             }
-            Spacer()
-            HStack(spacing: 14) {
-                shareIcon(name: "link", label: "Copy link")
-                ZStack {
-                    shareIcon(name: "square.and.arrow.up", label: "Share to…")
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AppTheme.brand, lineWidth: 2)
-                        .frame(width: 56, height: 68)
-                }
-                shareIcon(name: "plus.circle", label: "Story")
+            Spacer(minLength: 0)
+            HStack(spacing: 6) {
+                shareBottomIcon(name: "link",                     label: "Copy")
+                shareBottomIcon(name: "phone.bubble.fill",        label: "WhatsApp")
+                shareBottomIcon(name: "square.and.arrow.up",      label: "Share to…", highlighted: true)
+                shareBottomIcon(name: "plus.rectangle.on.rectangle", label: "Story")
+                shareBottomIcon(name: "message.fill",             label: "Messages")
             }
         }
     }
 
-    private func shareIcon(name: String, label: String) -> some View {
-        VStack(spacing: 4) {
-            Image(systemName: name)
-                .font(.system(size: 16, weight: .semibold))
-                .frame(width: 42, height: 42)
-                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(AppTheme.hairline, lineWidth: 1))
-            Text(label).font(.system(size: 9)).foregroundStyle(AppTheme.textSecondary)
+    private func shareBottomIcon(name: String, label: String, highlighted: Bool = false) -> some View {
+        VStack(spacing: 3) {
+            ZStack {
+                if highlighted {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(AppTheme.brand, lineWidth: 2)
+                        .frame(width: 40, height: 50)
+                }
+                Image(systemName: name)
+                    .font(.system(size: 13, weight: .semibold))
+                    .frame(width: 32, height: 32)
+                    .background(AppTheme.surface, in: Circle())
+                    .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 1))
+            }
+            Text(label).font(.system(size: 7)).foregroundStyle(AppTheme.textSecondary).lineLimit(1)
         }
     }
 }
 
 private struct PhoneAppPicker: View {
     var body: some View {
-        VStack(spacing: 10) {
+        // Reference OB11: iOS system share sheet — preview card at top ("Reel from …" with the
+        // handle as a grey bar), recent-sharer avatar, row of app icons with CraveCircle
+        // highlighted, bottom actions.
+        VStack(spacing: 8) {
             Capsule().fill(AppTheme.hairline).frame(width: 36, height: 4)
-            HStack(spacing: 10) {
-                appTile(systemName: "paperplane.fill", color: Color(hex: "4F7CFF"), label: "AirDrop")
-                ZStack {
-                    appTile(systemName: "fork.knife", color: AppTheme.brand, label: "CraveCircle")
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AppTheme.brand, lineWidth: 2)
-                        .frame(width: 64, height: 82)
+
+            // Link preview card
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(AppTheme.surface)
+                    .overlay(Image(systemName: "safari").font(.system(size: 14)).foregroundStyle(AppTheme.textSecondary))
+                    .frame(width: 32, height: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 3) {
+                        Text("Reel from").font(.system(size: 9, weight: .semibold))
+                        Capsule().fill(AppTheme.hairline).frame(width: 36, height: 6)
+                    }
+                    Text("instagram.com").font(.system(size: 8))
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
-                appTile(systemName: "message.fill", color: Color(hex: "4CD964"), label: "Messages")
-                appTile(systemName: "envelope.fill", color: Color(hex: "007AFF"), label: "Mail")
+                Spacer()
             }
-            VStack(spacing: 10) {
-                row(icon: "eyeglasses", label: "Add to Reading List")
-                row(icon: "book", label: "Add Bookmark")
-                row(icon: "star", label: "Add to Favorites")
+            .padding(6)
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.hairline, lineWidth: 1))
+
+            // Recent sharer row
+            HStack(spacing: 10) {
+                VStack(spacing: 2) {
+                    Circle().fill(AppTheme.accentSoft).frame(width: 30, height: 30)
+                    Capsule().fill(AppTheme.hairline).frame(width: 24, height: 5)
+                }
+                Spacer()
             }
-            .padding(.top, AppSpacing.sm)
-            Spacer()
+
+            // App icons — CraveCircle highlighted
+            HStack(spacing: 8) {
+                sysAppTile(symbol: "swirl.circle.righthalf.filled", tint: Color(hex: "F26A5A"), label: "Kulfi")
+                sysAppTile(symbol: "camera.fill",                    tint: Color(hex: "C13584"), label: "Instagram")
+                sysAppTile(symbol: "mappin.circle.fill",             tint: Color(hex: "7E5CFF"), label: "District")
+                ZStack {
+                    sysAppTile(symbol: "fork.knife", tint: AppTheme.brand, label: "CraveCircle")
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(AppTheme.brand, lineWidth: 2)
+                        .frame(width: 48, height: 62)
+                }
+            }
+
+            // Action rows
+            VStack(spacing: 6) {
+                actionRow(label: "Copy",                 icon: "doc.on.doc")
+                actionRow(label: "Add to New Quick Note", icon: "square.and.pencil")
+                actionRow(label: "View More",            icon: "chevron.down")
+            }
+            Spacer(minLength: 0)
         }
     }
 
-    private func appTile(systemName: String, color: Color, label: String) -> some View {
-        VStack(spacing: 4) {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(color.opacity(0.15))
-                .overlay(Image(systemName: systemName).font(.system(size: 20, weight: .semibold)).foregroundStyle(color))
-                .frame(width: 52, height: 52)
-            Text(label).font(.system(size: 9)).foregroundStyle(AppTheme.textSecondary).lineLimit(1)
+    private func sysAppTile(symbol: String, tint: Color, label: String) -> some View {
+        VStack(spacing: 3) {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(tint.opacity(0.18))
+                .overlay(Image(systemName: symbol).font(.system(size: 15, weight: .semibold)).foregroundStyle(tint))
+                .frame(width: 40, height: 40)
+            Text(label).font(.system(size: 7, weight: .semibold))
+                .foregroundStyle(AppTheme.textSecondary).lineLimit(1)
         }
     }
 
-    private func row(icon: String, label: String) -> some View {
+    private func actionRow(label: String, icon: String) -> some View {
         HStack {
-            Text(label).font(.system(size: 11))
+            Text(label).font(.system(size: 10))
             Spacer()
-            Image(systemName: icon).font(.system(size: 12))
+            Image(systemName: icon).font(.system(size: 10))
         }
         .foregroundStyle(AppTheme.textPrimary)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+/// Final step of the onboarding tutorial — the "it worked" celebration. Mimics the user's own
+/// recipe detail: hero image on top, title + prep/cook meta, servings pill, ingredients tab.
+private struct PhoneImportedRecipe: View {
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack(alignment: .bottomLeading) {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(AppTheme.accentSoft)
+                    .overlay(
+                        Image(systemName: "fork.knife.circle.fill")
+                            .font(.system(size: 50))
+                            .foregroundStyle(AppTheme.brand.opacity(0.7))
+                    )
+                    .frame(height: 110)
+                HStack(spacing: 4) {
+                    Circle().fill(AppTheme.hairline).frame(width: 14, height: 14)
+                    Capsule().fill(AppTheme.hairline).frame(width: 40, height: 6)
+                    Image(systemName: "chevron.right").font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+                .padding(4)
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(8)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Brown Butter Chocolate Chip Banana Bread \u{1F34C}")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(2)
+                HStack(spacing: 6) {
+                    Text("Prep: 15 min").font(.system(size: 9))
+                    Text("|").foregroundStyle(AppTheme.textTertiary)
+                    Text("Cook: 1 hr").font(.system(size: 9))
+                }
+                .foregroundStyle(AppTheme.textSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 6) {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.arrow.down").font(.system(size: 9, weight: .bold))
+                    Text("6 servings").font(.system(size: 10, weight: .semibold))
+                }
+                .padding(.horizontal, 8).padding(.vertical, 5)
+                .background(AppTheme.surface, in: Capsule())
+                .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                Spacer()
+                HStack(spacing: 4) {
+                    Image(systemName: "square.and.arrow.up").font(.system(size: 9, weight: .bold))
+                    Text("Share").font(.system(size: 10, weight: .semibold))
+                }
+                .padding(.horizontal, 8).padding(.vertical, 5)
+                .background(AppTheme.surface, in: Capsule())
+                .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            }
+            HStack(spacing: 6) {
+                Text("Ingredients").font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(AppTheme.onAccent)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(AppTheme.textPrimary, in: Capsule())
+                Text("Directions").font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                Spacer()
+            }
+            Spacer(minLength: 0)
+        }
     }
 }

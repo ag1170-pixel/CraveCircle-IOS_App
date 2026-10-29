@@ -749,51 +749,67 @@ struct RecipeDetailScreen: View {
             .padding(.vertical, 7)
             .background(AppTheme.accentSoft, in: Capsule())
         } else {
-            HStack(spacing: 6) {
-                Image(systemName: "play.circle.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(AppTheme.accentInk)
-                Text("Original Audio Reel")
-                    .font(AppFont.body(13, weight: .semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(AppTheme.surface, in: Capsule())
-            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            // Social-reel default chip ("Original Audio Reel") removed — owner call.
+            EmptyView()
         }
     }
 
     private var metaLine: some View {
-        // Cook time on the left, Grocery pill on the right — frees the action row below from
-        // squeezing three pills into one line. Grocery is still a one-tap add.
+        // Cook time left, Servings stepper right. Serves lives up here (bigger / more visible)
+        // because people adjust servings a lot. Grocery moved down to the action row with Plan.
         HStack(spacing: 10) {
             if let cook = recipe.totalTimeText { metaItem("Cook", cook) }
             Spacer(minLength: 8)
-            groceryHeaderButton
+            servingsHeaderStepper
         }
     }
 
-    private var groceryHeaderButton: some View {
-        Button {
-            Haptics.success()
-            let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
-            addedGroceryCount = count
-            withAnimation { showGroceryBanner = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                withAnimation { showGroceryBanner = false }
+    /// Slightly bigger than the cook-time text so it reads as the primary adjustable in the
+    /// header, without blowing out the row. 14pt text, 28pt tap circles.
+    private var servingsHeaderStepper: some View {
+        HStack(spacing: 8) {
+            Button {
+                if servings > 1 {
+                    Haptics.tap()
+                    withAnimation(AppMotion.snappy) { servings -= 1 }
+                }
+            } label: {
+                Image(systemName: "minus")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(servings > 1 ? AppTheme.accentInk : AppTheme.textTertiary)
+                    .frame(width: 28, height: 28)
+                    .background(AppTheme.accentSoft, in: Circle())
             }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "basket.fill").font(.system(size: 12, weight: .semibold))
-                Text("Grocery").font(AppFont.body(13, weight: .semibold))
+            .buttonStyle(.plain)
+            .disabled(servings <= 1)
+            .accessibilityLabel("Decrease servings")
+
+            Text("\(servings) Servings")
+                .font(AppFont.body(14, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .fixedSize()
+
+            Button {
+                if servings < 24 {
+                    Haptics.tap()
+                    withAnimation(AppMotion.snappy) { servings += 1 }
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(AppTheme.accentInk)
+                    .frame(width: 28, height: 28)
+                    .background(AppTheme.accentSoft, in: Circle())
             }
-            .foregroundStyle(AppTheme.textPrimary)
-            .padding(.horizontal, 12).padding(.vertical, 7)
-            .background(AppTheme.surface, in: Capsule())
-            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            .buttonStyle(.plain)
+            .accessibilityLabel("Increase servings")
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(AppTheme.surface, in: Capsule())
+        .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
     }
 
     private func metaItem(_ label: String, _ value: String) -> some View {
@@ -841,17 +857,44 @@ struct RecipeDetailScreen: View {
     }
 
     private var actionRow: some View {
-        // Servings stepper (left) + Plan pill (right). Grocery moved up to the metaLine next to
-        // cook time so this row has room to breathe.
+        // Grocery + Plan — equal half-and-half, identical height. Shared padding so the pair
+        // reads as one commit control split in two.
         HStack(spacing: 10) {
-            servingsStepper
-            PillButton(title: planLabel, systemImage: "calendar.badge.plus",
-                       kind: isPlanned ? .filled : .surface, fullWidth: true) {
+            Button {
+                Haptics.success()
+                let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
+                addedGroceryCount = count
+                withAnimation { showGroceryBanner = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    withAnimation { showGroceryBanner = false }
+                }
+            } label: {
+                actionPillLabel(icon: "basket.fill", title: "Grocery", filled: false)
+            }
+            .buttonStyle(PressableStyle())
+            .frame(maxWidth: .infinity)
+
+            Button {
                 Haptics.tap()
                 showMealPlanner = true
+            } label: {
+                actionPillLabel(icon: "calendar.badge.plus", title: planLabel, filled: isPlanned)
             }
+            .buttonStyle(PressableStyle())
             .frame(maxWidth: .infinity)
         }
+    }
+
+    private func actionPillLabel(icon: String, title: String, filled: Bool) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon).font(.system(size: 14, weight: .bold))
+            Text(title).font(AppFont.body(14, weight: .bold)).lineLimit(1).minimumScaleFactor(0.85)
+        }
+        .foregroundStyle(filled ? AppTheme.onAccent : AppTheme.textPrimary)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(filled ? AppTheme.accent : AppTheme.surface, in: Capsule())
+        .overlay(Capsule().stroke(filled ? Color.clear : AppTheme.hairline, lineWidth: 1))
     }
 
     /// Live state from the env — "Plan" when nothing is scheduled, "Planned" when there's at
@@ -859,54 +902,6 @@ struct RecipeDetailScreen: View {
     private var isPlanned: Bool { !environment.plannedMeals(for: recipe.id).isEmpty }
     private var planLabel: String { isPlanned ? "Planned" : "Plan" }
 
-    /// `[−] N Servings [+]` — the number stays labelled so a cold reader knows what it means.
-    /// Grocery now lives up by the cook-time line, so this row only has Serves + Plan and the
-    /// word fits on every iPhone from SE to Pro Max without wrapping.
-    private var servingsStepper: some View {
-        HStack(spacing: 8) {
-            Button {
-                if servings > 1 {
-                    Haptics.tap()
-                    withAnimation(AppMotion.snappy) { servings -= 1 }
-                }
-            } label: {
-                Image(systemName: "minus")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(servings > 1 ? AppTheme.accentInk : AppTheme.textTertiary)
-                    .frame(width: 26, height: 26)
-                    .background(AppTheme.accentSoft, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .disabled(servings <= 1)
-            .accessibilityLabel("Decrease servings")
-
-            Text("\(servings) Servings")
-                .font(AppFont.body(13, weight: .bold))
-                .foregroundStyle(AppTheme.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-                .fixedSize()
-
-            Button {
-                if servings < 24 {
-                    Haptics.tap()
-                    withAnimation(AppMotion.snappy) { servings += 1 }
-                }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(AppTheme.accentInk)
-                    .frame(width: 26, height: 26)
-                    .background(AppTheme.accentSoft, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Increase servings")
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(AppTheme.surface, in: Capsule())
-        .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
-    }
 
     /// Reads the current saved state so the Save pill flips immediately on tap.
     private var saved: Bool { environment.isSaved(recipeId: recipe.id) }

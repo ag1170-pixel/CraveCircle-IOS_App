@@ -693,13 +693,16 @@ struct ImportToastBanner: View {
     }
 
     private var subtitleText: String {
+        let queued = environment.pendingImportCount
+        let queuedSuffix = queued > 0 ? "  ·  \(queued) more waiting" : ""
         switch environment.importState {
         case .submitting, .polling:
-            return "Cooking in background · tap for details"
+            return "Cooking in background\(queuedSuffix)"
         case .done:
-            return "Tap to open and start cooking"
+            return "Tap to open\(queuedSuffix)"
         case .failed(let msg):
-            return msg
+            // Failed banner auto-dismisses in 15s and the next queued import starts on its own.
+            return queued > 0 ? "\(msg)  ·  next up in 15s" : msg
         case .idle:
             return ""
         }
