@@ -123,7 +123,7 @@ struct ProfileScreen: View {
         }
         .sheet(isPresented: $showAccountSheet) {
             AccountSheet()
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .sheet(item: $activeSafariURL) { item in
@@ -584,23 +584,25 @@ struct AccountSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: AppSpacing.lg) {
-                Circle()
-                    .fill(AppTheme.accentSoft)
-                    .frame(width: 72, height: 72)
-                    .overlay(
-                        Text("CC")
-                            .font(AppFont.serif(24, weight: .bold))
-                            .foregroundStyle(AppTheme.accentInk)
-                    )
-                VStack(spacing: 4) {
-                    Text(environment.currentUser?.fullName ?? "Chef User")
-                        .font(AppFont.display(20, weight: .bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                    Text(environment.currentUser?.username ?? "@cravecircle")
-                        .font(AppFont.body(14))
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
+            ScrollView {
+                VStack(spacing: AppSpacing.lg) {
+                    Circle()
+                        .fill(AppTheme.accentSoft)
+                        .frame(width: 72, height: 72)
+                        .overlay(
+                            Text("CC")
+                                .font(AppFont.serif(24, weight: .bold))
+                                .foregroundStyle(AppTheme.accentInk)
+                        )
+                        .padding(.top, AppSpacing.sm)
+                    VStack(spacing: 4) {
+                        Text(environment.currentUser?.fullName ?? "Chef User")
+                            .font(AppFont.display(20, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                        Text(environment.currentUser?.username ?? "@cravecircle")
+                            .font(AppFont.body(14))
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
                 VStack(spacing: 0) {
                     HStack {
                         Text("Member Since")
@@ -619,24 +621,26 @@ struct AccountSheet: View {
                 // User-controlled data erasure — a lighter alternative to full account delete.
                 MyDataSection()
 
-                Spacer()
-
-                NavigationLink {
-                    DeleteAccountScreen()
-                } label: {
-                    Text("Delete Account")
-                        .font(AppFont.body(15, weight: .bold))
-                        .foregroundStyle(AppTheme.destructive)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(AppTheme.surface, in: Capsule())
-                        .overlay(Capsule().stroke(AppTheme.destructive.opacity(0.3), lineWidth: 1))
+                    NavigationLink {
+                        DeleteAccountScreen()
+                    } label: {
+                        Text("Delete Account")
+                            .font(AppFont.body(15, weight: .bold))
+                            .foregroundStyle(AppTheme.destructive)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(AppTheme.surface, in: Capsule())
+                            .overlay(Capsule().stroke(AppTheme.destructive.opacity(0.3), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, AppSpacing.sm)
                 }
-                .buttonStyle(.plain)
+                .padding(AppSpacing.lg)
             }
-            .padding(AppSpacing.lg)
             .background(AppTheme.background.ignoresSafeArea())
-            .navigationTitle("Account")
+            // No inline nav title — the avatar + name below is the title. Prior build set
+            // `navigationTitle("Account")` with inline mode in a `.medium` detent, which stacked
+            // the title and the avatar at the same y and collided in dark mode.
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
