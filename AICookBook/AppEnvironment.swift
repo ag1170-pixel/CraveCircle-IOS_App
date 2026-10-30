@@ -43,7 +43,62 @@ final class AppEnvironment: ObservableObject {
         didSet {
             reflectImportInLiveActivity()
             pumpImportQueueIfIdle(after: oldValue)
+            maybeOfferImportFeedback(after: oldValue)
         }
+    }
+
+    /// Fire the contextual "how did that import feel?" prompt once per week, on the transition
+    /// into `.done`. Honest signal only — nagging every import would train users to tap "5" to
+    /// make it go away. Weekly keeps the data meaningful.
+    private func maybeOfferImportFeedback(after oldValue: ImportFlowState) {
+        guard case .done(let recipeId) = importState else { return }
+        if case .done = oldValue { return }   // same success state entered twice; already offered
+        let last = Date(timeIntervalSinceReferenceDate: lastImportFeedbackAtRaw)
+        if Date().timeIntervalSince(last) < 7 * 24 * 60 * 60 { return }
+        pendingImportFeedbackRecipeId = recipeId
+    }
+
+    /// Called by the sheet when the user submits (or dismisses). Stamps the rate-limit
+    /// timestamp so the next prompt doesn't appear for 7 days.
+    func acknowledgeImportFeedback() {
+        lastImportFeedbackAtRaw = Date().timeIntervalSinceReferenceDate
+        pendingImportFeedbackRecipeId = nil
+    }
+
+    /// Check whether the user is now eligible for the NPS prompt. Called after a cook event
+    /// so the counter is fresh. All of these must be true:
+    ///   • Signed in, not a guest
+    ///   • They've logged ≥10 "cook" interactions (grounded opinion)
+    ///   • Last prompt was ≥90 days ago (quarterly cadence)
+    ///   • They haven't dismissed 3+ times (don't nag someone who clearly isn't interested)
+    func maybeOfferNPS() {
+        guard appState == .signedIn, !isGuest else { return }
+        let cookCount = interactionHistory.filter { $0.eventType == "cook" }.count
+        guard cookCount >= 10 else { return }
+        let last = Date(timeIntervalSinceReferenceDate: lastNPSPromptAtRaw)
+        if Date().timeIntervalSince(last) < 90 * 24 * 60 * 60 { return }
+        guard npsDismissCount < 3 else { return }
+        showNPSPrompt = true
+    }
+
+    /// Submit the NPS score. 0 = would never recommend, 10 = would absolutely recommend.
+    /// The 1-10 range check in the DB rejects 0 so we clamp before sending.
+    func submitNPS(rating: Int, text: String?) async -> Bool {
+        let r = max(1, min(10, rating))
+        let ok = await supabase.submitUserFeedback(
+            kind: "nps", rating: r, text: text,
+            context: ["cook_count": "\(interactionHistory.filter { $0.eventType == "cook" }.count)"]
+        )
+        if ok { acknowledgeNPSPrompt(dismissed: false) }
+        return ok
+    }
+
+    /// Called from the sheet on submit OR skip. Stamps the timestamp either way so we don't
+    /// re-prompt tomorrow; increments the dismiss counter only on skip.
+    func acknowledgeNPSPrompt(dismissed: Bool) {
+        lastNPSPromptAtRaw = Date().timeIntervalSinceReferenceDate
+        if dismissed { npsDismissCount += 1 }
+        showNPSPrompt = false
     }
 
     /// FIFO of URLs the user shared while another import was running. Each new share lands here
@@ -371,11 +426,20 @@ final class AppEnvironment: ObservableObject {
         let guestId = guestUserId
         let carried: [Recipe] = guestId.isEmpty ? [] : recipes.filter { $0.ownerId == guestId }
         hydrated = false
+        // Must land on a profile backed by a real auth.uid. If both servers refuse (network dead
+        // mid-signin, Supabase up but RLS blocks us) we DO NOT invent a stand-in — a fake id
+        // like "local-chef" means every subsequent write silently fails RLS. Sign the user back
+        // out with an error so they know to retry instead of using a half-broken app.
         if let profile = await supabase.fetchMyProfile() {
             currentUser = profile
+        } else if let profile = try? await apiClient.fetchProfile() {
+            currentUser = profile
         } else {
-            do { currentUser = try await apiClient.fetchProfile() }
-            catch { currentUser = fallbackUser(email: email) }
+            tokenStore.clearSession()
+            currentUser = nil
+            appState = .signedOut
+            errorMessage = "Signed in, but couldn't load your profile. Check your connection and try again."
+            return
         }
         elevateFounderIfMatches(email: email)
         // Fresh sign-in → clear the guest free-view counter so the previous session's taps don't
@@ -410,6 +474,14 @@ final class AppEnvironment: ObservableObject {
         if preAuthOnboardingDone, currentUser?.onboardedAt == nil, !isGuest {
             markOnboarded()
             preAuthOnboardingDone = false
+        }
+        // R5: did the user, back when they were a guest, try to share a reel in and get told
+        // "sign in first"? Kick that URL back into the import queue now. One-shot: consumed and
+        // cleared. No-op if there's nothing stashed.
+        if let deferred = UserDefaults.standard.string(forKey: Self.deferredImportKey),
+           !deferred.isEmpty, importState == .idle {
+            UserDefaults.standard.removeObject(forKey: Self.deferredImportKey)
+            Task { await self.startImport(from: deferred) }
         }
         await refreshRecipes()
         await hydrateLikesAndSavesFromServer()
@@ -489,7 +561,7 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
-    func signUp(email: String, password: String) async throws {
+    func signUp(email: String, password: String) async throws -> SupabaseAuthClient.SignUpOutcome {
         try await authClient.signUp(email: email, password: password)
     }
 
@@ -733,6 +805,24 @@ final class AppEnvironment: ObservableObject {
      /// UNIQUE recipe ids so re-tapping the same card doesn't burn through the budget.
     static let guestViewLimit = 10
     @AppStorage("guest_viewed_ids") private var guestViewedIdsRaw: String = ""
+    /// Timestamp of the most recent app-active transition. Used by the daily-nudge scheduler to
+    /// avoid pinging an actively-engaged user. Stored as reference-date seconds for @AppStorage.
+    @AppStorage("last_app_active_at") private var lastAppActiveAtRaw: Double = 0
+    /// Rate-limit the contextual import feedback prompt. We only ask once per 7 days so a user
+    /// importing 10 reels in a row doesn't get nagged after every single one.
+    @AppStorage("last_import_feedback_at") private var lastImportFeedbackAtRaw: Double = 0
+    /// Transient: the recipe id of the most recent successful import. RootView shows the
+    /// "how did that go?" sheet when this flips non-nil, then clears it.
+    @Published var pendingImportFeedbackRecipeId: String?
+
+    /// NPS runs quarterly (90 days) and only after the user has cooked enough that an opinion
+    /// is grounded. 10 "cook" events is roughly a month of real use.
+    @AppStorage("last_nps_prompt_at") private var lastNPSPromptAtRaw: Double = 0
+    @AppStorage("nps_dismiss_count") private var npsDismissCount: Int = 0
+    @Published var showNPSPrompt: Bool = false
+    private var lastAppActiveAt: Date? {
+        lastAppActiveAtRaw > 0 ? Date(timeIntervalSinceReferenceDate: lastAppActiveAtRaw) : nil
+    }
     @Published var showGuestPaywall = false
 
     private var guestViewedIds: Set<String> {
@@ -944,8 +1034,34 @@ final class AppEnvironment: ObservableObject {
                         }
                     }
                 }
-                if await supabase.upsertRecipes(dirty, ownerId: uid) {
-                    unsyncedRecipeIds.subtract(dirty.map { $0.id })
+                // R3 + R4: classify the push result instead of swallowing failures.
+                // .ok           → clear dirty, published recipe lands on the server
+                // .unauthorized → token expired; refresh once and retry so we don't LOSE the write
+                // .importPublishBlocked → server trigger refused (non-admin publishing an import).
+                //                 Move the recipe back to Studio drafts so the Publish button
+                //                 isn't silently a no-op, and tell the user why.
+                // .failed       → keep dirty, we'll retry on the next sync. No data loss.
+                let dirtyIds = dirty.map { $0.id }
+                switch await supabase.upsertRecipes(dirty, ownerId: uid) {
+                case .ok:
+                    unsyncedRecipeIds.subtract(dirtyIds)
+                case .unauthorized:
+                    if await supabase.refreshSessionIfPossible(),
+                       case .ok = await supabase.upsertRecipes(dirty, ownerId: uid) {
+                        unsyncedRecipeIds.subtract(dirtyIds)
+                    } else {
+                        errorMessage = "Your session expired. Sign in again to publish this recipe."
+                    }
+                case .importPublishBlocked:
+                    // Imports can't be published by non-admins. Un-publish them locally so the
+                    // user sees them back in Studio Drafts and knows the Publish didn't take.
+                    for id in dirtyIds { studioDraftIds.insert(id) }
+                    unsyncedRecipeIds.subtract(dirtyIds)
+                    errorMessage = "Imports can't be published — write your own version in Studio first."
+                case .failed(let msg):
+                    #if DEBUG
+                    print("recipe push failed, keeping dirty: \(msg)")
+                    #endif
                 }
             }
         }
@@ -1454,6 +1570,10 @@ final class AppEnvironment: ObservableObject {
     // Shared with the Share Extension (same literal strings live in ShareViewController).
     static let appGroupID = "group.com.anassyed.AICookBook"
     static let pendingImportKey = "pending_import_url"
+    /// R5: URL a guest tried to share while the sign-in wall was up. Lives in standard
+    /// UserDefaults (not the App Group) because it's a per-install value, not shared with the
+    /// Share Extension process. finishAuthenticatedSession reads + consumes it after sign-in.
+    static let deferredImportKey = "deferred_guest_import_url"
 
     /// Import a link shared into the app from the system Share sheet.
     /// `passedURL` is the link carried in the `cravecircle://import?url=…` deep link (the primary
@@ -1462,8 +1582,25 @@ final class AppEnvironment: ObservableObject {
     func importFromSharedURL(_ passedURL: String? = nil) async {
         // A share from outside the app is a write — gate it the same way the + button is gated,
         // but with the share-specific copy that reads less punitive ("we'd love you to keep it").
+        // R5: if the user is a guest when the share arrives, stash the URL to UserDefaults so
+        // signing in or signing up (whenever that happens — minutes or days later) can pick it
+        // up. Otherwise the reel they wanted is lost the moment they tap "Not now".
+        if await MainActor.run(body: { isGuest }) {
+            if let url = passedURL?.trimmingCharacters(in: .whitespacesAndNewlines), !url.isEmpty {
+                UserDefaults.standard.set(url, forKey: Self.deferredImportKey)
+            }
+            _ = await MainActor.run(body: { requireRealSessionOrPrompt(reason: .share) })
+            return
+        }
         guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .share) }) else { return }
         var urlString = passedURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Did the guest previously stash a URL (R5)? Consume it now that we're signed in.
+        if (urlString?.isEmpty ?? true),
+           let deferred = UserDefaults.standard.string(forKey: Self.deferredImportKey),
+           !deferred.isEmpty {
+            urlString = deferred
+            UserDefaults.standard.removeObject(forKey: Self.deferredImportKey)
+        }
 
         if urlString?.isEmpty ?? true,
            let defaults = UserDefaults(suiteName: Self.appGroupID),
@@ -2650,7 +2787,12 @@ final class AppEnvironment: ObservableObject {
         }
 
         // They cooked it — no need to nudge them to.
-        if eventType == "cook" { cancelCookNudge(recipeId: recipeId) }
+        if eventType == "cook" {
+            cancelCookNudge(recipeId: recipeId)
+            // Grounded opinion → eligible for the quarterly NPS prompt. All guards live inside
+            // `maybeOfferNPS` so this call is cheap and idempotent.
+            maybeOfferNPS()
+        }
 
         if pendingInteractions.count >= 10 {
             flushTelemetry()
@@ -2750,6 +2892,60 @@ final class AppEnvironment: ObservableObject {
     func cancelImport() {
         importTask?.cancel()
         importState = .idle
+    }
+
+    /// Call this on scenePhase == .active. Stamps the lifecycle timestamp (so the nudge scheduler
+    /// can skip pinging an engaged user) and kicks off a background reschedule of today's local
+    /// notifications. Safe to call every foreground — the scheduler wipes + rebuilds idempotently.
+    func noteAppDidBecomeActive() {
+        lastAppActiveAtRaw = Date().timeIntervalSinceReferenceDate
+        Task { @MainActor in await rescheduleDailyNudges() }
+    }
+
+    /// Build the context the DailyNudgeScheduler needs from current state, then hand it off.
+    /// Separated so callers can trigger it from debug menus or tests.
+    @MainActor
+    func rescheduleDailyNudges() async {
+        guard appState == .signedIn, !isGuest else { return }
+        let cal = Calendar.current
+        let now = Date()
+        let startOfToday = cal.startOfDay(for: now)
+        let startOfTomorrow = cal.date(byAdding: .day, value: 1, to: startOfToday) ?? startOfToday
+        let endOfTomorrow = cal.date(byAdding: .day, value: 1, to: startOfTomorrow) ?? startOfTomorrow
+
+        func row(for meal: PlannedMeal) -> (Date, String, String, String)? {
+            guard let r = recipes.first(where: { $0.id == meal.recipeId }) else { return nil }
+            return (meal.when, meal.slot.displayName, r.title, r.id)
+        }
+
+        let todays = plannedMeals
+            .filter { $0.when >= now && $0.when < startOfTomorrow }
+            .sorted { $0.when < $1.when }
+            .compactMap(row)
+        let tomorrows = plannedMeals
+            .filter { $0.when >= startOfTomorrow && $0.when < endOfTomorrow }
+            .sorted { $0.when < $1.when }
+            .compactMap(row)
+
+        // Count imports the user never opened — a "view" interaction is cheap enough that any
+        // real engagement writes one, so recipes without any view are the un-cooked pile.
+        let viewed = Set(interactionHistory.filter { $0.eventType == "view" }.map(\.recipeId))
+        let unCookedImports = recipes.filter {
+            isOwner(of: $0) && $0.isImportedFromSocial && !viewed.contains($0.id)
+        }.count
+
+        let suggestedTitle = suggestedRecipes.first?.title
+
+        let ctx = DailyNudgeScheduler.NudgeContext(
+            now: now,
+            lastAppActiveAt: lastAppActiveAt,
+            plansToday: todays,
+            plansTomorrow: tomorrows,
+            savedCount: savedRecipeIds.count,
+            unCookedImports: unCookedImports,
+            suggestedTitle: suggestedTitle
+        )
+        await DailyNudgeScheduler.rescheduleDailyNudges(context: ctx)
     }
 
     /// Pop the next queued URL and start importing it. Cancels any pending auto-dismiss timer.
@@ -2967,12 +3163,40 @@ final class AppEnvironment: ObservableObject {
     }
 
     // MARK: - Feedback / Admin
-    
+
+    /// Legacy call still used by the existing CEO-letter form. We map `type` onto the new
+    /// Supabase `user_feedback` table and store the message in `text`, so existing UI keeps
+    /// working while the new admin inbox reads from one source of truth.
     func submitFeedback(type: String, content: String, email: String? = nil, handle: String? = nil) async throws {
-        try await apiClient.submitFeedback(type: type, content: content, email: email, handle: handle)
+        var context: [String: String] = ["source": type]
+        if let email, !email.isEmpty { context["email"] = email }
+        if let handle, !handle.isEmpty { context["handle"] = handle }
+        let ok = await supabase.submitUserFeedback(kind: "freeform", rating: nil, text: content, context: context)
+        if !ok { throw APIError.serverError("Couldn't save feedback. Try again.") }
     }
 
-    /// Recipe-issue reports, newest first.
+    /// Contextual micro-prompt after a successful import — 1 (bad) to 5 (loved it). Rate-limited
+    /// at the call site so a user isn't nagged every single reel.
+    func submitImportFeedback(rating: Int, text: String?, recipeId: String?) async -> Bool {
+        var context: [String: String] = [:]
+        if let recipeId { context["recipe_id"] = recipeId }
+        return await supabase.submitUserFeedback(kind: "import", rating: rating, text: text, context: context)
+    }
+
+    /// Admin-only: list open feedback for the triage inbox. Nil status returns everything.
+    func loadAdminFeedback(status: String? = nil) async -> [UserFeedbackRow] {
+        guard isAdmin else { return [] }
+        return await supabase.listFeedback(status: status)
+    }
+
+    func markFeedbackStatus(id: String, status: String) async -> Bool {
+        guard isAdmin else { return false }
+        return await supabase.updateFeedbackStatus(id: id, status: status)
+    }
+
+    /// Legacy: the existing AdminRecipeReportsScreen still reads from the APIClient feedback
+    /// endpoint for `recipe_report` rows. Kept as-is so that screen keeps working; the new
+    /// Supabase feedback inbox lives alongside.
     func fetchRecipeReports() async throws -> [AdminFeedback] {
         guard isAdmin else { return [] }
         let rows = try await apiClient.fetchFeedback()

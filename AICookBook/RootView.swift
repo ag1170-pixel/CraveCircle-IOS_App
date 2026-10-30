@@ -225,8 +225,16 @@ struct LoginView: View {
                     return
                 }
                 do {
-                    try await environment.signUp(email: email, password: password)
-                    inlineMessage = "Account created. Please log in."
+                    // R2: Don't lie about "please log in" when Supabase has email confirmation on
+                    // (the default). The returned outcome tells us whether a session was issued
+                    // right away or whether the user has to click a link in their inbox first.
+                    let outcome = try await environment.signUp(email: email, password: password)
+                    switch outcome {
+                    case .ready:
+                        inlineMessage = "Account created. You can sign in now."
+                    case .awaitingConfirmation:
+                        inlineMessage = "Check your email — tap the link to confirm, then sign in."
+                    }
                     isError = false
                     isSignUpMode = false
                     confirmPassword = ""
@@ -444,6 +452,29 @@ struct MainTabView: View {
         .sheet(isPresented: $showFeedback) {
             CEOMessageScreen()
                 .environmentObject(environment)
+        }
+        // Contextual micro-prompt after a successful import. Rate-limited to once per 7 days
+        // by `maybeOfferImportFeedback` so a user importing many reels back-to-back isn't nagged.
+        .sheet(item: Binding(
+            get: { environment.pendingImportFeedbackRecipeId.map(ImportFeedbackTarget.init) },
+            set: { _ in environment.acknowledgeImportFeedback() }
+        )) { target in
+            ImportFeedbackSheet(recipeId: target.id)
+                .environmentObject(environment)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.hidden)
+        }
+        // Quarterly NPS prompt. Triggered after the user's 10th cook event; gated to once per
+        // 90 days and stops asking after 3 dismissals so a user who clearly isn't interested
+        // isn't pursued forever.
+        .sheet(isPresented: Binding(
+            get: { environment.showNPSPrompt },
+            set: { if !$0 { environment.acknowledgeNPSPrompt(dismissed: true) } }
+        )) {
+            NPSPromptSheet()
+                .environmentObject(environment)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.hidden)
         }
         .fullScreenCover(item: $newRecipe) { recipe in
             // Figma-aligned wizard. Fires on `pendingNewRecipe = true` from Studio, the Home
