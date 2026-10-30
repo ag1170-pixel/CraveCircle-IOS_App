@@ -676,10 +676,6 @@ struct HomeScreen: View {
                 Text("Fresh in your Circle")
                     .font(AppFont.display(20, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
-                Text("new today !!")
-                    .font(AppFont.serif(15, weight: .semibold))
-                    .italic()
-                    .foregroundStyle(AppTheme.accentInk)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, AppSpacing.md)

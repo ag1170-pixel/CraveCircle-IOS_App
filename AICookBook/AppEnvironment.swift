@@ -1024,7 +1024,9 @@ final class AppEnvironment: ObservableObject {
         // A private import is not in the public catalog. Upload it as followers-only so the
         // recipient can open it (shares_select policy) without it showing up for everyone.
         if var recipe, let uid = currentUser?.id, isOwner(of: recipe) {
-            if !canPublish || recipe.isImportedFromSocial { recipe.visibility = .followers }
+            // Covers web imports too: a creator sharing a blog recipe to a friend must not push it
+            // into the public catalog as `.everyone`.
+            if !canPublish || recipe.staysOnThisPhone { recipe.visibility = .followers }
             _ = await supabase.upsertRecipes([recipe], ownerId: uid)
         }
         let ok = await supabase.recordShare(recipeId: recipeId, toUserId: toId, channel: "in-app",
@@ -1436,10 +1438,10 @@ final class AppEnvironment: ObservableObject {
     var ownedRecipes: [Recipe] { recipes.filter { isOwner(of: $0) } }
     /// Recipes this account wrote. Imports stay in All.
     var createdRecipes: [Recipe] { ownedRecipes.filter { $0.wasWrittenHere(by: currentUser?.username) } }
-    /// The user's own recipes still in Studio draft.
-    var myDrafts: [Recipe] { ownedRecipes.filter { isDraft(recipeId: $0.id) } }
-    /// The user's own recipes that are published.
-    var myPublished: [Recipe] { ownedRecipes.filter { !isDraft(recipeId: $0.id) } }
+    /// Studio only ever lists recipes this account WROTE. Imports from a reel or a web page are
+    /// someone else's content — they stay in the library and never appear as drafts or "published".
+    var myDrafts: [Recipe] { createdRecipes.filter { isDraft(recipeId: $0.id) } }
+    var myPublished: [Recipe] { createdRecipes.filter { !isDraft(recipeId: $0.id) } }
 
     /// Your Library = recipes you created/imported (owner) or explicitly saved. NOT `canDelete`,
     /// which is a moderation check that's true for any imported/published recipe (so it leaked
@@ -2362,13 +2364,15 @@ final class AppEnvironment: ObservableObject {
     func unpublishRecipe(recipeId: String) {
         guard canPublish,
               let recipe = recipes.first(where: { $0.id == recipeId }),
-              isOwner(of: recipe)
+              isOwner(of: recipe),
+              !recipe.staysOnThisPhone
         else { return }
         studioDraftIds.insert(recipeId)
     }
-    
+
     func promoteToStudio(recipe: Recipe) {
-        guard canPublish, isOwner(of: recipe) else { return }
+        // Imports can't enter Studio at all — only the creator's own writing can be published.
+        guard canPublish, isOwner(of: recipe), !recipe.staysOnThisPhone else { return }
         studioDraftIds.insert(recipe.id)
     }
 

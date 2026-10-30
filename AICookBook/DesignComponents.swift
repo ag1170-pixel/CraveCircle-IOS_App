@@ -410,7 +410,10 @@ struct PillButton: View {
         } label: {
             HStack(spacing: 8) {
                 if let systemImage { Image(systemName: systemImage).font(.system(size: 15, weight: .bold)) }
-                Text(title).font(AppFont.body(16, weight: .bold))
+                Text(title)
+                    .font(AppFont.body(16, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
             .frame(maxWidth: fullWidth ? .infinity : nil)
             .padding(.horizontal, 22)

@@ -277,14 +277,29 @@ struct MainTabView: View {
     @State private var discoverReel: [Recipe] = []
     @State private var discoverCurrentID: String?
 
+    /// The ONE gate for the Add-a-recipe sheet. Every opener (+ button, Home empty state, import
+    /// progress "reopen", onboarding) writes through this binding, so a guest gets the sign-in
+    /// wall no matter which door they use. Closing is never blocked.
+    private var importSheetBinding: Binding<Bool> {
+        Binding(
+            get: { showingImportSheet },
+            set: { wantsOpen in
+                if wantsOpen && environment.isGuest {
+                    environment.promptGuestToSignIn(reason: .importRecipe)
+                } else {
+                    showingImportSheet = wantsOpen
+                }
+            }
+        )
+    }
+
     /// Osta-style floating + button, bottom-right. Context-aware: on the Grocery tab it opens
     /// "Add item to your list"; everywhere else it opens Add-a-recipe.
     private var importFAB: some View {
         Button {
             Haptics.tap()
             if tab == .groceries { showingAddGrocery = true }
-            else if environment.isGuest { environment.promptGuestToSignIn(reason: .importRecipe) }
-            else { showingImportSheet = true }
+            else { importSheetBinding.wrappedValue = true }
         } label: {
             // Brand coral in BOTH light and dark (owner call) — the + FAB is our brand primary, not the
             // charcoal UI accent. White glyph, plain drop shadow, no glow.
@@ -309,7 +324,7 @@ struct MainTabView: View {
         // shrinks on scroll. This is Gowtham's original bar, restored verbatim.
         TabView(selection: $tab) {
             Tab(value: AppTab.home) {
-                HomeScreen(showingImportSheet: $showingImportSheet)
+                HomeScreen(showingImportSheet: importSheetBinding)
             } label: {
                 Image(systemName: AppTab.home.icon)
                     .accessibilityLabel(AppTab.home.title)
@@ -396,11 +411,9 @@ struct MainTabView: View {
         }
         .onChange(of: environment.pendingImportRequest) { _, requested in
             // Onboarding asked to import a first reel — open the sheet once, then clear the flag.
-            // Guest hits the sign-in wall (import writes to their library and the server).
             if requested {
                 environment.pendingImportRequest = false
-                if environment.isGuest { environment.promptGuestToSignIn(reason: .importRecipe) }
-                else { showingImportSheet = true }
+                importSheetBinding.wrappedValue = true
             }
         }
         .onChange(of: environment.pendingNewRecipe) { _, requested in
@@ -442,7 +455,7 @@ struct MainTabView: View {
             .environmentObject(environment)
         }
         .sheet(isPresented: $showingProgressDetail) {
-            ImportProgressScreen(reopenImport: { showingImportSheet = true })
+            ImportProgressScreen(reopenImport: { importSheetBinding.wrappedValue = true })
                 .presentationDetents([.fraction(0.85), .large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(AppTheme.background)
