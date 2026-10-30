@@ -69,7 +69,10 @@ struct HomeScreen: View {
                         }
                     }
                 }
-                .padding(.bottom, AppSpacing.xl)
+                // Extra breathing room so the floating `+` FAB (58pt + 78pt bottom offset) and
+                // the system tab bar don't overlap the last card's "Because you viewed…" reason
+                // chip. 140 covers both on the smallest iPhone widths without feeling empty.
+                .padding(.bottom, 140)
             }
             .doodleScreenBackground()   // static wallpaper behind text/gaps; cards stay opaque
             .overlayPreferenceValue(CardFramesKey.self) { frames in
@@ -702,6 +705,12 @@ struct HomeScreen: View {
     
     // MARK: Suggested for You
     
+    /// Suggested for You is a 2-column vertical grid for the first `gridTakeCount` picks and a
+     /// horizontal rail for whatever's left over. The grid uses `SuggestedGridCard` (fills its
+     /// cell) instead of `FreshCard` (fixed width, which left dead space on the right in a grid
+     /// and made the top row look stunted). No cap — all content stays reachable.
+    private static let gridTakeCount = 6
+
     private var suggestedSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -715,27 +724,85 @@ struct HomeScreen: View {
             }
             .padding(.horizontal, AppSpacing.md)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: AppSpacing.md) {
-                    ForEach(environment.suggestedRecipes) { recipe in
-                        VStack(alignment: .leading, spacing: 6) {
-                            FreshCard(recipe: recipe) { environment.selectRecipe(recipe, in: environment.suggestedRecipes) }
-                                .reportsCardFrame(id: "sugg-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
-                            if let why = environment.suggestionReasons[recipe.id] {
-                                SuggestionReasonChip(text: why)
-                                    .frame(maxWidth: 200, alignment: .leading)
-                            }
-                        }
-                        .frame(width: FreshCard.cardWidth) // match the 2-up card width
+            let all = environment.suggestedRecipes
+            let gridPicks = Array(all.prefix(Self.gridTakeCount))
+            let overflow  = Array(all.dropFirst(Self.gridTakeCount))
+
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: AppSpacing.md),
+                GridItem(.flexible(), spacing: AppSpacing.md)
+            ], spacing: AppSpacing.md) {
+                ForEach(gridPicks) { recipe in
+                    SuggestedGridCard(recipe: recipe) {
+                        environment.selectRecipe(recipe, in: environment.suggestedRecipes)
                     }
                 }
-                .padding(.horizontal, AppSpacing.md)
             }
-            .scrollClipDisabled()
-            .background(GeometryReader { geo in
-                Color.clear.preference(key: HorizontalScrollFrameKey.self, value: [geo.frame(in: .global)])
-            })
+            .padding(.horizontal, AppSpacing.md)
+
+            if !overflow.isEmpty {
+                Text("More picks")
+                    .font(AppFont.body(13, weight: .semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.top, AppSpacing.sm)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: AppSpacing.md) {
+                        ForEach(overflow) { recipe in
+                            FreshCard(recipe: recipe) {
+                                environment.selectRecipe(recipe, in: environment.suggestedRecipes)
+                            }
+                            .reportsCardFrame(id: "sugg-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
+                        }
+                    }
+                    .padding(.horizontal, AppSpacing.md)
+                }
+                .scrollClipDisabled()
+                .background(GeometryReader { geo in
+                    Color.clear.preference(key: HorizontalScrollFrameKey.self, value: [geo.frame(in: .global)])
+                })
+            }
+
+            // Intentional end-of-page marker so content doesn't just stop into the empty gap
+            // above the FAB. Soft hairline + quiet "View all in Discover" chip tells the user
+            // "you've seen the picks; here's where to go for more" — reads much more
+            // professional than cards → doodle wallpaper → floating button.
+            suggestedEndMarker
+                .padding(.top, AppSpacing.md)
+                .padding(.horizontal, AppSpacing.md)
         }
+    }
+
+    private var suggestedEndMarker: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Rectangle().fill(AppTheme.hairline).frame(height: 1)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(AppTheme.textTertiary)
+                Rectangle().fill(AppTheme.hairline).frame(height: 1)
+            }
+            Text("That's your picks for today")
+                .font(AppFont.body(13))
+                .foregroundStyle(AppTheme.textTertiary)
+            Button {
+                Haptics.tap()
+                environment.requestTabSwitch(.discover)
+            } label: {
+                HStack(spacing: 6) {
+                    Text("Browse Discover")
+                        .font(AppFont.body(14, weight: .bold))
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 12, weight: .bold))
+                }
+                .foregroundStyle(AppTheme.accentInk)
+                .padding(.horizontal, 18).padding(.vertical, 10)
+                .background(AppTheme.accentSoft, in: Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: Your Library
@@ -1069,6 +1136,67 @@ struct LibraryCard: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Suggested-grid card
+
+/// A cell-filling card for the Suggested for You vertical grid. Mirrors FreshCard's layout —
+/// hero, title, creator, meta — but drops the hardcoded `cardWidth` so the card expands to fill
+/// its LazyVGrid cell. Reason chip renders underneath when present.
+struct SuggestedGridCard: View {
+    let recipe: Recipe
+    let onTap: () -> Void
+    @EnvironmentObject private var environment: AppEnvironment
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Fixed aspect box so every card's cover has the SAME height regardless of the
+            // source image's intrinsic ratio — stops the top row from looking stunted.
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .aspectRatio(1 / 0.78, contentMode: .fit)
+                .overlay {
+                    RecipeCoverImage(recipe: recipe)
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: AppRadius.tile, style: .continuous))
+                .overlay(alignment: .topTrailing) {
+                    if recipe.visibility == .followers {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(AppTheme.accentInk)
+                            .padding(6)
+                            .background(AppTheme.accentSoft.opacity(0.9), in: Circle())
+                            .padding(8)
+                    }
+                }
+                .overlay { CardLikeOverlay(recipeId: recipe.id, onSingleTap: onTap) }
+                .reportsCardFrame(id: "sugg-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
+            Text(recipe.title)
+                .font(AppFont.body(15, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
+            CreatorLine(handle: recipe.ownerUsername)
+            MetaLine(recipe: recipe)
+            // Reserve a fixed slot for the reason chip so every card is the SAME height — a card
+            // without a chip (user's own uploads, no reason attached) used to collapse upward and
+            // misalign the grid row next to a card that had a chip. Empty when no reason.
+            Group {
+                if let why = environment.suggestionReasons[recipe.id] {
+                    SuggestionReasonChip(text: why).lineLimit(2)
+                } else {
+                    Color.clear
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 28, alignment: .topLeading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture { Haptics.tap(); onTap() }
     }
 }
 
