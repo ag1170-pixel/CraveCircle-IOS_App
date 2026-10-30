@@ -231,6 +231,21 @@ struct HomeScreen: View {
                             .allowsHitTesting(false)
                     }
                 }
+                // Done button on the keyboard accessory bar so the user can dismiss the keyboard
+                // without having to tap outside the search field (the only prior way to close
+                // it was to tap the darkened area behind, which some users miss).
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button("Done") {
+                            Haptics.tap()
+                            if !query.isEmpty { recordRecentSearch(query) }
+                            searchFocused = false
+                        }
+                        .font(AppFont.body(16, weight: .bold))
+                        .foregroundStyle(AppTheme.accentInk)
+                    }
+                }
             if !query.isEmpty {
                 Button { query = ""; Haptics.tap() } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(AppTheme.textTertiary)
