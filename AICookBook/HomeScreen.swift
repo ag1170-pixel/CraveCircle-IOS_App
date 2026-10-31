@@ -723,8 +723,10 @@ struct HomeScreen: View {
     /// Suggested for You is a 2-column vertical grid for the first `gridTakeCount` picks and a
      /// horizontal rail for whatever's left over. The grid uses `SuggestedGridCard` (fills its
      /// cell) instead of `FreshCard` (fixed width, which left dead space on the right in a grid
-     /// and made the top row look stunted). No cap — all content stays reachable.
-    private static let gridTakeCount = 6
+     /// and made the top row look stunted). No cap — all content stays reachable. The grid
+     /// take is deliberately small so the rail picks up most of the content; the rail cards are
+     /// also wider than grid cards, so the rail reads as "featured picks" vs the compact grid.
+    private static let gridTakeCount = 4
 
     private var suggestedSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -756,19 +758,24 @@ struct HomeScreen: View {
             .padding(.horizontal, AppSpacing.md)
 
             if !overflow.isEmpty {
-                Text("More picks")
-                    .font(AppFont.body(13, weight: .semibold))
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .padding(.horizontal, AppSpacing.md)
-                    .padding(.top, AppSpacing.sm)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("More picks")
+                        .font(AppFont.body(15, weight: .bold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                    Text("swipe →")
+                        .font(AppFont.body(11, weight: .semibold))
+                        .foregroundStyle(AppTheme.textTertiary)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, AppSpacing.md)
+                .padding(.top, AppSpacing.md)
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: AppSpacing.md) {
                         ForEach(overflow) { recipe in
-                            FreshCard(recipe: recipe) {
+                            SuggestedRailCard(recipe: recipe) {
                                 environment.selectRecipe(recipe, in: environment.suggestedRecipes)
                             }
-                            .reportsCardFrame(id: "sugg-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
                         }
                     }
                     .padding(.horizontal, AppSpacing.md)
@@ -1210,6 +1217,64 @@ struct SuggestedGridCard: View {
             .frame(maxWidth: .infinity, minHeight: 28, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture { Haptics.tap(); onTap() }
+    }
+}
+
+// MARK: - Suggested-rail card (bigger than the grid card)
+
+/// Wider sibling of `SuggestedGridCard` for the "More picks" horizontal rail. Deliberately
+/// larger than the grid card (240pt vs ~170pt) so the rail reads as featured content instead
+/// of a demotion. Same inner shape — hero, title, creator, meta, optional reason chip.
+struct SuggestedRailCard: View {
+    let recipe: Recipe
+    let onTap: () -> Void
+    @EnvironmentObject private var environment: AppEnvironment
+
+    static let cardWidth: CGFloat = 240
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Color.clear
+                .frame(width: Self.cardWidth)
+                .aspectRatio(1 / 0.72, contentMode: .fit)
+                .overlay {
+                    RecipeCoverImage(recipe: recipe)
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: AppRadius.tile, style: .continuous))
+                .overlay(alignment: .topTrailing) {
+                    if recipe.visibility == .followers {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(AppTheme.accentInk)
+                            .padding(6)
+                            .background(AppTheme.accentSoft.opacity(0.9), in: Circle())
+                            .padding(8)
+                    }
+                }
+                .overlay { CardLikeOverlay(recipeId: recipe.id, onSingleTap: onTap) }
+                .reportsCardFrame(id: "sugg-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
+            Text(recipe.title)
+                .font(AppFont.body(16, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .topLeading)
+            CreatorLine(handle: recipe.ownerUsername)
+            MetaLine(recipe: recipe)
+            Group {
+                if let why = environment.suggestionReasons[recipe.id] {
+                    SuggestionReasonChip(text: why).lineLimit(2)
+                } else {
+                    Color.clear
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 28, alignment: .topLeading)
+        }
+        .frame(width: Self.cardWidth, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture { Haptics.tap(); onTap() }
     }
