@@ -170,12 +170,14 @@ struct RecipeCoverImage: View {
             guard memoryLocalImage == nil else { return }
             let names = Self.localCoverFilenames(urlString: urlString, recipeId: recipeId)
             guard !names.isEmpty else { return }
+            let performanceStart = PerformanceDiagnostics.start()
             let image = await Task.detached(priority: .userInitiated) { () -> UIImage? in
                 for name in names {
                     if let image = RecipeCoverImage.loadStoreImage(named: name) { return image }
                 }
                 return nil
             }.value
+            PerformanceDiagnostics.record("Local cover read + decode", since: performanceStart)
             if let image { loadedLocal = image }
         }
     }
@@ -323,6 +325,8 @@ enum CoverDiskCache {
     }
 
     static func loadDisk(for url: URL) -> UIImage? {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Cover disk read + decode", since: performanceStart) }
         let path = file(for: url)
         guard let data = try? Data(contentsOf: path), let image = UIImage(data: data) else { return nil }
         memory.setObject(image, forKey: stableKey(url) as NSString)
@@ -330,6 +334,8 @@ enum CoverDiskCache {
     }
 
     static func download(_ url: URL) async -> UIImage? {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Cover network + decode", since: performanceStart) }
         if let hit = memoryImage(for: url) { return hit }
         var request = URLRequest(url: url)
         request.cachePolicy = .returnCacheDataElseLoad
@@ -360,6 +366,8 @@ private struct CachedRemoteCover: View {
             }
         }
         .task(id: url.absoluteString) {
+            let performanceStart = PerformanceDiagnostics.start()
+            defer { PerformanceDiagnostics.record("Remote cover load", since: performanceStart) }
             if let cached = CoverDiskCache.memoryImage(for: url) {
                 image = cached
                 return

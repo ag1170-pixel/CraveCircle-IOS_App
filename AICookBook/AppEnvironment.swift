@@ -220,6 +220,8 @@ final class AppEnvironment: ObservableObject {
     /// Load this user's library, photo, grocery, and the rest of their on-device setup.
     /// Sample recipes are still merged in so Discover works offline; they are not owned.
     private func hydrateLocal() {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Local hydration", since: performanceStart) }
         guard let userId = currentUser?.id, !userId.isEmpty else { return }
         hydrated = false
         claimLegacyFilesIfNeeded(userId: userId)
@@ -317,6 +319,8 @@ final class AppEnvironment: ObservableObject {
     }
 
     func bootstrap() async {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Bootstrap flow", since: performanceStart) }
         #if DEBUG
         _ = CraveCircleInvariantChecks._runChecks
         #endif
@@ -729,6 +733,8 @@ final class AppEnvironment: ObservableObject {
     }
 
     func refreshRecipes() async {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Recipe refresh + sync", since: performanceStart) }
         // Instant day-0 fallback: seed with static samples if local store is empty
         if recipes.isEmpty {
             recipes = Recipe.placeholderRecipes
@@ -766,6 +772,8 @@ final class AppEnvironment: ObservableObject {
     /// Infinite scroll: append the next page of recipes from Supabase cloud as the user nears the end.
     /// Pages from Supabase; on error/empty it simply stops gracefully without UI freezes.
     func loadMoreRecipes() async {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Load more recipes", since: performanceStart) }
         guard !isLoadingMore, hasMoreRecipes else { return }
         isLoadingMore = true
         defer { isLoadingMore = false }
@@ -1690,6 +1698,8 @@ final class AppEnvironment: ObservableObject {
     /// actually terminates it: it cancels the in-flight server/download requests AND stops the
     /// on-device transcription/OCR/extraction, and no late state write can revive the banner.
     func startImport(from instagramURL: String, extraOnScreen: String? = nil, extraCaption: String? = nil) async {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Link recipe import", since: performanceStart) }
         // Guests browse everything, but importing is a write — route them to sign-in instead.
         guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .importRecipe) }) else { return }
         // Busy with another import? Queue plain-URL calls (no caption/OCR extras) and bail.
@@ -1851,6 +1861,8 @@ final class AppEnvironment: ObservableObject {
     /// Same import, with every selected photo kept. The first is the cover; the rest page on the
     /// recipe the same way a recipe written here does. Capped at 6, matching the editor.
     func importFromPhotos(_ images: [UIImage], caption: String? = nil, recognized: String? = nil) async {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Photo recipe import", since: performanceStart) }
         guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .importRecipe) }) else { return }
         importTask?.cancel()
         importState = .submitting
@@ -1976,6 +1988,8 @@ final class AppEnvironment: ObservableObject {
     }
 
     func importFromVideo(_ url: URL, caption: String? = nil, title: String? = nil, thumbnailUrl: String? = nil) async {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("On-device video import", since: performanceStart) }
         guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .importRecipe) }) else { return }
         importTask?.cancel()
         importState = .submitting
@@ -2857,7 +2871,10 @@ final class AppEnvironment: ObservableObject {
     /// falls back to the on-device recommender when there's no session, the server is unreachable,
     /// or the server has nothing yet (e.g. recipes not synced) — so the feed is never empty.
     func fetchSuggestedFeed() async {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Suggestion feed", since: performanceStart) }
         let excluded = Set(recipes.filter { isOwner(of: $0) || isSaved(recipeId: $0.id) }.map { $0.id })
+        let rankingStart = PerformanceDiagnostics.start()
         let local = RecommendationEngine.suggestions(
             from: recipes,
             history: interactionHistory,
@@ -2865,6 +2882,7 @@ final class AppEnvironment: ObservableObject {
             preferredCuisines: preferredCuisines,
             limit: 8
         )
+        PerformanceDiagnostics.record("Local recommendation ranking", since: rankingStart)
         // Show on-device picks INSTANTLY (never wait on a slow/offline backend for first content)…
         if suggestedRecipes.isEmpty { setSuggestions(local) }
         // …then upgrade to the cross-user server feed if/when it responds.
@@ -2877,6 +2895,8 @@ final class AppEnvironment: ObservableObject {
 
     /// Publish a suggestions list + its per-item "why" reasons (behavior first, else onboarding cuisine).
     private func setSuggestions(_ list: [Recipe]) {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Suggestion explanations", since: performanceStart) }
         suggestedRecipes = list
         var reasons: [String: String] = [:]
         for r in list {

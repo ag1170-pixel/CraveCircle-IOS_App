@@ -326,6 +326,32 @@ struct ProfileScreen: View {
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.vertical, 13)
 
+                #if DEBUG
+                Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                NavigationLink {
+                    DeveloperToolsScreen()
+                } label: {
+                    HStack(spacing: AppSpacing.sm) {
+                        Image(systemName: "speedometer")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 30, height: 30)
+                            .background(.purple, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        Text("Developer Tools")
+                            .font(AppFont.body(16, weight: .medium))
+                            .foregroundStyle(AppTheme.textPrimary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(AppTheme.textTertiary)
+                    }
+                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.vertical, 13)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                #endif
+
                 if environment.isAdmin {
                     Divider().overlay(AppTheme.separator).padding(.leading, 56)
                     SettingRow(icon: "server.rack", title: "Kitchen Server", detail: customApiUrl.replacingOccurrences(of: "http://", with: ""), tint: .indigo) {

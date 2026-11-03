@@ -26,9 +26,16 @@ struct RootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppTheme.background.ignoresSafeArea())
+        .overlay(alignment: .topTrailing) {
+            #if DEBUG
+            if PerformanceDiagnostics.isEnabled { PerformanceHUD().zIndex(100) }
+            #endif
+        }
         .task {
             if environment.appState == .loading {
+                let started = PerformanceDiagnostics.start()
                 await environment.bootstrap()
+                PerformanceDiagnostics.record("App bootstrap", since: started)
             }
         }
         .alert("Something went wrong", isPresented: .constant(environment.errorMessage != nil), actions: {
