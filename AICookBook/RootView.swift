@@ -5,6 +5,7 @@ import UIKit
 
 struct RootView: View {
     @EnvironmentObject private var environment: AppEnvironment
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
@@ -12,20 +13,26 @@ struct RootView: View {
                 LottieView(name: "Flow_4")
                     .frame(width: 80, height: 80)
                     .foregroundStyle(AppTheme.textPrimary)
+                    .transition(.opacity)
             } else if environment.showPreAuthOnboarding {
                 // First run on this install: pitch the app BEFORE asking for sign-in.
                 // On completion we remember the choice and surface the login screen.
                 OnboardingView()
+                    .transition(.opacity)
             } else if environment.appState == .signedOut {
                 LoginView()
+                    .transition(.opacity)
             } else if environment.needsOnboarding {
                 OnboardingView()
+                    .transition(.opacity)
             } else {
                 MainTabView()
+                    .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppTheme.background.ignoresSafeArea())
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: environment.appState)
         .overlay(alignment: .topTrailing) {
             #if DEBUG
             if PerformanceDiagnostics.isEnabled { PerformanceHUD().zIndex(100) }

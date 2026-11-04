@@ -3,11 +3,19 @@ import Foundation
 import Combine
 import UserNotifications
 import NaturalLanguage
+#if !targetEnvironment(macCatalyst)
 import ActivityKit
+#endif
+
+private struct CachedRecipeNutrition: Codable {
+    let signature: String
+    let nutrition: RecipeNutrition
+    let cachedAt: Date
+}
 
 @MainActor
 final class AppEnvironment: ObservableObject {
-    enum AppState {
+    enum AppState: Equatable {
         case loading
         case signedOut
         case signedIn
@@ -109,7 +117,9 @@ final class AppEnvironment: ObservableObject {
     /// Set while a 15s "failed, auto-dismiss" timer is in flight so we don't stack cancellations.
     private var queuePumpTask: Task<Void, Never>?
     /// The running "recipe cooking" Live Activity (Dynamic Island + Lock Screen), if any.
+    #if !targetEnvironment(macCatalyst)
     private var cookingActivity: Activity<CookingImportAttributes>?
+    #endif
     @Published private(set) var groceryItems: [GroceryItem] = [] { didSet { persist(groceryItems, "grocery.json") } }
     @Published var groceryError: String?
     @Published var errorMessage: String?
@@ -155,6 +165,8 @@ final class AppEnvironment: ObservableObject {
     private let authClient: SupabaseAuthClient
     private let apiClient: APIClient
     private var importTask: Task<Void, Never>?
+    private var nutritionCache: [String: CachedRecipeNutrition] = [:]
+    private let nutritionCacheLimit = 64
 
     /// Guards on-disk autosave: property `didSet`s only persist AFTER `hydrateLocal()` has loaded
     /// the saved state, so loading doesn't immediately overwrite the files. Writes go to the
@@ -230,6 +242,7 @@ final class AppEnvironment: ObservableObject {
         let localDeleted = deletedRecipeIds
 
         let saved = loadScoped([Recipe].self, "recipes.json", userId: userId) ?? []
+        nutritionCache = loadScoped([String: CachedRecipeNutrition].self, "nutrition_cache.json", userId: userId) ?? [:]
         var merged = saved.filter { !localDeleted.contains($0.id) }
         for i in merged.indices {
             if let t = merged[i].thumbnailUrl, t.hasPrefix("file://"), let name = URL(string: t)?.lastPathComponent {
@@ -315,6 +328,7 @@ final class AppEnvironment: ObservableObject {
         pendingCreatorRequests = []
         searchDemands = []
         nutritionAttempted = []
+        nutritionCache = [:]
         recipeSwipeContext = nil
     }
 
@@ -902,35 +916,67 @@ final class AppEnvironment: ObservableObject {
         // the paywall) once they've opened `guestViewLimit` distinct recipes.
         guard canViewRecipe(recipe.id) else { return }
         recipeSwipeContext = context
-        selectedRecipe = recipe
-        refreshAuthoritativeNutrition(for: recipe)
+        var openedRecipe = recipe
+        if let cached = nutritionCache[recipe.id],
+           cached.signature == NutritionEstimator.cacheSignature(for: recipe) {
+            openedRecipe.nutrition = recipe.nutrition ?? cached.nutrition
+        }
+        selectedRecipe = openedRecipe
+        refreshAuthoritativeNutrition(for: openedRecipe)
     }
 
     private var nutritionAttempted = Set<String>()
 
-    /// Compute nutrition once (off-main) for a recipe that has none yet — using the bundled offline
-    /// USDA engine (no network, no API). Stores it (with the macro breakdown) so it persists and
-    /// doesn't recompute every render. NEVER overwrites a recipe that already has nutrition (e.g. the
-    /// accurate server value from a share import).
+    /// Estimate missing nutrition off-main with the bundled offline food database. Persist only
+    /// this bounded per-account cache, including the ingredient breakdown. Server nutrition wins.
     func refreshAuthoritativeNutrition(for recipe: Recipe) {
         let estimated = recipe.nutrition?.estimated == true
-        guard recipe.nutrition == nil || estimated, !nutritionAttempted.contains(recipe.id) else { return }
-        nutritionAttempted.insert(recipe.id)
+        guard recipe.nutrition == nil || estimated else { return }
+        let signature = NutritionEstimator.cacheSignature(for: recipe)
+        let attemptKey = "\(recipe.id):\(signature)"
+        guard !nutritionAttempted.contains(attemptKey) else { return }
+        if let cached = nutritionCache[recipe.id] {
+            if cached.signature == signature {
+                nutritionAttempted.insert(attemptKey)
+                selectedRecipe?.nutrition = recipe.nutrition ?? cached.nutrition
+                return
+            }
+            nutritionCache.removeValue(forKey: recipe.id)
+            persist(nutritionCache, "nutrition_cache.json")
+        }
+        nutritionAttempted.insert(attemptKey)
+        let accountId = currentUser?.id
         Task.detached { [weak self] in
             let computed = NutritionEstimator.estimate(for: recipe)   // offline USDA-backed
-            await MainActor.run {
-                guard let self else { return }
-                let keep = computed.calories > 0
-                if let i = self.recipes.firstIndex(where: { $0.id == recipe.id }),
-                   self.recipes[i].nutrition == nil || (self.recipes[i].nutrition?.estimated == true && keep) {
-                    self.recipes[i].nutrition = computed
-                }
-                if self.selectedRecipe?.id == recipe.id,
-                   self.selectedRecipe?.nutrition == nil || (self.selectedRecipe?.nutrition?.estimated == true && keep) {
-                    self.selectedRecipe?.nutrition = computed
-                }
-            }
+            guard let self else { return }
+            await self.storeNutritionEstimate(computed, for: recipe, signature: signature, accountId: accountId)
         }
+    }
+
+    private func storeNutritionEstimate(
+        _ computed: RecipeNutrition,
+        for recipe: Recipe,
+        signature: String,
+        accountId: String?
+    ) {
+        guard currentUser?.id == accountId,
+              nutritionCache[recipe.id]?.signature != signature else { return }
+        nutritionCache[recipe.id] = CachedRecipeNutrition(signature: signature, nutrition: computed, cachedAt: Date())
+        if nutritionCache.count > nutritionCacheLimit {
+            let oldestIds = nutritionCache
+                .sorted { $0.value.cachedAt < $1.value.cachedAt }
+                .prefix(nutritionCache.count - nutritionCacheLimit)
+                .map(\.key)
+            for id in oldestIds { nutritionCache.removeValue(forKey: id) }
+        }
+        persist(nutritionCache, "nutrition_cache.json")
+
+        let keep = computed.calories > 0
+        guard let selected = selectedRecipe,
+              selected.id == recipe.id,
+              NutritionEstimator.cacheSignature(for: selected) == signature,
+              selected.nutrition == nil || (selected.nutrition?.estimated == true && keep) else { return }
+        selectedRecipe?.nutrition = computed
     }
 
     /// Open a recipe by id — the target of a `cravecircle://recipe/<id>` deep link (Copy link / Share).
@@ -1054,7 +1100,7 @@ final class AppEnvironment: ObservableObject {
                 case .ok:
                     unsyncedRecipeIds.subtract(dirtyIds)
                 case .unauthorized:
-                    if await supabase.refreshSessionIfPossible(),
+                    if await authClient.refreshSessionIfPossible(),
                        case .ok = await supabase.upsertRecipes(dirty, ownerId: uid) {
                         unsyncedRecipeIds.subtract(dirtyIds)
                     } else {
@@ -1389,7 +1435,7 @@ final class AppEnvironment: ObservableObject {
         if let rid = meal.reminderIdentifier {
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [rid])
         }
-        await MainActor.run { plannedMeals.remove(at: idx) }
+        plannedMeals.remove(at: idx)
         _ = await supabase.deletePlannedMeal(id: meal.id)
     }
 
@@ -3012,6 +3058,7 @@ final class AppEnvironment: ObservableObject {
     /// Start / update / end the "recipe cooking" Live Activity to mirror the import state. Driven by
     /// importState's didSet, so there's one source of truth.
     private func reflectImportInLiveActivity() {
+        #if !targetEnvironment(macCatalyst)
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
         // Map ImportFlowState → the Live Activity stage.
@@ -3062,13 +3109,16 @@ final class AppEnvironment: ObservableObject {
                 attributes: attrs,
                 content: ActivityContent(state: content, staleDate: nil))
         }
+        #endif
     }
 
     private func endCookingActivity() {
+        #if !targetEnvironment(macCatalyst)
         cookingActivity = nil
         for activity in Activity<CookingImportAttributes>.activities {
             Task { await activity.end(nil, dismissalPolicy: .immediate) }
         }
+        #endif
     }
     
     private func beginPolling(jobId: String) {

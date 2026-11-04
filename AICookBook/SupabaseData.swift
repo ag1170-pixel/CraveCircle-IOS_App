@@ -11,6 +11,13 @@
 import Foundation
 
 struct SupabaseData {
+    enum RecipeUpsertResult {
+        case ok
+        case unauthorized
+        case importPublishBlocked
+        case failed(String)
+    }
+
     let config: AppConfig
     let tokenStore: TokenStore
 
@@ -459,14 +466,17 @@ struct SupabaseData {
 
     /// Upsert the user's own recipes (insert or merge by id). Requires a session — RLS only lets a
     /// user write rows where owner_id = auth.uid(). `ownerId` is forced onto every row for safety.
-    func upsertRecipes(_ recipes: [Recipe], ownerId: String) async -> Bool {
-        guard hasSession, !recipes.isEmpty,
-              var req = request(path: "rest/v1/recipes?on_conflict=id") else { return false }
+    func upsertRecipes(_ recipes: [Recipe], ownerId: String) async -> RecipeUpsertResult {
+        guard hasSession else { return .unauthorized }
+        guard !recipes.isEmpty else { return .ok }
+        guard var req = request(path: "rest/v1/recipes?on_conflict=id") else { return .failed("Invalid request") }
         req.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
         let enc = JSONEncoder()
         enc.keyEncodingStrategy = .convertToSnakeCase
         guard let encoded = try? enc.encode(recipes),
-              var rows = (try? JSONSerialization.jsonObject(with: encoded)) as? [[String: Any]] else { return false }
+              var rows = (try? JSONSerialization.jsonObject(with: encoded)) as? [[String: Any]] else {
+            return .failed("Couldn't encode recipes")
+        }
         for i in rows.indices {
             rows[i]["owner_id"] = ownerId
             rows[i].removeValue(forKey: "reel_url")   // computed on the client; not a column
@@ -475,11 +485,63 @@ struct SupabaseData {
             // the column (text[]), then remove this line to sync galleries cross-device.
             rows[i].removeValue(forKey: "gallery_urls")
         }
-        guard let body = try? JSONSerialization.data(withJSONObject: rows) else { return false }
+        guard let body = try? JSONSerialization.data(withJSONObject: rows) else { return .failed("Couldn't encode recipes") }
         req.httpBody = body
-        guard let (_, resp) = try? await URLSession.shared.data(for: req),
-              let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return false }
-        return true
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse else { return .failed("Network request failed") }
+        if (200..<300).contains(http.statusCode) { return .ok }
+        if http.statusCode == 401 { return .unauthorized }
+        let detail = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let message = ((detail?["message"] as? String) ?? (detail?["details"] as? String) ?? "HTTP \(http.statusCode)")
+        if message.localizedCaseInsensitiveContains("imported recipes cannot be published") {
+            return .importPublishBlocked
+        }
+        return .failed(message)
+    }
+
+    /// Insert a feedback row. RLS and the database's auth.uid() policy remain authoritative.
+    func submitUserFeedback(kind: String, rating: Int?, text: String?, context: [String: String]) async -> Bool {
+        guard hasSession, let userId = currentUserId(),
+              var req = request(path: "rest/v1/user_feedback") else { return false }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        let row: [String: Any] = [
+            "user_id": userId,
+            "kind": kind,
+            "rating": rating.map { $0 as Any } ?? NSNull(),
+            "text": text.map { $0 as Any } ?? NSNull(),
+            "context": context
+        ]
+        guard let body = try? JSONSerialization.data(withJSONObject: row) else { return false }
+        req.httpBody = body
+        guard let (_, response) = try? await URLSession.shared.data(for: req),
+              let http = response as? HTTPURLResponse else { return false }
+        return (200..<300).contains(http.statusCode)
+    }
+
+    /// Admin inbox rows. Nil status returns all rows visible under the server's RLS policy.
+    func listFeedback(status: String?) async -> [UserFeedbackRow] {
+        var query = "select=*&order=created_at.desc"
+        if let status, !status.isEmpty,
+           let encoded = status.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            query += "&status=eq.\(encoded)"
+        }
+        guard hasSession,
+              let req = request(path: "rest/v1/user_feedback?\(query)", method: "GET"),
+              let (data, response) = try? await URLSession.shared.data(for: req),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return [] }
+        return (try? Self.decoder().decode([UserFeedbackRow].self, from: data)) ?? []
+    }
+
+    /// Update triage status. The database still enforces admin-only writes.
+    func updateFeedbackStatus(id: String, status: String) async -> Bool {
+        guard hasSession,
+              let encodedID = id.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              var req = request(path: "rest/v1/user_feedback?id=eq.\(encodedID)", method: "PATCH") else { return false }
+        req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["status": status])
+        guard let (_, response) = try? await URLSession.shared.data(for: req),
+              let http = response as? HTTPURLResponse else { return false }
+        return (200..<300).contains(http.statusCode)
     }
     
     /// Upload a recipe cover to the public `recipe-thumbnails` Storage bucket and return its public
@@ -696,6 +758,37 @@ struct SupabaseData {
             return Date()
         }
         return d
+    }
+}
+
+struct UserFeedbackRow: Decodable, Identifiable {
+    let id: String
+    let userId: String?
+    let kind: String
+    let rating: Int?
+    let text: String?
+    let context: [String: String]?
+    let status: String?
+    let createdAt: Date?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, userId, kind, rating, text, context, status, createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        if let stringID = try? values.decode(String.self, forKey: .id) {
+            id = stringID
+        } else {
+            id = String(try values.decode(Int64.self, forKey: .id))
+        }
+        userId = try values.decodeIfPresent(String.self, forKey: .userId)
+        kind = try values.decodeIfPresent(String.self, forKey: .kind) ?? "unknown"
+        rating = try values.decodeIfPresent(Int.self, forKey: .rating)
+        text = try values.decodeIfPresent(String.self, forKey: .text)
+        context = try values.decodeIfPresent([String: String].self, forKey: .context)
+        status = try values.decodeIfPresent(String.self, forKey: .status)
+        createdAt = try values.decodeIfPresent(Date.self, forKey: .createdAt)
     }
 }
 

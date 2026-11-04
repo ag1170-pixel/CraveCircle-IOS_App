@@ -93,6 +93,11 @@ struct RecipeDetailScreen: View {
         }
         .doodleScreenBackground()   // static wallpaper behind the scroll
         .ignoresSafeArea(edges: .top)
+        .task(id: recipe.id) { environment.refreshAuthoritativeNutrition(for: recipe) }
+        .onChange(of: environment.selectedRecipe) { _, selected in
+            guard let selected, selected.id == recipe.id, selected.nutrition != recipe.nutrition else { return }
+            recipe.nutrition = selected.nutrition
+        }
         .coordinateSpace(.named("detail"))
         .simultaneousGesture(
             DragGesture(minimumDistance: 25, coordinateSpace: .named("detail"))
@@ -1031,6 +1036,10 @@ struct RecipeDetailPager: View {
         .background(AppTheme.background.ignoresSafeArea())
         .onAppear {
             if !resolved { index = recipes.firstIndex { $0.id == startId } ?? 0; resolved = true }
+        }
+        .onChange(of: index) { _, next in
+            guard recipes.indices.contains(next) else { return }
+            environment.selectRecipe(recipes[next], in: environment.recipeSwipeContext)
         }
     }
 }

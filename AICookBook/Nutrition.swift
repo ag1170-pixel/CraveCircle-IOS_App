@@ -10,6 +10,7 @@
 //
 
 import Foundation
+import CryptoKit
 
 /// The four things a user can tap on the nutrition card to see "where does this come from".
 enum MacroKind: String, CaseIterable, Hashable {
@@ -198,6 +199,17 @@ enum OfflineFoodDB {
 }
 
 enum NutritionEstimator {
+    /// Stable across launches and changes whenever the estimate inputs change.
+    static func cacheSignature(for recipe: Recipe) -> String {
+        struct Inputs: Encodable {
+            let ingredients: [IngredientGroup]
+            let servings: Int?
+        }
+        let data = (try? JSONEncoder().encode(Inputs(ingredients: recipe.ingredients, servings: recipe.servings))) ?? Data()
+        let versionedData = Data("nutrition-estimate-v1|".utf8) + data
+        return SHA256.hash(data: versionedData).map { String(format: "%02x", $0) }.joined()
+    }
+
     /// Rough per-serving estimate from ingredient lines. Server values always win.
     static func estimate(for recipe: Recipe) -> RecipeNutrition {
         let servings = Double(max(recipe.servings ?? 2, 1))
@@ -573,8 +585,9 @@ enum NutritionEstimator {
 }
 
 extension Recipe {
-    /// Server value if present, otherwise an on-device estimate.
+    /// A value computed for this recipe, if available. Estimation is scheduled by AppEnvironment
+    /// when a recipe is opened so rendering a list never scans the offline food database.
     var nutritionOrEstimate: RecipeNutrition {
-        nutrition ?? NutritionEstimator.estimate(for: self)
+        nutrition ?? RecipeNutrition(calories: 0, carbsG: 0, proteinG: 0, fatG: 0, estimated: true)
     }
 }

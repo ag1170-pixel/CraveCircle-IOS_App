@@ -31,6 +31,11 @@ enum APIError: LocalizedError {
 }
 
 struct SupabaseAuthClient {
+    enum SignUpOutcome {
+        case ready
+        case awaitingConfirmation
+    }
+
     let config: AppConfig
     let tokenStore: TokenStore
 
@@ -103,7 +108,7 @@ struct SupabaseAuthClient {
         return decoded
     }
 
-    func signUp(email: String, password: String) async throws {
+    func signUp(email: String, password: String) async throws -> SignUpOutcome {
         guard !config.isServiceRoleKeyConfigured else {
             throw APIError.serverError("Service role key detected in app config. Use only SUPABASE_ANON_KEY on iOS.")
         }
@@ -124,6 +129,41 @@ struct SupabaseAuthClient {
         guard (200..<300).contains(http.statusCode) else {
             throw APIError.serverError(parseSupabaseAuthError(from: data, statusCode: http.statusCode))
         }
+        if let session = try? JSONDecoder().decode(AuthSession.self, from: data) {
+            tokenStore.saveSession(accessToken: session.accessToken, refreshToken: session.refreshToken)
+            return .ready
+        }
+        return .awaitingConfirmation
+    }
+
+    /// Refresh after a 401. A network outage preserves the current credentials.
+    func refreshSessionIfPossible() async -> Bool {
+        guard let refreshToken = tokenStore.readRefreshToken(),
+              !refreshToken.isEmpty,
+              !config.supabaseAnonKey.isEmpty,
+              !config.isServiceRoleKeyConfigured else { return false }
+
+        let endpoint = config.supabaseURL.appending(path: "auth/v1/token")
+        var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "grant_type", value: "refresh_token")]
+        guard let url = components?.url else { return false }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(config.supabaseAnonKey, forHTTPHeaderField: "apikey")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["refresh_token": refreshToken])
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse else { return false }
+        guard (200..<300).contains(http.statusCode) else {
+            if http.statusCode == 400 || http.statusCode == 401 { tokenStore.clearSession() }
+            return false
+        }
+        guard let session = try? JSONDecoder().decode(AuthSession.self, from: data) else { return false }
+        tokenStore.saveSession(accessToken: session.accessToken, refreshToken: session.refreshToken)
+        return true
     }
 }
 
