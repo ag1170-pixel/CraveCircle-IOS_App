@@ -10,9 +10,9 @@ struct RootView: View {
     var body: some View {
         Group {
             if environment.appState == .loading {
-                LottieView(name: "Flow_4")
-                    .frame(width: 80, height: 80)
-                    .foregroundStyle(AppTheme.textPrimary)
+                ProgressView()
+                    .controlSize(.large)
+                    .tint(AppTheme.textPrimary)
                     .transition(.opacity)
             } else if environment.showPreAuthOnboarding {
                 // First run on this install: pitch the app BEFORE asking for sign-in.
@@ -32,6 +32,8 @@ struct RootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppTheme.background.ignoresSafeArea())
+        // One app-level tint so system controls (alerts, pickers, links) match the UI accent.
+        .tint(AppTheme.accentInk)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: environment.appState)
         .overlay(alignment: .topTrailing) {
             #if DEBUG
@@ -777,9 +779,9 @@ struct ImportToastBanner: View {
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(noContent(msg) ? AppTheme.textSecondary : AppTheme.destructive)
         default:
-            LottieView(name: "Flow_4")
-                .frame(width: 22, height: 22)
-                .clipped()
+            ProgressView()
+                .controlSize(.small)
+                .tint(AppTheme.textPrimary)
         }
     }
 

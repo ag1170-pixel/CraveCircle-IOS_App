@@ -171,6 +171,9 @@ struct HomeScreen: View {
                         .accessibilityHidden(true)
                 }
             }
+            // HIG: 44×44 minimum hit target (the glyph itself stays 36pt).
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel(showsDot ? "\(label), new activity" : label)

@@ -144,6 +144,7 @@ struct ProfileScreen: View {
             VStack(alignment: .leading, spacing: AppSpacing.xs) {
                 Button { showEditProfile = true } label: { avatarView }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Edit profile photo")
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(environment.currentUser?.fullName ?? "Your Profile")
@@ -166,6 +167,9 @@ struct ProfileScreen: View {
                         .padding(.vertical, 7)
                         .background(AppTheme.surface, in: Capsule())
                         .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                        // HIG: 44pt minimum hit height.
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableStyle())
                 .padding(.top, 2)
@@ -321,7 +325,10 @@ struct ProfileScreen: View {
                         .font(AppFont.body(16, weight: .medium))
                         .foregroundStyle(AppTheme.textPrimary)
                     Spacer()
-                    Toggle("", isOn: $kitchenCatEnabled).labelsHidden().toggleStyle(GlassToggleStyle())
+                    Toggle("Kitchen cat", isOn: $kitchenCatEnabled)
+                        .labelsHidden()
+                        .toggleStyle(GlassToggleStyle())
+                        .accessibilityLabel("Kitchen cat")
                 }
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.vertical, 13)
@@ -1257,6 +1264,7 @@ struct EditProfileSheet: View {
                         avatarPreview
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Change profile photo")
 
                     Text("Tap the photo to change it")
                         .font(AppFont.body(12))

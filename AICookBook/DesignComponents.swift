@@ -410,6 +410,7 @@ struct PillButton: View {
     var kind: Kind = .filled
     var fullWidth: Bool = false
     let action: () -> Void
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         Button {
@@ -446,7 +447,9 @@ struct PillButton: View {
         switch kind {
         case .filled: Capsule().fill(AppTheme.accent)
         case .outlined: Capsule().fill(.clear)
-        case .glass: Capsule().fill(.ultraThinMaterial)
+        case .glass:
+            // Honest opaque fallback when the user turns on Reduce Transparency.
+            Capsule().fill(reduceTransparency ? AnyShapeStyle(AppTheme.surfaceElevated) : AnyShapeStyle(.ultraThinMaterial))
         case .surface: Capsule().fill(AppTheme.surface)   // opaque — hides the wallpaper behind it
         }
     }
@@ -460,13 +463,22 @@ struct PillButton: View {
     }
 }
 
-/// Scale-and-dim press feedback, spring release.
+/// Scale-and-dim press feedback, spring release. Reduce Motion keeps the dim but drops the scale.
 struct PressableStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .opacity(configuration.isPressed ? 0.9 : 1)
-            .animation(AppMotion.snappy, value: configuration.isPressed)
+        PressableBody(configuration: configuration)
+    }
+
+    private struct PressableBody: View {
+        let configuration: Configuration
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        var body: some View {
+            configuration.label
+                .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+                .opacity(configuration.isPressed ? 0.9 : 1)
+                .animation(reduceMotion ? nil : AppMotion.snappy, value: configuration.isPressed)
+        }
     }
 }
 
@@ -477,6 +489,7 @@ struct GlassIconButton: View {
     var size: CGFloat = 38
     var label: String? = nil
     let action: () -> Void
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         Button {
@@ -487,8 +500,14 @@ struct GlassIconButton: View {
                 .font(.system(size: size * 0.42, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: size, height: size)
-                .background(.ultraThinMaterial, in: Circle())
+                .background(
+                    reduceTransparency ? AnyShapeStyle(AppTheme.surfaceElevated) : AnyShapeStyle(.ultraThinMaterial),
+                    in: Circle()
+                )
                 .overlay(Circle().stroke(.white.opacity(0.14), lineWidth: 0.5))
+                // HIG: keep a 44pt hit target even when the visible control is smaller.
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel(label ?? systemImage)
@@ -505,10 +524,13 @@ struct GlassToggleStyle: ToggleStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         let on = configuration.isOn
+        let trackFill: AnyShapeStyle = UIAccessibility.isReduceTransparencyEnabled
+            ? AnyShapeStyle(AppTheme.surfaceElevated)
+            : AnyShapeStyle(.ultraThinMaterial)
         return HStack {
             configuration.label
             Capsule()
-                .fill(.ultraThinMaterial)
+                .fill(trackFill)
                 .overlay(Capsule().fill(onColor.opacity(on ? 0.9 : 0)))
                 .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
                 .frame(width: 51, height: 31)
@@ -517,11 +539,14 @@ struct GlassToggleStyle: ToggleStyle {
                         .fill(.white)
                         .padding(2)
                         .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
-                        .overlay(Circle().fill(.ultraThinMaterial).opacity(0.001)) // keep crisp on glass
                 }
                 .animation(AppMotion.snappy, value: on)
                 .onTapGesture { Haptics.select(); configuration.isOn.toggle() }
                 .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+                .accessibilityValue(on ? "On" : "Off")
+                // HIG: the visible switch is 51×31; keep the hit area at least 44pt tall.
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
         }
     }
 }
@@ -1023,8 +1048,9 @@ struct RecipeImagePlaceholder: View {
                 endPoint: .bottomTrailing
             )
             if isBuffering {
-                LottieView(name: "Flow_4")
-                    .frame(width: 28, height: 28)
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(.white)
             } else {
                 ChefHatLogo(size: size ?? 32)
                     .opacity(0.45)

@@ -18,6 +18,11 @@ DerivedData/
 # Claude Code local state (worktrees, caches)
 .claude/
 
+# Agent skills and local caches
+.agents/
+.opencode/
+.swiftpm/
+
 # Impeccable skill working files (logo scratch, review screenshots)
 .impeccable/
 

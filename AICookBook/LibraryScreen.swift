@@ -73,7 +73,8 @@ struct LibraryScreen: View {
                         }
                     }
                     if filter == 0 && environment.isLoadingMore {
-                        LottieView(name: "Flow_4")
+                        ProgressView()
+                            .tint(AppTheme.accentInk)
                             .frame(width: 36, height: 36)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, AppSpacing.md)

@@ -15,6 +15,7 @@ struct RecipeDetailScreen: View {
 
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     @Binding var tab: Int                            // 0 = Ingredients, 1 = Directions (owned by the pager)
     private let onSwitchRecipe: ((Int) -> Void)?     // +1 next / -1 prev — swipe OUTSIDE the segment region
@@ -41,6 +42,9 @@ struct RecipeDetailScreen: View {
     @State private var heartBurstY: CGFloat = 0
     @State private var showOriginalRecipeInfo = false
     @State private var showReportSheet = false
+    @State private var showCustomizationMenu = false
+    @State private var showScaleRecipeSheet = false
+    @State private var showAddToGrocerySheet = false
     @State private var viewStartTime: Date? = nil
     @State private var galleryIndex = 0
     @State private var galleryFrame: CGRect = .zero   // hero gallery's rect (in "detail" space)
@@ -81,7 +85,7 @@ struct RecipeDetailScreen: View {
             ZStack(alignment: .top) {
                 if topBarGlass {
                     Rectangle()
-                        .fill(.ultraThinMaterial)
+                        .fill(reduceTransparency ? AnyShapeStyle(AppTheme.surface) : AnyShapeStyle(.ultraThinMaterial))
                         .frame(height: safeTopInset() + 52)
                         .ignoresSafeArea(edges: .top)
                         .allowsHitTesting(false)
@@ -102,6 +106,8 @@ struct RecipeDetailScreen: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 25, coordinateSpace: .named("detail"))
                 .onEnded { value in
+                    // When customization pop-out is open, swipes are ignored
+                    guard !showCustomizationMenu else { return }
                     // Swipes that start on the photo gallery page the photos — don't toggle/switch.
                     if galleryFrame.contains(value.startLocation) { return }
                     guard abs(value.translation.width) > abs(value.translation.height) * 1.3,
@@ -132,7 +138,7 @@ struct RecipeDetailScreen: View {
                 .background(AppTheme.surface, in: Capsule())
                 .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
                 .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
-                .padding(.bottom, 24)
+                .padding(.bottom, 88)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if showOriginalRecipeInfo {
                 HStack(spacing: 9) {
@@ -154,9 +160,26 @@ struct RecipeDetailScreen: View {
                 .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
                 .shadow(color: .black.opacity(0.18), radius: 14, y: 5)
                 .padding(.horizontal, AppSpacing.md)
-                .padding(.bottom, 24)
+                .padding(.bottom, 88)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+        }
+        .overlay {
+            if showCustomizationMenu {
+                Color.black.opacity(0.32)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+                    .onTapGesture {
+                        withAnimation(reduceMotion ? .none : AppMotion.snappy) {
+                            showCustomizationMenu = false
+                        }
+                    }
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            customizationFloatingMenu
+                .padding(.trailing, 20)
+                .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
         .fullScreenCover(isPresented: $showCook) {
@@ -196,6 +219,27 @@ struct RecipeDetailScreen: View {
             ReportIssueSheet(recipe: recipe)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showScaleRecipeSheet) {
+            ScaleRecipeSheet(recipe: recipe, servings: $servings)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showAddToGrocerySheet) {
+            AddToGrocerySheet(
+                recipe: recipe,
+                initialServings: servings,
+                onAdded: { count in
+                    addedGroceryCount = count
+                    withAnimation { showGroceryBanner = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                        withAnimation { showGroceryBanner = false }
+                    }
+                }
+            )
+            .environmentObject(environment)
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .alert("Delete this recipe?", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
@@ -526,8 +570,13 @@ struct RecipeDetailScreen: View {
                         .font(.system(size: 40 * 0.42, weight: .semibold))
                         .foregroundStyle(isLiked ? Color(hex: "FF2D55") : .white)
                         .frame(width: 40, height: 40)
-                        .background(.ultraThinMaterial, in: Circle())
+                        .background(
+                            reduceTransparency ? AnyShapeStyle(AppTheme.surfaceElevated) : AnyShapeStyle(.ultraThinMaterial),
+                            in: Circle()
+                        )
                         .overlay(Circle().stroke(.white.opacity(0.14), lineWidth: 0.5))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityLabel(isLiked ? "Unlike recipe" : "Like recipe")
@@ -564,13 +613,15 @@ struct RecipeDetailScreen: View {
                     }
 
                     Button {
-                        Haptics.success()
-                        let count = environment.addIngredientsToGrocery(recipe: recipe)
-                        addedGroceryCount = count
-                        withAnimation { showGroceryBanner = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                            withAnimation { showGroceryBanner = false }
-                        }
+                        Haptics.tap()
+                        showScaleRecipeSheet = true
+                    } label: {
+                        Label("Scale Recipe", systemImage: "slider.horizontal.2.square")
+                    }
+
+                    Button {
+                        Haptics.tap()
+                        showAddToGrocerySheet = true
                     } label: {
                         Label("Add to Grocery List", systemImage: "basket")
                     }
@@ -593,8 +644,13 @@ struct RecipeDetailScreen: View {
                         .font(.system(size: 40 * 0.42, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(width: 40, height: 40)
-                        .background(.ultraThinMaterial, in: Circle())
+                        .background(
+                            reduceTransparency ? AnyShapeStyle(AppTheme.surfaceElevated) : AnyShapeStyle(.ultraThinMaterial),
+                            in: Circle()
+                        )
                         .overlay(Circle().stroke(.white.opacity(0.14), lineWidth: 0.5))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .accessibilityLabel("More options")
             }
@@ -624,8 +680,6 @@ struct RecipeDetailScreen: View {
                 Spacer(minLength: 8)
                 originChip
             }
-
-            actionRow
 
             PillButton(title: "Start Cooking", systemImage: "flame.fill", kind: .filled, fullWidth: true) {
                 environment.logInteraction(recipeId: recipe.id, eventType: "cook")
@@ -674,7 +728,7 @@ struct RecipeDetailScreen: View {
                 .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
 
-            Spacer(minLength: 60)
+            Spacer(minLength: 110)
         }
         .padding(.horizontal, AppSpacing.md)
         .padding(.top, AppSpacing.lg)
@@ -760,61 +814,13 @@ struct RecipeDetailScreen: View {
     }
 
     private var metaLine: some View {
-        // Cook time left, Servings stepper right. Serves lives up here (bigger / more visible)
-        // because people adjust servings a lot. Grocery moved down to the action row with Plan.
-        HStack(spacing: 10) {
-            if let cook = recipe.totalTimeText { metaItem("Cook", cook) }
-            Spacer(minLength: 8)
-            servingsHeaderStepper
-        }
-    }
-
-    /// Slightly bigger than the cook-time text so it reads as the primary adjustable in the
-    /// header, without blowing out the row. 14pt text, 28pt tap circles.
-    private var servingsHeaderStepper: some View {
-        HStack(spacing: 8) {
-            Button {
-                if servings > 1 {
-                    Haptics.tap()
-                    withAnimation(AppMotion.snappy) { servings -= 1 }
-                }
-            } label: {
-                Image(systemName: "minus")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(servings > 1 ? AppTheme.accentInk : AppTheme.textTertiary)
-                    .frame(width: 28, height: 28)
-                    .background(AppTheme.accentSoft, in: Circle())
+        HStack(spacing: 12) {
+            if let cook = recipe.totalTimeText {
+                metaItem("Cook", cook)
+                divider
             }
-            .buttonStyle(.plain)
-            .disabled(servings <= 1)
-            .accessibilityLabel("Decrease servings")
-
-            Text("\(servings) Servings")
-                .font(AppFont.body(14, weight: .bold))
-                .foregroundStyle(AppTheme.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-                .fixedSize()
-
-            Button {
-                if servings < 24 {
-                    Haptics.tap()
-                    withAnimation(AppMotion.snappy) { servings += 1 }
-                }
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(AppTheme.accentInk)
-                    .frame(width: 28, height: 28)
-                    .background(AppTheme.accentSoft, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Increase servings")
+            metaItem("Serves", "\(servings)")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(AppTheme.surface, in: Capsule())
-        .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
     }
 
     private func metaItem(_ label: String, _ value: String) -> some View {
@@ -861,51 +867,8 @@ struct RecipeDetailScreen: View {
         }
     }
 
-    private var actionRow: some View {
-        // Grocery + Plan — equal half-and-half, identical height. Shared padding so the pair
-        // reads as one commit control split in two.
-        HStack(spacing: 10) {
-            Button {
-                Haptics.success()
-                let count = environment.addIngredientsToGrocery(recipe: recipe, servings: recipe.servings ?? 2)
-                addedGroceryCount = count
-                withAnimation { showGroceryBanner = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                    withAnimation { showGroceryBanner = false }
-                }
-            } label: {
-                actionPillLabel(icon: "basket.fill", title: "Grocery", filled: false)
-            }
-            .buttonStyle(PressableStyle())
-            .frame(maxWidth: .infinity)
-
-            Button {
-                Haptics.tap()
-                showMealPlanner = true
-            } label: {
-                actionPillLabel(icon: "calendar.badge.plus", title: planLabel, filled: isPlanned)
-            }
-            .buttonStyle(PressableStyle())
-            .frame(maxWidth: .infinity)
-        }
-    }
-
-    private func actionPillLabel(icon: String, title: String, filled: Bool) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon).font(.system(size: 14, weight: .bold))
-            Text(title).font(AppFont.body(14, weight: .bold)).lineLimit(1).minimumScaleFactor(0.85)
-        }
-        .foregroundStyle(filled ? AppTheme.onAccent : AppTheme.textPrimary)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background(filled ? AppTheme.accent : AppTheme.surface, in: Capsule())
-        .overlay(Capsule().stroke(filled ? Color.clear : AppTheme.hairline, lineWidth: 1))
-    }
-
-    /// Live state from the env — "Plan" when nothing is scheduled, "Planned" when there's at
-    /// least one scheduled cook for this recipe. Keeps the pill honest at a glance.
+    /// Live state from the env — true when there's at least one scheduled cook for this recipe.
     private var isPlanned: Bool { !environment.plannedMeals(for: recipe.id).isEmpty }
-    private var planLabel: String { isPlanned ? "Planned" : "Plan" }
 
 
     /// Reads the current saved state so the Save pill flips immediately on tap.
@@ -976,6 +939,121 @@ struct RecipeDetailScreen: View {
                     toggleChecklistItem(&checkedSteps, i)
                 }
             }
+        }
+    }
+
+    // MARK: - Customization Floating Pop-out Menu
+
+    private var customizationFloatingMenu: some View {
+        VStack(alignment: .trailing, spacing: 12) {
+            if showCustomizationMenu {
+                // Option 1: Meal Planner
+                Button {
+                    withAnimation(reduceMotion ? .none : AppMotion.snappy) {
+                        showCustomizationMenu = false
+                    }
+                    Haptics.tap()
+                    showMealPlanner = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: isPlanned ? "calendar.badge.checkmark" : "calendar.badge.plus")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(isPlanned ? Color.green : AppTheme.brand)
+                        Text(isPlanned ? "Planned" : "Plan Recipe")
+                            .font(AppFont.body(15, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(AppTheme.surface, in: Capsule())
+                    .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                    .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
+                }
+                .buttonStyle(PressableStyle())
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity).combined(with: .move(edge: .bottom)),
+                    removal: .scale(scale: 0.8, anchor: .bottomTrailing).combined(with: .opacity)
+                ))
+
+                // Option 2: Scale Recipe
+                Button {
+                    withAnimation(reduceMotion ? .none : AppMotion.snappy) {
+                        showCustomizationMenu = false
+                    }
+                    Haptics.tap()
+                    showScaleRecipeSheet = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "slider.horizontal.2.square")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(AppTheme.brand)
+                        Text("Scale Recipe")
+                            .font(AppFont.body(15, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(AppTheme.surface, in: Capsule())
+                    .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                    .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
+                }
+                .buttonStyle(PressableStyle())
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity).combined(with: .move(edge: .bottom)),
+                    removal: .scale(scale: 0.8, anchor: .bottomTrailing).combined(with: .opacity)
+                ))
+
+                // Option 3: Add to Grocery
+                Button {
+                    withAnimation(reduceMotion ? .none : AppMotion.snappy) {
+                        showCustomizationMenu = false
+                    }
+                    Haptics.tap()
+                    showAddToGrocerySheet = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "basket.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(AppTheme.brand)
+                        Text("Add to Grocery")
+                            .font(AppFont.body(15, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(AppTheme.surface, in: Capsule())
+                    .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                    .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
+                }
+                .buttonStyle(PressableStyle())
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity).combined(with: .move(edge: .bottom)),
+                    removal: .scale(scale: 0.8, anchor: .bottomTrailing).combined(with: .opacity)
+                ))
+            }
+
+            // Main Customization Button (brand orange, clean drop shadow, no glow)
+            Button {
+                Haptics.tap()
+                withAnimation(reduceMotion ? .none : .spring(response: 0.35, dampingFraction: 0.7)) {
+                    showCustomizationMenu.toggle()
+                }
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(AppTheme.brand)
+                        .frame(width: 56, height: 56)
+                        .shadow(color: .black.opacity(0.14), radius: 6, x: 0, y: 3)
+
+                    Image(systemName: showCustomizationMenu ? "xmark" : "slider.horizontal.3")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(AppTheme.onBrand)
+                        .rotationEffect(.degrees(showCustomizationMenu ? 90 : 0))
+                        .contentTransition(.symbolEffect(.replace))
+                }
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel(showCustomizationMenu ? "Close customization menu" : "Recipe customizations")
         }
     }
 

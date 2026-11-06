@@ -2602,6 +2602,30 @@ final class AppEnvironment: ObservableObject {
         return added
     }
 
+    @discardableResult
+    func addSpecificIngredientsToGrocery(recipe: Recipe, items: [String], servings: Int? = nil) -> Int {
+        var added = 0
+        let baseServings = recipe.servings ?? 2
+        let targetServings = servings ?? baseServings
+
+        let dish = recipe.title
+        var seen = Set(groceryItems.filter { $0.recipeName == dish }.map { GrocerySort.coreName($0.ingredientName) })
+        for item in items {
+            let trimmed = item.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else { continue }
+            let core = GrocerySort.coreName(trimmed)
+            if !core.isEmpty, seen.contains(core) { continue }   // de-dupe within this dish
+            if !core.isEmpty { seen.insert(core) }
+            let scaledText = IngredientListFormat.scaledLine(trimmed, from: baseServings, to: targetServings)
+            groceryItems.append(GroceryItem(id: UUID().uuidString, ingredientName: scaledText, checked: false, recipeName: dish))
+            added += 1
+        }
+        if added > 0 {
+            logInteraction(recipeId: recipe.id, eventType: "grocery")
+        }
+        return added
+    }
+
     func addCustomGroceryItem(name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
