@@ -91,14 +91,12 @@ enum AppFont {
     }
 
     /// Applies the user's Dynamic Type setting to a fixed design size.
-    /// ponytail: growth is capped at 1.35×. These screens still use fixed frames/grids, so full
-    /// AX5 scaling (3×) shreds the layout. Upgrade path: give each screen adaptive layout first,
-    /// then raise or remove the cap.
+    /// Scaled with UIFontMetrics for the corresponding text style so text scales smoothly
+    /// across all standard sizes and Apple's Accessibility Sizes (AX1 through AX5).
     private static func scaled(_ size: CGFloat) -> CGFloat {
         let metrics = UIFontMetrics(forTextStyle: textStyle(for: size))
         let traits = UITraitCollection(preferredContentSizeCategory: contentSizeCategory)
-        let scaled = metrics.scaledValue(for: size, compatibleWith: traits)
-        return min(scaled, size * 1.35)
+        return metrics.scaledValue(for: size, compatibleWith: traits)
     }
 
     /// Bold SF display for section headers and titles.

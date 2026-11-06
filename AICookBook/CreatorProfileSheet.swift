@@ -173,6 +173,7 @@ struct CreatorProfileSheet: View {
             .background(AppTheme.surface, in: Capsule())
             .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Stats

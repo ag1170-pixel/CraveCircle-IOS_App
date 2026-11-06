@@ -92,15 +92,42 @@ struct MealPlanPickerSheet: View {
             .navigationTitle("Plan to cook")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button {
+                        Haptics.tap()
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .frame(width: 30, height: 30)
+                            .background(AppTheme.surfaceElevated, in: Circle())
+                            .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 0.8))
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityLabel("Close")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Haptics.success()
                         save()
                     } label: {
-                        if saving { ProgressView() } else { Text("Save").fontWeight(.semibold) }
+                        if saving {
+                            ProgressView()
+                                .tint(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 7)
+                        } else {
+                            Text("Save")
+                                .font(AppFont.body(14, weight: .bold))
+                                .foregroundStyle(AppTheme.onBrand)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 7)
+                                .background(AppTheme.brand, in: Capsule())
+                                .shadow(color: .black.opacity(0.12), radius: 4, y: 1)
+                        }
                     }
+                    .buttonStyle(PressableStyle())
                     .disabled(saving)
                 }
             }

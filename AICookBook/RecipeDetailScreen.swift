@@ -247,7 +247,7 @@ struct RecipeDetailScreen: View {
                 environment.deleteOwnedRecipe(id: recipe.id)
                 environment.dismissRecipeDetail()
             }
-            Button("Cancel", role: .cancel) {}
+            Button("Back", role: .cancel) {}
         } message: {
             Text("This removes it from your library. Other people’s recipes can’t be deleted.")
         }
@@ -370,8 +370,10 @@ struct RecipeDetailScreen: View {
                         .shadow(color: .black.opacity(0.4), radius: 3, x: 0, y: 1)
                         .lineLimit(1)
                 }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
 
             // Small Follow pill next to the creator handle in the hero. Hidden on your own recipe
             // or when the recipe has no creator. Restored from commit 9de0d4a.
@@ -392,10 +394,11 @@ struct RecipeDetailScreen: View {
                     }
                     .foregroundStyle(AppTheme.onBrand)
                     .padding(.horizontal, 11)
-                    .frame(height: 28)
+                    .padding(.vertical, 6)
+                    .frame(minHeight: 28)
                     .background(
                         following
-                            ? AnyShapeStyle(.ultraThinMaterial)
+                            ? (reduceTransparency ? AnyShapeStyle(AppTheme.surfaceElevated) : AnyShapeStyle(.ultraThinMaterial))
                             : AnyShapeStyle(AppTheme.brand),
                         in: Capsule()
                     )
@@ -403,6 +406,8 @@ struct RecipeDetailScreen: View {
                         Capsule().stroke(.white.opacity(following ? 0.35 : 0.25), lineWidth: 0.8)
                     )
                     .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 2)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableStyle())
             }
@@ -421,9 +426,14 @@ struct RecipeDetailScreen: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 15)
                     .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
+                    .background(
+                        reduceTransparency ? AnyShapeStyle(AppTheme.surfaceElevated) : AnyShapeStyle(.ultraThinMaterial),
+                        in: Capsule()
+                    )
                     .overlay(Capsule().stroke(.white.opacity(0.25), lineWidth: 0.8))
                     .shadow(color: .black.opacity(0.2), radius: 3, x: 0, y: 1)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableStyle())
                 .contextMenu {
@@ -463,7 +473,10 @@ struct RecipeDetailScreen: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 13)
                     .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
+                    .background(
+                        reduceTransparency ? AnyShapeStyle(AppTheme.surfaceElevated) : AnyShapeStyle(.ultraThinMaterial),
+                        in: Capsule()
+                    )
                     .overlay(
                         Capsule()
                             .stroke(
@@ -476,6 +489,8 @@ struct RecipeDetailScreen: View {
                             )
                     )
                     .shadow(color: .black.opacity(0.2), radius: 3, x: 0, y: 1)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableStyle())
                 .contextMenu {
@@ -513,7 +528,10 @@ struct RecipeDetailScreen: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 13)
                     .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
+                    .background(
+                        reduceTransparency ? AnyShapeStyle(AppTheme.surfaceElevated) : AnyShapeStyle(.ultraThinMaterial),
+                        in: Capsule()
+                    )
                     .overlay(
                         Capsule()
                             .stroke(
@@ -526,6 +544,8 @@ struct RecipeDetailScreen: View {
                             )
                     )
                     .shadow(color: .black.opacity(0.2), radius: 3, x: 0, y: 1)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableStyle())
             }
@@ -863,6 +883,7 @@ struct RecipeDetailScreen: View {
                 }
                 .font(AppFont.body(14, weight: .semibold))
                 .foregroundStyle(AppTheme.accentInk)
+                .buttonStyle(.plain)
             }
         }
     }
@@ -892,6 +913,7 @@ struct RecipeDetailScreen: View {
                     }
                     .font(AppFont.body(12, weight: .bold))
                     .foregroundStyle(AppTheme.accentInk)
+                    .buttonStyle(PressableStyle())
                 }
                 .foregroundStyle(AppTheme.accentInk)
                 .padding(.horizontal, 12)

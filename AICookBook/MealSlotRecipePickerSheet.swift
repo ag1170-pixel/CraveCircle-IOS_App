@@ -48,8 +48,20 @@ struct MealSlotRecipePickerSheet: View {
             .navigationTitle("Plan \(slot.displayName.lowercased())")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        Haptics.tap()
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .frame(width: 30, height: 30)
+                            .background(AppTheme.surfaceElevated, in: Circle())
+                            .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 0.8))
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityLabel("Close")
                 }
             }
         }

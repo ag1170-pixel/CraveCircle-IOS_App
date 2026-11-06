@@ -161,12 +161,12 @@ Tab(value: AppTab.home) {
 
 ## 8. Summary Action Checklist
 
-| Priority | Issue | Location | Recommended Action |
-|:---|:---|:---|:---|
-| **Critical** | 1.35× Dynamic Type Cap | `DesignSystem.swift:101` | Remove artificial cap and make cards flex adaptively. |
-| **High** | Follow Button Touch Target | `RecipeDetailScreen.swift:395` | Add `.frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())`. |
-| **High** | Missing Tab Bar Text Labels | `RootView.swift:352-375` | Use `Label(title, systemImage:)` with filled variant on selection. |
-| **High** | `UIScreen.main.bounds` Usage | `HomeScreen.swift:1044` | Derive card width from `GeometryReader` / size classes. |
-| **Medium** | Missing Transparency Branches | `RecipeDetailScreen.swift:424` | Branch on `reduceTransparency` for secondary pill backgrounds. |
-| **Low** | Menu Copy Alignment | `RecipeDetailScreen.swift:626` | Align menu title to `"Add to Grocery"`. |
+| Priority | Issue | Location | Status | Action / Resolution |
+|:---|:---|:---|:---|:---|
+| **Critical** | 1.35× Dynamic Type Cap | `DesignSystem.swift:101` | ✅ **Resolved** | Removed 1.35× clamp in `AppFont.scaled(_:)`; action buttons converted to adaptive `minHeight`. |
+| **High** | Follow Button Touch Target | `RecipeDetailScreen.swift:395` | ✅ **Resolved** | Added `44×44` hit target, `minHeight: 28`, and `reduceTransparency` fallback. |
+| **High** | Missing Tab Bar Text Labels | `RootView.swift:352-375` | ⏳ Pending | Use `Label(title, systemImage:)` with filled variant on selection. |
+| **High** | `UIScreen.main.bounds` Usage | `HomeScreen.swift:1044` | ⏳ Pending | Derive card width from `GeometryReader` / size classes. |
+| **Medium** | Missing Transparency Branches | `RecipeDetailScreen.swift:424` | ⏳ Pending | Branch on `reduceTransparency` for secondary pill backgrounds. |
+| **Low** | Menu Copy Alignment | `RecipeDetailScreen.swift:626` | ⏳ Pending | Align menu title to `"Add to Grocery"`. |
 

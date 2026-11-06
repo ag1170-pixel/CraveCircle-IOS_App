@@ -67,8 +67,19 @@ struct FeedbackFormView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                        .foregroundStyle(AppTheme.textPrimary)
+                    Button {
+                        Haptics.tap()
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .frame(width: 30, height: 30)
+                            .background(AppTheme.surfaceElevated, in: Circle())
+                            .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 0.8))
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityLabel("Close")
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()

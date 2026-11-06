@@ -65,15 +65,23 @@ struct AddToGrocerySheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
+                    Button {
+                        Haptics.tap()
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .frame(width: 30, height: 30)
+                            .background(AppTheme.surfaceElevated, in: Circle())
+                            .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 0.8))
                     }
-                    .font(AppFont.body(16))
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .buttonStyle(PressableStyle())
+                    .accessibilityLabel("Close")
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(allSelected ? "Deselect All" : "Select All") {
+                    Button {
                         Haptics.tap()
                         withAnimation(reduceMotion ? .none : AppMotion.snappy) {
                             if allSelected {
@@ -82,9 +90,15 @@ struct AddToGrocerySheet: View {
                                 selectedKeys = Set(allIngredientEntries.map(\.key))
                             }
                         }
+                    } label: {
+                        Text(allSelected ? "Deselect All" : "Select All")
+                            .font(AppFont.body(13, weight: .bold))
+                            .foregroundStyle(AppTheme.brand)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(AppTheme.brand.opacity(0.12), in: Capsule())
                     }
-                    .font(AppFont.body(14, weight: .semibold))
-                    .foregroundStyle(AppTheme.brand)
+                    .buttonStyle(PressableStyle())
                 }
             }
             .overlay(alignment: .bottom) {
@@ -263,8 +277,8 @@ struct AddToGrocerySheet: View {
                         .font(AppFont.body(16, weight: .bold))
                 }
                 .foregroundStyle(AppTheme.onBrand)
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, minHeight: 52)
                 .background(
                     selectedKeys.isEmpty ? Color.gray.opacity(0.35) : AppTheme.brand,
                     in: Capsule()

@@ -51,23 +51,37 @@ struct ScaleRecipeSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
+                    Button {
+                        Haptics.tap()
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .frame(width: 30, height: 30)
+                            .background(AppTheme.surfaceElevated, in: Circle())
+                            .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 0.8))
                     }
-                    .font(AppFont.body(16))
-                    .foregroundStyle(AppTheme.textSecondary)
+                    .buttonStyle(PressableStyle())
+                    .accessibilityLabel("Close")
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
                     if selectedServings != baseServings {
-                        Button("Reset") {
+                        Button {
                             Haptics.tap()
                             withAnimation(reduceMotion ? .none : AppMotion.snappy) {
                                 selectedServings = baseServings
                             }
+                        } label: {
+                            Text("Reset")
+                                .font(AppFont.body(13, weight: .bold))
+                                .foregroundStyle(AppTheme.brand)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(AppTheme.brand.opacity(0.12), in: Capsule())
                         }
-                        .font(AppFont.body(15, weight: .semibold))
-                        .foregroundStyle(AppTheme.brand)
+                        .buttonStyle(PressableStyle())
                     }
                 }
             }
@@ -306,8 +320,8 @@ struct ScaleRecipeSheet: View {
                         .font(AppFont.body(16, weight: .bold))
                 }
                 .foregroundStyle(AppTheme.onBrand)
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, minHeight: 52)
                 .background(AppTheme.brand, in: Capsule())
                 .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
             }
