@@ -394,8 +394,12 @@ private struct ReelCell: View {
                 )
                 .overlay(Capsule().stroke(.white.opacity(following ? 0.35 : 0.25), lineWidth: 0.8))
                 .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 2)
+                // HIG: 44pt tall hit target while keeping the 28pt pill.
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(PressableStyle())
+            .accessibilityLabel(following ? "Following @\(h)" : "Follow @\(h)")
         }
     }
 

@@ -82,7 +82,7 @@ enum LocalStore {
 enum AccountScope {
     static let ownerKey = "library_owner_id"
     static let personalFiles = [
-        "recipes.json", "avatar.json", "grocery.json", "followed_creators.json",
+        "recipes.json", "nutrition_cache.json", "avatar.json", "grocery.json", "followed_creators.json",
         "owned_collections.json", "shared_collections.json", "studio_drafts.json",
         "unsynced_recipes.json", "shared_log.json", "pending_interactions.json",
         "interaction_history.json", "preferred_cuisines.json",

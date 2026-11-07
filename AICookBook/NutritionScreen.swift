@@ -11,11 +11,18 @@ import SwiftUI
 struct NutritionScreen: View {
     let recipe: Recipe
 
+    @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss
     @State private var whole = false
     @State private var openMacro: MacroKind?
 
-    private var nutrition: RecipeNutrition { recipe.nutritionOrEstimate }
+    private var hasNutrition: Bool {
+        recipe.nutrition != nil || (environment.selectedRecipe?.id == recipe.id && environment.selectedRecipe?.nutrition != nil)
+    }
+    private var nutrition: RecipeNutrition {
+        recipe.nutrition ?? (environment.selectedRecipe?.id == recipe.id ? environment.selectedRecipe?.nutrition : nil)
+            ?? recipe.nutritionOrEstimate
+    }
     private var servings: Int { max(recipe.servings ?? 1, 1) }
     private var shown: (kcal: Int, proteinG: Int, carbsG: Int, fatG: Int) {
         nutrition.shown(servings: servings, whole: whole)
@@ -29,20 +36,28 @@ struct NutritionScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
-            ScrollView {
-                VStack(alignment: .leading, spacing: AppSpacing.md) {
-                    dishHeading
-                    portionPicker
-                    ringCard
-                    macros
+            if hasNutrition {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AppSpacing.md) {
+                        dishHeading
+                        portionPicker
+                        ringCard
+                        macros
+                    }
+                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.top, AppSpacing.sm)
+                    .padding(.bottom, AppSpacing.xl)
                 }
-                .padding(.horizontal, AppSpacing.md)
-                .padding(.top, AppSpacing.sm)
-                .padding(.bottom, AppSpacing.xl)
+            } else {
+                Spacer()
+                ProgressView("Calculating nutrition…")
+                    .tint(AppTheme.accent)
+                Spacer()
             }
         }
         .background(AppTheme.background.ignoresSafeArea())
         .leadingEdgeBack { dismiss() }
+        .task { environment.refreshAuthoritativeNutrition(for: recipe) }
     }
 
     private var topBar: some View {
@@ -370,19 +385,28 @@ struct NutritionSummaryCard: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(AppTheme.textTertiary)
                 }
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("\(shown.kcal)")
-                        .font(AppFont.display(40, weight: .bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .monospacedDigit()
-                    Text(mark.over ? "kcal · a full day" : "kcal · \(mark.percent)% of daily goal")
-                        .font(AppFont.body(15, weight: .medium))
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                if recipe.nutrition != nil {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("\(shown.kcal)")
+                            .font(AppFont.display(40, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                            .monospacedDigit()
+                        Text(mark.over ? "kcal · a full day" : "kcal · \(mark.percent)% of daily goal")
+                            .font(AppFont.body(15, weight: .medium))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    macroBar
+                } else {
+                    HStack(spacing: AppSpacing.sm) {
+                        ProgressView().controlSize(.small)
+                        Text("Calculating nutrition…")
+                            .font(AppFont.body(14, weight: .medium))
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
                 }
-                macroBar
             }
             .padding(AppSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -390,7 +414,9 @@ struct NutritionSummaryCard: View {
             .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Nutrition, \(shown.kcal) kilocalories per serving, \(mark.over ? "a full day" : "\(mark.percent) percent of the daily goal")")
+        .accessibilityLabel(recipe.nutrition == nil
+            ? "Nutrition estimate calculating"
+            : "Nutrition, \(shown.kcal) kilocalories per serving, \(mark.over ? "a full day" : "\(mark.percent) percent of the daily goal")")
     }
 
     private var macroBar: some View {

@@ -144,6 +144,7 @@ struct ProfileScreen: View {
             VStack(alignment: .leading, spacing: AppSpacing.xs) {
                 Button { showEditProfile = true } label: { avatarView }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Edit profile photo")
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(environment.currentUser?.fullName ?? "Your Profile")
@@ -166,6 +167,9 @@ struct ProfileScreen: View {
                         .padding(.vertical, 7)
                         .background(AppTheme.surface, in: Capsule())
                         .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                        // HIG: 44pt minimum hit height.
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableStyle())
                 .padding(.top, 2)
@@ -321,10 +325,39 @@ struct ProfileScreen: View {
                         .font(AppFont.body(16, weight: .medium))
                         .foregroundStyle(AppTheme.textPrimary)
                     Spacer()
-                    Toggle("", isOn: $kitchenCatEnabled).labelsHidden().toggleStyle(GlassToggleStyle())
+                    Toggle("Kitchen cat", isOn: $kitchenCatEnabled)
+                        .labelsHidden()
+                        .toggleStyle(GlassToggleStyle())
+                        .accessibilityLabel("Kitchen cat")
                 }
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.vertical, 13)
+
+                #if DEBUG
+                Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                NavigationLink {
+                    DeveloperToolsScreen()
+                } label: {
+                    HStack(spacing: AppSpacing.sm) {
+                        Image(systemName: "speedometer")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 30, height: 30)
+                            .background(.purple, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        Text("Developer Tools")
+                            .font(AppFont.body(16, weight: .medium))
+                            .foregroundStyle(AppTheme.textPrimary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(AppTheme.textTertiary)
+                    }
+                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.vertical, 13)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                #endif
 
                 if environment.isAdmin {
                     Divider().overlay(AppTheme.separator).padding(.leading, 56)
@@ -1172,10 +1205,20 @@ struct DeleteAccountSheet: View {
             .navigationTitle("Delete Account")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .font(AppFont.body(16, weight: .semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        Haptics.tap()
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .frame(width: 30, height: 30)
+                            .background(AppTheme.surfaceElevated, in: Circle())
+                            .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 0.8))
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityLabel("Close")
                 }
             }
         }
@@ -1231,6 +1274,7 @@ struct EditProfileSheet: View {
                         avatarPreview
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Change profile photo")
 
                     Text("Tap the photo to change it")
                         .font(AppFont.body(12))
@@ -1268,15 +1312,42 @@ struct EditProfileSheet: View {
             .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button {
+                        Haptics.tap()
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .frame(width: 30, height: 30)
+                            .background(AppTheme.surfaceElevated, in: Circle())
+                            .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 0.8))
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityLabel("Close")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Haptics.success()
                         Task { await save() }
                     } label: {
-                        if saving { ProgressView() } else { Text("Save").fontWeight(.bold) }
+                        if saving {
+                            ProgressView()
+                                .tint(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 7)
+                        } else {
+                            Text("Save")
+                                .font(AppFont.body(14, weight: .bold))
+                                .foregroundStyle(AppTheme.onBrand)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 7)
+                                .background(AppTheme.brand, in: Capsule())
+                                .shadow(color: .black.opacity(0.12), radius: 4, y: 1)
+                        }
                     }
+                    .buttonStyle(PressableStyle())
                     .disabled(saving)
                 }
             }

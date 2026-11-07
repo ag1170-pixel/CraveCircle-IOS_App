@@ -139,12 +139,13 @@ struct StudioScreen: View {
             .buttonStyle(.plain)
             .disabled(isLoadingMedia)
             #else
-            shareTile(icon: "photo.on.rectangle", title: "Share a photo",
+                shareTile(icon: "photo.on.rectangle", title: "Share a photo",
                       subtitle: "Photo picker is unavailable on this build.")
             shareTile(icon: "video", title: "Share a video",
                       subtitle: "Video picker is unavailable on this build.")
             #endif
         }
+        #if !XTOOL_WSL
         .onChange(of: pickedPhotos) { _, items in
             guard !items.isEmpty, !isLoadingMedia else { return }
             Task { await handlePickedPhotos(items) }
@@ -153,6 +154,7 @@ struct StudioScreen: View {
             guard let item, !isLoadingMedia else { return }
             Task { await handlePickedVideo(item) }
         }
+        #endif
         .overlay {
             if isLoadingMedia {
                 ProgressView().padding().background(.ultraThinMaterial, in: Capsule())

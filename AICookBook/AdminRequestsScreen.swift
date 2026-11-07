@@ -99,6 +99,7 @@ private struct CreatorRequestDetailView: View {
                         .font(AppFont.body(14, weight: .semibold))
                         .foregroundStyle(AppTheme.accentInk)
                     }
+                    .buttonStyle(.plain)
                 }
                 if let note = request.note, !note.isEmpty {
                     row("Note", value: note)

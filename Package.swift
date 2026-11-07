@@ -7,21 +7,16 @@ let package = Package(
     products: [
         .library(name: "AICookBook", targets: ["AICookBook"]),
     ],
-    dependencies: [
-        .package(url: "https://github.com/airbnb/lottie-spm.git", from: "4.5.0"),
-    ],
+    dependencies: [],
     targets: [
         .target(
             name: "AICookBook",
-            dependencies: [
-                .product(name: "Lottie", package: "lottie-spm"),
-            ],
+            dependencies: [],
             path: "AICookBook",
             exclude: ["Assets.xcassets"],
             resources: [
                 .copy("usda_sr.json"),
                 .copy("ifct_2017.json"),
-                .copy("Flow_4.json"),
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v5),

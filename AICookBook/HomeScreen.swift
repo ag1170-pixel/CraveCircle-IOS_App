@@ -21,6 +21,7 @@ struct HomeScreen: View {
     @Binding var showingImportSheet: Bool
     @State private var showNotifications = false
     @State private var query = ""                       // search moved here from the old Search tab
+    @State private var searchQuery = ""
     @AppStorage("recent_home_searches") private var recentSearchesCSV: String = ""
     @State private var filters = RecipeFilters()
     @State private var navigateToLibrary = false
@@ -170,6 +171,9 @@ struct HomeScreen: View {
                         .accessibilityHidden(true)
                 }
             }
+            // HIG: 44×44 minimum hit target (the glyph itself stays 36pt).
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel(showsDot ? "\(label), new activity" : label)
@@ -179,6 +183,10 @@ struct HomeScreen: View {
 
     private var isSearching: Bool {
         !query.trimmingCharacters(in: .whitespaces).isEmpty || filters.isActive
+    }
+
+    private var normalizedSearchQuery: String {
+        searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Focus the search box after the Home tab has settled on screen (focus set during the tab
@@ -194,11 +202,15 @@ struct HomeScreen: View {
     }
 
     private var searchResult: RecipeSearch.Result {
-        RecipeSearch.search(environment.recipes, query: query, filters: filters)
+        let performanceStart = PerformanceDiagnostics.start()
+        let result = RecipeSearch.search(environment.recipes, query: normalizedSearchQuery, filters: filters)
+        PerformanceDiagnostics.record("Search · \(environment.recipes.count) recipes", since: performanceStart)
+        return result
     }
 
     /// A paused search that found no real dish. Typing does not count until this stays still.
     private var searchMissQuery: String? {
+        guard normalizedSearchQuery == query.trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
         guard let key = SearchDemand.key(query), isSearching else { return nil }
         let result = searchResult
         guard result.isGuess || result.recipes.isEmpty else { return nil }
@@ -223,6 +235,11 @@ struct HomeScreen: View {
                 .foregroundStyle(AppTheme.textPrimary)
                 .autocorrectionDisabled()
                 .focused($searchFocused)
+                .task(id: query) {
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    guard !Task.isCancelled else { return }
+                    searchQuery = query
+                }
                 .submitLabel(.search)
                 .onSubmit { recordRecentSearch(query) }
                 .overlay(alignment: .leading) {

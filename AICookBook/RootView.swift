@@ -5,30 +5,46 @@ import UIKit
 
 struct RootView: View {
     @EnvironmentObject private var environment: AppEnvironment
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
             if environment.appState == .loading {
-                LottieView(name: "Flow_4")
-                    .frame(width: 80, height: 80)
-                    .foregroundStyle(AppTheme.textPrimary)
+                ProgressView()
+                    .controlSize(.large)
+                    .tint(AppTheme.textPrimary)
+                    .transition(.opacity)
             } else if environment.showPreAuthOnboarding {
                 // First run on this install: pitch the app BEFORE asking for sign-in.
                 // On completion we remember the choice and surface the login screen.
                 OnboardingView()
+                    .transition(.opacity)
             } else if environment.appState == .signedOut {
                 LoginView()
+                    .transition(.opacity)
             } else if environment.needsOnboarding {
                 OnboardingView()
+                    .transition(.opacity)
             } else {
                 MainTabView()
+                    .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppTheme.background.ignoresSafeArea())
+        // One app-level tint so system controls (alerts, pickers, links) match the UI accent.
+        .tint(AppTheme.accentInk)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: environment.appState)
+        .overlay(alignment: .topTrailing) {
+            #if DEBUG
+            if PerformanceDiagnostics.isEnabled { PerformanceHUD().zIndex(100) }
+            #endif
+        }
         .task {
             if environment.appState == .loading {
+                let started = PerformanceDiagnostics.start()
                 await environment.bootstrap()
+                PerformanceDiagnostics.record("App bootstrap", since: started)
             }
         }
         .alert("Something went wrong", isPresented: .constant(environment.errorMessage != nil), actions: {
@@ -763,9 +779,9 @@ struct ImportToastBanner: View {
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(noContent(msg) ? AppTheme.textSecondary : AppTheme.destructive)
         default:
-            LottieView(name: "Flow_4")
-                .frame(width: 22, height: 22)
-                .clipped()
+            ProgressView()
+                .controlSize(.small)
+                .tint(AppTheme.textPrimary)
         }
     }
 

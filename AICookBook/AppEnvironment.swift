@@ -3,11 +3,19 @@ import Foundation
 import Combine
 import UserNotifications
 import NaturalLanguage
+#if !targetEnvironment(macCatalyst)
 import ActivityKit
+#endif
+
+private struct CachedRecipeNutrition: Codable {
+    let signature: String
+    let nutrition: RecipeNutrition
+    let cachedAt: Date
+}
 
 @MainActor
 final class AppEnvironment: ObservableObject {
-    enum AppState {
+    enum AppState: Equatable {
         case loading
         case signedOut
         case signedIn
@@ -109,7 +117,9 @@ final class AppEnvironment: ObservableObject {
     /// Set while a 15s "failed, auto-dismiss" timer is in flight so we don't stack cancellations.
     private var queuePumpTask: Task<Void, Never>?
     /// The running "recipe cooking" Live Activity (Dynamic Island + Lock Screen), if any.
+    #if !targetEnvironment(macCatalyst)
     private var cookingActivity: Activity<CookingImportAttributes>?
+    #endif
     @Published private(set) var groceryItems: [GroceryItem] = [] { didSet { persist(groceryItems, "grocery.json") } }
     @Published var groceryError: String?
     @Published var errorMessage: String?
@@ -155,6 +165,8 @@ final class AppEnvironment: ObservableObject {
     private let authClient: SupabaseAuthClient
     private let apiClient: APIClient
     private var importTask: Task<Void, Never>?
+    private var nutritionCache: [String: CachedRecipeNutrition] = [:]
+    private let nutritionCacheLimit = 64
 
     /// Guards on-disk autosave: property `didSet`s only persist AFTER `hydrateLocal()` has loaded
     /// the saved state, so loading doesn't immediately overwrite the files. Writes go to the
@@ -220,6 +232,8 @@ final class AppEnvironment: ObservableObject {
     /// Load this user's library, photo, grocery, and the rest of their on-device setup.
     /// Sample recipes are still merged in so Discover works offline; they are not owned.
     private func hydrateLocal() {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Local hydration", since: performanceStart) }
         guard let userId = currentUser?.id, !userId.isEmpty else { return }
         hydrated = false
         claimLegacyFilesIfNeeded(userId: userId)
@@ -228,6 +242,7 @@ final class AppEnvironment: ObservableObject {
         let localDeleted = deletedRecipeIds
 
         let saved = loadScoped([Recipe].self, "recipes.json", userId: userId) ?? []
+        nutritionCache = loadScoped([String: CachedRecipeNutrition].self, "nutrition_cache.json", userId: userId) ?? [:]
         var merged = saved.filter { !localDeleted.contains($0.id) }
         for i in merged.indices {
             if let t = merged[i].thumbnailUrl, t.hasPrefix("file://"), let name = URL(string: t)?.lastPathComponent {
@@ -313,10 +328,13 @@ final class AppEnvironment: ObservableObject {
         pendingCreatorRequests = []
         searchDemands = []
         nutritionAttempted = []
+        nutritionCache = [:]
         recipeSwipeContext = nil
     }
 
     func bootstrap() async {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Bootstrap flow", since: performanceStart) }
         #if DEBUG
         _ = CraveCircleInvariantChecks._runChecks
         #endif
@@ -729,6 +747,8 @@ final class AppEnvironment: ObservableObject {
     }
 
     func refreshRecipes() async {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Recipe refresh + sync", since: performanceStart) }
         // Instant day-0 fallback: seed with static samples if local store is empty
         if recipes.isEmpty {
             recipes = Recipe.placeholderRecipes
@@ -766,6 +786,8 @@ final class AppEnvironment: ObservableObject {
     /// Infinite scroll: append the next page of recipes from Supabase cloud as the user nears the end.
     /// Pages from Supabase; on error/empty it simply stops gracefully without UI freezes.
     func loadMoreRecipes() async {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Load more recipes", since: performanceStart) }
         guard !isLoadingMore, hasMoreRecipes else { return }
         isLoadingMore = true
         defer { isLoadingMore = false }
@@ -894,35 +916,67 @@ final class AppEnvironment: ObservableObject {
         // the paywall) once they've opened `guestViewLimit` distinct recipes.
         guard canViewRecipe(recipe.id) else { return }
         recipeSwipeContext = context
-        selectedRecipe = recipe
-        refreshAuthoritativeNutrition(for: recipe)
+        var openedRecipe = recipe
+        if let cached = nutritionCache[recipe.id],
+           cached.signature == NutritionEstimator.cacheSignature(for: recipe) {
+            openedRecipe.nutrition = recipe.nutrition ?? cached.nutrition
+        }
+        selectedRecipe = openedRecipe
+        refreshAuthoritativeNutrition(for: openedRecipe)
     }
 
     private var nutritionAttempted = Set<String>()
 
-    /// Compute nutrition once (off-main) for a recipe that has none yet — using the bundled offline
-    /// USDA engine (no network, no API). Stores it (with the macro breakdown) so it persists and
-    /// doesn't recompute every render. NEVER overwrites a recipe that already has nutrition (e.g. the
-    /// accurate server value from a share import).
+    /// Estimate missing nutrition off-main with the bundled offline food database. Persist only
+    /// this bounded per-account cache, including the ingredient breakdown. Server nutrition wins.
     func refreshAuthoritativeNutrition(for recipe: Recipe) {
         let estimated = recipe.nutrition?.estimated == true
-        guard recipe.nutrition == nil || estimated, !nutritionAttempted.contains(recipe.id) else { return }
-        nutritionAttempted.insert(recipe.id)
+        guard recipe.nutrition == nil || estimated else { return }
+        let signature = NutritionEstimator.cacheSignature(for: recipe)
+        let attemptKey = "\(recipe.id):\(signature)"
+        guard !nutritionAttempted.contains(attemptKey) else { return }
+        if let cached = nutritionCache[recipe.id] {
+            if cached.signature == signature {
+                nutritionAttempted.insert(attemptKey)
+                selectedRecipe?.nutrition = recipe.nutrition ?? cached.nutrition
+                return
+            }
+            nutritionCache.removeValue(forKey: recipe.id)
+            persist(nutritionCache, "nutrition_cache.json")
+        }
+        nutritionAttempted.insert(attemptKey)
+        let accountId = currentUser?.id
         Task.detached { [weak self] in
             let computed = NutritionEstimator.estimate(for: recipe)   // offline USDA-backed
-            await MainActor.run {
-                guard let self else { return }
-                let keep = computed.calories > 0
-                if let i = self.recipes.firstIndex(where: { $0.id == recipe.id }),
-                   self.recipes[i].nutrition == nil || (self.recipes[i].nutrition?.estimated == true && keep) {
-                    self.recipes[i].nutrition = computed
-                }
-                if self.selectedRecipe?.id == recipe.id,
-                   self.selectedRecipe?.nutrition == nil || (self.selectedRecipe?.nutrition?.estimated == true && keep) {
-                    self.selectedRecipe?.nutrition = computed
-                }
-            }
+            guard let self else { return }
+            await self.storeNutritionEstimate(computed, for: recipe, signature: signature, accountId: accountId)
         }
+    }
+
+    private func storeNutritionEstimate(
+        _ computed: RecipeNutrition,
+        for recipe: Recipe,
+        signature: String,
+        accountId: String?
+    ) {
+        guard currentUser?.id == accountId,
+              nutritionCache[recipe.id]?.signature != signature else { return }
+        nutritionCache[recipe.id] = CachedRecipeNutrition(signature: signature, nutrition: computed, cachedAt: Date())
+        if nutritionCache.count > nutritionCacheLimit {
+            let oldestIds = nutritionCache
+                .sorted { $0.value.cachedAt < $1.value.cachedAt }
+                .prefix(nutritionCache.count - nutritionCacheLimit)
+                .map(\.key)
+            for id in oldestIds { nutritionCache.removeValue(forKey: id) }
+        }
+        persist(nutritionCache, "nutrition_cache.json")
+
+        let keep = computed.calories > 0
+        guard let selected = selectedRecipe,
+              selected.id == recipe.id,
+              NutritionEstimator.cacheSignature(for: selected) == signature,
+              selected.nutrition == nil || (selected.nutrition?.estimated == true && keep) else { return }
+        selectedRecipe?.nutrition = computed
     }
 
     /// Open a recipe by id — the target of a `cravecircle://recipe/<id>` deep link (Copy link / Share).
@@ -1046,7 +1100,7 @@ final class AppEnvironment: ObservableObject {
                 case .ok:
                     unsyncedRecipeIds.subtract(dirtyIds)
                 case .unauthorized:
-                    if await supabase.refreshSessionIfPossible(),
+                    if await authClient.refreshSessionIfPossible(),
                        case .ok = await supabase.upsertRecipes(dirty, ownerId: uid) {
                         unsyncedRecipeIds.subtract(dirtyIds)
                     } else {
@@ -1381,7 +1435,7 @@ final class AppEnvironment: ObservableObject {
         if let rid = meal.reminderIdentifier {
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [rid])
         }
-        await MainActor.run { plannedMeals.remove(at: idx) }
+        plannedMeals.remove(at: idx)
         _ = await supabase.deletePlannedMeal(id: meal.id)
     }
 
@@ -1690,6 +1744,8 @@ final class AppEnvironment: ObservableObject {
     /// actually terminates it: it cancels the in-flight server/download requests AND stops the
     /// on-device transcription/OCR/extraction, and no late state write can revive the banner.
     func startImport(from instagramURL: String, extraOnScreen: String? = nil, extraCaption: String? = nil) async {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Link recipe import", since: performanceStart) }
         // Guests browse everything, but importing is a write — route them to sign-in instead.
         guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .importRecipe) }) else { return }
         // Busy with another import? Queue plain-URL calls (no caption/OCR extras) and bail.
@@ -1851,6 +1907,8 @@ final class AppEnvironment: ObservableObject {
     /// Same import, with every selected photo kept. The first is the cover; the rest page on the
     /// recipe the same way a recipe written here does. Capped at 6, matching the editor.
     func importFromPhotos(_ images: [UIImage], caption: String? = nil, recognized: String? = nil) async {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Photo recipe import", since: performanceStart) }
         guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .importRecipe) }) else { return }
         importTask?.cancel()
         importState = .submitting
@@ -1925,7 +1983,7 @@ final class AppEnvironment: ObservableObject {
         markRecipeDirty(recipe.id)
         Task { await syncRecipes() }
         importState = .done(recipeId: recipe.id)
-        notifyImportDone(recipeTitle: recipe.title)
+        notifyImportDone(recipeId: recipe.id, recipeTitle: recipe.title)
     }
 
     /// A food page the person opened in the in-app browser. Parsed on the phone.
@@ -1976,6 +2034,8 @@ final class AppEnvironment: ObservableObject {
     }
 
     func importFromVideo(_ url: URL, caption: String? = nil, title: String? = nil, thumbnailUrl: String? = nil) async {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("On-device video import", since: performanceStart) }
         guard await MainActor.run(body: { requireRealSessionOrPrompt(reason: .importRecipe) }) else { return }
         importTask?.cancel()
         importState = .submitting
@@ -2162,7 +2222,7 @@ final class AppEnvironment: ObservableObject {
         Task { await syncRecipes() }
         // Do NOT auto-set selectedRecipe here.
         importState = .done(recipeId: recipe.id)
-        notifyImportDone(recipeTitle: recipe.title)
+        notifyImportDone(recipeId: recipe.id, recipeTitle: recipe.title)
     }
 
     /// Copy the server cover onto this phone. That file is a frame of the reel; Instagram's
@@ -2542,6 +2602,30 @@ final class AppEnvironment: ObservableObject {
         return added
     }
 
+    @discardableResult
+    func addSpecificIngredientsToGrocery(recipe: Recipe, items: [String], servings: Int? = nil) -> Int {
+        var added = 0
+        let baseServings = recipe.servings ?? 2
+        let targetServings = servings ?? baseServings
+
+        let dish = recipe.title
+        var seen = Set(groceryItems.filter { $0.recipeName == dish }.map { GrocerySort.coreName($0.ingredientName) })
+        for item in items {
+            let trimmed = item.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else { continue }
+            let core = GrocerySort.coreName(trimmed)
+            if !core.isEmpty, seen.contains(core) { continue }   // de-dupe within this dish
+            if !core.isEmpty { seen.insert(core) }
+            let scaledText = IngredientListFormat.scaledLine(trimmed, from: baseServings, to: targetServings)
+            groceryItems.append(GroceryItem(id: UUID().uuidString, ingredientName: scaledText, checked: false, recipeName: dish))
+            added += 1
+        }
+        if added > 0 {
+            logInteraction(recipeId: recipe.id, eventType: "grocery")
+        }
+        return added
+    }
+
     func addCustomGroceryItem(name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
@@ -2857,7 +2941,10 @@ final class AppEnvironment: ObservableObject {
     /// falls back to the on-device recommender when there's no session, the server is unreachable,
     /// or the server has nothing yet (e.g. recipes not synced) — so the feed is never empty.
     func fetchSuggestedFeed() async {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Suggestion feed", since: performanceStart) }
         let excluded = Set(recipes.filter { isOwner(of: $0) || isSaved(recipeId: $0.id) }.map { $0.id })
+        let rankingStart = PerformanceDiagnostics.start()
         let local = RecommendationEngine.suggestions(
             from: recipes,
             history: interactionHistory,
@@ -2865,6 +2952,7 @@ final class AppEnvironment: ObservableObject {
             preferredCuisines: preferredCuisines,
             limit: 8
         )
+        PerformanceDiagnostics.record("Local recommendation ranking", since: rankingStart)
         // Show on-device picks INSTANTLY (never wait on a slow/offline backend for first content)…
         if suggestedRecipes.isEmpty { setSuggestions(local) }
         // …then upgrade to the cross-user server feed if/when it responds.
@@ -2877,6 +2965,8 @@ final class AppEnvironment: ObservableObject {
 
     /// Publish a suggestions list + its per-item "why" reasons (behavior first, else onboarding cuisine).
     private func setSuggestions(_ list: [Recipe]) {
+        let performanceStart = PerformanceDiagnostics.start()
+        defer { PerformanceDiagnostics.record("Suggestion explanations", since: performanceStart) }
         suggestedRecipes = list
         var reasons: [String: String] = [:]
         for r in list {
@@ -2992,6 +3082,7 @@ final class AppEnvironment: ObservableObject {
     /// Start / update / end the "recipe cooking" Live Activity to mirror the import state. Driven by
     /// importState's didSet, so there's one source of truth.
     private func reflectImportInLiveActivity() {
+        #if !targetEnvironment(macCatalyst)
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
         // Map ImportFlowState → the Live Activity stage.
@@ -3042,13 +3133,16 @@ final class AppEnvironment: ObservableObject {
                 attributes: attrs,
                 content: ActivityContent(state: content, staleDate: nil))
         }
+        #endif
     }
 
     private func endCookingActivity() {
+        #if !targetEnvironment(macCatalyst)
         cookingActivity = nil
         for activity in Activity<CookingImportAttributes>.activities {
             Task { await activity.end(nil, dismissalPolicy: .immediate) }
         }
+        #endif
     }
     
     private func beginPolling(jobId: String) {
@@ -3115,7 +3209,7 @@ final class AppEnvironment: ObservableObject {
                             // if the ImportProgressScreen sheet is currently active. Let the user
                             // explicitly tap "View" or "Open recipe" to select it.
                             self.importState = .done(recipeId: recipeId)
-                            self.notifyImportDone(recipeTitle: recipe.title)
+                            self.notifyImportDone(recipeId: recipeId, recipeTitle: recipe.title)
                         }
                         return
                     } else if job.status == .error {
@@ -3148,15 +3242,33 @@ final class AppEnvironment: ObservableObject {
         return UserProfile(id: "local-\(base)", username: "@\(base)", fullName: "Local Profile", avatarUrl: nil)
     }
 
-    private func notifyImportDone(recipeTitle: String) {
+    /// Set of recipe ids we've already fired the "Recipe Ready!" alert for. Belt-and-braces on
+    /// top of the stable identifier below — if two paths race to the alert before UNUserNotification-
+    /// Center has had a chance to dedupe, this still blocks the second one.
+    private var importDoneNotified: Set<String> = []
+
+    /// Fires the "Recipe Ready!" tray alert. Prior build used `UUID().uuidString` as the request
+    /// identifier, so if the client-side state transition AND the server poll both fired the
+    /// alert for the same import, iOS treated them as two separate notifications instead of
+    /// deduping (the user saw two "Recipe Ready" messages for one import). Fix:
+    ///   1. Stable identifier `import-done-<recipeId>` so iOS REPLACES a pending/delivered
+    ///      request with the same id instead of appending a second.
+    ///   2. In-memory `importDoneNotified` set as a secondary guard — if two callers race us
+    ///      before iOS registers the first add, we still skip the second.
+    private func notifyImportDone(recipeId: String, recipeTitle: String) {
+        guard !importDoneNotified.contains(recipeId) else { return }
+        importDoneNotified.insert(recipeId)
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
             if granted {
                 let content = UNMutableNotificationContent()
                 content.title = "Recipe Ready!"
                 content.body = "Your recipe '\(recipeTitle)' has been successfully extracted and is ready to cook."
                 content.sound = .default
-                
-                let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+                let request = UNNotificationRequest(
+                    identifier: "import-done-\(recipeId)",
+                    content: content,
+                    trigger: nil
+                )
                 UNUserNotificationCenter.current().add(request)
             }
         }
