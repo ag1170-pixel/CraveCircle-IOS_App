@@ -1983,7 +1983,7 @@ final class AppEnvironment: ObservableObject {
         markRecipeDirty(recipe.id)
         Task { await syncRecipes() }
         importState = .done(recipeId: recipe.id)
-        notifyImportDone(recipeTitle: recipe.title)
+        notifyImportDone(recipeId: recipe.id, recipeTitle: recipe.title)
     }
 
     /// A food page the person opened in the in-app browser. Parsed on the phone.
@@ -2222,7 +2222,7 @@ final class AppEnvironment: ObservableObject {
         Task { await syncRecipes() }
         // Do NOT auto-set selectedRecipe here.
         importState = .done(recipeId: recipe.id)
-        notifyImportDone(recipeTitle: recipe.title)
+        notifyImportDone(recipeId: recipe.id, recipeTitle: recipe.title)
     }
 
     /// Copy the server cover onto this phone. That file is a frame of the reel; Instagram's
@@ -3209,7 +3209,7 @@ final class AppEnvironment: ObservableObject {
                             // if the ImportProgressScreen sheet is currently active. Let the user
                             // explicitly tap "View" or "Open recipe" to select it.
                             self.importState = .done(recipeId: recipeId)
-                            self.notifyImportDone(recipeTitle: recipe.title)
+                            self.notifyImportDone(recipeId: recipeId, recipeTitle: recipe.title)
                         }
                         return
                     } else if job.status == .error {
@@ -3242,15 +3242,33 @@ final class AppEnvironment: ObservableObject {
         return UserProfile(id: "local-\(base)", username: "@\(base)", fullName: "Local Profile", avatarUrl: nil)
     }
 
-    private func notifyImportDone(recipeTitle: String) {
+    /// Set of recipe ids we've already fired the "Recipe Ready!" alert for. Belt-and-braces on
+    /// top of the stable identifier below — if two paths race to the alert before UNUserNotification-
+    /// Center has had a chance to dedupe, this still blocks the second one.
+    private var importDoneNotified: Set<String> = []
+
+    /// Fires the "Recipe Ready!" tray alert. Prior build used `UUID().uuidString` as the request
+    /// identifier, so if the client-side state transition AND the server poll both fired the
+    /// alert for the same import, iOS treated them as two separate notifications instead of
+    /// deduping (the user saw two "Recipe Ready" messages for one import). Fix:
+    ///   1. Stable identifier `import-done-<recipeId>` so iOS REPLACES a pending/delivered
+    ///      request with the same id instead of appending a second.
+    ///   2. In-memory `importDoneNotified` set as a secondary guard — if two callers race us
+    ///      before iOS registers the first add, we still skip the second.
+    private func notifyImportDone(recipeId: String, recipeTitle: String) {
+        guard !importDoneNotified.contains(recipeId) else { return }
+        importDoneNotified.insert(recipeId)
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
             if granted {
                 let content = UNMutableNotificationContent()
                 content.title = "Recipe Ready!"
                 content.body = "Your recipe '\(recipeTitle)' has been successfully extracted and is ready to cook."
                 content.sound = .default
-                
-                let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+                let request = UNNotificationRequest(
+                    identifier: "import-done-\(recipeId)",
+                    content: content,
+                    trigger: nil
+                )
                 UNUserNotificationCenter.current().add(request)
             }
         }
