@@ -325,7 +325,8 @@ struct ProfileScreen: View {
                         .font(AppFont.body(16, weight: .medium))
                         .foregroundStyle(AppTheme.textPrimary)
                     Spacer()
-                    Toggle("Kitchen cat", isOn: $kitchenCatEnabled)
+                    // Empty title: GlassToggleStyle draws its label, so a title here shows twice.
+                    Toggle("", isOn: $kitchenCatEnabled)
                         .labelsHidden()
                         .toggleStyle(GlassToggleStyle())
                         .accessibilityLabel("Kitchen cat")
@@ -496,10 +497,12 @@ struct ProfileScreen: View {
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
 
-            Text("Connects your phone to your import server for faster reel imports.")
-                .font(AppFont.body(12))
-                .foregroundStyle(AppTheme.textTertiary)
-                .padding(.horizontal, AppSpacing.xs)
+            if environment.isAdmin {
+                Text("Connects your phone to your import server for faster reel imports.")
+                    .font(AppFont.body(12))
+                    .foregroundStyle(AppTheme.textTertiary)
+                    .padding(.horizontal, AppSpacing.xs)
+            }
 
             // Standalone Clear cache button (frees the bounded image cache; confirms so it's visible).
             Button {
@@ -554,7 +557,7 @@ struct ProfileScreen: View {
                 }
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
                 SettingRow(
-                    icon: "hand.raised.shield.fill",
+                    icon: "hand.raised.fill",
                     title: "Privacy Policy",
                     tint: .green
                 ) {
@@ -1270,6 +1273,16 @@ struct EditProfileSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: AppSpacing.lg) {
+                    // At the top so a failed save is visible at the medium detent too.
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(AppFont.body(13, weight: .semibold))
+                            .foregroundStyle(AppTheme.destructive)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(AppTheme.destructive.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+
                     PhotosPicker(selection: $pickerItem, matching: .images, photoLibrary: .shared()) {
                         avatarPreview
                     }
@@ -1299,12 +1312,6 @@ struct EditProfileSheet: View {
                         socialField(title: "Facebook",     text: $facebook,  icon: "person.2.fill",     placeholder: "facebook.com/you")
                     }
 
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(AppFont.body(13, weight: .semibold))
-                            .foregroundStyle(AppTheme.destructive)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
                 }
                 .padding(AppSpacing.lg)
             }
@@ -1467,6 +1474,11 @@ struct EditProfileSheet: View {
     }
 
     private func save() async {
+        guard !environment.isGuest else {
+            dismiss()
+            environment.promptGuestToSignIn(reason: .generic)
+            return
+        }
         saving = true; errorMessage = nil
         if let newAvatar { environment.setAvatar(newAvatar) }
         // Username is locked, so we never send it. All other fields update in one PATCH.
@@ -1483,7 +1495,8 @@ struct EditProfileSheet: View {
         switch outcome {
         case .ok: dismiss()
         case .usernameTaken: errorMessage = "That username is already taken. Pick another one."
-        case .failed: errorMessage = "Couldn't save right now. Try again in a moment."
+        case .failed(let reason):
+            errorMessage = reason.map { "Couldn't save: \($0)" } ?? "Couldn't save right now. Check your connection and try again."
         }
     }
 

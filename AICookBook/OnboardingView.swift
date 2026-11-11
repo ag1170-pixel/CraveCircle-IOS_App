@@ -1071,6 +1071,8 @@ private struct PhoneReel: View {
                     Text("Follow")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .fixedSize()
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Color.white.opacity(0.2), in: Capsule())
                 }

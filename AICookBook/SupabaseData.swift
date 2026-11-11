@@ -139,7 +139,7 @@ struct SupabaseData {
     /// Only non-nil fields are sent. Returns .ok on success, .usernameTaken on 23505 unique
     /// violation for the username column, .failed on anything else. Callers surface the specific
     /// case so the user can rename.
-    enum ProfileUpdateResult { case ok, usernameTaken, failed }
+    enum ProfileUpdateResult: Equatable { case ok, usernameTaken, failed(String?) }
     func updateMyProfile(fullName: String? = nil,
                          username: String? = nil,
                          avatarUrl: String? = nil,
@@ -150,7 +150,7 @@ struct SupabaseData {
                          facebookUrl: String? = nil,
                          pinterestUrl: String? = nil) async -> ProfileUpdateResult {
         guard let uid = currentUserId(),
-              var req = request(path: "rest/v1/profiles?id=eq.\(uid)", method: "PATCH") else { return .failed }
+              var req = request(path: "rest/v1/profiles?id=eq.\(uid)", method: "PATCH") else { return .failed(nil) }
         var body: [String: Any] = [:]
         if let fullName { body["full_name"] = fullName }
         if let username { body["username"] = username }
@@ -166,12 +166,12 @@ struct SupabaseData {
         req.setValue("return=minimal", forHTTPHeaderField: "Prefer")
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         guard let (data, resp) = try? await URLSession.shared.data(for: req),
-              let http = resp as? HTTPURLResponse else { return .failed }
+              let http = resp as? HTTPURLResponse else { return .failed(nil) }
         if (200..<300).contains(http.statusCode) { return .ok }
         // Postgres unique-violation (SQLSTATE 23505). Supabase surfaces it as {code: "23505", …}.
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let code = json["code"] as? String, code == "23505" { return .usernameTaken }
-        return .failed
+        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        if let code = json?["code"] as? String, code == "23505" { return .usernameTaken }
+        return .failed(json?["message"] as? String)
     }
 
     /// Push the user's onboarding answers to their profile row so recommendations survive a

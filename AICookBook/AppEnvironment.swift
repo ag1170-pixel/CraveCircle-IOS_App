@@ -590,7 +590,7 @@ final class AppEnvironment: ObservableObject {
 
     /// Edit display name / username. Updates locally right away and pushes to the profile row so it
     /// persists and is visible to others. Empty fields are ignored.
-    enum ProfileSaveOutcome { case ok, usernameTaken, failed }
+    enum ProfileSaveOutcome { case ok, usernameTaken, failed(String?) }
 
     /// Patch any editable profile field. Username changes are protected server-side by a UNIQUE
     /// constraint; .usernameTaken is bubbled up so the UI can show "that handle's taken".
@@ -618,8 +618,10 @@ final class AppEnvironment: ObservableObject {
             facebookUrl:  fb,
             pinterestUrl: pin
         )
-        guard result == .ok else {
-            return result == .usernameTaken ? .usernameTaken : .failed
+        switch result {
+        case .ok: break
+        case .usernameTaken: return .usernameTaken
+        case .failed(let reason): return .failed(reason)
         }
         // Mirror the write locally so the UI doesn't need a round-trip to reflect the change.
         if var cur = currentUser {
@@ -1640,9 +1642,17 @@ final class AppEnvironment: ObservableObject {
         // signing in or signing up (whenever that happens — minutes or days later) can pick it
         // up. Otherwise the reel they wanted is lost the moment they tap "Not now".
         if await MainActor.run(body: { isGuest }) {
-            if let url = passedURL?.trimmingCharacters(in: .whitespacesAndNewlines), !url.isEmpty {
-                UserDefaults.standard.set(url, forKey: Self.deferredImportKey)
+            // This runs with no URL on every launch/foreground, so only raise the wall when a
+            // link was really shared (deep link, or the Share Extension's App Group hand-off).
+            var shared = passedURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if shared.isEmpty, let defaults = UserDefaults(suiteName: Self.appGroupID),
+               let stored = defaults.string(forKey: Self.pendingImportKey)?
+                   .trimmingCharacters(in: .whitespacesAndNewlines), !stored.isEmpty {
+                shared = stored
+                defaults.removeObject(forKey: Self.pendingImportKey)
             }
+            guard !shared.isEmpty else { return }
+            UserDefaults.standard.set(shared, forKey: Self.deferredImportKey)
             _ = await MainActor.run(body: { requireRealSessionOrPrompt(reason: .share) })
             return
         }
