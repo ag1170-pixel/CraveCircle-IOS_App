@@ -13,6 +13,7 @@ struct FloatingVoiceAssistantView: View {
     /// True only on a flashcard that shows the clock, so "Start" is mentioned just then.
     var showsStartHint = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     @State private var isWinking = false
     @State private var isBobbing = false
@@ -67,7 +68,10 @@ struct FloatingVoiceAssistantView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(
+                reduceTransparency ? AnyShapeStyle(AppTheme.surfaceElevated) : AnyShapeStyle(.ultraThinMaterial),
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(voice.wakeActive ? AppTheme.accent.opacity(0.4) : AppTheme.hairline, lineWidth: 1)
@@ -80,6 +84,9 @@ struct FloatingVoiceAssistantView: View {
                     }
                 }
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(bubbleTitle). \(bubbleSubtitle)")
+            .accessibilityHint(voice.permissionDenied ? "Opens Settings to enable microphone access" : "")
         }
         .padding(.horizontal, 16)
         .offset(x: dragOffset.width, y: dragOffset.height)

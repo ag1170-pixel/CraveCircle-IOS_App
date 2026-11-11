@@ -9,6 +9,19 @@
 
 import SwiftUI
 
+#if targetEnvironment(macCatalyst)
+struct LiveActivityPreviewScreen: View {
+    var body: some View {
+        ContentUnavailableView(
+            "Cooking Island",
+            systemImage: "iphone.gen3",
+            description: Text("Live Activities are available on iPhone and iPad.")
+        )
+        .navigationTitle("Cooking Island")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+#else
 struct LiveActivityPreviewScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -221,3 +234,4 @@ private struct FloatingBob: ViewModifier {
 #Preview {
     LiveActivityPreviewScreen()
 }
+#endif

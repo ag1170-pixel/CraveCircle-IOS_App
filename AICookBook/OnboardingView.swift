@@ -88,8 +88,12 @@ struct OnboardingView: View {
                             .frame(width: 32, height: 32)
                             .background(AppTheme.surface, in: Circle())
                             .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 1))
+                            // HIG: 44×44 minimum hit target.
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(PressableStyle())
+                    .accessibilityLabel("Back")
 
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
@@ -541,6 +545,8 @@ struct OnboardingView: View {
         }
         .frame(maxWidth: 280)
         .aspectRatio(0.52, contentMode: .fit)
+        // The phone is an illustration of another app's UI — decorative for VoiceOver.
+        .accessibilityHidden(true)
     }
 
     // MARK: Helpers — layout, options, buttons
@@ -584,6 +590,7 @@ struct OnboardingView: View {
                         .frame(width: 36, height: 36)
                     Text(emoji).font(.system(size: 20))
                 }
+                .accessibilityHidden(true)
                 Text(label)
                     .font(AppFont.body(16, weight: .semibold))
                     .foregroundStyle(selected ? AppTheme.onAccent : AppTheme.textPrimary)
@@ -605,6 +612,7 @@ struct OnboardingView: View {
             )
         }
         .buttonStyle(PressableStyle())
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 
     private func primaryButton(_ title: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {

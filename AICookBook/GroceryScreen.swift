@@ -175,6 +175,9 @@ struct GroceryScreen: View {
                 .frame(width: 36, height: 36)
                 .background(AppTheme.surface, in: Circle())
                 .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 1))
+                // HIG: 44×44 minimum hit target.
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .accessibilityLabel("List options")
     }

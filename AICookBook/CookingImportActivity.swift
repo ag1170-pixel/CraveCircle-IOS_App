@@ -8,6 +8,7 @@
 //
 
 import Foundation
+#if !targetEnvironment(macCatalyst)
 import ActivityKit
 
 struct CookingImportAttributes: ActivityAttributes {
@@ -77,3 +78,4 @@ extension CookingImportAttributes.ContentState.Stage {
         }
     }
 }
+#endif

@@ -779,3 +779,49 @@ final class ChecklistToggleTests: XCTestCase {
         XCTAssertEqual(steps, [4])
     }
 }
+
+@MainActor
+final class AddSpecificIngredientsToGroceryTests: XCTestCase {
+    func testAddSpecificIngredientsScalesAndAppends() {
+        let env = AppEnvironment()
+        env.finishGrocery(dish: nil)
+
+        let recipe = makeRecipe(
+            id: "r1",
+            title: "Butter Chicken",
+            ingredients: ["500g chicken thighs", "2 tbsp butter", "1 cup cream"]
+        )
+
+        // Only add chicken and butter, scaled to 4 servings (base is 2)
+        let added = env.addSpecificIngredientsToGrocery(
+            recipe: recipe,
+            items: ["500g chicken thighs", "2 tbsp butter"],
+            servings: 4
+        )
+
+        XCTAssertEqual(added, 2)
+        XCTAssertEqual(env.groceryItems.count, 2)
+        XCTAssertTrue(env.groceryItems.contains { $0.ingredientName.contains("1000g") || $0.ingredientName.contains("1kg") || $0.ingredientName.contains("1000") })
+        XCTAssertTrue(env.groceryItems.contains { $0.ingredientName.contains("4 tbsp") || $0.ingredientName.contains("4") })
+    }
+
+    func testDeduplicationWithinSameRecipe() {
+        let env = AppEnvironment()
+        env.finishGrocery(dish: nil)
+
+        let recipe = makeRecipe(
+            id: "r2",
+            title: "Pasta",
+            ingredients: ["200g pasta", "1 tsp salt"]
+        )
+
+        let first = env.addSpecificIngredientsToGrocery(recipe: recipe, items: ["200g pasta"], servings: 2)
+        XCTAssertEqual(first, 1)
+        XCTAssertEqual(env.groceryItems.count, 1)
+
+        // Adding the same ingredient again should be de-duped
+        let addedAgain = env.addSpecificIngredientsToGrocery(recipe: recipe, items: ["200g pasta"], servings: 2)
+        XCTAssertEqual(addedAgain, 0)
+        XCTAssertEqual(env.groceryItems.count, 1)
+    }
+}

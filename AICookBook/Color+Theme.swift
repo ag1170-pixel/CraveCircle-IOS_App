@@ -10,9 +10,14 @@ import UIKit
 
 extension Color {
     /// Resolves differently in light vs dark appearance — full theme parity.
-    init(light: Color, dark: Color) {
+    /// Optional high-contrast variants are used when Increase Contrast is enabled.
+    init(light: Color, dark: Color, highContrastLight: Color? = nil, highContrastDark: Color? = nil) {
         self = Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark ? UIColor(dark) : UIColor(light)
+            let isDark = traits.userInterfaceStyle == .dark
+            if traits.accessibilityContrast == .high {
+                return UIColor(isDark ? (highContrastDark ?? dark) : (highContrastLight ?? light))
+            }
+            return isDark ? UIColor(dark) : UIColor(light)
         })
     }
 
