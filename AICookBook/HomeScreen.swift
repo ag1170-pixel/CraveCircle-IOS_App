@@ -70,10 +70,12 @@ struct HomeScreen: View {
                         }
                     }
                 }
-                // Extra breathing room so the floating `+` FAB (58pt + 78pt bottom offset) and
-                // the system tab bar don't overlap the last card's "Because you viewed…" reason
-                // chip. 140 covers both on the smallest iPhone widths without feeling empty.
-                .padding(.bottom, 140)
+                // Just enough breathing room so the floating `+` FAB doesn't cover the last
+                // card's reason chip. TabView already reserves its own safe-area inset for
+                // the tab bar, so we only need to clear the FAB — ~72pt is enough. More than
+                // that leaves a visible gap of doodle wallpaper below the end marker, which
+                // reads as unfinished page.
+                .padding(.bottom, 72)
             }
             .doodleScreenBackground()   // static wallpaper behind text/gaps; cards stay opaque
             .overlayPreferenceValue(CardFramesKey.self) { frames in
