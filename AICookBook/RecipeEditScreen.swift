@@ -150,8 +150,10 @@ struct RecipeEditScreen: View {
                             .foregroundStyle(AppTheme.onBrand)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 7)
+                            .frame(minWidth: 64, minHeight: 32)
                             .background(AppTheme.brand, in: Capsule())
                             .shadow(color: .black.opacity(0.12), radius: 4, y: 1)
+                            .contentShape(Capsule())
                     }
                     .buttonStyle(PressableStyle())
                 }

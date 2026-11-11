@@ -1332,20 +1332,23 @@ struct EditProfileSheet: View {
                         Haptics.success()
                         Task { await save() }
                     } label: {
-                        if saving {
-                            ProgressView()
-                                .tint(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 7)
-                        } else {
-                            Text("Save")
-                                .font(AppFont.body(14, weight: .bold))
-                                .foregroundStyle(AppTheme.onBrand)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 7)
-                                .background(AppTheme.brand, in: Capsule())
-                                .shadow(color: .black.opacity(0.12), radius: 4, y: 1)
+                        Group {
+                            if saving {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("Save")
+                                    .font(AppFont.body(14, weight: .bold))
+                                    .foregroundStyle(AppTheme.onBrand)
+                            }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 7)
+                        .frame(minWidth: 64, minHeight: 32)
+                        .background(AppTheme.brand, in: Capsule())
+                        .shadow(color: .black.opacity(0.12), radius: 4, y: 1)
+                        // Make the whole pill tappable, not just the text's intrinsic bounds —
+                        // without this, a tap on the coral area outside "Save" misses the Button.
+                        .contentShape(Capsule())
                     }
                     .buttonStyle(PressableStyle())
                     .disabled(saving)
