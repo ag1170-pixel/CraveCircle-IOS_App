@@ -1,3 +1,5 @@
+// xcode: set sdk=iOS
+
 //
 // ==============================================================================
 // CRAVECIRCLE iOS - CODE REVIEW REFERENCE
