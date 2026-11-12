@@ -1,0 +1,502 @@
+[
+  {
+    "id": "recipe-lasagna-bolognese",
+    "title": "Ultimate Italian Lasagna Bolognese",
+    "category": "Italian",
+    "image_filename": "recipe_lasagna_bolognese.jpg",
+    "imageset_name": "recipe_lasagna_bolognese.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Ultimate Italian Lasagna Bolognese."
+  },
+  {
+    "id": "recipe-fettuccine-alfredo",
+    "title": "Creamy Fettuccine Alfredo",
+    "category": "Italian",
+    "image_filename": "recipe_fettuccine_alfredo.jpg",
+    "imageset_name": "recipe_fettuccine_alfredo.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Creamy Fettuccine Alfredo in a dark rustic ceramic bowl. Perfectly swirled ribbons of fettuccine coated in rich, glossy garlic parmesan cream sauce, topped with shaved Parmigiano-Reggiano, freshly cracked black pepper, and chopped Italian flat-leaf parsley. Warm natural lighting, 45-degree angle, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-gourmet-mushroom-risotto",
+    "title": "Gourmet Wild Mushroom Risotto",
+    "category": "Italian",
+    "image_filename": "recipe_gourmet_mushroom_risotto.jpg",
+    "imageset_name": "recipe_gourmet_mushroom_risotto.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Gourmet Wild Mushroom Risotto. Creamy, velvety arborio rice folded with sauteed porcini, cremini, and shiitake mushrooms, finished with butter, fresh thyme sprigs, shaved pecorino, and a faint sheen of white truffle oil. Served in a shallow earthenware bowl, rustic linen napkin, warm moody lighting, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-crispy-chicken-parmesan",
+    "title": "Crispy Chicken Parmesan",
+    "category": "Italian",
+    "image_filename": "recipe_crispy_chicken_parmesan.jpg",
+    "imageset_name": "recipe_crispy_chicken_parmesan.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Crispy Chicken Parmesan."
+  },
+  {
+    "id": "recipe-carbonara",
+    "title": "Carbonara",
+    "category": "Italian",
+    "image_filename": "recipe_carbonara.jpg",
+    "imageset_name": "recipe_carbonara.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of classic Roman Spaghetti Carbonara. Golden pasta twirled high on a matte ceramic plate, coated in a luscious creamy emulsion of egg yolks and pecorino romano, studded with crispy golden-brown guanciale lardons, heavily dusted with coarse black pepper. Dramatic side lighting, gourmet rustic trattoria setting, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-chicken-gnocchi-soup",
+    "title": "Creamy Chicken and Gnocchi Soup",
+    "category": "Italian",
+    "image_filename": "recipe_chicken_gnocchi_soup.jpg",
+    "imageset_name": "recipe_chicken_gnocchi_soup.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Creamy Chicken and Gnocchi Soup. A steaming rustic soup bowl filled with tender pulled chicken breast, pillowy soft potato gnocchi, matchstick carrots, and wilted baby spinach in a velvety herb broth, served with a warm crusty baguette slice on the side. Cozy, comforting, soft natural lighting, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-artichoke-bruschetta",
+    "title": "Toasted Artichoke and Herb Bruschetta",
+    "category": "Italian",
+    "image_filename": "recipe_artichoke_bruschetta.jpg",
+    "imageset_name": "recipe_artichoke_bruschetta.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Toasted Artichoke and Herb Bruschetta. Three thick slices of grilled rustic ciabatta bread topped with marinated tender artichoke hearts, sweet sun-ripened diced plum tomatoes, minced garlic, extra virgin olive oil drizzle, and shaved parmesan ribbons. Served on a dark olive wood cutting board, fresh oregano garnish, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-garden-minestrone",
+    "title": "Hearty Garden Minestrone Soup",
+    "category": "Italian",
+    "image_filename": "recipe_garden_minestrone.jpg",
+    "imageset_name": "recipe_garden_minestrone.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Hearty Italian Garden Minestrone Soup. A vibrant terracotta bowl filled with rich tomato and vegetable broth loaded with ditalini pasta, dark red kidney beans, diced zucchini, carrots, celery, and Tuscan kale, topped with a dollop of basil pesto and freshly grated parmesan. Warm cozy kitchen ambience, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-sour-cream-enchiladas",
+    "title": "Creamy Sour Cream Chicken Enchiladas",
+    "category": "Mexican",
+    "image_filename": "recipe_sour_cream_enchiladas.jpg",
+    "imageset_name": "recipe_sour_cream_enchiladas.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Creamy Sour Cream Chicken Enchiladas. Three rolled corn tortillas packed with spiced shredded chicken, smothered in a velvety white sour cream and green chile sauce, bubbling melted Monterey Jack cheese, and baked golden brown. Garnished with sliced jalape\u00f1os, chopped cilantro, and diced red onion. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-sizzling-steak-fajitas",
+    "title": "Sizzling Steak and Pepper Fajitas",
+    "category": "Mexican",
+    "image_filename": "recipe_sizzling_steak_fajitas.jpg",
+    "imageset_name": "recipe_sizzling_steak_fajitas.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Sizzling Steak and Pepper Fajitas. Marinated skirt steak grilled and sliced into tender strips, served on a smoking hot cast iron skillet with charred red, green, and yellow bell peppers and caramelized onions. Served alongside warm flour tortillas, lime wedges, and cilantro sprigs. Vibrant Mexican restaurant styling, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-fresh-chunky-guacamole",
+    "title": "Classic Fresh Chunky Guacamole",
+    "category": "Mexican",
+    "image_filename": "recipe_fresh_chunky_guacamole.jpg",
+    "imageset_name": "recipe_fresh_chunky_guacamole.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Classic Fresh Chunky Guacamole. A traditional black stone molcajete overflowing with chunky mashed ripe Hass avocados, diced red onions, fiery jalape\u00f1os, Roma tomatoes, fresh cilantro leaves, and a squeeze of lime juice, surrounded by crisp golden tortilla chips. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-cheesy-chicken-quesadillas",
+    "title": "Crispy Cheesy Chicken Quesadillas",
+    "category": "Mexican",
+    "image_filename": "recipe_cheesy_chicken_quesadillas.jpg",
+    "imageset_name": "recipe_cheesy_chicken_quesadillas.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Crispy Cheesy Chicken Quesadillas. Golden-brown toasted flour tortilla wedges with melted Oaxaca and cheddar cheese oozing out, filled with seasoned shredded chicken and scallions. Plated with small side bowls of pico de gallo, guacamole, and sour cream. 45-degree angle, appetizing cheese pull, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-fiesta-taco-casserole",
+    "title": "Fiesta Beef Taco Casserole",
+    "category": "Mexican",
+    "image_filename": "recipe_fiesta_taco_casserole.jpg",
+    "imageset_name": "recipe_fiesta_taco_casserole.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Fiesta Beef Taco Casserole. A hearty baked Mexican casserole in a ceramic baking dish, layers of seasoned ground beef, black beans, sweet corn, salsa, and crunchy crushed tortilla chips, crowned with melted bubbling cheddar cheese and fresh sliced scallions. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-fire-roasted-salsa",
+    "title": "Fresh Fire-Roasted Restaurant Salsa",
+    "category": "Mexican",
+    "image_filename": "recipe_fire_roasted_salsa.jpg",
+    "imageset_name": "recipe_fire_roasted_salsa.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Fresh Fire-Roasted Restaurant Salsa. A rustic clay bowl filled with rich, vibrant crimson red salsa showing charred flecks of fire-roasted tomatoes, charred jalape\u00f1os, garlic, and fresh cilantro. Served with a pile of freshly fried, lightly salted corn tortilla chips and fresh lime wedges. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-mexican-pork-carnitas",
+    "title": "Crispy Mexican Pork Carnitas",
+    "category": "Mexican",
+    "image_filename": "recipe_mexican_pork_carnitas.jpg",
+    "imageset_name": "recipe_mexican_pork_carnitas.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Crispy Mexican Pork Carnitas. Slow-cooked pork shoulder shredded and crisped under high heat with caramelized edges, piled high into warm soft corn tortillas, topped with finely diced white onion, fresh cilantro leaves, sliced radishes, and a squeeze of lime. Authentic street taco styling, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-loaded-burrito-bake",
+    "title": "Cheesy Loaded Burrito Bake",
+    "category": "Mexican",
+    "image_filename": "recipe_loaded_burrito_bake.jpg",
+    "imageset_name": "recipe_loaded_burrito_bake.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Cheesy Loaded Burrito Bake. Stuffed flour burritos packed with cilantro-lime rice, seasoned pinto beans, and spiced beef, tightly arranged in a baking dish smothered in red enchilada sauce, melted cheddar, sliced black olives, and fresh avocado cubes. Delicious, warm, colorful presentation, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-beef-broccoli-stirfry",
+    "title": "Savory Beef and Broccoli Stir-Fry",
+    "category": "Asian",
+    "image_filename": "recipe_beef_broccoli_stirfry.jpg",
+    "imageset_name": "recipe_beef_broccoli_stirfry.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Savory Beef and Broccoli Stir-Fry. Tender, thinly sliced flank steak seared with a savory garlic-ginger dark soy glaze, tossed with bright green crisp-tender broccoli florets and toasted sesame seeds, served in a ceramic bowl over fluffy steamed jasmine rice. Glossy, appetizing wok sauce, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-baked-chicken-teriyaki",
+    "title": "Baked Chicken Teriyaki",
+    "category": "Asian",
+    "image_filename": "recipe_baked_chicken_teriyaki.jpg",
+    "imageset_name": "recipe_baked_chicken_teriyaki.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Glazed Baked Chicken Teriyaki. Juicy boneless chicken thighs baked until charred and caramelized, glazed with a shiny, sweet-savory Japanese teriyaki sauce, garnished with finely sliced scallions and toasted white sesame seeds, accompanied by steamed white rice and broccoli florets. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-bangkok-pad-thai",
+    "title": "Traditional Bangkok Pad Thai",
+    "category": "Asian",
+    "image_filename": "recipe_bangkok_pad_thai.jpg",
+    "imageset_name": "recipe_bangkok_pad_thai.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Traditional Bangkok Pad Thai. Stir-fried rice noodles tossed in a tangy tamarind sauce with plump succulent shrimp, firm golden tofu cubes, scrambled egg ribbons, bean sprouts, and garlic chives, served with crushed roasted peanuts, red chili flakes, and a lime wedge on a banana leaf plate. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-wok-fried-rice",
+    "title": "Golden Wok Egg Fried Rice",
+    "category": "Asian",
+    "image_filename": "recipe_wok_fried_rice.jpg",
+    "imageset_name": "recipe_wok_fried_rice.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Golden Wok Egg Fried Rice. Distinct grains of fragrant jasmine rice stir-fried in a hot wok with fluffy golden eggs, sweet green peas, diced carrots, and chopped scallions, lightly seasoned with sesame oil and soy sauce, garnished with crispy fried shallots in a Chinese porcelain bowl. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-pork-scallion-dumplings",
+    "title": "Pan-Fried Pork and Scallion Dumplings",
+    "category": "Asian",
+    "image_filename": "recipe_pork_scallion_dumplings.jpg",
+    "imageset_name": "recipe_pork_scallion_dumplings.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Pan-Fried Pork and Scallion Dumplings (potstickers). A neat row of crescent-shaped dumplings with a golden-brown crispy lace bottom and tender steamed wrappers, garnished with chopped scallions and black sesame seeds, served with a small bowl of dark soy chili vinegar dipping sauce. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-coconut-chicken-curry",
+    "title": "Aromatic Coconut Chicken Curry",
+    "category": "Asian",
+    "image_filename": "recipe_coconut_chicken_curry.jpg",
+    "imageset_name": "recipe_coconut_chicken_curry.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Aromatic Coconut Chicken Curry. Tender chicken pieces simmered in a fragrant, golden-yellow coconut milk curry with ginger, garlic, turmeric, and bell peppers, garnished with fresh cilantro leaves and red chili slices, served with warm flaky roti paratha bread and jasmine rice. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-scallion-egg-foo-young",
+    "title": "Crispy Scallion Egg Foo Young",
+    "category": "Asian",
+    "image_filename": "recipe_scallion_egg_foo_young.jpg",
+    "imageset_name": "recipe_scallion_egg_foo_young.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Crispy Scallion Egg Foo Young. Golden Chinese-style omelet patties packed with bean sprouts, shredded cabbage, tender chicken, and fragrant green scallions, drizzled with a rich savory brown gravy, served on a vintage blue patterned Asian plate. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-garlic-ginger-stirfry",
+    "title": "Garlic Ginger Chicken Stir-Fry",
+    "category": "Asian",
+    "image_filename": "recipe_garlic_ginger_stirfry.jpg",
+    "imageset_name": "recipe_garlic_ginger_stirfry.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Garlic Ginger Chicken Stir-Fry. Colorful wok-tossed dish with tender bite-sized chicken breast, crisp red bell peppers, snap peas, sliced water chestnuts, and baby corn in a clear fragrant garlic-ginger sauce, served over steaming white rice in a modern bowl. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-buttermilk-pancakes",
+    "title": "Fluffy Golden Buttermilk Pancakes",
+    "category": "Breakfast/Brunch",
+    "image_filename": "recipe_buttermilk_pancakes.jpg",
+    "imageset_name": "recipe_buttermilk_pancakes.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Fluffy Golden Buttermilk Pancakes. A towering stack of three thick, golden-brown fluffy pancakes, crowned with a melting slab of whipped butter and a generous cascade of amber pure maple syrup dripping down the sides, accompanied by fresh ripe blueberries. Warm morning sunlight, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-brioche-french-toast",
+    "title": "Golden Brioche French Toast",
+    "category": "Breakfast/Brunch",
+    "image_filename": "recipe_brioche_french_toast.jpg",
+    "imageset_name": "recipe_brioche_french_toast.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Golden Brioche French Toast. Thick-cut golden-brown artisan brioche slices soaked in rich vanilla-cinnamon custard and griddled to perfection, dusted with powdered confectioners sugar, topped with fresh strawberries and blackberries, with warm maple syrup drizzled on top. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-belgian-golden-waffles",
+    "title": "Crispy Belgian Golden Waffles",
+    "category": "Breakfast/Brunch",
+    "image_filename": "recipe_belgian_golden_waffles.jpg",
+    "imageset_name": "recipe_belgian_golden_waffles.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Crispy Belgian Golden Waffles. Deep-pocketed Belgian waffle with a crispy golden exterior and fluffy interior, topped with a dollop of freshly whipped cream, fresh raspberries, sliced strawberries, and warm maple syrup in a glass pitcher nearby. Bright brunch table setting, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-crumb-banana-muffins",
+    "title": "Streusel Crumb Banana Muffins",
+    "category": "Breakfast/Brunch",
+    "image_filename": "recipe_crumb_banana_muffins.jpg",
+    "imageset_name": "recipe_crumb_banana_muffins.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Streusel Crumb Banana Muffins. Three freshly baked bakery muffins displayed on a wire cooling rack, featuring tall domed tops coated in a crunchy brown sugar and cinnamon streusel crumble, one muffin gently broken in half revealing moist banana interior. Warm rustic bakery aesthetic, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-bakery-blueberry-muffins",
+    "title": "Fresh Bakery Blueberry Muffins",
+    "category": "Breakfast/Brunch",
+    "image_filename": "recipe_bakery_blueberry_muffins.jpg",
+    "imageset_name": "recipe_bakery_blueberry_muffins.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Fresh Bakery Blueberry Muffins. Plump, golden-domed muffins bursting with juicy whole wild blueberries, sprinkled with sparkling coarse turbinado sugar on top. One muffin split open with melting butter on a rustic ceramic plate. Natural morning window lighting, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-garden-herb-frittata",
+    "title": "Garden Vegetable and Herb Frittata",
+    "category": "Breakfast/Brunch",
+    "image_filename": "recipe_garden_herb_frittata.jpg",
+    "imageset_name": "recipe_garden_herb_frittata.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Garden Vegetable and Herb Frittata. A golden, fluffy Italian egg frittata served directly in a seasoned cast iron skillet, filled with sweet cherry tomatoes, baby spinach, crumbled creamy goat cheese, and fresh dill and basil, cut into a neat wedge. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-ham-cheddar-omelet",
+    "title": "Baked Ham and Cheddar Omelet Roll",
+    "category": "Breakfast/Brunch",
+    "image_filename": "recipe_ham_cheddar_omelet.jpg",
+    "imageset_name": "recipe_ham_cheddar_omelet.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Baked Ham and Cheddar Omelet Roll. A golden, perfectly rolled baked egg omelet sliced to reveal swirls of savory diced smoked ham, melted sharp cheddar cheese, and tender scallions, served with roasted herb potatoes and fresh parsley garnish on a modern white plate. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-strawberry-cream-crepes",
+    "title": "Sweet Crepes with Fresh Strawberry Cream",
+    "category": "Breakfast/Brunch",
+    "image_filename": "recipe_strawberry_cream_crepes.jpg",
+    "imageset_name": "recipe_strawberry_cream_crepes.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Sweet Crepes with Fresh Strawberry Cream. Delicate, paper-thin French crepes rolled and filled with vanilla mascarpone cream and fresh sliced strawberries, lightly dusted with powdered sugar and drizzled with a vibrant strawberry coulis, garnished with fresh mint leaves. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-cinnamon-banana-bread",
+    "title": "Classic Moist Cinnamon Banana Bread",
+    "category": "Dessert/Baking",
+    "image_filename": "recipe_cinnamon_banana_bread.jpg",
+    "imageset_name": "recipe_cinnamon_banana_bread.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Classic Moist Cinnamon Banana Bread. A thick slice cut from a golden-brown artisan loaf of banana bread, showcasing a moist crumb with a visible cinnamon swirl, melting butter spreading across the warm slice, set on a dark slate board with cinnamon sticks nearby. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-fudgy-chocolate-brownies",
+    "title": "Fudgy Dark Chocolate Brownies",
+    "category": "Dessert/Baking",
+    "image_filename": "recipe_fudgy_chocolate_brownies.jpg",
+    "imageset_name": "recipe_fudgy_chocolate_brownies.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Fudgy Dark Chocolate Brownies. A stack of two dense, ultra-fudgy dark chocolate brownies with shiny, paper-thin crinkly tops and gooey melted chocolate chunks inside, lightly dusted with flaky sea salt. Dark moody background, mouthwatering gourmet dessert photography, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-cheesecake-strawberries",
+    "title": "Cheesecake Stuffed Strawberries",
+    "category": "Dessert/Baking",
+    "image_filename": "recipe_cheesecake_strawberries.jpg",
+    "imageset_name": "recipe_cheesecake_strawberries.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Cheesecake Stuffed Strawberries. Plump, bright red ripe strawberries hulled and elegantly piped with rich vanilla bean cheesecake filling, sprinkled with crushed graham cracker crumbs and fresh mint sprigs, arranged artfully on a marble pastry board. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-soft-chocolate-chip-cookies",
+    "title": "Chewy Soft-Batch Chocolate Chip Cookies",
+    "category": "Dessert/Baking",
+    "image_filename": "recipe_soft_chocolate_chip_cookies.jpg",
+    "imageset_name": "recipe_soft_chocolate_chip_cookies.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Chewy Soft-Batch Chocolate Chip Cookies. Warm, freshly baked cookies with golden edges, soft centers, and pools of melted semi-sweet chocolate, sprinkled with a touch of coarse sea salt, stacked on a piece of parchment paper next to a glass of cold milk. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-almost-apple-pie",
+    "title": "Almost Apple Pie",
+    "category": "Dessert/Baking",
+    "image_filename": "recipe_almost_apple_pie.jpg",
+    "imageset_name": "recipe_almost_apple_pie.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Caramelized Dutch Apple Pie. A generous slice of homestyle apple pie with tender spiced cinnamon apple filling, a buttery flaky bottom crust, and a mountainous golden-brown buttery streusel crumb topping, served with a scoop of melting vanilla bean ice cream. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-cinnamon-snickerdoodles",
+    "title": "Cinnamon Sugar Snickerdoodles",
+    "category": "Dessert/Baking",
+    "image_filename": "recipe_cinnamon_snickerdoodles.jpg",
+    "imageset_name": "recipe_cinnamon_snickerdoodles.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Cinnamon Sugar Snickerdoodles. Soft and pillowy cookies with signature craggy, cracked tops, generously coated in a shimmering layer of fragrant cinnamon and granulated sugar, arranged in a casual stack on a rustic wooden plate. Warm, cozy lighting, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-peanut-butter-cookies",
+    "title": "Old-Fashioned Peanut Butter Cookies",
+    "category": "Dessert/Baking",
+    "image_filename": "recipe_peanut_butter_cookies.jpg",
+    "imageset_name": "recipe_peanut_butter_cookies.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Old-Fashioned Peanut Butter Cookies. Golden-brown cookies with crisp edges and soft centers, displaying the classic criss-cross fork pattern on top, lightly glistening with sugar crystals, placed on a vintage tin tray with whole roasted peanuts scattered around. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-whipped-shortbread",
+    "title": "Melt-in-Your-Mouth Whipped Shortbread",
+    "category": "Dessert/Baking",
+    "image_filename": "recipe_whipped_shortbread.jpg",
+    "imageset_name": "recipe_whipped_shortbread.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Melt-in-Your-Mouth Whipped Shortbread. Delicate, powdery pale golden shortbread cookies with decorative star-piped ridges, melting texture, each adorned with a bright red candied cherry half in the center, arranged on a fine china plate. Elegant holiday bakery styling, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-golden-chicken-pot-pie",
+    "title": "Homestyle Golden Chicken Pot Pie",
+    "category": "Comfort/Soups/Mains",
+    "image_filename": "recipe_golden_chicken_pot_pie.jpg",
+    "imageset_name": "recipe_golden_chicken_pot_pie.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Homestyle Golden Chicken Pot Pie. An individual round ceramic pie dish filled with tender chicken, sweet peas, diced carrots, and celery in a creamy savory gravy, covered with an ultra-flaky, golden-brown puff pastry crust vented with steam rising, garnished with fresh thyme. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-bbq-pork-ribs",
+    "title": "Slow-Baked Fall-Off-The-Bone BBQ Ribs",
+    "category": "Comfort/Soups/Mains",
+    "image_filename": "recipe_bbq_pork_ribs.jpg",
+    "imageset_name": "recipe_bbq_pork_ribs.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Slow-Baked Fall-Off-The-Bone BBQ Ribs. A half rack of tender pork baby back ribs with charred smoky edges, lavishly brushed with a thick, glossy, caramelized barbecue glaze, garnished with chopped chives and served on a butcher paper lined wooden tray with lemon wedges. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-four-cheese-macaroni",
+    "title": "Creamy Four-Cheese Macaroni and Cheese",
+    "category": "Comfort/Soups/Mains",
+    "image_filename": "recipe_four_cheese_macaroni.jpg",
+    "imageset_name": "recipe_four_cheese_macaroni.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Creamy Four-Cheese Macaroni and Cheese. Elbow macaroni coated in a velvety sauce of sharp cheddar, gruy\u00e8re, fontina, and parmesan, baked with a bubbly, golden-brown crispy panko breadcrumb crust in an oval cast iron gratin dish. Irresistible cheese pull, 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-boston-clam-chowder",
+    "title": "Creamy Boston Clam Chowder",
+    "category": "Comfort/Soups/Mains",
+    "image_filename": "recipe_boston_clam_chowder.jpg",
+    "imageset_name": "recipe_boston_clam_chowder.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Creamy Boston Clam Chowder. A steaming white ceramic bowl filled with rich, creamy New England clam chowder loaded with tender clams, diced potatoes, and celery, topped with crumbled smoky bacon, fresh cracked black pepper, chopped chives, and oyster crackers. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-slow-simmered-beef-stew",
+    "title": "Hearty Slow-Simmered Beef Stew",
+    "category": "Comfort/Soups/Mains",
+    "image_filename": "recipe_slow_simmered_beef_stew.jpg",
+    "imageset_name": "recipe_slow_simmered_beef_stew.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Hearty Slow-Simmered Beef Stew. Large, fork-tender chunks of browned beef chuck simmered in a deep, rich red wine and herb broth with baby carrots, red potatoes, and pearl onions, served in a cast iron Dutch oven with fresh rosemary sprigs and crusty sourdough bread. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-sweet-spicy-chili",
+    "title": "Smoky Honey Sweet and Spicy Chili",
+    "category": "Comfort/Soups/Mains",
+    "image_filename": "recipe_sweet_spicy_chili.jpg",
+    "imageset_name": "recipe_sweet_spicy_chili.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Smoky Honey Sweet and Spicy Chili. A hearty bowl of thick chili with seasoned ground beef, red kidney beans, tomatoes, and smoky chipotle peppers, topped with a dollop of sour cream, shredded sharp cheddar cheese, sliced jalape\u00f1os, and sliced scallions. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-mediterranean-greek-salad",
+    "title": "Crisp Mediterranean Greek Village Salad",
+    "category": "Mediterranean/Salad",
+    "image_filename": "recipe_mediterranean_greek_salad.jpg",
+    "imageset_name": "recipe_mediterranean_greek_salad.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Crisp Mediterranean Greek Village Salad (Horiatiki). Crisp chopped cucumbers, ripe red tomato wedges, kalamata olives, thinly sliced red onion, and green bell pepper tossed in extra virgin olive oil and oregano, crowned with a large rectangular slab of creamy feta cheese sprinkled with dried oregano. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-garlic-caesar-salad",
+    "title": "Classic Creamy Garlic Caesar Salad",
+    "category": "Mediterranean/Salad",
+    "image_filename": "recipe_garlic_caesar_salad.jpg",
+    "imageset_name": "recipe_garlic_caesar_salad.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Classic Creamy Garlic Caesar Salad. Crisp, chilled romaine lettuce leaves tossed in creamy homemade garlic-parmesan Caesar dressing, loaded with golden crunchy garlic herb croutons and copious shavings of Parmigiano-Reggiano, with cracked black pepper and a lemon wedge. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-cucumber-tzatziki",
+    "title": "Cool Cucumber Garlic Tzatziki Dip",
+    "category": "Mediterranean/Salad",
+    "image_filename": "recipe_cucumber_tzatziki.jpg",
+    "imageset_name": "recipe_cucumber_tzatziki.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Cool Cucumber Garlic Tzatziki Dip. Thick, creamy strained Greek yogurt dip folded with finely grated English cucumber, minced garlic, fresh dill, and lemon juice, presented in a low terracotta bowl with a swirl of rich olive oil on top and kalamata olives, surrounded by warm grilled pita bread triangles. 1:1 square aspect ratio."
+  },
+  {
+    "id": "recipe-roasted-pepper-hummus",
+    "title": "Roasted Red Pepper and Feta Hummus",
+    "category": "Mediterranean/Salad",
+    "image_filename": "recipe_roasted_pepper_hummus.jpg",
+    "imageset_name": "recipe_roasted_pepper_hummus.imageset",
+    "status": "generated_unique_ai",
+    "aspect_ratio": "1:1",
+    "prompt": "Professional editorial food photograph of Roasted Red Pepper and Feta Hummus. Silky smooth chickpea hummus blended to a vibrant sunset-orange with sweet fire-roasted red peppers, served in a ceramic shallow bowl with an olive oil moat, crumbled white feta cheese, toasted pine nuts, smoked paprika dust, and warm pita bread. 1:1 square aspect ratio."
+  }
+]
