@@ -153,17 +153,8 @@ enum OnDeviceTranscriber {
                 duration: CMTime(seconds: TranscriptListen.timeCapSeconds, preferredTimescale: 600))
         }
         let out = FileManager.default.temporaryDirectory.appendingPathComponent("cc-\(UUID().uuidString).m4a")
-        export.outputURL = out
-        export.outputFileType = .m4a
-        if #available(iOS 18.0, *) {
-            await export.export()
-            if export.error != nil { throw TranscribeError.exportFailed }
-        } else {
-            await withCheckedContinuation { cont in
-                export.exportAsynchronously { cont.resume() }
-            }
-            guard export.status == .completed else { throw TranscribeError.exportFailed }
-        }
+        do { try await export.export(to: out, as: .m4a) }
+        catch { throw TranscribeError.exportFailed }
         return out
     }
 

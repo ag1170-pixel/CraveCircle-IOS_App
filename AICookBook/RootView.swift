@@ -23,7 +23,7 @@ import UIKit
 
 // MARK: - SwiftUI View Component
 struct RootView: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -66,7 +66,12 @@ struct RootView: View {
                 PerformanceDiagnostics.record("App bootstrap", since: started)
             }
         }
-        .alert("Something went wrong", isPresented: .constant(environment.errorMessage != nil), actions: {
+        // A real two-way binding (not `.constant`): when SwiftUI dismisses the alert it writes
+        // `false`, which clears the message, so the alert can't get stuck or re-show.
+        .alert("Something went wrong", isPresented: Binding(
+            get: { environment.errorMessage != nil },
+            set: { if !$0 { environment.errorMessage = nil } }
+        ), actions: {
             Button("OK") { environment.errorMessage = nil }
         }, message: {
             Text(environment.errorMessage ?? "")
@@ -78,7 +83,7 @@ struct RootView: View {
 
 // MARK: - SwiftUI View Component
 struct LoginView: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var email = ""
     @State private var password = ""
     @State private var confirmPassword = ""
@@ -290,7 +295,7 @@ struct LoginView: View {
 
 // MARK: - SwiftUI View Component
 struct MainTabView: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var showingImportSheet = false
     @State private var showingAddGrocery = false
     @State private var showingProgressDetail = false
@@ -361,7 +366,7 @@ struct MainTabView: View {
 
     private func importFeedbackSheet(_ target: ImportFeedbackTarget) -> some View {
         ImportFeedbackSheet(recipeId: target.id)
-            .environmentObject(environment)
+            .environment(environment)
             .presentationDetents([.medium])
             .presentationDragIndicator(.hidden)
             .presentationBackground(AppTheme.background)
@@ -492,7 +497,7 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $showFeedback) {
             CEOMessageScreen()
-                .environmentObject(environment)
+                .environment(environment)
         }
         // Import feedback, earned on the recipe page (see `offerImportFeedbackIfEarned`).
         // Shown from here only when no recipe cover is up; the cover hosts its own copy.
@@ -505,7 +510,7 @@ struct MainTabView: View {
             set: { if !$0 { environment.acknowledgeNPSPrompt(dismissed: true) } }
         )) {
             NPSPromptSheet()
-                .environmentObject(environment)
+                .environment(environment)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.hidden)
         }
@@ -516,7 +521,7 @@ struct MainTabView: View {
                 environment.updateRecipe(saved)
                 newRecipe = nil
             }
-            .environmentObject(environment)
+            .environment(environment)
         }
         .sheet(isPresented: $showingProgressDetail) {
             ImportProgressScreen(reopenImport: { importSheetBinding.wrappedValue = true })
@@ -535,10 +540,12 @@ struct MainTabView: View {
             set: { _ in environment.dismissRecipeDetail() }
         )) { recipe in
             RecipeDetailPager(start: recipe)
-                .environmentObject(environment)
+                .environment(environment)
                 // A sheet on RootView can't present while this cover is up, so the recipe
                 // page hosts the guest wall itself (like / follow / save / comment / share).
-                .sheet(isPresented: $environment.showGuestPaywall) { guestWall }
+                // `@Environment` gives a read-only reference; `Bindable(...)` makes a `$`-style
+                // binding to one property of the @Observable model.
+                .sheet(isPresented: Bindable(environment).showGuestPaywall) { guestWall }
                 .sheet(item: importFeedbackTarget(whileRecipeOpen: true)) { importFeedbackSheet($0) }
         }
         .sheet(isPresented: Binding(
@@ -679,7 +686,7 @@ private struct DiscoverTabTapCatcher: UIViewControllerRepresentable {
 
 // MARK: - SwiftUI View Component
 struct ImportToastBanner: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     var onOpenDetails: () -> Void
 
     var body: some View {

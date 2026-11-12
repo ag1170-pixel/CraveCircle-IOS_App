@@ -38,7 +38,7 @@ import PhotosUI
 
 // MARK: - SwiftUI View Component
 struct NewRecipeWizard: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
 
     /// We mutate the draft locally and hand it back on Save. The caller supplies a blank
@@ -355,7 +355,7 @@ struct NewRecipeWizard: View {
         HStack(spacing: 10) {
             Button {
                 Haptics.warning()
-                withAnimation(AppMotion.snappy) { ingredientRows.remove(at: i) }
+                withAnimation(AppMotion.snappy) { _ = ingredientRows.remove(at: i) }
             } label: {
                 Image(systemName: "minus.circle.fill")
                     .foregroundStyle(AppTheme.destructive)
@@ -421,7 +421,7 @@ struct NewRecipeWizard: View {
                 .font(AppFont.body(15))
             Button {
                 Haptics.warning()
-                withAnimation(AppMotion.snappy) { directionRows.remove(at: i) }
+                withAnimation(AppMotion.snappy) { _ = directionRows.remove(at: i) }
             } label: {
                 Image(systemName: "minus.circle.fill")
                     .foregroundStyle(AppTheme.destructive)

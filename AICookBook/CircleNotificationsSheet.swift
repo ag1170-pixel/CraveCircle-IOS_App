@@ -35,7 +35,7 @@ typealias CircleNotificationsSheet = CircleNotificationsScreen
 
 // MARK: - SwiftUI View Component
 struct CircleNotificationsScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -211,11 +211,7 @@ private struct NotificationRow: View {
             HStack(alignment: .center, spacing: 12) {
                 leading
                 VStack(alignment: .leading, spacing: 2) {
-                    (
-                        Text(item.title).font(AppFont.body(14, weight: .bold)) +
-                        Text("  ") +
-                        Text(item.message).font(AppFont.body(14))
-                    )
+                    Text("\(Text(item.title).font(AppFont.body(14, weight: .bold)))  \(Text(item.message).font(AppFont.body(14)))")
                     .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(3)
                     .multilineTextAlignment(.leading)
@@ -275,11 +271,7 @@ private struct FollowRequestRow: View {
                         .foregroundStyle(AppTheme.accentInk)
                 )
             VStack(alignment: .leading, spacing: 2) {
-                (
-                    Text(item.username).font(AppFont.body(14, weight: .bold)) +
-                    Text("  requested to follow you.")
-                        .font(AppFont.body(14))
-                )
+                Text("\(Text(item.username).font(AppFont.body(14, weight: .bold)))\(Text("  requested to follow you.").font(AppFont.body(14)))")
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)

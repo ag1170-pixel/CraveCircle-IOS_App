@@ -34,7 +34,7 @@ import SwiftUI
 
 // MARK: - SwiftUI View Component
 struct OnboardingView: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
 
     @State private var step: Step = .welcome
     @State private var goals: Set<Goal> = []

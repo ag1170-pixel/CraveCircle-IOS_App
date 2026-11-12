@@ -41,7 +41,7 @@ enum LocalStore {
     private static let ioQueue = DispatchQueue(label: "com.cravecircle.localstore.io", qos: .utility)
 
     static func save<T: Encodable>(_ value: T, to name: String) {
-        // Encode + write off the main thread so @Published didSet persistence NEVER blocks the UI.
+        // Encode + write off the main thread so the model's didSet persistence NEVER blocks the UI.
         // AppEnvironment is @MainActor, so without this every state change stalls the main thread on
         // a synchronous disk write — the cause of the freeze. `value` is a value type (arrays/structs),
         // so capturing it snapshots via copy-on-write; the serial queue keeps writes ordered.

@@ -30,38 +30,40 @@ import Foundation
 import Speech
 import AVFoundation
 import QuartzCore
-import Combine
 
-final class VoiceCommandController: NSObject, ObservableObject {
+@Observable
+final class VoiceCommandController: NSObject {
     enum Command { case next, previous, startTimer }
 
-    @Published private(set) var isListening = false
-    @Published private(set) var available = true
-    @Published private(set) var permissionDenied = false
-    @Published private(set) var wakeActive = true
-    @Published private(set) var lastHeard = ""
+    private(set) var isListening = false
+    private(set) var available = true
+    private(set) var permissionDenied = false
+    private(set) var wakeActive = true
+    private(set) var lastHeard = ""
 
     /// Fired on the main thread when a command word is heard.
-    var onCommand: ((Command) -> Void)?
+    @ObservationIgnored var onCommand: ((Command) -> Void)?
 
-    private let recognizer: SFSpeechRecognizer? = {
+    // Lazy: `@State` evaluates this class's initializer every time the owning view struct is
+    // rebuilt, so the recognizer/engine are only created when a cook session actually starts.
+    @ObservationIgnored private lazy var recognizer: SFSpeechRecognizer? = {
         SFSpeechRecognizer(locale: Locale(identifier: "en-US")) ?? SFSpeechRecognizer()
     }()
 
-    private let audioEngine = AVAudioEngine()
-    private var request: SFSpeechAudioBufferRecognitionRequest?
-    private var task: SFSpeechRecognitionTask?
+    @ObservationIgnored private lazy var audioEngine = AVAudioEngine()
+    @ObservationIgnored private var request: SFSpeechAudioBufferRecognitionRequest?
+    @ObservationIgnored private var task: SFSpeechRecognitionTask?
     /// All audio-session + engine + recognition setup runs here, OFF the main thread — those are
     /// synchronous XPC calls that can block the UI for hundreds of ms (watchdog hang).
     private let audioQueue = DispatchQueue(label: "com.cravecircle.voice.audio", qos: .userInitiated)
 
-    private var lastFireTime: CFTimeInterval = 0
-    private var lastProcessedSegments = 0   // how many transcription segments we've already scanned
+    @ObservationIgnored private var lastFireTime: CFTimeInterval = 0
+    @ObservationIgnored private var lastProcessedSegments = 0   // how many transcription segments we've already scanned
     private let cooldown: CFTimeInterval = 0.6
 
     /// While true, mic audio is NOT fed to the recognizer — set this during text-to-speech so the
     /// spoken step can't echo back or self-trigger "next". Toggled by SpeechReader's start/finish.
-    private var suppressed = false
+    @ObservationIgnored private var suppressed = false
     func suppress(_ on: Bool) {
         guard suppressed != on else { return }
         suppressed = on
@@ -173,7 +175,7 @@ final class VoiceCommandController: NSObject, ObservableObject {
             return
         }
         // setCategory/setActive + audioEngine.start are blocking XPC calls — run them OFF-MAIN so the
-        // UI never freezes (fixes the ~659ms watchdog hang). @Published state publishes back to main.
+        // UI never freezes (fixes the ~659ms watchdog hang). Observed state is written back on main.
         audioQueue.async { [weak self] in
             guard let self else { return }
             let session = AVAudioSession.sharedInstance()

@@ -28,7 +28,7 @@ import SwiftUI
 
 // MARK: - SwiftUI View Component
 struct FloatingVoiceAssistantView: View {
-    @ObservedObject var voice: VoiceCommandController
+    var voice: VoiceCommandController
     /// True only on a flashcard that shows the clock, so "Start" is mentioned just then.
     var showsStartHint = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

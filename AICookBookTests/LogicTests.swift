@@ -759,7 +759,7 @@ final class PhotoImportGalleryTests: XCTestCase {
         )
         XCTAssertEqual(AppEnvironment.photoImportFilenames(recipeId: "abc", count: 9).count, 6)
         let names = AppEnvironment.photoImportFilenames(recipeId: "abc", count: 2)
-        var recipe = Recipe(id: "abc", ownerId: "me", title: "A", ingredients: [], directions: [], thumbnailUrl: names.first, galleryUrls: names)
+        let recipe = Recipe(id: "abc", ownerId: "me", title: "A", ingredients: [], directions: [], thumbnailUrl: names.first, galleryUrls: names)
         XCTAssertEqual(recipe.galleryImages, names)
     }
 }

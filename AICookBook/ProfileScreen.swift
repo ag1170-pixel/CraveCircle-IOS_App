@@ -31,7 +31,7 @@ import PhotosUI
 
 // MARK: - SwiftUI View Component
 struct ProfileScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @AppStorage(LanguagePrefs.key) private var langCode = LanguagePrefs.default.rawValue
     @AppStorage("custom_api_url") private var customApiUrl = "https://import.cravecircle.cc"
     @AppStorage("kitchen_cat_enabled") private var kitchenCatEnabled = true   // the playful chef-cat on Home
@@ -657,7 +657,7 @@ struct ProfileScreen: View {
 
 // MARK: - SwiftUI View Component
 struct AccountSheet: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -1045,7 +1045,7 @@ struct IdentifiableURL: Identifiable {
 
 // MARK: - SwiftUI View Component
 struct DeleteAccountScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
     @State private var step = 0 // 0: choice, 1: reason
     @State private var feedbackText = ""
@@ -1127,7 +1127,7 @@ struct DeleteAccountScreen: View {
                         isDeleting = true
                         Haptics.success()
                         // Simulate sending feedback and deleting data
-                        try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        try? await Task.sleep(for: .seconds(1))
                         environment.signOut()
                     }
                 } label: {
@@ -1158,7 +1158,7 @@ struct DeleteAccountScreen: View {
 
 // MARK: - SwiftUI View Component
 struct DeleteAccountSheet: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
     @State private var deleteMode: Int = 0 // 0 = Temporary, 1 = Permanent
     @State private var reason: String = ""
@@ -1274,7 +1274,7 @@ struct DeleteAccountSheet: View {
 /// Change your profile photo (Apple PhotosPicker), display name and username. The photo is stored
 /// on-device; name/username are pushed to the profile row so they persist and others can see them.
 struct EditProfileSheet: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
 
     @State private var fullName = ""
@@ -1539,7 +1539,7 @@ struct EditProfileSheet: View {
 /// account. Each one asks for confirmation first — iOS native alert, no custom chrome — and
 /// shows a running-state label so a slow server call doesn't look frozen.
 private struct MyDataSection: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var showConfirm: Which?
     @State private var running: Which?
     @State private var toast: String?
@@ -1641,7 +1641,7 @@ private struct MyDataSection: View {
                 Haptics.success()
             }
             // Fade the toast after a few seconds so it doesn't park there forever.
-            try? await Task.sleep(nanoseconds: 3_500_000_000)
+            try? await Task.sleep(for: .milliseconds(3500))
             await MainActor.run { toast = nil }
         }
     }

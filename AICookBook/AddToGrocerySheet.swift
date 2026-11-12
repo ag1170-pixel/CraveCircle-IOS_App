@@ -32,7 +32,7 @@ struct AddToGrocerySheet: View {
     let initialServings: Int
     var onAdded: ((Int) -> Void)? = nil
 
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

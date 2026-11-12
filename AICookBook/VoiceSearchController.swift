@@ -28,7 +28,6 @@
 import Foundation
 import Speech
 import AVFoundation
-import Combine
 
 /// Pieces of a live dictation, keyed by when they were spoken, so a revised guess replaces
 /// the earlier one instead of being stuck on the end.
@@ -52,10 +51,11 @@ struct DictationTranscript {
     }
 }
 
-final class VoiceSearchController: NSObject, ObservableObject {
-    @Published private(set) var isRecording = false
-    @Published private(set) var permissionDenied = false
-    @Published private(set) var transcript = ""
+@Observable
+final class VoiceSearchController: NSObject {
+    private(set) var isRecording = false
+    private(set) var permissionDenied = false
+    private(set) var transcript = ""
 
     private let audioEngine = AVAudioEngine()
     private var silenceTimer: Timer?

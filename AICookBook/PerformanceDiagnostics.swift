@@ -176,7 +176,7 @@ struct PerformanceHUD: View {
 
 // MARK: - SwiftUI View Component
 struct DeveloperToolsScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @AppStorage(PerformanceDiagnostics.enabledKey) private var performanceEnabled = false
     @State private var checks: [PerformanceDiagnostics.Check] = []
     @State private var running = false

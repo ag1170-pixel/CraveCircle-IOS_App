@@ -70,10 +70,7 @@ struct CEOMessageScreen: View {
     private var header: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 0) {
-                Text("A MESSAGE ")
-                    .font(AppFont.display(20, weight: .bold)).foregroundStyle(AppTheme.textPrimary)
-                + Text("from")
-                    .font(AppFont.serif(18, weight: .semibold)).italic().foregroundStyle(AppTheme.textSecondary)
+                Text("\(Text("A MESSAGE ").font(AppFont.display(20, weight: .bold)).foregroundStyle(AppTheme.textPrimary))\(Text("from").font(AppFont.serif(18, weight: .semibold)).italic().foregroundStyle(AppTheme.textSecondary))")
                 Text("OUR TEAM")
                     .font(AppFont.display(20, weight: .bold)).foregroundStyle(AppTheme.textPrimary)
             }
@@ -98,10 +95,7 @@ struct CEOMessageScreen: View {
             Text("Hello! We at CraveCircle really value your views. My team and I read through every piece of feedback shared here.")
                 .font(AppFont.body(16)).foregroundStyle(AppTheme.textSecondary).lineSpacing(4)
 
-            (Text("If something didn't feel right, or you wish things were better, ")
-                .font(AppFont.body(16)).foregroundStyle(AppTheme.textSecondary)
-            + Text("share your feedback directly with us.")
-                .font(AppFont.body(16, weight: .bold)).foregroundStyle(AppTheme.textPrimary))
+            Text("\(Text("If something didn't feel right, or you wish things were better, ").font(AppFont.body(16)).foregroundStyle(AppTheme.textSecondary))\(Text("share your feedback directly with us.").font(AppFont.body(16, weight: .bold)).foregroundStyle(AppTheme.textPrimary))")
                 .lineSpacing(4)
 
             Text("Your feedback helps us make CraveCircle better for everyone.")

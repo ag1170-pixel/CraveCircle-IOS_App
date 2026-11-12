@@ -29,7 +29,7 @@ import SwiftUI
 
 // MARK: - SwiftUI View Component
 struct GroceryScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var newItem = ""
     @State private var selectedDish: String? = nil   // nil = All; else show only that dish's ingredients
     @State private var listHeight: CGFloat = 0
@@ -363,7 +363,7 @@ struct GroceryScreen: View {
 /// Osta-style "Add item to your list" bottom sheet: one field + a round send button. Stays open so
 /// you can add several items in a row; dismiss by swiping down.
 struct AddGroceryItemSheet: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var text = ""
     @FocusState private var focused: Bool
 

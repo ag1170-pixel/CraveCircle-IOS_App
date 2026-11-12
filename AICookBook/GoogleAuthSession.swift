@@ -49,10 +49,12 @@ final class GoogleAuthSession: NSObject, ASWebAuthenticationPresentationContextP
     private var session: ASWebAuthenticationSession?
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        let windows = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-        return windows.first(where: \.isKeyWindow) ?? windows.first ?? ASPresentationAnchor()
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let windows = scenes.flatMap(\.windows)
+        if let window = windows.first(where: \.isKeyWindow) ?? windows.first { return window }
+        // No window yet: build one on a scene (UIWindow() without a scene is deprecated in iOS 26).
+        guard let scene = scenes.first else { preconditionFailure("Google sign-in needs a connected window scene") }
+        return ASPresentationAnchor(windowScene: scene)
     }
 
     func signInIDToken() async throws -> String {

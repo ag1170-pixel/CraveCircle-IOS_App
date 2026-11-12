@@ -28,7 +28,7 @@ import SwiftUI
 // MARK: - SwiftUI View Component
 struct CollectionDetailScreen: View {
     let collection: CollectionItem
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
 
     private var collectionRecipes: [Recipe] {
         collection.matching(in: environment.recipes)

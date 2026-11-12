@@ -28,7 +28,7 @@ import SwiftUI
 
 // MARK: - SwiftUI View Component
 struct AdminRequestsScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
         List {
@@ -80,7 +80,7 @@ struct AdminRequestsScreen: View {
 /// Approve ⇒ role flips to creator. The blue-tick toggle grants verified in the same action.
 private struct CreatorRequestDetailView: View {
     let request: CreatorRequest
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
     @State private var grantVerified = false
     @State private var applicant: UserProfile?
@@ -193,7 +193,7 @@ private struct CreatorRequestDetailView: View {
 
 /// Dishes enough people searched for that we still do not have. Admin publishes those from this account.
 struct AdminSearchDemandScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
         List {

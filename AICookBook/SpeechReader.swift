@@ -28,6 +28,9 @@
 
 import AVFoundation
 
+/// Main-actor isolated: the synthesizer and the onStart/onFinish callbacks are only touched on the
+/// main thread; the slow audio-session setup is pushed off-main explicitly with `@concurrent`.
+@MainActor
 final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
     private let synth = AVSpeechSynthesizer()
 
@@ -51,19 +54,26 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         u.preUtteranceDelay = 0.12
         u.postUtteranceDelay = 0.2
         // Session activate is the same main-thread hang as the search mic. Do it off-main,
-        // then speak. .default, not .voiceChat — voice-chat is a phone-call filter.
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let session = AVAudioSession.sharedInstance()
-            try? session.setCategory(.playAndRecord, mode: .default,
-                                     options: [.duckOthers, .defaultToSpeaker, .allowBluetoothA2DP])
-            if #available(iOS 27, *) {
-                session.activate(options: []) { _, _ in
-                    DispatchQueue.main.async { self?.synth.speak(u) }
-                }
-            } else {
-                try? session.setActive(true)
-                DispatchQueue.main.async { self?.synth.speak(u) }
+        // then speak (back on the main actor after the await).
+        Task { [weak self] in
+            await Self.activateAudioSession()
+            self?.synth.speak(u)
+        }
+    }
+
+    /// `@concurrent` = always runs on the background thread pool, never on the main actor, so these
+    /// blocking XPC calls can't freeze the UI. .default, not .voiceChat — voice-chat is a phone-call filter.
+    @concurrent
+    private nonisolated static func activateAudioSession() async {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playAndRecord, mode: .default,
+                                 options: [.duckOthers, .defaultToSpeaker, .allowBluetoothA2DP])
+        if #available(iOS 27, *) {
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                session.activate(options: []) { _, _ in cont.resume() }
             }
+        } else {
+            try? session.setActive(true)
         }
     }
 
@@ -72,7 +82,7 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     /// Prefer a Siri or premium voice. Eloquence is the old robotic voice and always loses.
-    static func voiceScore(identifier: String, quality: AVSpeechSynthesisVoiceQuality) -> Int {
+    nonisolated static func voiceScore(identifier: String, quality: AVSpeechSynthesisVoiceQuality) -> Int {
         let id = identifier.lowercased()
         if id.contains("eloquence") { return 0 }
         var score: Int
@@ -96,13 +106,14 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
 
     // MARK: AVSpeechSynthesizerDelegate — mute the command mic around speech.
 
-    func speechSynthesizer(_ s: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async { self.onStart?() }
+    // The synthesizer calls these on its own thread, so they're `nonisolated` and hop to the main actor.
+    nonisolated func speechSynthesizer(_ s: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.onStart?() }
     }
-    func speechSynthesizer(_ s: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async { self.onFinish?() }
+    nonisolated func speechSynthesizer(_ s: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.onFinish?() }
     }
-    func speechSynthesizer(_ s: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async { self.onFinish?() }
+    nonisolated func speechSynthesizer(_ s: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.onFinish?() }
     }
 }

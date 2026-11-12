@@ -36,7 +36,6 @@
 //
 
 import SwiftUI
-import Combine
 
 /// Head card after an explicit Discovery refresh.
 /// `.scrollPosition` stays pinned if the on-screen id is still in the shuffle, so a multi-item
@@ -87,7 +86,7 @@ struct RecipeReelScreen: View {
     /// Owned by the tab bar so leaving Discover and coming back shows the same card.
     @Binding var reel: [Recipe]
     @Binding var currentID: String?
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("reel_autoplay")        private var autoplay = false
 
@@ -188,7 +187,7 @@ struct RecipeReelScreen: View {
         .task(id: autoplay) {
             guard autoplay, !reduceMotion else { return }
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 6_000_000_000)
+                try? await Task.sleep(for: .seconds(6))
                 if Task.isCancelled { break }
                 if let id = currentID { advance(from: id) }
             }
@@ -223,7 +222,7 @@ private struct ReelCell: View {
     let fitMode: Bool
     var onNotInterested: (String) -> Void = { _ in }
 
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("reel_autoplay") private var autoplay = false
     @AppStorage("reel_fills_screen") private var fillsScreen = false

@@ -30,7 +30,7 @@ import SwiftUI
 
 // MARK: - SwiftUI View Component
 struct MealPlanScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var focused: Date = Calendar.current.startOfDay(for: Date())
     @State private var weekAnchor: Date = Calendar.current.startOfDay(for: Date())
     @State private var pickerSlot: MealSlot?    // non-nil → show the slot-filtered recipe picker
@@ -56,7 +56,7 @@ struct MealPlanScreen: View {
         .task { await environment.hydrateMealPlanFromServer() }
         .sheet(item: $pickerSlot) { slot in
             MealSlotRecipePickerSheet(slot: slot, day: focused)
-                .environmentObject(environment)
+                .environment(environment)
         }
     }
 

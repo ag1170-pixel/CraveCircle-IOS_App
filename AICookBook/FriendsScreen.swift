@@ -31,7 +31,7 @@ import Contacts
 
 // MARK: - SwiftUI View Component
 struct FriendsScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var query = ""
     @AppStorage("recent_friend_searches") private var recentFriendSearchesCSV: String = ""
     @FocusState private var searchFocused: Bool
@@ -781,7 +781,7 @@ struct FollowPill: View {
 
 // MARK: - SwiftUI View Component
 struct RequestsScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
         ScrollView {

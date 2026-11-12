@@ -36,7 +36,7 @@ struct HorizontalScrollFrameKey: PreferenceKey {
 
 // MARK: - SwiftUI View Component
 struct HomeScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Binding var showingImportSheet: Bool
     @State private var showNotifications = false
     @State private var query = ""                       // search moved here from the old Search tab
@@ -45,7 +45,7 @@ struct HomeScreen: View {
     @State private var filters = RecipeFilters()
     @State private var navigateToLibrary = false
     @State private var showShared = false
-    @StateObject private var voiceSearch = VoiceSearchController()
+    @State private var voiceSearch = VoiceSearchController()
     @FocusState private var searchFocused: Bool
     @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
     
@@ -109,7 +109,7 @@ struct HomeScreen: View {
             }
             .task(id: searchMissQuery) {
                 guard let searchMissQuery else { return }
-                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                try? await Task.sleep(for: .milliseconds(1200))
                 guard !Task.isCancelled else { return }
                 await environment.noteSearchMiss(searchMissQuery)
             }
@@ -252,7 +252,7 @@ struct HomeScreen: View {
                 .autocorrectionDisabled()
                 .focused($searchFocused)
                 .task(id: query) {
-                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    try? await Task.sleep(for: .milliseconds(300))
                     guard !Task.isCancelled else { return }
                     searchQuery = query
                 }
@@ -927,7 +927,7 @@ struct HomeSectionHeader: View {
 // MARK: - SwiftUI View Component
 struct CreatorChip: View {
     let creator: Creator
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
         let following = environment.isFollowing(creatorHandle: creator.handle)
@@ -963,7 +963,7 @@ struct CreatorChip: View {
 struct CardLikeOverlay: View {
     let recipeId: String
     var onSingleTap: (() -> Void)? = nil
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var showBurst = false
@@ -1054,11 +1054,11 @@ struct CardLikeOverlay: View {
 struct FreshCard: View {
     let recipe: Recipe
     let onTap: () -> Void
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
 
     /// Two cards fit with a slice of the next one peeking on the right — the peek is the cue that
     /// there's more to swipe (no text hint needed). The -24 per card frees ~48pt for that peek.
-    static var cardWidth: CGFloat { (UIScreen.main.bounds.width - AppSpacing.md * 3) / 2 - 24 }
+    static var cardWidth: CGFloat { (ScreenMetrics.bounds.width - AppSpacing.md * 3) / 2 - 24 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1120,7 +1120,7 @@ struct FreshCard: View {
 struct LibraryCard: View {
     let recipe: Recipe
     let onTap: () -> Void
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1204,7 +1204,7 @@ struct LibraryCard: View {
 struct SuggestedGridCard: View {
     let recipe: Recipe
     let onTap: () -> Void
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1264,7 +1264,7 @@ struct SuggestedGridCard: View {
 struct SuggestedRailCard: View {
     let recipe: Recipe
     let onTap: () -> Void
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
 
     static let cardWidth: CGFloat = 240
 

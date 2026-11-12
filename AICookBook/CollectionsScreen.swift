@@ -28,7 +28,7 @@ import SwiftUI
 
 // MARK: - SwiftUI View Component
 struct CollectionsScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var showCreate = false
     @State private var selectedCollection: CollectionItem?
 
@@ -153,7 +153,7 @@ struct CollectionCard: View {
 
 // MARK: - SwiftUI View Component
 struct CreateCollectionSheet: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
 

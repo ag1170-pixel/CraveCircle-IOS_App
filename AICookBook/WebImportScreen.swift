@@ -24,7 +24,6 @@
 //  publishes a recipe. Safari View cannot read the page, so this is a web view.
 //
 
-import Combine
 import SwiftUI
 import WebKit
 
@@ -32,8 +31,8 @@ import WebKit
 struct WebImportScreen: View {
     var onSaved: () -> Void
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var environment: AppEnvironment
-    @StateObject private var model = WebImportModel()
+    @Environment(AppEnvironment.self) private var environment
+    @State private var model = WebImportModel()
     @State private var saving = false
 
     var body: some View {
@@ -119,26 +118,29 @@ struct WebImportScreen: View {
 
 @MainActor
 // MARK: - Observable State Manager (Single source of truth for UI observers)
-final class WebImportModel: ObservableObject {
-    let webView: WKWebView
-    @Published var address = "https://www.google.com/"
-    @Published var recipe: Recipe?
-    @Published var canGoBack = false
-    @Published var canGoForward = false
-    var ownerId = ""
-    private var readTask: Task<Void, Never>?
+@Observable
+final class WebImportModel {
+    /// Lazy: `@State` evaluates `WebImportModel()` on every rebuild of the owning view, so the
+    /// (expensive) web view is only built when the representable first asks for it.
+    @ObservationIgnored private(set) lazy var webView: WKWebView = Self.makeWebView()
+    var address = "https://www.google.com/"
+    var recipe: Recipe?
+    var canGoBack = false
+    var canGoForward = false
+    @ObservationIgnored var ownerId = ""
+    @ObservationIgnored private var readTask: Task<Void, Never>?
 
-    init() {
+    private static func makeWebView() -> WKWebView {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         config.mediaTypesRequiringUserActionForPlayback = .all
         let view = WKWebView(frame: .zero, configuration: config)
         view.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
         view.allowsBackForwardNavigationGestures = true
-        webView = view
+        return view
     }
 
-    private var didStart = false
+    @ObservationIgnored private var didStart = false
     func start() {
         guard !didStart else { return }
         didStart = true
@@ -218,7 +220,7 @@ final class WebImportModel: ObservableObject {
 }
 
 private struct WebImportRepresentable: UIViewRepresentable {
-    @ObservedObject var model: WebImportModel
+    let model: WebImportModel
 
     func makeUIView(context: Context) -> WKWebView {
         model.webView.navigationDelegate = context.coordinator

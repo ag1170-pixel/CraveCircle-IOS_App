@@ -84,13 +84,15 @@ struct RecipeCoverImage: View {
     
     /// Decoded local covers. `body` runs again inside scroll `sizeThatFits`; without this,
     /// every pass re-reads the file on the main thread.
-    private static let storeCache: NSCache<NSString, UIImage> = {
+    // Shared with the off-main cover loader (`loadStoreImage`). NSCache is thread-safe and
+    // `missingStoreFiles` is only touched under `storeLock`, so opting out of main-actor isolation is sound.
+    nonisolated(unsafe) private static let storeCache: NSCache<NSString, UIImage> = {
         let cache = NSCache<NSString, UIImage>()
         cache.countLimit = 80
         return cache
     }()
-    private static let storeLock = NSLock()
-    private static var missingStoreFiles = Set<String>()
+    nonisolated private static let storeLock = NSLock()
+    nonisolated(unsafe) private static var missingStoreFiles = Set<String>()
     @State private var loadedLocal: UIImage?
 
     /// Memory only. Disk and decode happen off the main thread; `body` runs inside scroll layout.
@@ -110,7 +112,7 @@ struct RecipeCoverImage: View {
         storeCache.removeObject(forKey: filename as NSString)
     }
 
-    static func loadStoreImage(named filename: String) -> UIImage? {
+    nonisolated static func loadStoreImage(named filename: String) -> UIImage? {
         let key = filename as NSString
         if let hit = storeCache.object(forKey: key) { return hit }
         storeLock.lock()
@@ -1136,7 +1138,7 @@ struct LeadingEdgeBackModifier: ViewModifier {
 
 // MARK: - SwiftUI View Component
 struct GuestWallView: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     let title: String
     let message: String
     

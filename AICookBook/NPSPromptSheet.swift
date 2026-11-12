@@ -30,7 +30,7 @@ import SwiftUI
 
 // MARK: - SwiftUI View Component
 struct NPSPromptSheet: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
     @State private var rating: Int? = nil
     @State private var text: String = ""

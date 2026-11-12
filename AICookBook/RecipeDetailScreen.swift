@@ -32,7 +32,7 @@ import SwiftUI
 struct RecipeDetailScreen: View {
     @State private var recipe: Recipe
 
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
@@ -214,7 +214,7 @@ struct RecipeDetailScreen: View {
             guard !cooking else { return }
             // Wait for the cook cover to finish closing before a sheet can present.
             Task {
-                try? await Task.sleep(nanoseconds: 700_000_000)
+                try? await Task.sleep(for: .milliseconds(700))
                 environment.offerImportFeedbackIfEarned(recipeId: recipe.id)
             }
         }
@@ -228,7 +228,7 @@ struct RecipeDetailScreen: View {
         }
         .fullScreenCover(isPresented: $showEdit) {
             RecipeEditScreen(recipe: $recipe, onSave: { environment.updateRecipe($0) })
-                .environmentObject(environment)
+                .environment(environment)
         }
         .sheet(isPresented: $showWatchReel) {
             SafariView(url: recipe.reelUrl)
@@ -270,7 +270,7 @@ struct RecipeDetailScreen: View {
                     }
                 }
             )
-            .environmentObject(environment)
+            .environment(environment)
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
@@ -1128,7 +1128,7 @@ struct RecipeDetailScreen: View {
 // swipe ANYWHERE ELSE on the page moves to the previous/next recipe. RecipeDetailScreen owns the
 // gesture (it knows the section's frame) and calls back here to change the recipe.
 struct RecipeDetailPager: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var index = 0
     @State private var segment = 0            // 0 = Ingredients, 1 = Directions
@@ -1179,5 +1179,5 @@ struct RecipeDetailPager: View {
 
 #Preview {
     RecipeDetailScreen(recipe: Recipe.placeholderRecipes[0])
-        .environmentObject(AppEnvironment())
+        .environment(AppEnvironment())
 }

@@ -29,7 +29,7 @@ import SwiftUI
 // MARK: - SwiftUI View Component
 struct RecipeShareSheet: View {
     let recipe: Recipe
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
     @State private var sentFriendIds: Set<UUID> = []
     @State private var showCopiedAlert = false
@@ -191,7 +191,7 @@ struct RecipeShareSheet: View {
                                     let ok = await environment.shareRecipeWithFriend(recipeId: recipe.id, friend: friend)
                                     if ok {
                                         Haptics.success()
-                                        withAnimation(AppMotion.snappy) { sentFriendIds.insert(friend.id) }
+                                        withAnimation(AppMotion.snappy) { _ = sentFriendIds.insert(friend.id) }
                                     }
                                 }
                             } label: {

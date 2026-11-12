@@ -20,7 +20,7 @@ import SwiftUI
 
 // MARK: - SwiftUI View Component
 struct SharedScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var selection = 0
     
     var body: some View {
@@ -73,7 +73,7 @@ struct SharedScreen: View {
 private struct SharedRecordRow: View {
     let record: SharedRecipeRecord
     let recipe: Recipe?
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     
     var body: some View {
         Button {

@@ -45,7 +45,7 @@ struct AdminSignals: Decodable {
 
 // MARK: - SwiftUI View Component
 struct AdminSignalsScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var signals: AdminSignals?
     @State private var loading = true
 

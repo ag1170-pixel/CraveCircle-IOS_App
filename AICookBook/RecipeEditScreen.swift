@@ -36,7 +36,7 @@ struct RecipeEditScreen: View {
     var onSave: (Recipe) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var draft: Recipe
     @State private var pickedItems: [PhotosPickerItem] = []
     @State private var photos: [UIImage] = []           // the working gallery (max 6; first = cover)
@@ -361,7 +361,7 @@ struct RecipeEditScreen: View {
     private func scheduleAutosave() {
         autosaveTask?.cancel()
         autosaveTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            try? await Task.sleep(for: .milliseconds(1200))
             guard !Task.isCancelled else { return }
             saveAutosave()
         }

@@ -58,7 +58,7 @@ private enum ImportStage: Int, CaseIterable {
 
 // MARK: - SwiftUI View Component
 struct ImportProgressScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
     var reopenImport: () -> Void

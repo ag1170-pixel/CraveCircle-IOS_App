@@ -28,7 +28,7 @@ import SwiftUI
 
 // MARK: - SwiftUI View Component
 struct LibraryScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var filter = 0   // 0 All, 1 Liked, 2 Saved, 3 Created
 
     private let columns = [

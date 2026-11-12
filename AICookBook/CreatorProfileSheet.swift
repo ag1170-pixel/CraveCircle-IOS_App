@@ -29,7 +29,7 @@ import SwiftUI
 struct CreatorProfileSheet: View {
     let handle: String
     let name: String?
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
     @State private var profile: UserProfile?
 

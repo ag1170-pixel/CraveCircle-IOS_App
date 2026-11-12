@@ -27,7 +27,7 @@ struct ImportFeedbackTarget: Identifiable {
 struct ImportFeedbackSheet: View {
     let recipeId: String
 
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
     @State private var rating = 0
     @State private var note = ""

@@ -31,7 +31,7 @@ import PhotosUI
 // MARK: - SwiftUI View Component
 struct RecipeCommentsSection: View {
     let recipeId: String
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var commentText = ""
     @State private var isSubmitting = false
     @State private var pickedItem: PhotosPickerItem?
@@ -201,7 +201,7 @@ struct RecipeCommentsSection: View {
         .task(id: recipeId) {
             while !Task.isCancelled {
                 await environment.refreshComments(for: recipeId)
-                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                try? await Task.sleep(for: .seconds(4))
             }
         }
     }

@@ -18,13 +18,13 @@ How to explain the whole app, screen by screen: what each screen does, which Swi
 @main
 struct CraveCircleApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var environment = AppEnvironment()
+    @State private var environment = AppEnvironment()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             RootView()
-                .environmentObject(environment)
+                .environment(environment)
                 .onOpenURL { url in ... }
                 .onChange(of: scenePhase) { _, phase in ... }
                 .onAppear { ... }
@@ -41,8 +41,8 @@ What each line does:
 |---|---|---|
 | `@main` | Marks the app's entry point | iOS starts the app here |
 | `struct CraveCircleApp: App` | Follows the `App` protocol | Its `body` is a `Scene`, not a `View` |
-| `@StateObject private var environment = AppEnvironment()` | Creates the app's one shared data object, and owns it | Created once and kept alive for the whole app run |
-| `.environmentObject(environment)` | Puts that object into the environment | Every screen below can read it with `@EnvironmentObject` without passing it by hand |
+| `@State private var environment = AppEnvironment()` | Creates the app's one shared data object, and owns it | `@State` keeps it alive for the whole app run, even though the App struct is rebuilt |
+| `.environment(environment)` | Puts that object into the environment | Every screen below can read it with `@Environment(AppEnvironment.self)` without passing it by hand |
 | `@UIApplicationDelegateAdaptor(AppDelegate.self)` | Plugs in an old-style UIKit `AppDelegate` | SwiftUI has no direct hooks for push notifications, home-screen quick actions ("Write to CEO", "Search", "Grocery"), or locking orientation. The AppDelegate handles those |
 | `@Environment(\.scenePhase)` + `.onChange(of: scenePhase)` | App lifecycle | When the app comes back to `.active`, we refresh recipes, check for a reel shared from the Share Extension, and re-fetch the profile |
 | `.onOpenURL` | Deep links | Handles `cravecircle://recipe/<id>`, `cravecircle://grocery`, and `https://cravecircle.cc/recipe/<id>` links. These come from widgets, shared links and the Share Extension |
@@ -73,30 +73,39 @@ CraveCircleApp (@main)
               + fullScreenCover → RecipeDetailPager (recipe page)
 ```
 
-### The state model: one shared `ObservableObject`
+### The state model: one shared `@Observable` class
 
 **File: [AICookBook/AppEnvironment.swift](../AICookBook/AppEnvironment.swift)**
 
 ```swift
 @MainActor
-final class AppEnvironment: ObservableObject {
-    @Published private(set) var appState: AppState = .loading
-    @Published private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
-    @Published private(set) var groceryItems: [GroceryItem] = [] { didSet { persist(...) } }
+@Observable
+final class AppEnvironment {
+    private(set) var appState: AppState = .loading
+    private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
+    private(set) var groceryItems: [GroceryItem] = [] { didSet { persist(...) } }
     ...
 }
 ```
 
-**Important for the review.** Your MCQ notes teach the newer `@Observable` macro. **This app uses the older system that does the same job:**
+This is exactly the pattern from your MCQ notes (section 7). We started on the older `ObservableObject` system and migrated every model class to the modern one:
 
-| Your notes (new, iOS 17+) | What CraveCircle uses | Same idea |
-|---|---|---|
-| `@Observable class DataSource` | `class AppEnvironment: ObservableObject` | A shared model class |
-| plain `var` property | `@Published var` | A change redraws the views that use it |
-| `@State var ds = DataSource()` | `@StateObject var environment = AppEnvironment()` | The view that **creates and owns** the object |
-| `.environment(ds)` | `.environmentObject(environment)` | Put it into the environment |
-| `@Environment(DataSource.self) var ds` | `@EnvironmentObject var environment: AppEnvironment` | Read it from the environment, at any depth |
-| (pass object in) | `@ObservedObject` | Watch an object someone else owns |
+| Pattern | In CraveCircle |
+|---|---|
+| `@Observable` on a **class** | `AppEnvironment`, `CookTimer`, `VoiceSearchController`, `VoiceCommandController`, `WebImportModel` |
+| Owner creates it with `@State` | `@State private var environment = AppEnvironment()` in the `@main` App; `@State private var timer = CookTimer()` in Cook Mode |
+| `.environment(obj)` puts it in | `.environment(environment)` (14 places) |
+| `@Environment(Type.self)` reads it | `@Environment(AppEnvironment.self) private var environment` (63 screens) |
+| A child that only reads it | a plain property: `var timer: CookTimer` (no wrapper at all) |
+| `@Bindable` for `$` bindings | `Bindable(environment).showGuestPaywall` in `RootView` gives `.sheet(isPresented:)` a binding |
+
+**Why it's better (a likely question):** with the old `ObservableObject`, *any* `@Published` change made *every* view that watched the object redraw. With `@Observable`, SwiftUI records which properties each view's `body` actually reads, and only those views redraw. `AppEnvironment` has 40+ properties and 63 screens use it, so that matters.
+
+**Things that had to change in the migration (good to know):**
+- `@Published` is gone: in an `@Observable` class every stored property is tracked automatically.
+- Property wrappers can't live inside an `@Observable` class, so `AppEnvironment`'s 12 `@AppStorage` values became plain properties with a `didSet` that writes to `UserDefaults` (and a small `storedDefault` helper that reads the saved value at start-up). Screens' own `@AppStorage` is unchanged.
+- Heavy members that shouldn't be rebuilt every time SwiftUI re-creates the owning view (`WKWebView`, `AVAudioEngine`, `SFSpeechRecognizer`) are `lazy`, and non-UI members are marked `@ObservationIgnored`.
+- Real two-way bindings for the error alert: `RootView` now uses `Binding(get:set:)` instead of `.constant(...)`.
 
 **If they ask "why a class and not a struct?"** It has to be **shared**. Home, Grocery, Profile and Recipe Detail all hold the *same* `AppEnvironment`. When Recipe Detail adds ingredients to the grocery list, the Grocery tab sees it straight away.
 
@@ -186,7 +195,7 @@ Custom **`ViewModifier`** (your notes, section 1): `LeadingEdgeBackModifier: Vie
 
 ```swift
 struct RootView: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     var body: some View {
         Group {
             if environment.appState == .loading { ProgressView() }
@@ -258,11 +267,11 @@ TabView(selection: $tab) {
 
 ```swift
 struct HomeScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Binding var showingImportSheet: Bool          // borrowed from MainTabView
     @State private var query = ""
     @State private var filters = RecipeFilters()
-    @StateObject private var voiceSearch = VoiceSearchController()
+    @State private var voiceSearch = VoiceSearchController()
     @FocusState private var searchFocused: Bool
     @AppStorage("recent_home_searches") private var recentSearchesCSV = ""
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
@@ -288,7 +297,7 @@ struct HomeScreen: View {
 |---|---|
 | `@Binding` | `showingImportSheet` is owned by `MainTabView`; Home's empty state can open it |
 | `@State` | search text, filters, which sheet is showing |
-| `@StateObject` | `VoiceSearchController` (mic search). Home creates and owns it |
+| `@State` holding an `@Observable` class | `VoiceSearchController` (mic search). Home creates and owns it |
 | `@FocusState` | Puts the keyboard in the search box (the "Search" quick action uses this) |
 | `@AppStorage` | Recent searches saved in UserDefaults |
 | `LazyVGrid` with 2 `.flexible()` columns | Suggested-recipe and search-result grids |
@@ -393,7 +402,7 @@ struct RecipeDetailScreen: View {
 | `reduceMotion` / `reduceTransparency` | Accessibility: turn off animation and blur effects |
 
 **Linked screens** you can mention:
-- **Cook Mode:** [FlashcardCookScreen.swift](../AICookBook/FlashcardCookScreen.swift). One step per full-screen card, **forced landscape** (via `AppDelegate.orientationLock`). There's a `CookTimer: ObservableObject` for timers, and "Hey Crave" voice commands ("next", "back", "start timer") from [VoiceCommandController.swift](../AICookBook/VoiceCommandController.swift) using `SFSpeechRecognizer` + `AVAudioEngine`.
+- **Cook Mode:** [FlashcardCookScreen.swift](../AICookBook/FlashcardCookScreen.swift). One step per full-screen card, **forced landscape** (via `AppDelegate.orientationLock`). There's an `@Observable` `CookTimer` class for timers, and "Hey Crave" voice commands ("next", "back", "start timer") from [VoiceCommandController.swift](../AICookBook/VoiceCommandController.swift) using `SFSpeechRecognizer` + `AVAudioEngine`.
 - **Nutrition:** [NutritionScreen.swift](../AICookBook/NutritionScreen.swift) + [Nutrition.swift](../AICookBook/Nutrition.swift). Macros per serving from a USDA-based food table (`OfflineFoodDB`, `NutritionEstimator`).
 - **Edit:** [RecipeEditScreen.swift](../AICookBook/RecipeEditScreen.swift). **Comments:** [RecipeCommentsView.swift](../AICookBook/RecipeCommentsView.swift). **Share:** [RecipeShareSheet.swift](../AICookBook/RecipeShareSheet.swift).
 
@@ -407,7 +416,7 @@ struct RecipeDetailScreen: View {
 
 ```swift
 struct GroceryScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var selectedDish: String? = nil        // nil = show all dishes
     @AppStorage("grocery_sort_mode") private var sortModeRaw = GrocerySortMode.recipe.rawValue
 
@@ -443,7 +452,7 @@ struct GroceryScreen: View {
 | `AddGroceryItemSheet` (same file) | Opened by the floating "+" on this tab; uses `@FocusState` so the keyboard opens straight away |
 | `GroceryCat` overlay | The mascot again, sitting over the list rows |
 
-**How items get here:** in Recipe Detail, "Add to grocery" calls `environment.addIngredientsToGrocery(recipe:servings:)`. That scales the quantities to your servings and labels each item with the recipe name. Because `groceryItems` is `@Published`, the Grocery tab updates immediately.
+**How items get here:** in Recipe Detail, "Add to grocery" calls `environment.addIngredientsToGrocery(recipe:servings:)`. That scales the quantities to your servings and labels each item with the recipe name. Because `groceryItems` is an observed property, the Grocery tab updates immediately.
 
 ---
 
@@ -457,7 +466,7 @@ struct GroceryScreen: View {
 
 ```swift
 struct ProfileScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @AppStorage(LanguagePrefs.key) private var langCode = ...
     @AppStorage("kitchen_cat_enabled") private var kitchenCatEnabled = true
     @State private var showEditProfile = false, showLanguagePicker = false, ...
@@ -607,7 +616,7 @@ You can add a recipe by pasting a reel link, picking a video, taking or picking 
 5. **Translate (optional)** into your chosen language.
 6. Save, show a **"Recipe Ready!"** local notification, and update the **Live Activity** in the Dynamic Island.
 
-**Progress UI:** `enum ImportFlowState` (idle → downloading → transcribing → extracting → done/failed) is `@Published`. `ImportToastBanner` (top of the tab view), `ImportProgressScreen`, and the Live Activity ([CookingImportActivity.swift](../AICookBook/CookingImportActivity.swift), `ActivityAttributes`) all draw from that one state.
+**Progress UI:** `enum ImportFlowState` (idle → downloading → transcribing → extracting → done/failed) is an observed property of `AppEnvironment`. `ImportToastBanner` (top of the tab view), `ImportProgressScreen`, and the Live Activity ([CookingImportActivity.swift](../AICookBook/CookingImportActivity.swift), `ActivityAttributes`) all draw from that one state.
 
 **Share Extension:** [ShareExtension/ShareViewController.swift](../ShareExtension/ShareViewController.swift). In Instagram you tap Share → CraveCircle. The extension sends the link to the server and opens the app with `cravecircle://import?job=<id>`. `onOpenURL` in the `@main` struct catches that and resumes the progress UI.
 
@@ -627,7 +636,7 @@ You can add a recipe by pasting a reel link, picking a video, taking or picking 
 | **`withTaskGroup`** | [AppEnvironment.swift:1890](../AICookBook/AppEnvironment.swift): **race** the translation request against a 25-second timer; take whichever finishes first, then `group.cancelAll()`. That's a timeout built from a task group |
 | `Task.detached` | Image decoding and JSON encoding off the main thread (e.g. [DesignComponents.swift:174](../AICookBook/DesignComponents.swift)) so scrolling stays smooth |
 | `withCheckedContinuation` | [OnDeviceTranscriber.swift](../AICookBook/OnDeviceTranscriber.swift): wraps the old callback-based `SFSpeechRecognizer.requestAuthorization` so we can `await` it |
-| `Task.sleep` | Debouncing search, refreshing at roughly 0s, 30s and 90s after the app returns to the foreground |
+| `Task.sleep(for: .seconds(...))` | Debouncing search, refreshing at roughly 0s, 30s and 90s after the app returns to the foreground. (Uses the modern `Duration` form, not the old nanoseconds one) |
 
 ---
 
@@ -657,10 +666,10 @@ You can add a recipe by pasting a reel link, picking a video, taking or picking 
 ## 17. Likely teacher questions with model answers
 
 **Q: Where does your app start?**
-`AICookBook/AICookBookApp.swift`, the `@main struct CraveCircleApp: App`. Its `body` is a `WindowGroup` scene that shows `RootView`, with our `AppEnvironment` injected using `.environmentObject`.
+`AICookBook/AICookBookApp.swift`, the `@main struct CraveCircleApp: App`. Its `body` is a `WindowGroup` scene that shows `RootView`, with our `AppEnvironment` injected using `.environment(...)`.
 
 **Q: How do different screens share data?**
-One `ObservableObject` class, `AppEnvironment`. It's created once with `@StateObject` in the App, put in the environment, and read with `@EnvironmentObject` in every screen. Its properties are `@Published`, so any screen that uses one redraws when it changes. (The newer equivalent is `@Observable` + `@Environment(Type.self)`.)
+One `@Observable` class, `AppEnvironment`. It's created once with `@State` in the App, put in the environment with `.environment(...)`, and read with `@Environment(AppEnvironment.self)` in every screen. SwiftUI tracks which properties each screen reads, so a screen only redraws when something *it uses* changes. (Before the migration this was `ObservableObject` + `@StateObject` + `@EnvironmentObject`; you may see those names in older tutorials.)
 
 **Q: `@State` vs `@Binding`, show me one.**
 `MainTabView` owns `@State var showingImportSheet`. `HomeScreen` takes `@Binding var showingImportSheet`, so Home's empty-state button can open the sheet owned by its parent. Another: `RecipeDetailScreen`'s `@Binding var tab` is owned by `RecipeDetailPager`.
@@ -699,4 +708,5 @@ Transcription (SpeechAnalyzer) and extraction (Foundation Models) both run on th
 
 ### Honest notes (in case they ask "what would you improve?")
 - `AppEnvironment.swift` is about 3,300 lines. Splitting it into smaller stores (GroceryStore, ImportStore, SocialStore) would make it easier to maintain.
-- Moving from `ObservableObject` to `@Observable` would mean only the views that read a changed property redraw, instead of every view watching the object.
+- Many one-off delays still use `DispatchQueue.main.asyncAfter`; converting them to cancellable `Task.sleep(for:)` blocks would be safer on slow devices.
+- Two older unit-test assertions (`AccountIsolationTests`) say creators can't publish, but the app deliberately lets creators publish, so that test needs updating to match.

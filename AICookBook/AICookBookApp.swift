@@ -11,7 +11,7 @@
 //    App lifecycle coordinator: initializes AppEnvironment, configures WindowGroup, handles deep links (cravecircle://), sets up image caching, and integrates UIKit AppDelegate for push notifications and home-screen quick actions.
 //
 // 3. MENTOR EXPLANATION (15-Second Verbal Summary):
-//    "This is where the entire app starts (@main). It follows the App -> Scene (WindowGroup) -> View (RootView) chain. We create our single source of truth, AppEnvironment, using @StateObject and inject it into the view hierarchy via .environmentObject so every child view can access shared state without manual prop passing."
+//    "This is where the entire app starts (@main). It follows the App -> Scene (WindowGroup) -> View (RootView) chain. We create our single source of truth, AppEnvironment, as an @Observable class held in @State, and inject it into the view hierarchy via .environment(...) so every child view can access shared state without manual prop passing."
 //
 // ==============================================================================
 //
@@ -67,9 +67,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
         application.shortcutItems = Self.shortcutItems()
-        if let item = launchOptions?[.shortcutItem] as? UIApplicationShortcutItem {
-            Self.pendingShortcut = item.type
-        }
+        // A quick action that cold-launches the app arrives via the scene, not launchOptions
+        // (deprecated in iOS 26): see ShortcutSceneDelegate.scene(_:willConnectTo:options:).
         return true
     }
 
@@ -161,7 +160,7 @@ final class ShortcutSceneDelegate: UIResponder, UIWindowSceneDelegate {
 @main
 struct CraveCircleApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var environment = AppEnvironment()
+    @State private var environment = AppEnvironment()
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -176,7 +175,7 @@ struct CraveCircleApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
-                .environmentObject(environment)
+                .environment(environment)
                 // Dark-first design, full light + dark parity — follow the system appearance.
                 .onOpenURL { url in
                     // Support both the legacy cravecircle:// custom scheme and standard https Universal Links.
@@ -227,7 +226,7 @@ struct CraveCircleApp: App {
                         } else if let shared = queryValue("url"), !shared.isEmpty {
                             Task { await environment.importFromSharedURL(shared); await environment.refreshRecipes() }
                         } else {
-                            Task { await environment.checkPendingSharedImport(); await environment.refreshRecipes() }
+                            Task { environment.checkPendingSharedImport(); await environment.refreshRecipes() }
                         }
                     }
                 }
@@ -248,8 +247,8 @@ struct CraveCircleApp: App {
                         Task { await environment.refreshMyProfile() }
                         Task {
                             await environment.importFromSharedURL()
-                            for gap in [UInt64(0), 30, 60] {   // refresh at ~0s, ~30s, ~90s
-                                if gap > 0 { try? await Task.sleep(nanoseconds: gap * 1_000_000_000) }
+                            for gap in [0, 30, 60] {   // refresh at ~0s, ~30s, ~90s
+                                if gap > 0 { try? await Task.sleep(for: .seconds(gap)) }
                                 if scenePhase != .active { break }
                                 await environment.refreshRecipes()
                             }

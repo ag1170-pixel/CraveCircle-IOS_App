@@ -30,7 +30,6 @@
 import SwiftUI
 import UIKit
 import AudioToolbox
-import Combine
 
 // MARK: - SwiftUI View Component
 struct FlashcardCookScreen: View {
@@ -38,8 +37,8 @@ struct FlashcardCookScreen: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @StateObject private var voice = VoiceCommandController()
-    @StateObject private var timer = CookTimer()
+    @State private var voice = VoiceCommandController()
+    @State private var timer = CookTimer()
 
     @State private var index = 0
     @State private var voiceOn = true
@@ -169,6 +168,7 @@ struct FlashcardCookScreen: View {
         .onAppear {
             lockOrientation(.landscape)
             voice.onCommand = { cmd in handle(cmd) }
+            let voice = voice   // capture the controller object weakly, not the view
             reader.onStart = { [weak voice] in voice?.suppress(true) }
             reader.onFinish = { [weak voice] in voice?.suppress(false) }
             if voiceOn { voice.start() }
@@ -331,10 +331,11 @@ struct FlashcardCookScreen: View {
 // MARK: - Cook timer
 
 /// A simple minute countdown with an animated progress value and a beep on completion.
-final class CookTimer: ObservableObject {
-    @Published private(set) var remaining = 0   // seconds left
-    @Published private(set) var total = 0
-    @Published private(set) var running = false
+@Observable
+final class CookTimer {
+    private(set) var remaining = 0   // seconds left
+    private(set) var total = 0
+    private(set) var running = false
 
     private var ticker: Timer?
 
@@ -383,7 +384,7 @@ final class CookTimer: ObservableObject {
 /// The white clock on a card. Idle: a timer glyph + the step's minutes. Running: the live countdown
 /// with the ring draining. Tap to start/stop.
 private struct ClockRingView: View {
-    @ObservedObject var timer: CookTimer
+    var timer: CookTimer
     var idleMinutes: Int
     var diameter: CGFloat = 92
     var tint: Color

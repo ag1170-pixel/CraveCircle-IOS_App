@@ -37,7 +37,7 @@ private struct WrittenNote: Codable {
 // MARK: - SwiftUI View Component
 struct FeedbackFormView: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
 
     @State private var message = ""
     @State private var photoItem: PhotosPickerItem?

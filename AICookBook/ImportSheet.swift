@@ -46,7 +46,7 @@ enum ReelURL {
 
 // MARK: - SwiftUI View Component
 struct ImportSheet: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Binding var showing: Bool
 
     @State private var url = ""

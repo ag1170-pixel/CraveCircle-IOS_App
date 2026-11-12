@@ -37,7 +37,7 @@ import UniformTypeIdentifiers
 
 // MARK: - SwiftUI View Component
 struct StudioScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
 
     @State private var pickedPhotos: [PhotosPickerItem] = []
@@ -231,7 +231,7 @@ struct StudioScreen: View {
         // then kick off the import after a short beat for the dismiss animation.
         dismiss()
         environment.requestTabSwitch(.home)
-        try? await Task.sleep(nanoseconds: 250_000_000)
+        try? await Task.sleep(for: .milliseconds(250))
         await environment.importFromPhotos(images)
     }
 
@@ -250,7 +250,7 @@ struct StudioScreen: View {
         Haptics.success()
         dismiss()
         environment.requestTabSwitch(.home)
-        try? await Task.sleep(nanoseconds: 250_000_000)
+        try? await Task.sleep(for: .milliseconds(250))
         await environment.importFromVideo(url)
     }
     #endif

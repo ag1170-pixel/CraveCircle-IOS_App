@@ -32,7 +32,7 @@ import PhotosUI
 
 // MARK: - SwiftUI View Component
 struct AddRecipeSheet: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Binding var showing: Bool
 
     @State private var link = ""
@@ -49,7 +49,7 @@ struct AddRecipeSheet: View {
 
     // Fit the sheet to its content; cap at 90% so a small screen still scrolls. Falls back before measure.
     private var detentHeight: CGFloat {
-        contentHeight > 0 ? min(contentHeight, UIScreen.main.bounds.height * 0.9) : 440
+        contentHeight > 0 ? min(contentHeight, ScreenMetrics.bounds.height * 0.9) : 440
     }
 
     private var canImportLink: Bool { ReelURL.isValid(link) }
@@ -102,17 +102,17 @@ struct AddRecipeSheet: View {
                 showWeb = false
                 showing = false
             }
-            .environmentObject(environment)
+            .environment(environment)
         }
         .sheet(isPresented: $showCreatorRequest) {
             CreatorRequestSheet()
-                .environmentObject(environment)
+                .environment(environment)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .fullScreenCover(isPresented: $showStudio) {
             NavigationStack { StudioScreen() }
-                .environmentObject(environment)
+                .environment(environment)
         }
         .fullScreenCover(isPresented: $showWrite) {
             // Figma-aligned 4-step wizard: Photo → Basics → Ingredients → Method.
@@ -123,7 +123,7 @@ struct AddRecipeSheet: View {
                 showWrite = false
                 showing = false
             }
-            .environmentObject(environment)
+            .environment(environment)
         }
         .onChange(of: pickedPhotos) { _, items in
             guard !items.isEmpty, !importingPhotos else { return }

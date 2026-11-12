@@ -5,20 +5,19 @@
 // ==============================================================================
 //
 // 1. PURPOSE:
-//    Central ObservableObject managing all shared state, business logic, and background workflows for the app.
+//    Central @Observable model managing all shared state, business logic, and background workflows for the app.
 //
 // 2. ARCHITECTURAL ROLE:
 //    Single source of truth: manages authentication state, recipes catalog, active import jobs, Live Activities, grocery items, meal plans, collections, and notifications.
 //
 // 3. MENTOR EXPLANATION (15-Second Verbal Summary):
-//    "AppEnvironment is our central state manager. It conforms to ObservableObject and runs on @MainActor for UI thread safety. Every screen accesses it via @EnvironmentObject. It coordinates reel importing, Supabase syncing, local caching, and Live Activities in the Dynamic Island."
+//    "AppEnvironment is our central state manager. It's an @Observable class on @MainActor for UI thread safety. Every screen reads it with @Environment(AppEnvironment.self), and only redraws when a property it actually reads changes. It coordinates reel importing, Supabase syncing, local caching, and Live Activities in the Dynamic Island."
 //
 // ==============================================================================
 //
 
 import SwiftUI
 import Foundation
-import Combine
 import UserNotifications
 import NaturalLanguage
 #if !targetEnvironment(macCatalyst)
@@ -33,40 +32,49 @@ private struct CachedRecipeNutrition: Codable {
 
 @MainActor
 // MARK: - Observable State Manager (Single source of truth for UI observers)
-final class AppEnvironment: ObservableObject {
+@Observable
+final class AppEnvironment {
+    /// Reads a UserDefaults value with a fallback. These used to be `@AppStorage` properties, but
+    /// `@Observable` can't host property wrappers — and `@AppStorage` inside a model class never
+    /// told SwiftUI it changed anyway. Plain stored properties + a `didSet` write are both
+    /// persisted AND tracked, so screens that depend on them (e.g. onboarding) redraw reliably.
+    private static func storedDefault<T>(_ key: String, _ fallback: T) -> T {
+        UserDefaults.standard.object(forKey: key) as? T ?? fallback
+    }
+
     enum AppState: Equatable {
         case loading
         case signedOut
         case signedIn
     }
 
-    @Published private(set) var appState: AppState = .loading
-    @Published private(set) var currentUser: UserProfile?
+    private(set) var appState: AppState = .loading
+    private(set) var currentUser: UserProfile?
 
     /// APNs device token (hex), captured by the AppDelegate. Held until we have a signed-in user,
     /// then uploaded so the server can push "your recipe is ready" for background share-imports.
     private var apnsDeviceTokenHex: String?
     private var apnsEnvironment: String = "sandbox"
     /// The user's chosen profile photo, stored on-device (persisted). Shown as their avatar.
-    @Published private(set) var avatarImageData: Data? { didSet { persist(avatarImageData, "avatar.json") } }
-    @AppStorage("guest_user_id") private var guestUserId: String = ""
-    @AppStorage("onboarded_user_ids") private var onboardedUserIdsRaw: String = ""
+    private(set) var avatarImageData: Data? { didSet { persist(avatarImageData, "avatar.json") } }
+    private var guestUserId: String = AppEnvironment.storedDefault("guest_user_id", "") { didSet { UserDefaults.standard.set(guestUserId, forKey: "guest_user_id") } }
+    private var onboardedUserIdsRaw: String = AppEnvironment.storedDefault("onboarded_user_ids", "") { didSet { UserDefaults.standard.set(onboardedUserIdsRaw, forKey: "onboarded_user_ids") } }
     /// Set when the first-run onboarding is completed BEFORE the user signs in. On successful
     /// sign-in we attribute it to their account so they don't go through it again. Cleared then.
-    @AppStorage("pre_auth_onboarding_done") private var preAuthOnboardingDone: Bool = false
+    private var preAuthOnboardingDone: Bool = AppEnvironment.storedDefault("pre_auth_onboarding_done", false) { didSet { UserDefaults.standard.set(preAuthOnboardingDone, forKey: "pre_auth_onboarding_done") } }
     /// Device-wide flag so guests also see the first-run flow once. Flipped by `markOnboarded()`.
-    @AppStorage("device_onboarded") private var deviceOnboarded: Bool = false
+    private var deviceOnboarded: Bool = AppEnvironment.storedDefault("device_onboarded", false) { didSet { UserDefaults.standard.set(deviceOnboarded, forKey: "device_onboarded") } }
     // Picks captured by the first-run onboarding flow. Stored for future personalization
     // (goals → suggestion ranking, decisionTime → when the daily nudge fires, etc.).
-    @AppStorage("onboarding.goals") private var onboardingGoalsRaw: String = ""
-    @AppStorage("onboarding.decisionTime") private var onboardingDecisionTimeRaw: String = ""
-    @AppStorage("onboarding.sources") private var onboardingSourcesRaw: String = ""
-    @AppStorage("onboarding.hearAbout") private var onboardingHearAboutRaw: String = ""
+    private var onboardingGoalsRaw: String = AppEnvironment.storedDefault("onboarding.goals", "") { didSet { UserDefaults.standard.set(onboardingGoalsRaw, forKey: "onboarding.goals") } }
+    private var onboardingDecisionTimeRaw: String = AppEnvironment.storedDefault("onboarding.decisionTime", "") { didSet { UserDefaults.standard.set(onboardingDecisionTimeRaw, forKey: "onboarding.decisionTime") } }
+    private var onboardingSourcesRaw: String = AppEnvironment.storedDefault("onboarding.sources", "") { didSet { UserDefaults.standard.set(onboardingSourcesRaw, forKey: "onboarding.sources") } }
+    private var onboardingHearAboutRaw: String = AppEnvironment.storedDefault("onboarding.hearAbout", "") { didSet { UserDefaults.standard.set(onboardingHearAboutRaw, forKey: "onboarding.hearAbout") } }
     /// Per signed-in user. Not @AppStorage — that key was one list for the whole phone.
     private var deletedRecipeIdsRaw: String = ""
-    @Published private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
-    @Published private(set) var selectedRecipe: Recipe?
-    @Published private(set) var importState: ImportFlowState = .idle {
+    private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
+    private(set) var selectedRecipe: Recipe?
+    private(set) var importState: ImportFlowState = .idle {
         didSet {
             reflectImportInLiveActivity()
             pumpImportQueueIfIdle(after: oldValue)
@@ -158,7 +166,7 @@ final class AppEnvironment: ObservableObject {
     /// FIFO of URLs the user shared while another import was running. Each new share lands here
     /// instead of being dropped; the pump auto-starts the next one as soon as the current import
     /// finishes, fails (after a 15s grace so the user sees why), or is cancelled.
-    @Published private(set) var importQueue: [String] = []
+    private(set) var importQueue: [String] = []
 
     /// Set while a 15s "failed, auto-dismiss" timer is in flight so we don't stack cancellations.
     private var queuePumpTask: Task<Void, Never>?
@@ -166,45 +174,45 @@ final class AppEnvironment: ObservableObject {
     #if !targetEnvironment(macCatalyst)
     private var cookingActivity: Activity<CookingImportAttributes>?
     #endif
-    @Published private(set) var groceryItems: [GroceryItem] = [] { didSet { persist(groceryItems, "grocery.json") } }
-    @Published var groceryError: String?
-    @Published var errorMessage: String?
+    private(set) var groceryItems: [GroceryItem] = [] { didSet { persist(groceryItems, "grocery.json") } }
+    var groceryError: String?
+    var errorMessage: String?
 
     // Infinite scroll (paged from the backend as the user scrolls; harmless offline/local-only).
-    @Published private(set) var isLoadingMore = false
-    @Published private(set) var hasMoreRecipes = true
+    private(set) var isLoadingMore = false
+    private(set) var hasMoreRecipes = true
     private var recipePage = 0
     private let recipePageSize = 20
 
     // Social & Follows
-    @Published private(set) var followedCreators: Set<String> = [] { didSet { persist(Array(followedCreators), "followed_creators.json") } }
-    @Published private(set) var savedRecipeIds: Set<String> = []
+    private(set) var followedCreators: Set<String> = [] { didSet { persist(Array(followedCreators), "followed_creators.json") } }
+    private(set) var savedRecipeIds: Set<String> = []
     
     // Friends & Circle
-    @Published private(set) var circleFriends: [FriendItem] = [] { didSet { persist(circleFriends, "circle_friends.json") } }
-    @Published private(set) var incomingRequests: [FriendRequestItem] = [] { didSet { persist(incomingRequests, "friend_requests_in.json") } }
-    @Published private(set) var outgoingRequests: [FriendRequestItem] = [] { didSet { persist(outgoingRequests, "friend_requests_out.json") } }
+    private(set) var circleFriends: [FriendItem] = [] { didSet { persist(circleFriends, "circle_friends.json") } }
+    private(set) var incomingRequests: [FriendRequestItem] = [] { didSet { persist(incomingRequests, "friend_requests_in.json") } }
+    private(set) var outgoingRequests: [FriendRequestItem] = [] { didSet { persist(outgoingRequests, "friend_requests_out.json") } }
     
     // Collections
     // New installs start with zero collections. The sample "Weeknight Dinners · 8" collections
     // used to seed here but they looked like real content the user had created — a lie on first
     // launch. Collections now appear only after the user actually makes one.
-    @Published private(set) var ownedCollections: [CollectionItem] = [] { didSet { persist(ownedCollections, "owned_collections.json") } }
-    @Published private(set) var sharedCollections: [CollectionItem] = [] { didSet { persist(sharedCollections, "shared_collections.json") } }
+    private(set) var ownedCollections: [CollectionItem] = [] { didSet { persist(ownedCollections, "owned_collections.json") } }
+    private(set) var sharedCollections: [CollectionItem] = [] { didSet { persist(sharedCollections, "shared_collections.json") } }
 
     // Studio Drafts & Published
     // No preseeded drafts. A new creator sees "0 Drafts" in Studio until they actually write one.
-    @Published private(set) var studioDraftIds: Set<String> = [] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
+    private(set) var studioDraftIds: Set<String> = [] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
     /// Scheduled cooks. Sorted by `when` ascending for display convenience.
-    @Published private(set) var plannedMeals: [PlannedMeal] = [] { didSet { persist(plannedMeals, "meal_plan.json") } }
+    private(set) var plannedMeals: [PlannedMeal] = [] { didSet { persist(plannedMeals, "meal_plan.json") } }
     
     // Notifications & Activity
-    @Published private(set) var circleNotifications: [CircleNotificationItem] = [] { didSet { persist(circleNotifications, "notifications.json") } }
+    private(set) var circleNotifications: [CircleNotificationItem] = [] { didSet { persist(circleNotifications, "notifications.json") } }
 
     // Recipe Comments
     // Comments start empty. Server-synced comments populate per recipe on first open. The sample
     // comments shipped as a default made every recipe look busier than it was.
-    @Published private(set) var recipeComments: [String: [RecipeComment]] = [:] { didSet { persist(recipeComments, "comments.json") } }
+    private(set) var recipeComments: [String: [RecipeComment]] = [:] { didSet { persist(recipeComments, "comments.json") } }
 
     let config: AppConfig
     private let tokenStore: TokenStore
@@ -874,22 +882,22 @@ final class AppEnvironment: ObservableObject {
     /// Owner call (2026-10-28): a guest gets 10 free recipe opens, then a sign-in wall. We count
      /// UNIQUE recipe ids so re-tapping the same card doesn't burn through the budget.
     static let guestViewLimit = 10
-    @AppStorage("guest_viewed_ids") private var guestViewedIdsRaw: String = ""
+    private var guestViewedIdsRaw: String = AppEnvironment.storedDefault("guest_viewed_ids", "") { didSet { UserDefaults.standard.set(guestViewedIdsRaw, forKey: "guest_viewed_ids") } }
     /// Timestamp of the most recent app-active transition. Used by the daily-nudge scheduler to
     /// avoid pinging an actively-engaged user. Stored as reference-date seconds for @AppStorage.
-    @AppStorage("last_app_active_at") private var lastAppActiveAtRaw: Double = 0
+    private var lastAppActiveAtRaw: Double = AppEnvironment.storedDefault("last_app_active_at", 0) { didSet { UserDefaults.standard.set(lastAppActiveAtRaw, forKey: "last_app_active_at") } }
     /// Transient: the imported recipe the "how did that go?" sheet is asking about.
-    @Published var pendingImportFeedbackRecipeId: String?
+    var pendingImportFeedbackRecipeId: String?
 
     /// NPS runs quarterly (90 days) and only after the user has cooked enough that an opinion
     /// is grounded. 10 "cook" events is roughly a month of real use.
-    @AppStorage("last_nps_prompt_at") private var lastNPSPromptAtRaw: Double = 0
-    @AppStorage("nps_dismiss_count") private var npsDismissCount: Int = 0
-    @Published var showNPSPrompt: Bool = false
+    private var lastNPSPromptAtRaw: Double = AppEnvironment.storedDefault("last_nps_prompt_at", 0) { didSet { UserDefaults.standard.set(lastNPSPromptAtRaw, forKey: "last_nps_prompt_at") } }
+    private var npsDismissCount: Int = AppEnvironment.storedDefault("nps_dismiss_count", 0) { didSet { UserDefaults.standard.set(npsDismissCount, forKey: "nps_dismiss_count") } }
+    var showNPSPrompt: Bool = false
     private var lastAppActiveAt: Date? {
         lastAppActiveAtRaw > 0 ? Date(timeIntervalSinceReferenceDate: lastAppActiveAtRaw) : nil
     }
-    @Published var showGuestPaywall = false
+    var showGuestPaywall = false
 
     private var guestViewedIds: Set<String> {
         get { Set(guestViewedIdsRaw.split(separator: ",").map(String.init).filter { !$0.isEmpty }) }
@@ -929,7 +937,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     /// Copy for the paywall sheet. Changes based on what the guest tried to do.
-    @Published var guestPaywallMessage: String = GuestPromptReason.generic.copy
+    var guestPaywallMessage: String = GuestPromptReason.generic.copy
 
     enum GuestPromptReason {
         case generic, importRecipe, publishRecipe, follow, like, save, comment, share
@@ -953,7 +961,7 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
-    @Published private(set) var recipeSwipeContext: [Recipe]?
+    private(set) var recipeSwipeContext: [Recipe]?
 
     func selectRecipe(_ recipe: Recipe, in context: [Recipe]? = nil) {
         // For guests this records the recipe id in the view budget. Returns false (and raises
@@ -1037,11 +1045,11 @@ final class AppEnvironment: ObservableObject {
 
     /// Set by a pushed screen (e.g. Library, once it's cycled past its own last filter tab) to ask
     /// the root tab bar to switch main tabs. MainTabView observes this and clears it after acting.
-    @Published var pendingTabSwitch: AppTab?
+    var pendingTabSwitch: AppTab?
 
     /// Set by the "Search" Home-screen quick action: switch to Home AND focus the search field so the
     /// user lands straight on the keyboard-ready search box. HomeScreen observes and clears it.
-    @Published var pendingSearchFocus = false
+    var pendingSearchFocus = false
 
     func requestTabSwitch(_ tab: AppTab) {
         pendingTabSwitch = tab
@@ -1066,7 +1074,7 @@ final class AppEnvironment: ObservableObject {
     // MARK: - Recipe cloud sync (offline-first)
     // Client-side "sync_status": ids of the user's own recipes changed locally but not yet pushed.
     // Persisted so an edit made offline still syncs after a restart. (Pattern from the DB study.)
-    @Published private(set) var unsyncedRecipeIds: Set<String> = [] { didSet { persist(Array(unsyncedRecipeIds), "unsynced_recipes.json") } }
+    private(set) var unsyncedRecipeIds: Set<String> = [] { didSet { persist(Array(unsyncedRecipeIds), "unsynced_recipes.json") } }
 
     func markRecipeDirty(_ id: String) { unsyncedRecipeIds.insert(id) }
 
@@ -1216,7 +1224,7 @@ final class AppEnvironment: ObservableObject {
 
     // MARK: - Community MVP Logic Stubs
     
-    @Published var sharedLog: [SharedRecipeRecord] = [] { didSet { persist(sharedLog, "shared_log.json") } }
+    var sharedLog: [SharedRecipeRecord] = [] { didSet { persist(sharedLog, "shared_log.json") } }
     
     var communityFeed: [Recipe] {
         recipes.filter { isFollowing(creatorHandle: $0.ownerUsername ?? "") }
@@ -1344,11 +1352,11 @@ final class AppEnvironment: ObservableObject {
     // MARK: - Creator enrollment (request → admin approval)
 
     /// nil = never requested; else "pending" / "approved" / "rejected".
-    @Published private(set) var myCreatorRequestStatus: String?
+    private(set) var myCreatorRequestStatus: String?
     /// The admin approval queue.
-    @Published private(set) var pendingCreatorRequests: [CreatorRequest] = []
+    private(set) var pendingCreatorRequests: [CreatorRequest] = []
     /// Missing dishes enough people have searched for. Only filled for the admin account.
-    @Published private(set) var searchDemands: [SearchDemandAlert] = []
+    private(set) var searchDemands: [SearchDemandAlert] = []
 
     var isAdmin: Bool { currentUser?.role == .admin }
     var isGuest: Bool { currentUser?.id.hasPrefix("guest_") == true || currentUser == nil }
@@ -2352,7 +2360,7 @@ final class AppEnvironment: ObservableObject {
     private func scheduleFollowSync(creatorHandle: String) {
         pendingFollowTasks[creatorHandle]?.cancel()
         pendingFollowTasks[creatorHandle] = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 400_000_000)
+            try? await Task.sleep(for: .milliseconds(400))
             guard let self, !Task.isCancelled else { return }
             // Snapshot the FINAL state after the debounce window closes.
             let finalFollowing = await MainActor.run { self.followedCreators.contains(creatorHandle) }
@@ -2388,7 +2396,7 @@ final class AppEnvironment: ObservableObject {
         // Debounced server mirror — same pattern as like/follow.
         pendingSaveTasks[id]?.cancel()
         pendingSaveTasks[id] = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 400_000_000)
+            try? await Task.sleep(for: .milliseconds(400))
             guard let self, !Task.isCancelled else { return }
             let finalSaved = await MainActor.run { self.savedRecipeIds.contains(id) }
             _ = await self.supabase.setSave(recipeId: id, saved: finalSaved)
@@ -2441,7 +2449,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     // MARK: - Liked / Heart Actions
-    @Published private(set) var likedRecipeIds: Set<String> = []
+    private(set) var likedRecipeIds: Set<String> = []
 
     var likedRecipes: [Recipe] {
         recipes.filter { likedRecipeIds.contains($0.id) }
@@ -2460,7 +2468,7 @@ final class AppEnvironment: ObservableObject {
         // double-tap used to race the server with two POSTs; now we send the final state.
         pendingLikeTasks[id]?.cancel()
         pendingLikeTasks[id] = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 400_000_000)
+            try? await Task.sleep(for: .milliseconds(400))
             guard let self, !Task.isCancelled else { return }
             let finalLiked = await MainActor.run { self.likedRecipeIds.contains(id) }
             _ = await self.supabase.setLike(recipeId: id, liked: finalLiked)
@@ -2840,23 +2848,23 @@ final class AppEnvironment: ObservableObject {
     // Network queue — events waiting to be sent to the backend. Persisted so a batch that hasn't
     // reached the size threshold isn't lost when the app is killed. Capped so it can't grow forever
     // while the backend RPC doesn't exist yet.
-    @Published private(set) var pendingInteractions: [InteractionEvent] = [] { didSet { persist(pendingInteractions, "pending_interactions.json") } }
+    private(set) var pendingInteractions: [InteractionEvent] = [] { didSet { persist(pendingInteractions, "pending_interactions.json") } }
     // Durable local record used by the on-device recommender. Independent of the network flush, so
     // suggestions personalize immediately and keep working with no server. Capped to stay light.
-    @Published private(set) var interactionHistory: [InteractionEvent] = [] { didSet { persist(interactionHistory, "interaction_history.json") } }
-    @Published private(set) var suggestedRecipes: [Recipe] = []
+    private(set) var interactionHistory: [InteractionEvent] = [] { didSet { persist(interactionHistory, "interaction_history.json") } }
+    private(set) var suggestedRecipes: [Recipe] = []
     /// recipeId → short "why you're seeing this" reason, when there's a real personalized signal.
-    @Published private(set) var suggestionReasons: [String: String] = [:]
+    private(set) var suggestionReasons: [String: String] = [:]
     /// Cuisine ids picked at onboarding — seed the feed so it's personal before any behavior exists.
-    @Published private(set) var preferredCuisines: Set<String> = [] { didSet { persist(Array(preferredCuisines), "preferred_cuisines.json") } }
+    private(set) var preferredCuisines: Set<String> = [] { didSet { persist(Array(preferredCuisines), "preferred_cuisines.json") } }
 
     /// Set by onboarding when the user chooses to import their first reel; MainTabView opens the
     /// import sheet in response, then clears it.
-    @Published var pendingImportRequest = false
+    var pendingImportRequest = false
     /// Set by the "Write from scratch" home-screen widget tile (cravecircle://new) → open a blank editor.
-    @Published var pendingNewRecipe = false
+    var pendingNewRecipe = false
     /// Set by the "Write to CEO" app-icon quick action → open the feedback form.
-    @Published var pendingFeedback = false
+    var pendingFeedback = false
 
     /// Finish onboarding: store the taste picks and refresh the feed against them.
     func completeOnboarding(cuisines: Set<String>) {
@@ -3112,14 +3120,14 @@ final class AppEnvironment: ObservableObject {
             // Fire-and-forget — switching MainActor contexts without racing the didSet.
             queuePumpTask?.cancel()
             queuePumpTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: 300_000_000)
+                try? await Task.sleep(for: .milliseconds(300))
                 guard let self else { return }
                 if self.importState == .idle || self.importState.isDone { self.startNextQueuedImport() }
             }
         case .failed:
             queuePumpTask?.cancel()
             queuePumpTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: 15 * 1_000_000_000)
+                try? await Task.sleep(for: .seconds(15))
                 guard let self, case .failed = self.importState else { return }
                 self.importState = .idle   // auto-dismiss the failed banner
                 // The .idle transition's didSet re-enters this pump and starts the next item.

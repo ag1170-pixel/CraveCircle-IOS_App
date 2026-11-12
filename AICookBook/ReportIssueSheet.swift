@@ -49,7 +49,7 @@ enum RecipeReport {
 // MARK: - SwiftUI View Component
 struct ReportIssueSheet: View {
     let recipe: Recipe
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
 
     @State private var issueText = ""
@@ -247,7 +247,7 @@ struct ReportIssueSheet: View {
 
 // MARK: - SwiftUI View Component
 struct AdminRecipeReportsScreen: View {
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
     @State private var reports: [AdminFeedback] = []
     @State private var loaded = false
     @State private var loadError: String?
@@ -319,7 +319,7 @@ struct AdminRecipeReportsScreen: View {
 // MARK: - SwiftUI View Component
 struct RecipeReportDetail: View {
     let row: AdminFeedback
-    @EnvironmentObject private var environment: AppEnvironment
+    @Environment(AppEnvironment.self) private var environment
 
     private var payload: RecipeReport.Payload? { RecipeReport.parse(row.content) }
 

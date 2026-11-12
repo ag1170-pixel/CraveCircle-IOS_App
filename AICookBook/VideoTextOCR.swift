@@ -55,16 +55,18 @@ enum VideoTextOCR {
             return CMTime(seconds: t, preferredTimescale: 600)
         }
 
+        // Swift-native Vision API (iOS 18+): one reusable async request for every frame.
+        var request = RecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
+
         var seen = Set<String>()
         var lines: [String] = []
         for t in times {
-            guard let cg = try? await cgImage(generator, at: t) else { continue }
-            let request = VNRecognizeTextRequest()
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = true
-            let handler = VNImageRequestHandler(cgImage: cg, options: [:])
-            guard (try? handler.perform([request])) != nil else { continue }
-            for obs in request.results ?? [] {
+            // AVAssetImageGenerator's async `image(at:)` replaces the callback + continuation wrapper.
+            guard let cg = try? await generator.image(at: t).image,
+                  let observations = try? await request.perform(on: cg) else { continue }
+            for obs in observations {
                 guard let top = obs.topCandidates(1).first else { continue }
                 let s = top.string.trimmingCharacters(in: .whitespacesAndNewlines)
                 let key = s.lowercased()
@@ -74,17 +76,5 @@ enum VideoTextOCR {
             }
         }
         return lines.joined(separator: "\n")
-    }
-
-    private static func cgImage(_ gen: AVAssetImageGenerator, at time: CMTime) async throws -> CGImage {
-        try await withCheckedThrowingContinuation { cont in
-            gen.generateCGImageAsynchronously(for: time) { image, _, error in
-                if let image {
-                    cont.resume(returning: image)
-                } else {
-                    cont.resume(throwing: error ?? NSError(domain: "VideoTextOCR", code: -1))
-                }
-            }
-        }
     }
 }
