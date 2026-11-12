@@ -1,3 +1,21 @@
+//
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: TokenStore.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Secure Keychain wrapper for storing sensitive authentication credentials.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Uses iOS Security framework (SecItemAdd, SecItemCopyMatching) to encrypt user tokens on hardware.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "TokenStore wraps the iOS Keychain API. We use it instead of UserDefaults for access and refresh tokens to ensure credentials remain encrypted and protected even if the device filesystem is inspected."
+//
+// ==============================================================================
+//
+
 import Foundation
 import Security
 

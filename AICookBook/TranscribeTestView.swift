@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: TranscribeTestView.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    SwiftUI presentation component managing the TranscribeTestView user interface.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Renders UI layouts, binds to AppEnvironment state, and handles user interactions.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "TranscribeTestView is a SwiftUI view responsible for rendering this section of the app and communicating user actions to AppEnvironment."
+//
+// ==============================================================================
+//
+
+//
 //  TranscribeTestView.swift
 //  CraveCircle (AICookBook)
 //
@@ -12,6 +30,7 @@ import PhotosUI
 #endif
 import UniformTypeIdentifiers
 
+// MARK: - SwiftUI View Component
 struct TranscribeTestView: View {
     @Environment(\.dismiss) private var dismiss
 

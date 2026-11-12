@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: DesignSystem.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Foundational design tokens defining spacing, typography scales, corner radii, and spring animations.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Constants and helpers: AppSpacing, AppRadius, AppFont, AppMotion, and standard layout metrics.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "DesignSystem standardizes our styling rules into tokens. By referencing AppSpacing.md or AppRadius.card instead of magic numbers, the entire app stays visually unified and adapts smoothly to Dynamic Type."
+//
+// ==============================================================================
+//
+
+//
 //  DesignSystem.swift
 //  CraveCircle (AICookBook)
 //

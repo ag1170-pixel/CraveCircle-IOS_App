@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: PhotoTextOCR.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Optical Character Recognition engine reading recipe text from photos and cookbook pages.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Wraps Apple's Vision framework (VNRecognizeTextRequest) to extract text from images with high accuracy.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "PhotoTextOCR uses Apple's Vision framework to scan cookbook pages and handwritten family recipes. It performs on-device OCR and feeds the extracted text into our recipe parser."
+//
+// ==============================================================================
+//
+
+//
 //  PhotoTextOCR.swift
 //  CraveCircle (AICookBook)
 //

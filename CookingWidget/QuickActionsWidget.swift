@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: QuickActionsWidget.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Home Screen WidgetKit extension providing Swiggy-style quick action tiles.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Small, Medium, and Large widgets with search bar deep links and 3D bubbly Import, Write, and Grocery buttons.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "QuickActionsWidget provides an interactive Home Screen widget inspired by Swiggy. Tapping any action deep-links directly into search, import, or grocery shopping."
+//
+// ==============================================================================
+//
+
+//
 //  QuickActionsWidget.swift
 //  CookingWidget
 //
@@ -60,6 +78,7 @@ struct QuickActionsWidget: Widget {
 
 // MARK: - Background
 
+// MARK: - SwiftUI View Component
 private struct QuickActionsBackground: View {
     @Environment(\.colorScheme) private var scheme
     var body: some View {
@@ -69,6 +88,7 @@ private struct QuickActionsBackground: View {
 
 // MARK: - Main view (Swiggy-style)
 
+// MARK: - SwiftUI View Component
 struct QuickActionsView: View {
     @Environment(\.colorScheme) private var scheme
 

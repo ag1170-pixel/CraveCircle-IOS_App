@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: CookModeScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Alternative step-by-step cooking interface with integrated ingredient checklists.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Detailed cooking walkthrough view featuring per-step ingredient lists and audio text-to-speech reading.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "CookModeScreen provides a structured view of the cooking process, allowing cooks to read ingredient portions required for each specific step and listen to instructions read aloud via AVSpeechSynthesizer."
+//
+// ==============================================================================
+//
+
+//
 //  CookModeScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -9,6 +27,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct CookModeScreen: View {
     let recipe: Recipe
     let servings: Int

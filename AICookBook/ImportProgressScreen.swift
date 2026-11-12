@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: ImportProgressScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Real-time visual status dashboard tracking active reel extraction.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Animates multi-stage import progress: Downloading Audio -> Transcribing Speech -> Extracting Ingredients -> Finalizing Recipe.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "ImportProgressScreen gives users transparent feedback during the 30-second AI import pipeline. It observes AppEnvironment.importState and updates a progress indicator through each processing stage."
+//
+// ==============================================================================
+//
+
+//
 //  ImportProgressScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -38,6 +56,7 @@ private enum ImportStage: Int, CaseIterable {
     }
 }
 
+// MARK: - SwiftUI View Component
 struct ImportProgressScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -206,6 +225,7 @@ struct ImportProgressScreen: View {
 
 enum StageState { case pending, active, done, failed }
 
+// MARK: - SwiftUI View Component
 private struct StageRow: View {
     let stage: ImportStage
     let state: StageState
@@ -291,6 +311,7 @@ private struct StageRow: View {
 
 // MARK: - Active pulsing indicator
 
+// MARK: - SwiftUI View Component
 private struct PulsingDot: View {
     let icon: String
     let reduceMotion: Bool
@@ -316,6 +337,7 @@ private struct PulsingDot: View {
 
 // MARK: - Chunked audio bar (the Voiceprint 60s-chunk visualization)
 
+// MARK: - SwiftUI View Component
 private struct ChunkBar: View {
     let reduceMotion: Bool
     private let count = 6

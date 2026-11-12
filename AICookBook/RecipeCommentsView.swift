@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: RecipeCommentsView.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Interactive discussion thread for reviews, tips, and cooking modifications on recipes.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Displays community comments with author avatars, timestamps, and moderation controls synced to Supabase.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "RecipeCommentsView provides a community space on each dish where cooks can share modifications, ask ingredient swap questions, and leave reviews."
+//
+// ==============================================================================
+//
+
+//
 //  RecipeCommentsView.swift
 //  CraveCircle (AICookBook)
 //
@@ -10,6 +28,7 @@ import SwiftUI
 import PhotosUI
 #endif
 
+// MARK: - SwiftUI View Component
 struct RecipeCommentsSection: View {
     let recipeId: String
     @EnvironmentObject private var environment: AppEnvironment
@@ -190,6 +209,7 @@ struct RecipeCommentsSection: View {
 
 // MARK: - Comment Row
 
+// MARK: - SwiftUI View Component
 struct CommentRow: View {
     let comment: RecipeComment
     var onLike: () -> Void

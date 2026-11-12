@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: DesignComponents.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Core UI building blocks, buttons, cards, image loaders, and skeleton loaders.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Defines reusable SwiftUI views: RecipeCard, FreshCard, ChefHatLogo, CustomProgressView, and PressableStyle.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "DesignComponents is our UI library. It implements our custom PressableStyle buttons with haptic feedback, remote image loaders with smooth transitions, and standard card containers for brand consistency."
+//
+// ==============================================================================
+//
+
+//
 //  DesignComponents.swift
 //  CraveCircle (AICookBook)
 //
@@ -46,6 +64,7 @@ struct DoodleWallpaper: View {
 
 // MARK: - Recipe Cover Image Helper
 
+// MARK: - SwiftUI View Component
 struct RecipeCoverImage: View {
     var urlString: String?
     var recipeId: String? = nil
@@ -352,6 +371,7 @@ enum CoverDiskCache {
     }
 }
 
+// MARK: - SwiftUI View Component
 private struct CachedRemoteCover: View {
     let url: URL
     let fallback: UIImage
@@ -402,6 +422,7 @@ enum Haptics {
 
 // MARK: - Pill button
 
+// MARK: - SwiftUI View Component
 struct PillButton: View {
     enum Kind { case filled, outlined, glass, surface }
 
@@ -469,6 +490,7 @@ struct PressableStyle: ButtonStyle {
         PressableBody(configuration: configuration)
     }
 
+    // MARK: - SwiftUI View Component
     private struct PressableBody: View {
         let configuration: Configuration
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -484,6 +506,7 @@ struct PressableStyle: ButtonStyle {
 
 // MARK: - Glass overlay icon button (over photography)
 
+// MARK: - SwiftUI View Component
 struct GlassIconButton: View {
     let systemImage: String
     var size: CGFloat = 38
@@ -551,6 +574,7 @@ struct GlassToggleStyle: ToggleStyle {
     }
 }
 
+// MARK: - SwiftUI View Component
 struct LimeSegmentedControl: View {
     let segments: [String]
     @Binding var selection: Int
@@ -971,6 +995,7 @@ enum DirectionStepParser {
 
 // MARK: - Meta chip
 
+// MARK: - SwiftUI View Component
 struct MetaChip: View {
     var systemImage: String? = nil
     let text: String
@@ -992,6 +1017,7 @@ struct MetaChip: View {
 
 // MARK: - Creator Avatar Monogram
 
+// MARK: - SwiftUI View Component
 struct CreatorAvatarView: View {
     let handle: String?
     var size: CGFloat = 36
@@ -1108,6 +1134,7 @@ struct LeadingEdgeBackModifier: ViewModifier {
 // `leadingEdgeBack(_:)` lives in View+LeadingEdgeBack.swift.
 
 
+// MARK: - SwiftUI View Component
 struct GuestWallView: View {
     @EnvironmentObject private var environment: AppEnvironment
     let title: String

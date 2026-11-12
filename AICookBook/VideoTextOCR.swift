@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: VideoTextOCR.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Video frame OCR extractor reading on-screen ingredient text from silent cooking reels.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Samples keyframes from video files using AVAssetImageGenerator and runs Vision text recognition across frames.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "VideoTextOCR handles silent or music-only cooking reels. When a reel has no spoken voice, this engine samples video frames and reads on-screen text overlays to recover the recipe."
+//
+// ==============================================================================
+//
+
+//
 //  VideoTextOCR.swift
 //  CraveCircle (AICookBook)
 //

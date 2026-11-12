@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: CookingLiveActivity.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    ActivityKit Live Activity definition for Dynamic Island and Lock Screen import tracking.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Implements compact leading/trailing, minimal, and expanded Dynamic Island presentations.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "CookingLiveActivity defines our Dynamic Island views using ActivityKit, showing animated stage indicators as a reel is downloaded, transcribed, and extracted."
+//
+// ==============================================================================
+//
+
+//
 //  CookingLiveActivity.swift
 //  CookingWidget
 //
@@ -132,6 +150,7 @@ struct CookingLiveActivity: Widget {
 
 // MARK: - Lock Screen / banner card
 
+// MARK: - SwiftUI View Component
 struct CookingLockScreenView: View {
     let state: CookingImportAttributes.ContentState
 

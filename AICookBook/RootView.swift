@@ -1,8 +1,27 @@
+//
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: RootView.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Root container view that coordinates high-level app state transitions.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Switches between Loading screen, Onboarding flow, LoginView, and MainTabView based on AppEnvironment.appState.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "RootView acts as the app's master router. It observes environment.appState and renders either the loading pot animation, onboarding, login, or the main 4-tab interface. It also hosts global toast banners and the import progress sheet."
+//
+// ==============================================================================
+//
+
 import SwiftUI
 import UIKit
 
 // MARK: - Root
 
+// MARK: - SwiftUI View Component
 struct RootView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -57,6 +76,7 @@ struct RootView: View {
 
 // MARK: - Login
 
+// MARK: - SwiftUI View Component
 struct LoginView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var email = ""
@@ -266,28 +286,9 @@ struct LoginView: View {
     }
 }
 
-// MARK: - Tab configuration
-
-enum TabItem: String, CaseIterable {
-    case home = "HOME"
-    case creators = "CREATORS"
-    case kitchen = "KITCHEN"
-    case profile = "PROFILE"
-    case search = ""
-
-    var symbol: String {
-        switch self {
-        case .home: return "house.fill"
-        case .creators: return "person.2.fill"
-        case .kitchen: return "fork.knife"
-        case .profile: return "person.crop.circle"
-        case .search: return "magnifyingglass"
-        }
-    }
-}
-
 // MARK: - Main Tab Bar
 
+// MARK: - SwiftUI View Component
 struct MainTabView: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var showingImportSheet = false
@@ -340,9 +341,33 @@ struct MainTabView: View {
         .accessibilityLabel(tab == .groceries ? "Add grocery item" : "Add a recipe")
     }
 
+    /// Copy comes from `environment.guestPaywallMessage`, so the wall names the action that
+    /// triggered it ("Sign in to import this recipe", "Sign in to join the conversation", …).
+    private var guestWall: some View {
+        GuestWallView(title: "Sign in to continue", message: environment.guestPaywallMessage)
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+    }
+
+    private func importFeedbackTarget(whileRecipeOpen: Bool) -> Binding<ImportFeedbackTarget?> {
+        Binding(
+            get: {
+                guard (environment.selectedRecipe != nil) == whileRecipeOpen else { return nil }
+                return environment.pendingImportFeedbackRecipeId.map(ImportFeedbackTarget.init)
+            },
+            set: { _ in environment.acknowledgeImportFeedback() }
+        )
+    }
+
+    private func importFeedbackSheet(_ target: ImportFeedbackTarget) -> some View {
+        ImportFeedbackSheet(recipeId: target.id)
+            .environmentObject(environment)
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.hidden)
+            .presentationBackground(AppTheme.background)
+    }
+
     var body: some View {
-        // Instagram's iOS 26 bar is the system UITabBar: one floating Liquid Glass
-        // platter, five equal icons, selection capsule drawn by UIKit, shrinks on scroll.
         // Instagram's iOS 26 bar is the system UITabBar: one floating Liquid Glass
         // platter (the "glass bubble"), five equal icons, selection capsule drawn by UIKit,
         // shrinks on scroll. This is Gowtham's original bar, restored verbatim.
@@ -469,17 +494,9 @@ struct MainTabView: View {
             CEOMessageScreen()
                 .environmentObject(environment)
         }
-        // Contextual micro-prompt after a successful import. Rate-limited to once per 7 days
-        // by `maybeOfferImportFeedback` so a user importing many reels back-to-back isn't nagged.
-        .sheet(item: Binding(
-            get: { environment.pendingImportFeedbackRecipeId.map(ImportFeedbackTarget.init) },
-            set: { _ in environment.acknowledgeImportFeedback() }
-        )) { target in
-            ImportFeedbackSheet(recipeId: target.id)
-                .environmentObject(environment)
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.hidden)
-        }
+        // Import feedback, earned on the recipe page (see `offerImportFeedbackIfEarned`).
+        // Shown from here only when no recipe cover is up; the cover hosts its own copy.
+        .sheet(item: importFeedbackTarget(whileRecipeOpen: false)) { importFeedbackSheet($0) }
         // Quarterly NPS prompt. Triggered after the user's 10th cook event; gated to once per
         // 90 days and stops asking after 3 dismissals so a user who clearly isn't interested
         // isn't pursued forever.
@@ -519,17 +536,15 @@ struct MainTabView: View {
         )) { recipe in
             RecipeDetailPager(start: recipe)
                 .environmentObject(environment)
+                // A sheet on RootView can't present while this cover is up, so the recipe
+                // page hosts the guest wall itself (like / follow / save / comment / share).
+                .sheet(isPresented: $environment.showGuestPaywall) { guestWall }
+                .sheet(item: importFeedbackTarget(whileRecipeOpen: true)) { importFeedbackSheet($0) }
         }
-        .sheet(isPresented: $environment.showGuestPaywall) {
-            // Copy comes from `environment.guestPaywallMessage` so the paywall knows which action
-            // triggered it — "Sign in to import this recipe", "Sign in to join the conversation", etc.
-            GuestWallView(
-                title: "Sign in to continue",
-                message: environment.guestPaywallMessage
-            )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
+        .sheet(isPresented: Binding(
+            get: { environment.showGuestPaywall && environment.selectedRecipe == nil },
+            set: { environment.showGuestPaywall = $0 }
+        )) { guestWall }
 
         .task {
             if environment.recipes.isEmpty {
@@ -662,6 +677,7 @@ private struct DiscoverTabTapCatcher: UIViewControllerRepresentable {
 
 // MARK: - Floating Live Import Banner (Async / Non-Blocking)
 
+// MARK: - SwiftUI View Component
 struct ImportToastBanner: View {
     @EnvironmentObject private var environment: AppEnvironment
     var onOpenDetails: () -> Void

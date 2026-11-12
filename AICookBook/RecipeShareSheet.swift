@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: RecipeShareSheet.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    System sharing coordinator for exporting recipe deep links, text summaries, and recipe cards.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Configures UIActivityViewController to share recipes to iMessage, WhatsApp, AirDrop, or social platforms.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "RecipeShareSheet enables sharing recipes with friends via universal links (https://cravecircle.cc/recipe/id) so recipients without the app can view the recipe or install it from TestFlight."
+//
+// ==============================================================================
+//
+
+//
 //  RecipeShareSheet.swift
 //  CraveCircle (AICookBook)
 //
@@ -8,6 +26,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct RecipeShareSheet: View {
     let recipe: Recipe
     @EnvironmentObject private var environment: AppEnvironment

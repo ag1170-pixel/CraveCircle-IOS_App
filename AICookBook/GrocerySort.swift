@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: GrocerySort.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Supermarket aisle categorization and deduplication algorithm for grocery items.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Analyzes ingredient names to assign aisle categories and combines fractional amounts across recipes.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "GrocerySort contains the algorithmic intelligence of our shopping list. It parses raw ingredient names, maps them to realistic supermarket aisles, and sums quantities so you buy one item instead of three duplicate entries."
+//
+// ==============================================================================
+//
+
+//
 //  GrocerySort.swift
 //  CraveCircle (AICookBook)
 //

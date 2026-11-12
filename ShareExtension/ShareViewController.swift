@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: ShareViewController.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    iOS Share Sheet Extension enabling direct reel sharing from social apps into CraveCircle.
+//
+// 2. ARCHITECTURAL ROLE:
+//    App extension running inside Instagram/TikTok/YouTube share sheets. Passes URLs to the app via App Group UserDefaults and deep links.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "ShareViewController is our iOS Share Extension. When a user taps Share -> CraveCircle in Instagram or YouTube, this extension extracts the URL, requests an ActivityKit Live Activity, and hands off the job to the main app via App Group storage."
+//
+// ==============================================================================
+//
+
+//
 //  ShareViewController.swift
 //  CraveCircle Share Extension
 //

@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: FloatingVoiceAssistantView.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    SwiftUI presentation component managing the FloatingVoiceAssistantView user interface.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Renders UI layouts, binds to AppEnvironment state, and handles user interactions.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "FloatingVoiceAssistantView is a SwiftUI view responsible for rendering this section of the app and communicating user actions to AppEnvironment."
+//
+// ==============================================================================
+//
+
+//
 //  FloatingVoiceAssistantView.swift
 //  CraveCircle (AICookBook)
 //
@@ -8,6 +26,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct FloatingVoiceAssistantView: View {
     @ObservedObject var voice: VoiceCommandController
     /// True only on a flashcard that shows the clock, so "Start" is mentioned just then.

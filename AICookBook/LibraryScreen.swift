@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: LibraryScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    User's personal recipe repository housing saved, imported, and created dishes.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Tab-based library manager with category filters (All, Saved, Created, Imported) and collection organization.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "LibraryScreen represents the user's permanent cookbook. It filters dishes by origin, supports custom recipe collections, and provides fast search across saved recipes."
+//
+// ==============================================================================
+//
+
+//
 //  LibraryScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -8,6 +26,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct LibraryScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var filter = 0   // 0 All, 1 Liked, 2 Saved, 3 Created

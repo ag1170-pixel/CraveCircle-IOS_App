@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: StudioScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Creator workspace for drafting, writing, and publishing original recipes.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Studio hub providing recipe authoring tools, draft management, and audience reach metrics for approved creators.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "StudioScreen is CraveCircle's creator workshop. Approved creators can write recipes from scratch, format steps with timing hints, preview cards, and publish directly to the global community feed."
+//
+// ==============================================================================
+//
+
+//
 //  StudioScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -17,6 +35,7 @@ import PhotosUI
 #endif
 import UniformTypeIdentifiers
 
+// MARK: - SwiftUI View Component
 struct StudioScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss

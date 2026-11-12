@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: OnDeviceTranscriber.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    On-device audio transcription pipeline utilizing Apple's SpeechAnalyzer framework.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Transcribes reel audio directly on the Apple Neural Engine without transmitting private voice data to third-party servers.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "OnDeviceTranscriber provides 100% private, on-device transcription. It leverages Apple's SpeechAnalyzer framework running on the Neural Engine. Audio stays entirely on the user's iPhone, satisfying strict privacy standards."
+//
+// ==============================================================================
+//
+
+//
 //  OnDeviceTranscriber.swift
 //  CraveCircle (AICookBook)
 //

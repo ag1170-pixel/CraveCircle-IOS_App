@@ -1,15 +1,48 @@
+//
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: SupabaseAuthClient.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Authentication client managing user sessions, OAuth flows, and token persistence.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Communicates with Supabase Auth REST endpoints, exchanges Google OAuth tokens, and stores JWTs in the iOS Keychain.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "SupabaseAuthClient handles user identity. It supports Google Sign-In and anonymous guest accounts, securely persisting access and refresh tokens in the iOS Keychain using our TokenStore helper."
+//
+// ==============================================================================
+//
+
+// SupabaseAuthClient.swift
+// CraveCircle (AICookBook)
+//
+// Handles all authentication flows against the Supabase Auth API: email/password sign-in,
+// Google OAuth sign-in (via PKCE), sign-up, and silent token refresh. Every function sends
+// HTTP requests directly to Supabase's REST auth endpoints — no third-party SDK needed.
+// Tokens are saved/loaded via TokenStore (Keychain) so the session survives app restarts.
+
 import Foundation
 
+// MARK: - AuthSession
+// Holds the two tokens Supabase gives us after a successful login.
+// accessToken = proves who you are on every API call; refreshToken = get a new accessToken when it expires.
 struct AuthSession: Codable {
     let accessToken: String
     let refreshToken: String
 
+    // Map Swift camelCase property names to the snake_case keys Supabase actually sends in JSON.
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
         case refreshToken = "refresh_token"
     }
 }
 
+// MARK: - APIError
+// Describes every failure type the app can get from the network. Conforming to LocalizedError
+// means SwiftUI can read .errorDescription to show a human-friendly message in an alert.
 enum APIError: LocalizedError {
     case unauthorized
     case notFound

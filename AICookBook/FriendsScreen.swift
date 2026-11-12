@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: FriendsScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Social kitchen hub displaying followed creators and friends' cooking activity.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Social feed presenting friends' latest recipe saves, reviews, and shared collections.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "FriendsScreen fosters a collaborative cooking community. Users can follow fellow cooks, discover what recipes friends are making, and share dishes directly to each other's circles."
+//
+// ==============================================================================
+//
+
+//
 //  FriendsScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -11,6 +29,7 @@
 import SwiftUI
 import Contacts
 
+// MARK: - SwiftUI View Component
 struct FriendsScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var query = ""
@@ -606,6 +625,7 @@ private struct SuggestedPerson: Identifiable, Hashable {
 
 // MARK: - Row
 
+// MARK: - SwiftUI View Component
 private struct PersonRow: View {
     let person: SuggestedPerson
     let isFollowing: Bool
@@ -759,6 +779,7 @@ struct FollowPill: View {
 
 // MARK: - Requests screen (pushed from the banner)
 
+// MARK: - SwiftUI View Component
 struct RequestsScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
 
@@ -826,6 +847,7 @@ struct RequestsScreen: View {
 
 // MARK: - Request row (shared, retained from the old implementation)
 
+// MARK: - SwiftUI View Component
 struct FriendRequestRow: View {
     let item: FriendRequestItem
     let incoming: Bool

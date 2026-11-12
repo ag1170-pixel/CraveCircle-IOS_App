@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: ImportSheet.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Modal bottom sheet presenting all recipe import sources to the user.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Entry UI for importing via Instagram/TikTok link paste, photo gallery OCR, camera capture, or website browsing.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "ImportSheet is the launchpad for adding recipes. It offers quick actions to paste social reel URLs, scan cookbook photos using Vision OCR, or browse recipe websites via our built-in web scraper."
+//
+// ==============================================================================
+//
+
+//
 //  ImportSheet.swift
 //  CraveCircle (AICookBook)
 //
@@ -26,6 +44,7 @@ enum ReelURL {
     }
 }
 
+// MARK: - SwiftUI View Component
 struct ImportSheet: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Binding var showing: Bool

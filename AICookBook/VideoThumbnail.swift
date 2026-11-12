@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: VideoThumbnail.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Video frame extraction utility generating high-resolution recipe cover photos.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Extracts representative frames from imported video reels using AVAssetImageGenerator for thumbnail display.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "VideoThumbnail extracts crisp cover images from imported video reels so every recipe in the library displays an authentic food photo."
+//
+// ==============================================================================
+//
+
+//
 //  VideoThumbnail.swift
 //  CraveCircle (AICookBook)
 //

@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: SpeechReader.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Audio text-to-speech engine reading recipe steps aloud during Cook Mode.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Controls AVSpeechSynthesizer with natural speech pauses, rate adjustments, and language adaptation.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "SpeechReader acts as an audio sous-chef. It uses AVSpeechSynthesizer to speak cooking directions aloud step-by-step so the cook doesn't need to look at the screen."
+//
+// ==============================================================================
+//
+
+//
 //  SpeechReader.swift
 //  CraveCircle (AICookBook)
 //

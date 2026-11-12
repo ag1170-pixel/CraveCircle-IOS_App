@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: AddToGrocerySheet.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Granular ingredient selector allowing users to check off specific items to add to grocery.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Checklist sheet with 'Select All' and individual ingredient toggles to avoid buying items already in pantry.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "AddToGrocerySheet gives cooks control when shopping. Instead of forcing all recipe ingredients into the grocery list, cooks uncheck items they already have at home."
+//
+// ==============================================================================
+//
+
+//
 //  AddToGrocerySheet.swift
 //  CraveCircle (AICookBook)
 //
@@ -8,6 +26,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct AddToGrocerySheet: View {
     let recipe: Recipe
     let initialServings: Int

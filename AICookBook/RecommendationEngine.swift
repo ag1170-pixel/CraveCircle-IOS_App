@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: RecommendationEngine.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    On-device recommendation algorithm tailoring suggested dishes to user tastes.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Analyzes recently viewed, liked, and saved recipes to rank dishes based on cuisine and ingredient affinity.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "RecommendationEngine runs on the phone to suggest dishes on the Home feed. It scores recipes based on dietary preferences and past cooking history without profiling users on external servers."
+//
+// ==============================================================================
+//
+
+//
 //  RecommendationEngine.swift
 //  CraveCircle (AICookBook)
 //

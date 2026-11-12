@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: ProfileScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    User profile, social connections, cooking statistics, and app settings.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Displays cooking achievements, dietary preferences, cloud sync status, account management, and legal/privacy links.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "ProfileScreen manages user settings, preferences, and cooking stats. It allows switching app languages, toggling measurement units (metric vs imperial), managing account data, and submitting feedback."
+//
+// ==============================================================================
+//
+
+//
 //  ProfileScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -11,6 +29,7 @@ import SwiftUI
 import PhotosUI
 #endif
 
+// MARK: - SwiftUI View Component
 struct ProfileScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @AppStorage(LanguagePrefs.key) private var langCode = LanguagePrefs.default.rawValue
@@ -636,10 +655,10 @@ struct ProfileScreen: View {
 
 // MARK: - Account Sheet
 
+// MARK: - SwiftUI View Component
 struct AccountSheet: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss
-    @State private var showDeleteAccount = false
 
     var body: some View {
         NavigationStack {
@@ -714,6 +733,7 @@ struct AccountSheet: View {
 
 // MARK: - Setting row
 
+// MARK: - SwiftUI View Component
 struct SettingRow: View {
     let icon: String
     let title: String
@@ -763,10 +783,10 @@ struct SettingRow: View {
 
 // MARK: - Language picker
 
+// MARK: - SwiftUI View Component
 struct LanguagePickerSheet: View {
     @Binding var selection: String
     @Environment(\.dismiss) private var dismiss
-    @State private var showDeleteAccount = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -826,10 +846,10 @@ struct LanguagePickerSheet: View {
 
 // MARK: - Kitchen Server Endpoint Sheet
 
+// MARK: - SwiftUI View Component
 struct KitchenServerSheet: View {
     @Binding var serverUrl: String
     @Environment(\.dismiss) private var dismiss
-    @State private var showDeleteAccount = false
     @State private var inputUrl: String = ""
     @State private var pingStatus: String? = nil
     @State private var isChecking: Bool = false
@@ -1023,10 +1043,10 @@ struct IdentifiableURL: Identifiable {
 
 // MARK: - Delete Account Flow
 
+// MARK: - SwiftUI View Component
 struct DeleteAccountScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss
-    @State private var showDeleteAccount = false
     @State private var step = 0 // 0: choice, 1: reason
     @State private var feedbackText = ""
     @State private var isDeleting = false
@@ -1136,6 +1156,7 @@ struct DeleteAccountScreen: View {
 
 // MARK: - Delete Account Sheet
 
+// MARK: - SwiftUI View Component
 struct DeleteAccountSheet: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss

@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: SampleRecipes.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Curated offline starter catalog of authentic, high-quality recipes.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Seeds the app with starter recipes across Italian, Indian, Mexican, and Asian cuisines on first launch.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "SampleRecipes provides instant starter recipes when a user first downloads the app, ensuring the Home and Discover tabs are rich and interactive even before importing a personal reel."
+//
+// ==============================================================================
+//
+
+//
 //  SampleRecipes.swift
 //  CraveCircle (AICookBook)
 //

@@ -1,3 +1,21 @@
+//
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: DailyNudgeScheduler.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Local notification scheduler encouraging daily cooking habits.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Schedules personalized evening cooking reminders via UNUserNotificationCenter based on saved meal plans.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "DailyNudgeScheduler schedules intelligent local notifications to remind cooks to start dinner prep, respecting user quiet hours."
+//
+// ==============================================================================
+//
+
 import Foundation
 import UserNotifications
 

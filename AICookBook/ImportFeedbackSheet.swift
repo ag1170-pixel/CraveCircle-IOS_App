@@ -1,3 +1,21 @@
+//
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: ImportFeedbackSheet.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Modal presentation sheet for ImportFeedbackSheet.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Provides focused modal user interactions, form inputs, and state updates.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "ImportFeedbackSheet is presented modally to capture user input and update shared application state."
+//
+// ==============================================================================
+//
+
 import SwiftUI
 
 struct ImportFeedbackTarget: Identifiable {
@@ -5,6 +23,7 @@ struct ImportFeedbackTarget: Identifiable {
     init(_ id: String) { self.id = id }
 }
 
+// MARK: - SwiftUI View Component
 struct ImportFeedbackSheet: View {
     let recipeId: String
 

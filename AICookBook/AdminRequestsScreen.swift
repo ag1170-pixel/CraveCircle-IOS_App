@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: AdminRequestsScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Administrative dashboard for reviewing and approving creator applications.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Admin management interface granting creator publishing roles and managing platform moderation.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "AdminRequestsScreen provides app administrators with controls to approve creator applications and maintain content quality across the public feed."
+//
+// ==============================================================================
+//
+
+//
 //  AdminRequestsScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -8,6 +26,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct AdminRequestsScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
 

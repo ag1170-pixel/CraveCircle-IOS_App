@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: FlashcardCookScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Full-screen hands-free cooking mode displaying atomic step-by-step instructions.
+//
+// 2. ARCHITECTURAL ROLE:
+//    High-contrast cooking UI: displays large direction cards, self-starting timers, step progress dots, and voice assistant integration.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "FlashcardCookScreen is built for the kitchen counter. It presents full-screen high-contrast cards with large typography so it's readable from a distance. It incorporates self-starting timers and responds to voice commands so users never touch the screen with dirty fingers."
+//
+// ==============================================================================
+//
+
+//
 //  FlashcardCookScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -14,6 +32,7 @@ import UIKit
 import AudioToolbox
 import Combine
 
+// MARK: - SwiftUI View Component
 struct FlashcardCookScreen: View {
     let recipe: Recipe
 

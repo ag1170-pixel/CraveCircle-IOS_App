@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: MealPlanScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Weekly meal planning calendar with slot assignments (Breakfast, Lunch, Dinner).
+//
+// 2. ARCHITECTURAL ROLE:
+//    Interactive schedule manager calculating total daily nutrition macros and scheduling local cooking reminders.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "MealPlanScreen allows users to organize their weekly meals across Monday to Sunday. Adding recipes calculates combined daily calories and protein, and schedules local notifications via UNUserNotificationCenter to remind cooks when dinner prep begins."
+//
+// ==============================================================================
+//
+
+//
 //  MealPlanScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -10,6 +28,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct MealPlanScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var focused: Date = Calendar.current.startOfDay(for: Date())

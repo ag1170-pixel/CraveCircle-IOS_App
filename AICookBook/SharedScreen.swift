@@ -1,5 +1,24 @@
+//
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: SharedScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Dedicated inbox displaying recipes and meal plans shared directly by friends.
+//
+// 2. ARCHITECTURAL ROLE:
+//    List view showing incoming shared dishes with sender attribution and 1-tap save actions.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "SharedScreen functions as a culinary inbox where friends can send each other recipes directly, complete with personal notes."
+//
+// ==============================================================================
+//
+
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct SharedScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var selection = 0
@@ -50,6 +69,7 @@ struct SharedScreen: View {
     }
 }
 
+// MARK: - SwiftUI View Component
 private struct SharedRecordRow: View {
     let record: SharedRecipeRecord
     let recipe: Recipe?

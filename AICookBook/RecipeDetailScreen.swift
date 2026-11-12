@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: RecipeDetailScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Comprehensive full-screen recipe presentation and interactive cooking guide.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Displays recipe header photo, dynamic serving size scaler, macro nutrition ring, grouped ingredients with grocery sync, and step-by-step cooking directions.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "RecipeDetailScreen is the recipe hub. Users can scale servings on the fly to automatically recalculate ingredient quantities and nutrition macros, add all ingredients to their Grocery list in one tap, or launch hands-free Cook Mode."
+//
+// ==============================================================================
+//
+
+//
 //  RecipeDetailScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -10,6 +28,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct RecipeDetailScreen: View {
     @State private var recipe: Recipe
 
@@ -80,6 +99,12 @@ struct RecipeDetailScreen: View {
                 guard show != topBarGlass else { return }
                 if reduceMotion { topBarGlass = show }
                 else { withAnimation(.easeOut(duration: 0.2)) { topBarGlass = show } }
+            }
+            .onScrollGeometryChange(for: Bool.self) { geo in
+                geo.contentSize.height > geo.containerSize.height
+                    && geo.contentOffset.y + geo.containerSize.height >= geo.contentSize.height - 40
+            } action: { _, atBottom in
+                if atBottom { environment.offerImportFeedbackIfEarned(recipeId: recipe.id) }
             }
 
             ZStack(alignment: .top) {
@@ -184,6 +209,14 @@ struct RecipeDetailScreen: View {
         .scrollIndicators(.hidden)
         .fullScreenCover(isPresented: $showCook) {
             FlashcardCookScreen(recipe: recipe)
+        }
+        .onChange(of: showCook) { _, cooking in
+            guard !cooking else { return }
+            // Wait for the cook cover to finish closing before a sheet can present.
+            Task {
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                environment.offerImportFeedbackIfEarned(recipeId: recipe.id)
+            }
         }
         .fullScreenCover(isPresented: $showNutrition) {
             NutritionScreen(recipe: recipe)

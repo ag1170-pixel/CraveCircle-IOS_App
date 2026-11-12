@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: IngredientScaler.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Mathematical utility that parses, scales, and formats ingredient amounts.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Converts fractions (e.g. 1/2 cup to 1 cup), scales numerical quantities, and formats decimal quantities for display.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "IngredientScaler makes serving size adjustments natural. It parses raw quantity strings, multiplies them accurately by serving factors, and formats the result as clean fractions or decimals."
+//
+// ==============================================================================
+//
+
+//
 //  IngredientScaler.swift
 //  CraveCircle (AICookBook)
 //

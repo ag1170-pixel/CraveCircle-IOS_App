@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: RecipeEditScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Editor interface allowing users to refine, customize, or create recipe directions and ingredient lists.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Form-based editing view with autosave draft capabilities, tag management, and photo replacement.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "RecipeEditScreen allows users to customize imported recipes or author new ones from scratch. It features draft autosave so work isn't lost if the sheet is accidentally dismissed, and supports reordering steps and ingredients."
+//
+// ==============================================================================
+//
+
+//
 //  RecipeEditScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -12,6 +30,7 @@ import SwiftUI
 import PhotosUI
 #endif
 
+// MARK: - SwiftUI View Component
 struct RecipeEditScreen: View {
     @Binding var recipe: Recipe
     var onSave: (Recipe) -> Void

@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: GroceryScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Interactive smart grocery list with aisle-based category grouping and cross-recipe item merging.
+//
+// 2. ARCHITECTURAL ROLE:
+//    List view supporting item check-off, quantity sorting, custom additions, and real-time synchronization.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "GroceryScreen is our smart shopping companion. When users add multiple recipes, ingredients are automatically de-duplicated and sorted by supermarket aisle (Produce, Dairy, Pantry, Meat, Spices) using our GrocerySort engine."
+//
+// ==============================================================================
+//
+
+//
 //  GroceryScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -9,10 +27,10 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct GroceryScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var newItem = ""
-    @State private var catHeld = false          // true while dragging the grocery cat → freeze scroll
     @State private var selectedDish: String? = nil   // nil = All; else show only that dish's ingredients
     @State private var listHeight: CGFloat = 0
     @AppStorage("grocery_sort_mode") private var sortModeRaw = GrocerySortMode.recipe.rawValue
@@ -63,11 +81,7 @@ struct GroceryScreen: View {
                 .padding(.bottom, AppSpacing.xl)
             }
             .doodleScreenBackground()   // static wallpaper behind text/gaps; item boxes stay opaque
-            .overlayPreferenceValue(GRowKey.self) { rows in
-                GroceryCat(rows: rows, catHeld: $catHeld)   // fishes the list; draggable like the Home cat
-            }
             .scrollIndicators(.hidden)
-            .scrollDisabled(catHeld)          // don't let the page scroll (and cancel the drag) while held
             .navigationTitle("Grocery")
             .navigationBarTitleDisplayMode(.inline)
             .task {
@@ -284,7 +298,6 @@ struct GroceryScreen: View {
         }
         .listRowBackground(AppTheme.surface)
         .readChecklistHeight($listHeight)
-        .reportsGroceryRow(id: item.id, done: item.checked)
     }
 
     // MARK: Add row
@@ -411,6 +424,7 @@ struct AddGroceryItemSheet: View {
 
 // MARK: - Progress ring
 
+// MARK: - SwiftUI View Component
 struct ProgressRing: View {
     let progress: Double
     let checked: Int
@@ -433,6 +447,7 @@ struct ProgressRing: View {
 
 // MARK: - Empty state
 
+// MARK: - SwiftUI View Component
 struct GroceryEmptyState: View {
     var body: some View {
         VStack(spacing: AppSpacing.sm) {

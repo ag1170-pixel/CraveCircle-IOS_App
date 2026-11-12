@@ -1,3 +1,21 @@
+//
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: ReportIssueSheet.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Modal presentation sheet for ReportIssueSheet.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Provides focused modal user interactions, form inputs, and state updates.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "ReportIssueSheet is presented modally to capture user input and update shared application state."
+//
+// ==============================================================================
+//
+
 import PhotosUI
 import SwiftUI
 
@@ -28,6 +46,7 @@ enum RecipeReport {
     }
 }
 
+// MARK: - SwiftUI View Component
 struct ReportIssueSheet: View {
     let recipe: Recipe
     @EnvironmentObject private var environment: AppEnvironment
@@ -226,6 +245,7 @@ struct ReportIssueSheet: View {
     }
 }
 
+// MARK: - SwiftUI View Component
 struct AdminRecipeReportsScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var reports: [AdminFeedback] = []
@@ -296,6 +316,7 @@ struct AdminRecipeReportsScreen: View {
     }
 }
 
+// MARK: - SwiftUI View Component
 struct RecipeReportDetail: View {
     let row: AdminFeedback
     @EnvironmentObject private var environment: AppEnvironment

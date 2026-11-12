@@ -1,3 +1,21 @@
+//
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: AppConfig.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Centralized runtime configuration for backend endpoints, API keys, and environment toggles.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Defines base URLs for the homelab video-processing relay, Supabase REST and Auth endpoints, and feature flags.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "AppConfig isolates all server endpoints and environment keys into a single struct. This allows us to switch seamlessly between our Mac LAN relay during local development and our production cloud backend."
+//
+// ==============================================================================
+//
+
 import Foundation
 
 struct AppConfig {

@@ -1,3 +1,21 @@
+//
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: PhotosPickerShim.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Supporting utility and business logic for PhotosPickerShim.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Provides specialized helper functions, algorithms, or extensions for the CraveCircle ecosystem.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "PhotosPickerShim encapsulates focused domain logic and helper utilities used across the project."
+//
+// ==============================================================================
+//
+
 #if XTOOL_WSL
 import SwiftUI
 import UniformTypeIdentifiers

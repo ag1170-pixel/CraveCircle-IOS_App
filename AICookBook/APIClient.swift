@@ -1,5 +1,24 @@
+//
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: APIClient.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Thread-safe HTTP network client implemented as a Swift Actor.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Handles REST communication with backend services for grocery sync, profile management, and recipe endpoints.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "APIClient is built as a Swift actor to guarantee thread safety. Because multiple concurrent tasks can initiate network requests, the actor prevents race conditions by ensuring only one request touches internal state at a time."
+//
+// ==============================================================================
+//
+
 import Foundation
 
+// MARK: - Thread-Safe Actor (Protects concurrent state from data races)
 actor APIClient {
     private let config: AppConfig
     private let tokenStore: TokenStore

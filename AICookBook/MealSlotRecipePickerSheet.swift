@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: MealSlotRecipePickerSheet.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Recipe selection sheet launched from an empty meal planning slot.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Displays user's saved and created recipes with quick-add actions to fill calendar entries.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "MealSlotRecipePickerSheet lets users browse their personal library and select a dish directly into an empty slot on the weekly calendar."
+//
+// ==============================================================================
+//
+
+//
 //  MealSlotRecipePickerSheet.swift
 //  CraveCircle (AICookBook)
 //
@@ -9,6 +27,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct MealSlotRecipePickerSheet: View {
     let slot: MealSlot
     let day: Date

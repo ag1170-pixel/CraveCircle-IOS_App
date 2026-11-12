@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: LocalStore.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Offline-first JSON file persistence manager in the Application Support directory.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Saves and loads user recipes, collections, and grocery items locally so the app works completely offline without network.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "LocalStore gives CraveCircle an offline-first architecture. It serializes data to isolated JSON files in Application Support, scoped by user ID, so multiple accounts on one phone never leak data to each other."
+//
+// ==============================================================================
+//
+
+//
 //  LocalStore.swift
 //  CraveCircle (AICookBook)
 //

@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: ImageDownscale.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Image optimization and memory management utility for photo uploads.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Resizes and compresses large camera photos using ImageIO before uploading or caching to conserve memory.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "ImageDownscale uses low-level ImageIO APIs to downscale photos before memory allocation, preventing memory pressure spikes when processing camera captures."
+//
+// ==============================================================================
+//
+
+//
 //  ImageDownscale.swift
 //  CraveCircle (AICookBook)
 //

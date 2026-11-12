@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: SupabaseData.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Cloud synchronization layer communicating with Supabase Postgres via REST and Row-Level Security.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Fetches and mutates user profiles, public feeds, social likes, saves, and comments with RLS enforcement.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "SupabaseData is our database client. It executes scoped queries against our Postgres database. Because every table is protected by Row-Level Security (RLS), users can only access their authorized data, enforced by the backend."
+//
+// ==============================================================================
+//
+
+//
 //  SupabaseData.swift
 //  CraveCircle (AICookBook)
 //

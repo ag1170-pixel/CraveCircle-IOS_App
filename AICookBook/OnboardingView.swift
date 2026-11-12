@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: OnboardingView.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    First-launch interactive onboarding flow introducing CraveCircle's core features.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Walkthrough presentation collecting dietary preferences, cooking goals, and requesting speech & notification permissions.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "OnboardingView welcomes new users and gathers dietary preferences (like veg/non-veg, cuisines) into UserDefaults. It uses a tab-view style pager with smooth spring animations to explain reel importing and voice cooking."
+//
+// ==============================================================================
+//
+
+//
 //  OnboardingView.swift
 //  CraveCircle (AICookBook)
 //
@@ -14,6 +32,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct OnboardingView: View {
     @EnvironmentObject private var environment: AppEnvironment
 
@@ -917,6 +936,7 @@ private extension OnboardingView {
     }
 }
 
+// MARK: - SwiftUI View Component
 private struct PhoneRecipeWebsite: View {
     var body: some View {
         VStack(spacing: 10) {
@@ -975,6 +995,7 @@ private struct PhoneRecipeWebsite: View {
     }
 }
 
+// MARK: - SwiftUI View Component
 private struct PhoneCameraScan: View {
     var body: some View {
         VStack(spacing: 10) {
@@ -1036,6 +1057,7 @@ private struct PhoneCameraScan: View {
     }
 }
 
+// MARK: - SwiftUI View Component
 private struct PhoneReel: View {
     var body: some View {
         // Reference OB9: full-bleed vertical reel with a right rail of counts (heart / comment
@@ -1098,6 +1120,7 @@ private struct PhoneReel: View {
     }
 }
 
+// MARK: - SwiftUI View Component
 private struct PhoneSharePanel: View {
     var body: some View {
         // Reference OB10: thumbnail at top, search bar, contact grid with handles as grey bars
@@ -1160,6 +1183,7 @@ private struct PhoneSharePanel: View {
     }
 }
 
+// MARK: - SwiftUI View Component
 private struct PhoneAppPicker: View {
     var body: some View {
         // Reference OB11: iOS system share sheet — preview card at top ("Reel from …" with the

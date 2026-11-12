@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: RecipeSearch.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Local and remote search engine matching queries against titles, ingredients, and tags.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Executes multi-keyword search with fuzzy matching and category scoring across cached recipes.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "RecipeSearch powers our search bar. It performs fast in-memory filtering against recipe titles, descriptions, and ingredients, prioritizing exact title matches and highlighting matching keywords."
+//
+// ==============================================================================
+//
+
+//
 //  RecipeSearch.swift
 //  CraveCircle (AICookBook)
 //

@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: AdminSignalsScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Admin telemetry and system diagnostics dashboard tracking platform health.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Displays import success rates, error logs, and user feedback metrics for system monitoring.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "AdminSignalsScreen allows monitoring import success rates and error trends across YouTube, TikTok, and Instagram reel sources."
+//
+// ==============================================================================
+//
+
+//
 //  AdminSignalsScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -25,6 +43,7 @@ struct AdminSignals: Decodable {
     let generatedAt: Date?
 }
 
+// MARK: - SwiftUI View Component
 struct AdminSignalsScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @State private var signals: AdminSignals?

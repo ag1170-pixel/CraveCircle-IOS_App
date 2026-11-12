@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: RecipeExtractor.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Structured recipe extraction engine powered by Apple Intelligence on-device Foundation Models.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Converts unstructured raw transcription and OCR text into a validated, typed Recipe struct using guided generation.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "RecipeExtractor is our AI core. On iOS 26 with Apple Intelligence, it uses guided generation (@Generable) with the on-device Foundation Models LLM. Instead of parsing messy text, the LLM outputs a guaranteed Swift struct. On older devices, it falls back to an intelligent regex parser."
+//
+// ==============================================================================
+//
+
+//
 //  RecipeExtractor.swift
 //  CraveCircle (AICookBook)
 //

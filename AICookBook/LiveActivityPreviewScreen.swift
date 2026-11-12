@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: LiveActivityPreviewScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    SwiftUI presentation component managing the LiveActivityPreviewScreen user interface.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Renders UI layouts, binds to AppEnvironment state, and handles user interactions.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "LiveActivityPreviewScreen is a SwiftUI view responsible for rendering this section of the app and communicating user actions to AppEnvironment."
+//
+// ==============================================================================
+//
+
+//
 //  LiveActivityPreviewScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -10,6 +28,7 @@
 import SwiftUI
 
 #if targetEnvironment(macCatalyst)
+// MARK: - SwiftUI View Component
 struct LiveActivityPreviewScreen: View {
     var body: some View {
         ContentUnavailableView(
@@ -22,6 +41,7 @@ struct LiveActivityPreviewScreen: View {
     }
 }
 #else
+// MARK: - SwiftUI View Component
 struct LiveActivityPreviewScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

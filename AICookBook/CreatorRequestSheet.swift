@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: CreatorRequestSheet.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Application flow for home cooks wishing to become verified recipe creators.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Form submission sheet collecting creator portfolio links, social handles, and culinary specialties.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "CreatorRequestSheet allows aspiring creators to apply for publishing privileges directly inside the app, submitting their profile to admin review."
+//
+// ==============================================================================
+//
+
+//
 //  CreatorRequestSheet.swift
 //  CraveCircle (AICookBook)
 //
@@ -8,6 +26,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct CreatorRequestSheet: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss

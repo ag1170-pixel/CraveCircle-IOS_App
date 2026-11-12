@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: WebImportScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    In-app browser and scraper for importing recipes from food blogs and culinary websites.
+//
+// 2. ARCHITECTURAL ROLE:
+//    WKWebView wrapper that parses schema.org JSON-LD recipe metadata or strips HTML for recipe extraction.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "WebImportScreen lets users browse recipe blogs inside the app. It detects Schema.org/Recipe JSON-LD tags on websites like AllRecipes or NYT Cooking and imports the structured recipe in one tap."
+//
+// ==============================================================================
+//
+
+//
 //  WebImportScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -10,6 +28,7 @@ import Combine
 import SwiftUI
 import WebKit
 
+// MARK: - SwiftUI View Component
 struct WebImportScreen: View {
     var onSaved: () -> Void
     @Environment(\.dismiss) private var dismiss
@@ -99,6 +118,7 @@ struct WebImportScreen: View {
 }
 
 @MainActor
+// MARK: - Observable State Manager (Single source of truth for UI observers)
 final class WebImportModel: ObservableObject {
     let webView: WKWebView
     @Published var address = "https://www.google.com/"

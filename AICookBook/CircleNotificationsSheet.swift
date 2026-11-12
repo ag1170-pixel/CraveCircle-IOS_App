@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: CircleNotificationsSheet.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Modal presentation sheet for CircleNotificationsSheet.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Provides focused modal user interactions, form inputs, and state updates.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "CircleNotificationsSheet is presented modally to capture user input and update shared application state."
+//
+// ==============================================================================
+//
+
+//
 //  CircleNotificationsSheet.swift
 //  CraveCircle (AICookBook)
 //
@@ -15,6 +33,7 @@ import SwiftUI
 
 typealias CircleNotificationsSheet = CircleNotificationsScreen
 
+// MARK: - SwiftUI View Component
 struct CircleNotificationsScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss
@@ -181,6 +200,7 @@ struct CircleNotificationsScreen: View {
 
 // MARK: - Rows
 
+// MARK: - SwiftUI View Component
 private struct NotificationRow: View {
     let item: CircleNotificationItem
     let recipe: Recipe?
@@ -240,6 +260,7 @@ private struct NotificationRow: View {
     }
 }
 
+// MARK: - SwiftUI View Component
 private struct FollowRequestRow: View {
     let item: FriendRequestItem
     let onConfirm: () -> Void

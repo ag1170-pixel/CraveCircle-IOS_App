@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: VoiceCommandController.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Hands-free voice recognition controller for Cook Mode flashcard navigation.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Listens for voice commands like 'Next', 'Back', 'Repeat', and 'Timer' using SFSpeechRecognizer and hardware noise cancellation.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "VoiceCommandController enables hands-free cooking for messy hands. It configures AVAudioEngine with voiceChat hardware echo cancellation and listens for navigation keywords using SFSpeechRecognizer to advance cooking steps."
+//
+// ==============================================================================
+//
+
+//
 //  VoiceCommandController.swift
 //  CraveCircle (AICookBook)
 //

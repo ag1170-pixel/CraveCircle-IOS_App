@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: VoiceSearchController.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Speech-to-text dictation controller for the Home screen search bar.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Provides real-time voice search input via SFSpeechRecognizer with automatic silence detection.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "VoiceSearchController turns speech into text for searching dishes on the Home feed. Users tap the mic icon, speak a dish name, and it automatically updates the search query with live transcription."
+//
+// ==============================================================================
+//
+
+//
 //  VoiceSearchController.swift
 //  CraveCircle (AICookBook)
 //

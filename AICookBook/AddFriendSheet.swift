@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: AddFriendSheet.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Friend discovery and connection sheet searching users by username or email.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Search interface enabling quick follow requests and friendship confirmations via Supabase.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "AddFriendSheet makes connecting with friends simple. Typing a username queries our Supabase directory and allows adding friends to your cooking circle."
+//
+// ==============================================================================
+//
+
+//
 //  AddFriendSheet.swift
 //  CraveCircle (AICookBook)
 //
@@ -7,6 +25,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct AddFriendSheet: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss

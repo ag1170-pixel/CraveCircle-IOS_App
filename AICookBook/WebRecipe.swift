@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: WebRecipe.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Data parser extracting structured recipe data from HTML schema and JSON-LD tags.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Deserializes Schema.org Recipe metadata into CraveCircle Recipe domain models.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "WebRecipe parses standard Schema.org JSON-LD web metadata into our native Recipe models, ensuring web recipe imports are structured and accurate."
+//
+// ==============================================================================
+//
+
+//
 //  WebRecipe.swift
 //  CraveCircle (AICookBook)
 //

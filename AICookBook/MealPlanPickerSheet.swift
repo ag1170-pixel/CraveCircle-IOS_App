@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: MealPlanPickerSheet.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Modal sheet allowing users to add an active recipe to a specific day and meal slot.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Selector view providing intuitive day-of-week and meal-type (Breakfast/Lunch/Dinner) buttons.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "MealPlanPickerSheet connects recipe discovery to weekly planning. Tapping 'Add to Meal Plan' on any dish presents this sheet to schedule the meal for a specific day in one tap."
+//
+// ==============================================================================
+//
+
+//
 //  MealPlanPickerSheet.swift
 //  CraveCircle (AICookBook)
 //
@@ -12,6 +30,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct MealPlanPickerSheet: View {
     let recipe: Recipe
     @EnvironmentObject private var environment: AppEnvironment

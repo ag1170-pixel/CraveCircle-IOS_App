@@ -1,3 +1,21 @@
+//
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: GoogleAuthSession.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Web authentication coordinator implementing Google OAuth via ASWebAuthenticationSession.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Launches secure system browser login modals and handles redirect callback URLs (cravecircle://auth/callback).
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "GoogleAuthSession uses Apple's ASWebAuthenticationSession to present a secure, sandboxed Google login sheet. It captures the redirect URL containing authentication tokens and hands them to SupabaseAuthClient."
+//
+// ==============================================================================
+//
+
 import AuthenticationServices
 import CryptoKit
 import Foundation

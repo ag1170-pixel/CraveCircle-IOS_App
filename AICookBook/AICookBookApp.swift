@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: AICookBookApp.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    The main entry point of the CraveCircle iOS application.
+//
+// 2. ARCHITECTURAL ROLE:
+//    App lifecycle coordinator: initializes AppEnvironment, configures WindowGroup, handles deep links (cravecircle://), sets up image caching, and integrates UIKit AppDelegate for push notifications and home-screen quick actions.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "This is where the entire app starts (@main). It follows the App -> Scene (WindowGroup) -> View (RootView) chain. We create our single source of truth, AppEnvironment, using @StateObject and inject it into the view hierarchy via .environmentObject so every child view can access shared state without manual prop passing."
+//
+// ==============================================================================
+//
+
+//
 //  AICookBookApp.swift
 //  AICookBook
 //

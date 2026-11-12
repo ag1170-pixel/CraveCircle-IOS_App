@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: SearchFilterComponents.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Reusable UI components for search bars, dietary toggles, and filter chips.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Provides standardized SearchField, FilterChip, and DietFilterRow controls used across Home and Library screens.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "SearchFilterComponents houses our modular search controls. It includes veg/non-veg switches, cuisine pills, and custom text fields styled to match our design system tokens."
+//
+// ==============================================================================
+//
+
+//
 //  SearchFilterComponents.swift
 //  CraveCircle (AICookBook)
 //

@@ -1,3 +1,21 @@
+//
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: PerformanceDiagnostics.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Supporting utility and business logic for PerformanceDiagnostics.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Provides specialized helper functions, algorithms, or extensions for the CraveCircle ecosystem.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "PerformanceDiagnostics encapsulates focused domain logic and helper utilities used across the project."
+//
+// ==============================================================================
+//
+
 import SwiftUI
 
 enum PerformanceDiagnostics {
@@ -112,6 +130,7 @@ enum PerformanceDiagnostics {
     }
 }
 
+// MARK: - SwiftUI View Component
 struct PerformanceHUD: View {
     @State private var expanded = true
 
@@ -155,6 +174,7 @@ struct PerformanceHUD: View {
     }
 }
 
+// MARK: - SwiftUI View Component
 struct DeveloperToolsScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @AppStorage(PerformanceDiagnostics.enabledKey) private var performanceEnabled = false

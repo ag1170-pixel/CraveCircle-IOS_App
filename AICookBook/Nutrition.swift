@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: Nutrition.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Nutritional calculation engine and USDA nutrient database lookup helpers.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Calculates per-serving macro ratios and scales nutrient values proportionally with serving adjustments.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "Nutrition.swift handles all dietary math. When a user changes servings from 2 to 4, this engine recalculates calories, protein, carbs, and fat proportionally."
+//
+// ==============================================================================
+//
+
+//
 //  Nutrition.swift
 //  CraveCircle (AICookBook)
 //

@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: CookingImportActivity.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    ActivityKit Live Activity and Dynamic Island configuration for reel import tracking.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Defines ActivityAttributes, dynamic island compact/minimal/expanded layouts, and Lock Screen widgets.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "CookingImportActivity is our Dynamic Island implementation. Built with ActivityKit, it lets users monitor background reel transcription and extraction right from the Dynamic Island while using other apps."
+//
+// ==============================================================================
+//
+
+//
 //  CookingImportActivity.swift
 //  CraveCircle (AICookBook)
 //
@@ -11,6 +29,7 @@ import Foundation
 #if !targetEnvironment(macCatalyst)
 import ActivityKit
 
+// MARK: - ActivityKit Live Activity Attributes (Configures Dynamic Island)
 struct CookingImportAttributes: ActivityAttributes {
     /// When the import started — used to drive the self-filling buffer bar.
     var startedAt: Date

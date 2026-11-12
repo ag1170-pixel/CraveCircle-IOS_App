@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: RecipeReelScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    TikTok-style vertical paging feed for recipe discovery (Discover Tab).
+//
+// 2. ARCHITECTURAL ROLE:
+//    Full-screen vertical paging ScrollView using .scrollTargetBehavior(.paging) and AVPlayer for fluid recipe browsing.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "RecipeReelScreen implements a full-screen vertical swipe feed reminiscent of TikTok or Instagram Reels. It utilizes a paging LazyVStack so video players and cards are instantiated on demand, maintaining a constant 60 FPS."
+//
+// ==============================================================================
+//
+
+//
 //  RecipeReelScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -63,6 +81,7 @@ struct DiscoverTabSignal: Equatable {
     var token = 0
 }
 
+// MARK: - SwiftUI View Component
 struct RecipeReelScreen: View {
     var tabSignal: DiscoverTabSignal = DiscoverTabSignal()
     /// Owned by the tab bar so leaving Discover and coming back shows the same card.
@@ -195,6 +214,7 @@ struct RecipeReelScreen: View {
 
 // MARK: - One recipe cell
 
+// MARK: - SwiftUI View Component
 private struct ReelCell: View {
     let recipe: Recipe
     let size: CGSize

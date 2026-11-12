@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: CreatorProfileSheet.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Public creator showcase displaying author bio, social links, and published recipes.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Profile view for verified chefs and fitness creators featuring follow actions and recipe galleries.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "CreatorProfileSheet showcases verified creators. Users can browse a chef's complete recipe catalog, follow their account, and see their bio and social media handles."
+//
+// ==============================================================================
+//
+
+//
 //  CreatorProfileSheet.swift
 //  CraveCircle (AICookBook)
 //
@@ -7,6 +25,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct CreatorProfileSheet: View {
     let handle: String
     let name: String?

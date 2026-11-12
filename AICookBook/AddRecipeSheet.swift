@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: AddRecipeSheet.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Fast-action modal sheet for manual recipe creation or quick paste.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Streamlined recipe creation sheet for users who want to jot down a quick recipe without going through the full wizard.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "AddRecipeSheet provides a fast way to manually type a recipe with title, ingredients, and directions without needing an external link or photo."
+//
+// ==============================================================================
+//
+
+//
 //  AddRecipeSheet.swift
 //  CraveCircle (AICookBook)
 //
@@ -12,6 +30,7 @@ import SwiftUI
 import PhotosUI
 #endif
 
+// MARK: - SwiftUI View Component
 struct AddRecipeSheet: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Binding var showing: Bool

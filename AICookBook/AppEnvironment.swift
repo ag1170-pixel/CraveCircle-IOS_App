@@ -1,3 +1,21 @@
+//
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: AppEnvironment.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Central ObservableObject managing all shared state, business logic, and background workflows for the app.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Single source of truth: manages authentication state, recipes catalog, active import jobs, Live Activities, grocery items, meal plans, collections, and notifications.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "AppEnvironment is our central state manager. It conforms to ObservableObject and runs on @MainActor for UI thread safety. Every screen accesses it via @EnvironmentObject. It coordinates reel importing, Supabase syncing, local caching, and Live Activities in the Dynamic Island."
+//
+// ==============================================================================
+//
+
 import SwiftUI
 import Foundation
 import Combine
@@ -14,6 +32,7 @@ private struct CachedRecipeNutrition: Codable {
 }
 
 @MainActor
+// MARK: - Observable State Manager (Single source of truth for UI observers)
 final class AppEnvironment: ObservableObject {
     enum AppState: Equatable {
         case loading
@@ -55,21 +74,48 @@ final class AppEnvironment: ObservableObject {
         }
     }
 
-    /// Fire the contextual "how did that import feel?" prompt once per week, on the transition
-    /// into `.done`. Honest signal only — nagging every import would train users to tap "5" to
-    /// make it go away. Weekly keeps the data meaningful.
+    private static let importFeedbackWindow: TimeInterval = 3 * 24 * 60 * 60
+    private static let importFeedbackMaxPerWindow = 2
+    private static let recentImportsKey = "recent_import_times"
+    private static let importFeedbackAsksKey = "import_feedback_ask_times"
+
+    /// Remember when a recipe finished importing. Nothing is asked here: the prompt has to be
+    /// earned by actually reading or cooking the recipe (`offerImportFeedbackIfEarned`).
     private func maybeOfferImportFeedback(after oldValue: ImportFlowState) {
         guard case .done(let recipeId) = importState else { return }
-        if case .done = oldValue { return }   // same success state entered twice; already offered
-        let last = Date(timeIntervalSinceReferenceDate: lastImportFeedbackAtRaw)
-        if Date().timeIntervalSince(last) < 7 * 24 * 60 * 60 { return }
+        if case .done = oldValue { return }
+        var recent = recentImportTimes()
+        recent[recipeId] = Date().timeIntervalSinceReferenceDate
+        UserDefaults.standard.set(recent, forKey: Self.recentImportsKey)
+    }
+
+    /// Recipe id → import time, limited to imports from the last 3 days.
+    private func recentImportTimes() -> [String: Double] {
+        let cutoff = Date().timeIntervalSinceReferenceDate - Self.importFeedbackWindow
+        let stored = UserDefaults.standard.dictionary(forKey: Self.recentImportsKey) as? [String: Double] ?? [:]
+        return stored.filter { $0.value >= cutoff }
+    }
+
+    /// Called by the recipe page when the reader reaches the bottom, or comes back from
+    /// Start Cooking. Asks only for a recipe imported in the last 3 days, once per recipe,
+    /// and at most twice in any 3 days.
+    func offerImportFeedbackIfEarned(recipeId: String) {
+        guard pendingImportFeedbackRecipeId == nil, !isGuest else { return }
+        var recent = recentImportTimes()
+        guard recent[recipeId] != nil else { return }
+        let now = Date().timeIntervalSinceReferenceDate
+        var asks = (UserDefaults.standard.array(forKey: Self.importFeedbackAsksKey) as? [Double] ?? [])
+            .filter { $0 >= now - Self.importFeedbackWindow }
+        guard asks.count < Self.importFeedbackMaxPerWindow else { return }
+        asks.append(now)
+        recent[recipeId] = nil
+        UserDefaults.standard.set(asks, forKey: Self.importFeedbackAsksKey)
+        UserDefaults.standard.set(recent, forKey: Self.recentImportsKey)
         pendingImportFeedbackRecipeId = recipeId
     }
 
-    /// Called by the sheet when the user submits (or dismisses). Stamps the rate-limit
-    /// timestamp so the next prompt doesn't appear for 7 days.
+    /// Called by the sheet when the user submits or dismisses.
     func acknowledgeImportFeedback() {
-        lastImportFeedbackAtRaw = Date().timeIntervalSinceReferenceDate
         pendingImportFeedbackRecipeId = nil
     }
 
@@ -832,11 +878,7 @@ final class AppEnvironment: ObservableObject {
     /// Timestamp of the most recent app-active transition. Used by the daily-nudge scheduler to
     /// avoid pinging an actively-engaged user. Stored as reference-date seconds for @AppStorage.
     @AppStorage("last_app_active_at") private var lastAppActiveAtRaw: Double = 0
-    /// Rate-limit the contextual import feedback prompt. We only ask once per 7 days so a user
-    /// importing 10 reels in a row doesn't get nagged after every single one.
-    @AppStorage("last_import_feedback_at") private var lastImportFeedbackAtRaw: Double = 0
-    /// Transient: the recipe id of the most recent successful import. RootView shows the
-    /// "how did that go?" sheet when this flips non-nil, then clears it.
+    /// Transient: the imported recipe the "how did that go?" sheet is asking about.
     @Published var pendingImportFeedbackRecipeId: String?
 
     /// NPS runs quarterly (90 days) and only after the user has cooked enough that an opinion

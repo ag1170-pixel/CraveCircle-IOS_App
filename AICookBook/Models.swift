@@ -1,3 +1,21 @@
+//
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: Models.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Core domain data models representing recipes, ingredients, nutrition, grocery items, and user accounts.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Codable and Identifiable data contracts used across UI views, local JSON storage, and Supabase database tables.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "Models.swift defines the data contracts of CraveCircle. It includes Recipe, Ingredient, Direction, NutritionInfo, and GroceryItem. All structs conform to Codable for seamless JSON serialization and Identifiable for SwiftUI List and ForEach rendering."
+//
+// ==============================================================================
+//
+
 import Foundation
 
 /// App account role. Consumers browse; approved creators and admins can publish to the feed.

@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: BrandAndTabBar.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Custom floating glass tab bar and brand navigation headers.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Bottom navigation bar featuring translucent glass material blur, active tab indicators, and quick-action import trigger.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "BrandAndTabBar replaces the default UIKit tab bar with an Apple-style floating glass bar. It features subtle spring animations on selection and an elevated center import button."
+//
+// ==============================================================================
+//
+
+//
 //  BrandAndTabBar.swift
 //  CraveCircle (AICookBook)
 //
@@ -10,6 +28,7 @@ import SwiftUI
 
 // MARK: - Chef-hat logo mark
 
+// MARK: - SwiftUI View Component
 struct ChefHatLogo: View {
     var size: CGFloat = 28
     var color: Color = Color(hex: "D6572F")   // brand coral chef-hat (stays coral even with charcoal UI accent)

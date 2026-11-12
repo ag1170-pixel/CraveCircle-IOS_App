@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: HomeScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    The primary dashboard where users browse recipe categories, recent imports, and trending dishes.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Main feed UI: combines search bar with voice dictation, filter chips (veg/non-veg, difficulty), horizontal hero carousels, and the recipe library grid.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "HomeScreen is our main feed. It features instant search with debounced typing and speech recognition, dietary filters, and lazy-loaded grids (LazyVGrid) for high performance. Tapping any card presents the RecipeDetailScreen."
+//
+// ==============================================================================
+//
+
+//
 //  HomeScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -16,6 +34,7 @@ struct HorizontalScrollFrameKey: PreferenceKey {
     }
 }
 
+// MARK: - SwiftUI View Component
 struct HomeScreen: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Binding var showingImportSheet: Bool
@@ -26,7 +45,6 @@ struct HomeScreen: View {
     @State private var filters = RecipeFilters()
     @State private var navigateToLibrary = false
     @State private var showShared = false
-    @State private var catHeld = false                   // true while dragging the chef-cat → freeze scroll
     @StateObject private var voiceSearch = VoiceSearchController()
     @FocusState private var searchFocused: Bool
     @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
@@ -78,11 +96,7 @@ struct HomeScreen: View {
                 .padding(.bottom, 72)
             }
             .doodleScreenBackground()   // static wallpaper behind text/gaps; cards stay opaque
-            .overlayPreferenceValue(CardFramesKey.self) { frames in
-                CatCompanion(cardFrames: frames, catHeld: $catHeld)   // peeks, walks, and is draggable
-            }
             .scrollIndicators(.hidden)
-            .scrollDisabled(catHeld)          // don't let the page scroll (and cancel the drag) while held
             .refreshable {
                 await environment.refreshRecipes()
                 await environment.fetchSuggestedFeed()
@@ -590,7 +604,6 @@ struct HomeScreen: View {
                 LazyVGrid(columns: columns, spacing: AppSpacing.md) {
                     ForEach(recipes) { recipe in
                         LibraryCard(recipe: recipe) { environment.selectRecipe(recipe, in: recipes) }
-                            .reportsCardFrame(id: "res-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
                     }
                 }
                 .padding(.horizontal, AppSpacing.md)
@@ -724,7 +737,6 @@ struct HomeScreen: View {
                     HStack(alignment: .top, spacing: AppSpacing.md) {
                         ForEach(freshFeedRecipes) { recipe in
                             FreshCard(recipe: recipe) { environment.selectRecipe(recipe) }
-                                .reportsCardFrame(id: "fresh-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
                         }
                     }
                     .padding(.horizontal, AppSpacing.md)
@@ -859,7 +871,6 @@ struct HomeScreen: View {
                 HStack(alignment: .top, spacing: AppSpacing.md) {
                     ForEach(libraryGridRecipes) { recipe in
                         FreshCard(recipe: recipe) { environment.selectRecipe(recipe) }
-                            .reportsCardFrame(id: "lib-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
                     }
                 }
                 .padding(.horizontal, AppSpacing.md)
@@ -874,6 +885,7 @@ struct HomeScreen: View {
 
 // MARK: - Brand mark (coral chef-hat)
 
+// MARK: - SwiftUI View Component
 struct BrandMark: View {
     var body: some View {
         ChefHatLogo(size: 28)
@@ -882,6 +894,7 @@ struct BrandMark: View {
 
 // MARK: - Section header with optional "View all"
 
+// MARK: - SwiftUI View Component
 struct HomeSectionHeader: View {
     let title: String
     var showViewAll: Bool = false
@@ -911,6 +924,7 @@ struct HomeSectionHeader: View {
 
 // MARK: - Creator chip
 
+// MARK: - SwiftUI View Component
 struct CreatorChip: View {
     let creator: Creator
     @EnvironmentObject private var environment: AppEnvironment
@@ -1036,6 +1050,7 @@ struct CardLikeOverlay: View {
     }
 }
 
+// MARK: - SwiftUI View Component
 struct FreshCard: View {
     let recipe: Recipe
     let onTap: () -> Void
@@ -1101,6 +1116,7 @@ struct FreshCard: View {
 
 // MARK: - Library card (grid)
 
+// MARK: - SwiftUI View Component
 struct LibraryCard: View {
     let recipe: Recipe
     let onTap: () -> Void
@@ -1215,7 +1231,6 @@ struct SuggestedGridCard: View {
                     }
                 }
                 .overlay { CardLikeOverlay(recipeId: recipe.id, onSingleTap: onTap) }
-                .reportsCardFrame(id: "sugg-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
             Text(recipe.title)
                 .font(AppFont.body(15, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
@@ -1276,7 +1291,6 @@ struct SuggestedRailCard: View {
                     }
                 }
                 .overlay { CardLikeOverlay(recipeId: recipe.id, onSingleTap: onTap) }
-                .reportsCardFrame(id: "sugg-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
             Text(recipe.title)
                 .font(AppFont.body(16, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
@@ -1311,6 +1325,7 @@ func cover(_ recipe: Recipe) -> some View {
     }
 }
 
+// MARK: - SwiftUI View Component
 struct CreatorLine: View {
     let handle: String?
     var body: some View {
@@ -1326,6 +1341,7 @@ struct CreatorLine: View {
     }
 }
 
+// MARK: - SwiftUI View Component
 struct MetaLine: View {
     let recipe: Recipe
     var body: some View {
@@ -1342,6 +1358,7 @@ struct MetaLine: View {
 
 // MARK: - Empty state
 
+// MARK: - SwiftUI View Component
 struct EmptyRecipesState: View {
     let onImport: () -> Void
     var body: some View {

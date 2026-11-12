@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: ScaleRecipeSheet.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Modal presentation sheet for ScaleRecipeSheet.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Provides focused modal user interactions, form inputs, and state updates.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "ScaleRecipeSheet is presented modally to capture user input and update shared application state."
+//
+// ==============================================================================
+//
+
+//
 //  ScaleRecipeSheet.swift
 //  CraveCircle (AICookBook)
 //
@@ -8,6 +26,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct ScaleRecipeSheet: View {
     let recipe: Recipe
     @Binding var servings: Int

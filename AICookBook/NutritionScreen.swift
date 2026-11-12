@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: NutritionScreen.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Detailed nutritional breakdown and USDA macro analysis view.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Renders Apple Activity-style nutrient rings (Calories, Protein, Carbs, Fat) and comprehensive vitamin tables.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "NutritionScreen visualizes recipe macros using custom SwiftUI animated concentric rings inspired by the Apple Fitness Activity rings, giving health-conscious cooks an immediate breakdown per serving."
+//
+// ==============================================================================
+//
+
+//
 //  NutritionScreen.swift
 //  CraveCircle (AICookBook)
 //
@@ -8,6 +26,7 @@
 
 import SwiftUI
 
+// MARK: - SwiftUI View Component
 struct NutritionScreen: View {
     let recipe: Recipe
 

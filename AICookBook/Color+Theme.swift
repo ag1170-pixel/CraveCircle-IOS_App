@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: Color+Theme.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Color palette definitions supporting adaptive Light and Dark appearances.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Defines semantic colors (AppTheme.background, AppTheme.accent, AppTheme.cardBg) using dynamic asset catalog values.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "Color+Theme defines our cream and charcoal palette. It uses semantic color pairs that automatically adapt when the user switches between iOS Light and Dark mode, with high-contrast accessibility support."
+//
+// ==============================================================================
+//
+
+//
 //  Color+Theme.swift
 //  CraveCircle (AICookBook)
 //

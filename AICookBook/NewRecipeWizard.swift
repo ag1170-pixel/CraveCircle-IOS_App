@@ -1,4 +1,22 @@
 //
+// ==============================================================================
+// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
+// FILE: NewRecipeWizard.swift
+// ==============================================================================
+//
+// 1. PURPOSE:
+//    Supporting utility and business logic for NewRecipeWizard.
+//
+// 2. ARCHITECTURAL ROLE:
+//    Provides specialized helper functions, algorithms, or extensions for the CraveCircle ecosystem.
+//
+// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
+//    "NewRecipeWizard encapsulates focused domain logic and helper utilities used across the project."
+//
+// ==============================================================================
+//
+
+//
 //  NewRecipeWizard.swift
 //  CraveCircle (AICookBook)
 //
@@ -18,6 +36,7 @@ import SwiftUI
 import PhotosUI
 #endif
 
+// MARK: - SwiftUI View Component
 struct NewRecipeWizard: View {
     @EnvironmentObject private var environment: AppEnvironment
     @Environment(\.dismiss) private var dismiss
