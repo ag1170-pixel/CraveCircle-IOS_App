@@ -639,12 +639,13 @@ struct HomeScreen: View {
     // recipe, which leaked other creators' recipes into your library and drained the Circle feed).
     private var freshFeedRecipes: [Recipe] {
         let pool = environment.recipes.filter { !environment.isOwner(of: $0) && !$0.isImportedFromSocial }
-        return Self.interleaveForDiscovery(pool)
+        var rng = FeedShuffleRNG(seed: environment.freshFeedSeed)
+        return Self.interleaveForDiscovery(pool.shuffled(using: &rng), rng: &rng)
     }
 
     /// High-diversity carousel ordering: ensures adjacent dishes NEVER share the same category,
     /// so the user experiences an authentic, mouth-watering mix (e.g. curry -> snack -> Italian -> rice -> dessert -> breakfast).
-    static func interleaveForDiscovery(_ list: [Recipe]) -> [Recipe] {
+    static func interleaveForDiscovery(_ list: [Recipe], rng: inout FeedShuffleRNG) -> [Recipe] {
         guard list.count > 1 else { return list }
 
         enum Bucket: Int, CaseIterable {
@@ -677,7 +678,7 @@ struct HomeScreen: View {
         var result: [Recipe] = []
         result.reserveCapacity(list.count)
 
-        var remainingBuckets = Bucket.allCases.filter { buckets[$0]?.isEmpty == false }
+        var remainingBuckets = Bucket.allCases.filter { buckets[$0]?.isEmpty == false }.shuffled(using: &rng)
         var lastBucket: Bucket? = nil
 
         while !remainingBuckets.isEmpty {
@@ -1422,4 +1423,17 @@ struct Creator: Identifiable {
         .init(handle: "@chefbot", name: "Chef Bot"),
         .init(handle: "@aicookbook", name: "CraveCircle")
     ]
+}
+
+/// Seeded splitmix64, so one seed always yields the same Fresh order.
+struct FeedShuffleRNG: RandomNumberGenerator {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E3779B97F4A7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
+        z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
+        return z ^ (z >> 31)
+    }
 }

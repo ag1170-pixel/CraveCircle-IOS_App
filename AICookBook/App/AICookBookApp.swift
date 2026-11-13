@@ -162,6 +162,7 @@ struct CraveCircleApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var environment = AppEnvironment()
     @Environment(\.scenePhase) private var scenePhase
+    @State private var wasBackgrounded = false
 
     init() {
         // Bounded image/URL cache so cached recipe photos self-evict and NEVER balloon device
@@ -231,6 +232,12 @@ struct CraveCircleApp: App {
                     }
                 }
                 .onChange(of: scenePhase) { _, phase in
+                    // Coming back goes background → inactive → active, so remember the background.
+                    if phase == .background { wasBackgrounded = true }
+                    if phase == .active, wasBackgrounded {
+                        wasBackgrounded = false
+                        environment.reshuffleFreshFeed()
+                    }
                     // On foreground, pull any reel the Share Extension imported server-side. A shared
                     // reel finishes processing ~1-2 min AFTER the share, so refresh a few times over
                     // ~90s so it appears on its own without the user pulling to refresh.

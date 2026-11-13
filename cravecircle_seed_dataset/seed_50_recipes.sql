@@ -1,18 +1,22 @@
 -- CraveCircle: 50 curated Food.com seed recipes. Generated from cravecircle_50_recipes.json.
--- Target: cravecircle.recipes. Run in the Supabase SQL editor (service role).
+-- Target: cravecircle.recipes. Run in the Supabase SQL editor.
 --
--- owner_id must reference a real profile, so every row is owned by the oldest admin account.
--- Re-running is safe: existing ids are left alone. thumbnail_url is an asset name bundled in
--- the app (Resources/Assets.xcassets), so these covers render on any device with the app.
+-- Owner: the profile whose username is set below. Use a dedicated kitchen account, NOT your
+-- own: recipes you own count as yours (Your Library) and are left out of Fresh / Suggested.
+-- Photos: thumbnail_url is e.g. 'recipe_carbonara'; the app loads it from the public
+-- recipe-thumbnails bucket as recipe_carbonara.jpg (upload with upload_images.sh first).
+-- Safe to re-run: existing ids are left alone.
 
 SET search_path = cravecircle, public;
 
 DO $$
-DECLARE seed_owner uuid;
+DECLARE
+    seed_username text := 'cravecircle_kitchen';   -- change to your kitchen account's username
+    seed_owner uuid;
 BEGIN
-    SELECT id INTO seed_owner FROM cravecircle.profiles WHERE role = 'admin' ORDER BY created_at LIMIT 1;
+    SELECT id INTO seed_owner FROM cravecircle.profiles WHERE username = seed_username;
     IF seed_owner IS NULL THEN
-        RAISE EXCEPTION 'No admin profile found to own the seed recipes';
+        RAISE EXCEPTION 'No profile with username %. Sign up that account in the app first.', seed_username;
     END IF;
 
     INSERT INTO cravecircle.recipes (id, owner_id, title, description, prep_time, cook_time, servings,

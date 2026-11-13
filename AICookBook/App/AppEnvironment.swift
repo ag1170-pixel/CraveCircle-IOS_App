@@ -329,6 +329,10 @@ final class AppEnvironment {
         avatarImageData = loadScoped(Data.self, "avatar.json", userId: userId)
         pendingInteractions = loadScoped([InteractionEvent].self, "pending_interactions.json", userId: userId) ?? []
         interactionHistory = loadScoped([InteractionEvent].self, "interaction_history.json", userId: userId) ?? []
+        if let saved = loadScoped(SuggestionSnapshot.self, "suggested_feed.json", userId: userId) {
+            suggestionSnapshot = saved
+            setSuggestions(saved.recipes)
+        }
         recipeComments = loadScoped([String: [RecipeComment]].self, "comments.json", userId: userId) ?? [:]
         circleNotifications = CircleNotificationItem.withoutSamples(
             loadScoped([CircleNotificationItem].self, "notifications.json", userId: userId) ?? []
@@ -341,6 +345,7 @@ final class AppEnvironment {
         likedRecipeIds = Set(defaults.array(forKey: AccountScope.defaultsKey(userId: userId, key: "liked_recipe_ids")) as? [String] ?? [])
 
         suggestionReasons = [:]
+        suggestionSnapshot = nil
         suggestedRecipes = []
         selectedRecipe = nil
         myCreatorRequestStatus = nil
@@ -375,6 +380,7 @@ final class AppEnvironment {
         incomingRequests = []
         outgoingRequests = []
         suggestionReasons = [:]
+        suggestionSnapshot = nil
         suggestedRecipes = []
         selectedRecipe = nil
         deletedRecipeIdsRaw = ""
@@ -811,7 +817,7 @@ final class AppEnvironment {
         }
 
         // Fast cloud sync from Supabase (sub-250ms via Cloudflare edge)
-        if let remote = await supabase.fetchRecipes(limit: 50, offset: 0) {
+        if let remote = await supabase.fetchRecipes(offset: 0) {
             let localDeleted = deletedRecipeIds
             let remoteIds = Set(remote.map(\.id))
             let sampleIds = Set(Recipe.placeholderRecipes.map(\.id))
@@ -1048,6 +1054,10 @@ final class AppEnvironment {
     var pendingTabSwitch: AppTab?
     /// Screens with their own bottom bar (Meal Plan) hide the floating + while they're up.
     var hidesImportFAB = false
+    /// Order of "Fresh in your Circle". New on every launch and every return from the
+    /// background; fixed within a visit so cards don't jump while the user scrolls.
+    private(set) var freshFeedSeed = UInt64.random(in: 1...UInt64.max)
+    func reshuffleFreshFeed() { freshFeedSeed = UInt64.random(in: 1...UInt64.max) }
 
     /// Set by the "Search" Home-screen quick action: switch to Home AND focus the search field so the
     /// user lands straight on the keyboard-ready search box. HomeScreen observes and clears it.
@@ -3003,7 +3013,27 @@ final class AppEnvironment {
     /// Personalized suggestions. Prefers the server RPC (cross-user, dwell-weighted) when signed in;
     /// falls back to the on-device recommender when there's no session, the server is unreachable,
     /// or the server has nothing yet (e.g. recipes not synced) — so the feed is never empty.
+    /// Picks are saved with a fingerprint of what the user has done. Same fingerprint → same
+    /// picks (across refreshes and relaunches); real activity changes it and re-ranks.
+    private struct SuggestionSnapshot: Codable {
+        var signature: String
+        var recipes: [Recipe]
+    }
+    private var suggestionSnapshot: SuggestionSnapshot?
+
+    private var activitySignature: String {
+        let lastEvent = interactionHistory.last?.id ?? "-"
+        return [lastEvent, "\(interactionHistory.count)", "\(likedRecipeIds.count)", "\(savedRecipeIds.count)",
+                "\(followedCreators.count)", preferredCuisines.sorted().joined(separator: ",")]
+            .joined(separator: "|")
+    }
+
     func fetchSuggestedFeed() async {
+        let signature = activitySignature
+        if let snapshot = suggestionSnapshot, snapshot.signature == signature, !snapshot.recipes.isEmpty {
+            if suggestedRecipes.isEmpty { setSuggestions(snapshot.recipes) }
+            return
+        }
         let performanceStart = PerformanceDiagnostics.start()
         defer { PerformanceDiagnostics.record("Suggestion feed", since: performanceStart) }
         let excluded = Set(recipes.filter { isOwner(of: $0) || isSaved(recipeId: $0.id) }.map { $0.id })
@@ -3020,11 +3050,16 @@ final class AppEnvironment {
         if suggestedRecipes.isEmpty { setSuggestions(local) }
         // …then blend in the cross-user server feed when it responds. Blend, not replace: the
         // built-in catalog (incl. the Food.com seed recipes) only exists on the phone.
+        let picks: [Recipe]
         if let remote = await supabase.suggestedRecipes(limit: Self.suggestionLimit / 2), !remote.isEmpty {
-            setSuggestions(Self.interleave(remote, local, excluding: excluded, limit: Self.suggestionLimit))
-        } else if suggestedRecipes.isEmpty {
-            setSuggestions(local)
+            picks = Self.interleave(remote, local, excluding: excluded, limit: Self.suggestionLimit)
+        } else {
+            picks = local
         }
+        guard !picks.isEmpty else { return }
+        setSuggestions(picks)
+        suggestionSnapshot = SuggestionSnapshot(signature: signature, recipes: picks)
+        persist(suggestionSnapshot, "suggested_feed.json")
     }
 
     /// 4 in the Suggested grid + the rest in the More picks rail.
