@@ -13,10 +13,10 @@ let package = Package(
             name: "AICookBook",
             dependencies: [],
             path: "AICookBook",
-            exclude: ["Assets.xcassets"],
+            exclude: ["Resources/Assets.xcassets"],
             resources: [
-                .copy("usda_sr.json"),
-                .copy("ifct_2017.json"),
+                .copy("Resources/usda_sr.json"),
+                .copy("Resources/ifct_2017.json"),
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v5),

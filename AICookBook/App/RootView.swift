@@ -435,7 +435,7 @@ struct MainTabView: View {
                 .onEnded { value in
                     // If swipe started inside a horizontal scroll view, ignore it to let the scroll view handle it.
                     if ignoreSwipeFrames.contains(where: { $0.contains(value.startLocation) }) { return }
-                    
+
                     let h = value.translation.width
                     let v = value.translation.height
                     // Only act on predominantly horizontal swipes.

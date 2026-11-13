@@ -27,7 +27,7 @@ actor APIClient {
         self.config = config
         self.tokenStore = tokenStore
     }
-    
+
     func fetchGroceryList() async throws -> [GroceryItem] {
         return try await request(path: "grocery-list")
     }
@@ -40,7 +40,7 @@ actor APIClient {
     func fetchProfile() async throws -> UserProfile {
         try await request(path: "profile")
     }
-    
+
     func addRecipeToGroceryList(recipeId: String) async throws -> [GroceryItem] {
         let url = config.apiBaseURL.appending(path: "grocery-list/\(recipeId)")
         return try await request(url: url, method: "POST")
@@ -69,7 +69,7 @@ actor APIClient {
         let thumbnail: String?
         let downloadUrl: String
     }
-    
+
     /// `audioOnly` fetches the reel's audio for on-device listening. Pass false only when the
     /// phone still needs picture (on-screen OCR or a cover frame).
     func downloadReel(url: String, audioOnly: Bool = true) async throws -> ReelDownloadResult {

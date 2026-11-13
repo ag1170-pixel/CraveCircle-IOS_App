@@ -178,7 +178,7 @@ final class ShareViewController: UIViewController {
         guard let urlString, !urlString.isEmpty else {
             return showError("Couldn't find a video link in this share.")
         }
-        
+
         // NOTE: a Share Extension CANNOT start a Live Activity. `Activity.request` is foreground-APP
         // only — from an extension it throws ActivityAuthorizationError.visibility and shows nothing
         // (which is why the island never appeared on share). The island is driven by the main app

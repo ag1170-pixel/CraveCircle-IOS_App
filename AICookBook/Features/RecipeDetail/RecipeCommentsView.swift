@@ -69,7 +69,7 @@ struct RecipeCommentsSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
             // Header with comment count
             HStack(alignment: .firstTextBaseline) {
                 Text("Circle Comments")
@@ -86,7 +86,7 @@ struct RecipeCommentsSection: View {
                     Image(uiImage: img)
                         .resizable()
                         .scaledToFill()
-                        .frame(height: 130)
+                        .frame(height: 96)
                         .frame(maxWidth: .infinity)
                         .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -103,44 +103,46 @@ struct RecipeCommentsSection: View {
                 }
             }
 
-            // Input field
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(AppTheme.accentSoft)
-                    .frame(width: 34, height: 34)
-                    .overlay(
-                        Text("CC")
-                            .font(AppFont.serif(12, weight: .bold))
-                            .foregroundStyle(AppTheme.accentInk)
-                    )
-
-                // Attach a photo of how it turned out.
+            // Composer: one rounded field, photo on the left, send button inside on the right.
+            HStack(alignment: .bottom, spacing: AppSpacing.xs) {
                 PhotosPicker(selection: $pickedItem, matching: .images) {
-                    Image(systemName: "photo.badge.plus")
-                        .font(.system(size: 20, weight: .regular))
+                    Image(systemName: "photo")
+                        .font(.system(size: 19, weight: .regular))
                         .foregroundStyle(AppTheme.textSecondary)
+                        .frame(width: 30, height: 30)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Add a photo")
 
-                TextField("Share your tips, twists, or review...", text: $commentText)
-                    .font(AppFont.body(14))
+                TextField("Add a comment", text: $commentText, axis: .vertical)
+                    .lineLimit(1...4)
+                    .font(AppFont.body(15))
                     .focused($isFocused)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+                    .padding(.vertical, 7)
 
                 Button(action: post) {
                     Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 28, weight: .bold))
+                        .font(.system(size: 26))
                         .foregroundStyle(canPost ? AppTheme.accent : AppTheme.textTertiary)
+                        .frame(width: 30, height: 30)
                 }
                 .buttonStyle(.plain)
                 .disabled(!canPost)
                 .accessibilityLabel("Post comment")
             }
-            .padding(.bottom, 4)
+            .padding(.horizontal, AppSpacing.xs)
+            .padding(.vertical, 4)
+            .background(AppTheme.background, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+            .onChange(of: pickedItem) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let ui = UIImage(data: data) {
+                        await MainActor.run { withAnimation(AppMotion.snappy) { pickedImage = ui } }
+                    }
+                }
+            }
             .onChange(of: pickedItem) { _, item in
                 guard let item else { return }
                 Task {
@@ -170,8 +172,8 @@ struct RecipeCommentsSection: View {
                 .padding(.vertical, AppSpacing.lg)
                 .background(AppTheme.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
             } else {
-                VStack(spacing: AppSpacing.sm) {
-                    ForEach(comments) { comment in
+                VStack(spacing: 0) {
+                    ForEach(Array(comments.enumerated()), id: \.element.id) { index, comment in
                         CommentRow(comment: comment) {
                             Haptics.tap()
                             withAnimation(AppMotion.snappy) {
@@ -193,11 +195,13 @@ struct RecipeCommentsSection: View {
                                 }
                             }
                         }
+                        if index < comments.count - 1 {
+                            Divider().overlay(AppTheme.separator)
+                        }
                     }
                 }
             }
         }
-        .padding(.top, AppSpacing.md)
         .task(id: recipeId) {
             while !Task.isCancelled {
                 await environment.refreshComments(for: recipeId)
@@ -259,30 +263,26 @@ struct CommentRow: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         .padding(.top, 2)
                 }
-
-                // Like interaction
-                HStack(spacing: 4) {
-                    Button(action: onLike) {
-                        HStack(spacing: 3) {
-                            Image(systemName: comment.isLiked ? "heart.fill" : "heart")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(comment.isLiked ? Color.red : AppTheme.textTertiary)
-                            if comment.likesCount > 0 {
-                                Text("\(comment.likesCount)")
-                                    .font(AppFont.body(11, weight: .semibold))
-                                    .foregroundStyle(comment.isLiked ? Color.red : AppTheme.textTertiary)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                        .padding(.trailing, 8)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(comment.isLiked ? "Unlike comment" : "Like comment")
-                }
             }
+
+            // Like button on the trailing edge (Instagram-style): heart with the count underneath.
+            Button(action: onLike) {
+                VStack(spacing: 2) {
+                    Image(systemName: comment.isLiked ? "heart.fill" : "heart")
+                        .font(.system(size: 14, weight: .semibold))
+                    if comment.likesCount > 0 {
+                        Text("\(comment.likesCount)")
+                            .font(AppFont.body(11, weight: .semibold))
+                            .monospacedDigit()
+                    }
+                }
+                .foregroundStyle(comment.isLiked ? Color.red : AppTheme.textTertiary)
+                .frame(minWidth: 32, minHeight: 32)     // comfortable tap target without adding row height
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(comment.isLiked ? "Unlike comment" : "Like comment")
         }
-        .padding(AppSpacing.sm)
-        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+        .padding(.vertical, AppSpacing.xs)
     }
 }

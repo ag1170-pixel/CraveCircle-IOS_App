@@ -48,12 +48,12 @@ struct HomeScreen: View {
     @State private var voiceSearch = VoiceSearchController()
     @FocusState private var searchFocused: Bool
     @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
-    
+
     private var unreadSharedCount: Int {
         let lastDate = Date(timeIntervalSince1970: lastOpenedSharedScreen)
         let myId = environment.currentUser?.id ?? "me"
-        return environment.sharedLog.filter { 
-            ($0.toUserId == myId || $0.toUserId == "me") && $0.createdAt > lastDate 
+        return environment.sharedLog.filter {
+            ($0.toUserId == myId || $0.toUserId == "me") && $0.createdAt > lastDate
         }.count
     }
 
@@ -636,7 +636,7 @@ struct HomeScreen: View {
     /// so the user experiences an authentic, mouth-watering mix (e.g. curry -> snack -> Italian -> rice -> dessert -> breakfast).
     static func interleaveForDiscovery(_ list: [Recipe]) -> [Recipe] {
         guard list.count > 1 else { return list }
-        
+
         enum Bucket: Int, CaseIterable {
             case poultryMeat   // Butter chicken, burger, wings, tacos, rogan josh
             case vegetarian    // Dal makhani, palak paneer, shahi paneer, chole
@@ -645,7 +645,7 @@ struct HomeScreen: View {
             case breakfastDosa // Masala dosa, pancakes, avocado toast
             case continental   // Pizza, rigatoni, pasta, salmon, summer rolls
             case sweetDessert  // Gulab jamun, tiramisu, lava cake
-            
+
             static func category(for r: Recipe) -> Bucket {
                 let s = "\(r.title) \(r.description ?? "")".lowercased()
                 if s.contains("dosa") || s.contains("pancake") || s.contains("toast") || s.contains("waffle") || s.contains("crepe") { return .breakfastDosa }
@@ -657,23 +657,23 @@ struct HomeScreen: View {
                 return .vegetarian
             }
         }
-        
+
         var buckets: [Bucket: [Recipe]] = [:]
         for r in list {
             let cat = Bucket.category(for: r)
             buckets[cat, default: []].append(r)
         }
-        
+
         var result: [Recipe] = []
         result.reserveCapacity(list.count)
-        
+
         var remainingBuckets = Bucket.allCases.filter { buckets[$0]?.isEmpty == false }
         var lastBucket: Bucket? = nil
-        
+
         while !remainingBuckets.isEmpty {
             let candidates = remainingBuckets.filter { $0 != lastBucket }
             guard let next = candidates.first ?? remainingBuckets.first else { break }
-            
+
             if var items = buckets[next], !items.isEmpty {
                 result.append(items.removeFirst())
                 if items.isEmpty {
@@ -687,7 +687,7 @@ struct HomeScreen: View {
                 remainingBuckets.removeAll(where: { $0 == next })
             }
         }
-        
+
         return spreadLookalikes(result)
     }
 
@@ -748,9 +748,9 @@ struct HomeScreen: View {
             }
         }
     }
-    
+
     // MARK: Suggested for You
-    
+
     /// Suggested for You is a 2-column vertical grid for the first `gridTakeCount` picks and a
      /// horizontal rail for whatever's left over. The grid uses `SuggestedGridCard` (fills its
      /// cell) instead of `FreshCard` (fixed width, which left dead space on the right in a grid

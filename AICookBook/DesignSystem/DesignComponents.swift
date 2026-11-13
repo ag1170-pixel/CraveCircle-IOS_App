@@ -69,19 +69,19 @@ struct RecipeCoverImage: View {
     var urlString: String?
     var recipeId: String? = nil
     var title: String? = nil
-    
+
     init(urlString: String?, recipeId: String? = nil, title: String? = nil) {
         self.urlString = urlString
         self.recipeId = recipeId
         self.title = title
     }
-    
+
     init(recipe: Recipe) {
         self.urlString = recipe.thumbnailUrl
         self.recipeId = recipe.id
         self.title = recipe.title
     }
-    
+
     /// Decoded local covers. `body` runs again inside scroll `sizeThatFits`; without this,
     /// every pass re-reads the file on the main thread.
     // Shared with the off-main cover loader (`loadStoreImage`). NSCache is thread-safe and
@@ -173,7 +173,7 @@ struct RecipeCoverImage: View {
     private var contextHint: String {
         [title, recipeId, urlString].compactMap { $0 }.joined(separator: " ")
     }
-    
+
     var body: some View {
         let local = memoryLocalImage ?? loadedLocal
         Group {
@@ -299,12 +299,12 @@ struct RecipeCoverImage: View {
                 return URL(string: "https://db.cravecircle.cc/storage/v1/object/public/recipe-thumbnails/\(slug).jpg")
             }
         }
-        
+
         if let rid = recipeId, rid.hasPrefix("recipe-") {
             let slug = rid.replacingOccurrences(of: "-", with: "_")
             return URL(string: "https://db.cravecircle.cc/storage/v1/object/public/recipe-thumbnails/\(slug).jpg")
         }
-        
+
         return nil
     }
 }
@@ -1141,23 +1141,23 @@ struct GuestWallView: View {
     @Environment(AppEnvironment.self) private var environment
     let title: String
     let message: String
-    
+
     var body: some View {
         VStack(spacing: AppSpacing.lg) {
             Image(systemName: "lock.shield")
                 .font(.system(size: 60))
                 .foregroundStyle(AppTheme.textTertiary)
-            
+
             Text(title)
                 .font(AppFont.display(24, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
-            
+
             Text(message)
                 .font(AppFont.body(16))
                 .foregroundStyle(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, AppSpacing.lg)
-            
+
             Button {
                 Haptics.tap()
                 // Clear the paywall flag BEFORE signing out — otherwise the sheet stays bound

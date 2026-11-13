@@ -12,7 +12,7 @@ How to explain the whole app, screen by screen: what each screen does, which Swi
 
 ## 1. Where the app starts: `@main`
 
-**File: [AICookBook/AICookBookApp.swift](../AICookBook/AICookBookApp.swift) — line 143**
+**File: [AICookBook/App/AICookBookApp.swift](../AICookBook/App/AICookBookApp.swift) — line 143**
 
 ```swift
 @main
@@ -75,7 +75,7 @@ CraveCircleApp (@main)
 
 ### The state model: one shared `@Observable` class
 
-**File: [AICookBook/AppEnvironment.swift](../AICookBook/AppEnvironment.swift)**
+**File: [AICookBook/App/AppEnvironment.swift](../AICookBook/App/AppEnvironment.swift)**
 
 ```swift
 @MainActor
@@ -113,7 +113,36 @@ This is exactly the pattern from your MCQ notes (section 7). We started on the o
 
 **Why `private(set)`?** Views can *read* `recipes` but can't change it directly. They have to call a method such as `toggleSaveRecipe(...)`. That keeps all the rules (guest checks, saving to disk, syncing to the server) in one place.
 
-**Why `didSet { persist(...) }`?** Every time a list changes it's saved as JSON on disk ([LocalStore.swift](../AICookBook/LocalStore.swift)), so the app works offline and survives restarts. The write happens on a background `DispatchQueue` so the UI never freezes.
+**Why `didSet { persist(...) }`?** Every time a list changes it's saved as JSON on disk ([LocalStore.swift](../AICookBook/Services/Storage/LocalStore.swift)), so the app works offline and survives restarts. The write happens on a background `DispatchQueue` so the UI never freezes.
+
+### Folder structure (where everything lives)
+
+The code is grouped **by feature**, the way Apple's sample apps are, so everything a screen needs sits together:
+
+```
+AICookBook/
+├── App/            entry point (@main), RootView, AppEnvironment, AppConfig
+├── Models/         Recipe, GroceryItem, UserProfile, Nutrition, sample data
+├── Services/       no UI — things the app *does*
+│   ├── Networking/     APIClient (actor), Supabase data + auth clients
+│   ├── Auth/           Google sign-in, Keychain TokenStore
+│   ├── Storage/        LocalStore (JSON on disk)
+│   ├── RecipeImport/   transcriber, OCR, on-device LLM extractor, web parser
+│   ├── Voice/          voice commands, voice search, read-aloud
+│   ├── Recipes/        recommendations, search, ingredient scaling
+│   ├── Notifications/  daily nudge scheduler
+│   └── Diagnostics/    performance HUD
+├── Features/       one folder per area of the app (screens + their sheets)
+│   ├── Onboarding/  Home/  Discover/  RecipeDetail/  CookMode/  AddRecipe/
+│   └── Grocery/  MealPlan/  Social/  Profile/  Feedback/  Admin/
+├── DesignSystem/   colour/font/spacing tokens and reusable components
+├── Extensions/     small `View+…`, `Binding+…` helpers
+├── Utilities/      UIKit bridges (Safari view, photo picker)
+├── Shared/         code the widget and share extension also compile
+└── Resources/      Assets.xcassets, nutrition JSON databases
+```
+
+**Why this layout?** To find the Grocery screen you open `Features/Grocery`; to find how we call the server you open `Services/Networking`. Views never sit next to networking code, which is the "separation of concerns" idea. The Xcode project uses *synchronized folders*, so the folders on disk are exactly the groups in Xcode: no manual project-file bookkeeping.
 
 ### Layers (who does what)
 
@@ -130,7 +159,7 @@ This is exactly the pattern from your MCQ notes (section 7). We started on the o
 
 ### Models
 
-**File: [AICookBook/Models.swift](../AICookBook/Models.swift)**
+**File: [AICookBook/Models/Models.swift](../AICookBook/Models/Models.swift)**
 
 ```swift
 struct Recipe: Codable, Identifiable, Hashable { ... }
@@ -151,7 +180,7 @@ They're **structs** (value types) because a recipe is just data. Copying it is s
 
 ## 3. Design system ("how did you design it?")
 
-**File: [AICookBook/DesignSystem.swift](../AICookBook/DesignSystem.swift)**
+**File: [AICookBook/DesignSystem/DesignSystem.swift](../AICookBook/DesignSystem/DesignSystem.swift)**
 
 We didn't scatter colours and numbers through the code. Everything comes from **design tokens**:
 
@@ -168,13 +197,13 @@ enum AppFont    { ... serif wordmark + SF body ... }
 ```
 
 - **Design idea:** "a living cookbook where the food leads." Warm cream background, white cards, a single coral brand colour (`#EA5A38`), a serif "CraveCircle" wordmark, and the food photo as the hero. It started from a Figma prototype.
-- **Light + dark mode:** `Color(light:dark:)` in [Color+Theme.swift](../AICookBook/Color+Theme.swift) picks a colour based on the current appearance, and has high-contrast versions for accessibility.
+- **Light + dark mode:** `Color(light:dark:)` in [Color+Theme.swift](../AICookBook/DesignSystem/Color+Theme.swift) picks a colour based on the current appearance, and has high-contrast versions for accessibility.
 - **`enum` with `static let`:** an enum with no cases is just a namespace. You can't create one by mistake.
 - **Accessibility:** text colours meet a 4.5:1 contrast ratio, there's an accessibility label on every icon button, tap targets are at least 44×44, and animations switch off when `@Environment(\.accessibilityReduceMotion)` is true.
 
 ### Custom `ButtonStyle` and `ViewModifier`
 
-[DesignComponents.swift:467](../AICookBook/DesignComponents.swift)
+[DesignComponents.swift:467](../AICookBook/DesignSystem/DesignComponents.swift)
 
 ```swift
 struct PressableStyle: ButtonStyle {
@@ -185,13 +214,13 @@ struct PressableStyle: ButtonStyle {
 
 Used as `.buttonStyle(PressableStyle())` on almost every button, so the whole app has the same "press" feel.
 
-Custom **`ViewModifier`** (your notes, section 1): `LeadingEdgeBackModifier: ViewModifier` in [DesignComponents.swift:1064](../AICookBook/DesignComponents.swift). There are also small `View` extensions such as `.doodleScreenBackground()`, `.sectionLabelStyle()` and `.conditionalInvert()` (files named `View+*.swift`). That's the "nicer: add an extension" pattern from your notes.
+Custom **`ViewModifier`** (your notes, section 1): `LeadingEdgeBackModifier: ViewModifier` in [DesignComponents.swift:1064](../AICookBook/DesignSystem/DesignComponents.swift). There are also small `View` extensions such as `.doodleScreenBackground()`, `.sectionLabelStyle()` and `.conditionalInvert()` (files named `View+*.swift`). That's the "nicer: add an extension" pattern from your notes.
 
 ---
 
 ## 4. RootView — the screen switcher
 
-**File: [AICookBook/RootView.swift](../AICookBook/RootView.swift)**
+**File: [AICookBook/App/RootView.swift](../AICookBook/App/RootView.swift)**
 
 ```swift
 struct RootView: View {
@@ -227,7 +256,7 @@ struct RootView: View {
 
 ## 5. MainTabView — the tab bar
 
-**File: [AICookBook/RootView.swift](../AICookBook/RootView.swift) (`struct MainTabView`, around line 291). Tab enum: [BrandAndTabBar.swift](../AICookBook/BrandAndTabBar.swift)**
+**File: [AICookBook/App/RootView.swift](../AICookBook/App/RootView.swift) (`struct MainTabView`, around line 291). Tab enum: [BrandAndTabBar.swift](../AICookBook/DesignSystem/BrandAndTabBar.swift)**
 
 ```swift
 @State private var tab: AppTab = .home
@@ -259,7 +288,7 @@ TabView(selection: $tab) {
 
 ## 6. Home page
 
-**File: [AICookBook/HomeScreen.swift](../AICookBook/HomeScreen.swift)**
+**File: [AICookBook/Features/Home/HomeScreen.swift](../AICookBook/Features/Home/HomeScreen.swift)**
 
 **Purpose:** your library plus a social feed, with search built in.
 
@@ -318,13 +347,13 @@ struct HomeScreen: View {
 - The brand header is *inside* the scroll, so it scrolls away (like Instagram).
 - Cards use a fixed frame + `.scaledToFill()` + clip **instead of `GeometryReader`**, which is slow in a grid.
 - `CatCompanion`: a chef-hat cat mascot walks over the cards as an `.overlay`. `.scrollDisabled(catHeld)` stops the page scrolling while you drag it.
-- Suggestions come from [RecommendationEngine.swift](../AICookBook/RecommendationEngine.swift), which uses your onboarding cuisines plus what you like, save and view (`logInteraction`).
+- Suggestions come from [RecommendationEngine.swift](../AICookBook/Services/Recipes/RecommendationEngine.swift), which uses your onboarding cuisines plus what you like, save and view (`logInteraction`).
 
 ---
 
 ## 7. Discovery page (Discover tab, the recipe reel)
 
-**File: [AICookBook/RecipeReelScreen.swift](../AICookBook/RecipeReelScreen.swift)**
+**File: [AICookBook/Features/Discover/RecipeReelScreen.swift](../AICookBook/Features/Discover/RecipeReelScreen.swift)**
 
 **Purpose:** a full-screen, swipe-up reel of recipes, like TikTok or Instagram Reels.
 
@@ -361,7 +390,7 @@ GeometryReader { geo in
 
 ## 8. Recipe page (Recipe detail)
 
-**File: [AICookBook/RecipeDetailScreen.swift](../AICookBook/RecipeDetailScreen.swift)**
+**File: [AICookBook/Features/RecipeDetail/RecipeDetailScreen.swift](../AICookBook/Features/RecipeDetail/RecipeDetailScreen.swift)**
 
 **Purpose:** everything about one recipe: photo gallery, title, creator, servings scaler, **Ingredients / Directions** switch, and actions (Cook, Nutrition, Add to Grocery, Plan meal, Share, Edit, Delete).
 
@@ -398,19 +427,19 @@ struct RecipeDetailScreen: View {
 | `Set<String>` in `@State` | Tick off ingredients and steps while cooking |
 | `.contextMenu` | Long-press an ingredient to copy it |
 | `.task(id: recipe.id)` | Fetch accurate nutrition each time a different recipe is shown |
-| Servings stepper → [IngredientScaler.swift](../AICookBook/IngredientScaler.swift) | Scales "200g paneer" to "400g paneer" by parsing the numbers |
+| Servings stepper → [IngredientScaler.swift](../AICookBook/Services/Recipes/IngredientScaler.swift) | Scales "200g paneer" to "400g paneer" by parsing the numbers |
 | `reduceMotion` / `reduceTransparency` | Accessibility: turn off animation and blur effects |
 
 **Linked screens** you can mention:
-- **Cook Mode:** [FlashcardCookScreen.swift](../AICookBook/FlashcardCookScreen.swift). One step per full-screen card, **forced landscape** (via `AppDelegate.orientationLock`). There's an `@Observable` `CookTimer` class for timers, and "Hey Crave" voice commands ("next", "back", "start timer") from [VoiceCommandController.swift](../AICookBook/VoiceCommandController.swift) using `SFSpeechRecognizer` + `AVAudioEngine`.
-- **Nutrition:** [NutritionScreen.swift](../AICookBook/NutritionScreen.swift) + [Nutrition.swift](../AICookBook/Nutrition.swift). Macros per serving from a USDA-based food table (`OfflineFoodDB`, `NutritionEstimator`).
-- **Edit:** [RecipeEditScreen.swift](../AICookBook/RecipeEditScreen.swift). **Comments:** [RecipeCommentsView.swift](../AICookBook/RecipeCommentsView.swift). **Share:** [RecipeShareSheet.swift](../AICookBook/RecipeShareSheet.swift).
+- **Cook Mode:** [FlashcardCookScreen.swift](../AICookBook/Features/CookMode/FlashcardCookScreen.swift). One step per full-screen card, **forced landscape** (via `AppDelegate.orientationLock`). There's an `@Observable` `CookTimer` class for timers, and "Hey Crave" voice commands ("next", "back", "start timer") from [VoiceCommandController.swift](../AICookBook/Services/Voice/VoiceCommandController.swift) using `SFSpeechRecognizer` + `AVAudioEngine`.
+- **Nutrition:** [NutritionScreen.swift](../AICookBook/Features/RecipeDetail/NutritionScreen.swift) + [Nutrition.swift](../AICookBook/Models/Nutrition.swift). Macros per serving from a USDA-based food table (`OfflineFoodDB`, `NutritionEstimator`).
+- **Edit:** [RecipeEditScreen.swift](../AICookBook/Features/RecipeDetail/RecipeEditScreen.swift). **Comments:** [RecipeCommentsView.swift](../AICookBook/Features/RecipeDetail/RecipeCommentsView.swift). **Share:** [RecipeShareSheet.swift](../AICookBook/Features/RecipeDetail/RecipeShareSheet.swift).
 
 ---
 
 ## 9. Grocery page
 
-**File: [AICookBook/GroceryScreen.swift](../AICookBook/GroceryScreen.swift). Sorting logic: [GrocerySort.swift](../AICookBook/GrocerySort.swift)**
+**File: [AICookBook/Features/Grocery/GroceryScreen.swift](../AICookBook/Features/Grocery/GroceryScreen.swift). Sorting logic: [GrocerySort.swift](../AICookBook/Features/Grocery/GrocerySort.swift)**
 
 **Purpose:** a shopping checklist built from your recipes. Items can be grouped **by recipe** or **by supermarket aisle** (produce, dairy, pantry, meat, spices).
 
@@ -458,7 +487,7 @@ struct GroceryScreen: View {
 
 ## 10. Profile page
 
-**File: [AICookBook/ProfileScreen.swift](../AICookBook/ProfileScreen.swift)**
+**File: [AICookBook/Features/Profile/ProfileScreen.swift](../AICookBook/Features/Profile/ProfileScreen.swift)**
 
 **Purpose:** your identity, stats, and every setting.
 
@@ -501,13 +530,13 @@ struct ProfileScreen: View {
 | `@Binding var selection` in `LanguagePickerSheet` | Child sheet changes the parent's `@AppStorage` value |
 | Multi-step delete flow (`@State var step = 0/1`) | `DeleteAccountScreen`: choice → reason → confirm. Temporary vs permanent delete |
 
-**Role-based UI:** `UserProfile` has an `AccountRole` (user / creator / admin). Admins get extra rows that open [AdminRequestsScreen.swift](../AICookBook/AdminRequestsScreen.swift) and [AdminSignalsScreen.swift](../AICookBook/AdminSignalsScreen.swift). Users can apply to be a creator from [CreatorRequestSheet.swift](../AICookBook/CreatorRequestSheet.swift).
+**Role-based UI:** `UserProfile` has an `AccountRole` (user / creator / admin). Admins get extra rows that open [AdminRequestsScreen.swift](../AICookBook/Features/Admin/AdminRequestsScreen.swift) and [AdminSignalsScreen.swift](../AICookBook/Features/Admin/AdminSignalsScreen.swift). Users can apply to be a creator from [CreatorRequestSheet.swift](../AICookBook/Features/Profile/CreatorRequestSheet.swift).
 
 ---
 
 ## 11. Onboarding pages
 
-**File: [AICookBook/OnboardingView.swift](../AICookBook/OnboardingView.swift)**
+**File: [AICookBook/Features/Onboarding/OnboardingView.swift](../AICookBook/Features/Onboarding/OnboardingView.swift)**
 
 **Purpose:** pitch the app before sign-in, learn your goals and cuisines (to personalise Home), and *teach* how to import a reel with animated mini-phone demos.
 
@@ -554,9 +583,9 @@ It appears **twice** in `RootView`: before login (`showPreAuthOnboarding`, first
 
 ## 12. CEO page ("A message from our team")
 
-**File: [AICookBook/CEOMessageScreen.swift](../AICookBook/CEOMessageScreen.swift)**
+**File: [AICookBook/Features/Feedback/CEOMessageScreen.swift](../AICookBook/Features/Feedback/CEOMessageScreen.swift)**
 
-**Purpose:** a warm letter from the founder with a big **"Write to CEO"** button that opens the feedback form ([FeedbackFormView.swift](../AICookBook/FeedbackFormView.swift)). It's a direct line for user feedback.
+**Purpose:** a warm letter from the founder with a big **"Write to CEO"** button that opens the feedback form ([FeedbackFormView.swift](../AICookBook/Features/Feedback/FeedbackFormView.swift)). It's a direct line for user feedback.
 
 ```swift
 struct CEOMessageScreen: View {
@@ -594,15 +623,15 @@ struct CEOMessageScreen: View {
 
 ## 13. Adding a recipe (the core feature)
 
-**Files: [AddRecipeSheet.swift](../AICookBook/AddRecipeSheet.swift), [ImportSheet.swift](../AICookBook/ImportSheet.swift), [ImportProgressScreen.swift](../AICookBook/ImportProgressScreen.swift), [AppEnvironment.swift](../AICookBook/AppEnvironment.swift) (`startImport`, `_importFromVideo`), [OnDeviceTranscriber.swift](../AICookBook/OnDeviceTranscriber.swift), [RecipeExtractor.swift](../AICookBook/RecipeExtractor.swift)**
+**Files: [AddRecipeSheet.swift](../AICookBook/Features/AddRecipe/AddRecipeSheet.swift), [ImportSheet.swift](../AICookBook/Features/AddRecipe/ImportSheet.swift), [ImportProgressScreen.swift](../AICookBook/Features/AddRecipe/ImportProgressScreen.swift), [AppEnvironment.swift](../AICookBook/App/AppEnvironment.swift) (`startImport`, `_importFromVideo`), [OnDeviceTranscriber.swift](../AICookBook/Services/RecipeImport/OnDeviceTranscriber.swift), [RecipeExtractor.swift](../AICookBook/Services/RecipeImport/RecipeExtractor.swift)**
 
-You can add a recipe by pasting a reel link, picking a video, taking or picking a photo (OCR), importing from a website ([WebImportScreen.swift](../AICookBook/WebImportScreen.swift)), or writing one from scratch ([NewRecipeWizard.swift](../AICookBook/NewRecipeWizard.swift)).
+You can add a recipe by pasting a reel link, picking a video, taking or picking a photo (OCR), importing from a website ([WebImportScreen.swift](../AICookBook/Features/AddRecipe/WebImportScreen.swift)), or writing one from scratch ([NewRecipeWizard.swift](../AICookBook/Features/AddRecipe/NewRecipeWizard.swift)).
 
 **Reel → recipe pipeline:**
 
 1. **Download:** our server fetches just the reel's **audio** (plus caption and cover image).
 2. **Transcribe on the phone:** `SpeechAnalyzer` / `SpeechTranscriber` (iOS 26, runs on the Neural Engine). It guesses the spoken language from the caption.
-3. **No narration?** Use **Vision OCR** to read text shown on screen in the video ([VideoTextOCR.swift](../AICookBook/VideoTextOCR.swift)).
+3. **No narration?** Use **Vision OCR** to read text shown on screen in the video ([VideoTextOCR.swift](../AICookBook/Services/RecipeImport/VideoTextOCR.swift)).
 4. **Extract with the on-device LLM** (Apple Foundation Models), using *guided generation*:
    ```swift
    @Generable struct GeneratedRecipe {
@@ -616,7 +645,7 @@ You can add a recipe by pasting a reel link, picking a video, taking or picking 
 5. **Translate (optional)** into your chosen language.
 6. Save, show a **"Recipe Ready!"** local notification, and update the **Live Activity** in the Dynamic Island.
 
-**Progress UI:** `enum ImportFlowState` (idle → downloading → transcribing → extracting → done/failed) is an observed property of `AppEnvironment`. `ImportToastBanner` (top of the tab view), `ImportProgressScreen`, and the Live Activity ([CookingImportActivity.swift](../AICookBook/CookingImportActivity.swift), `ActivityAttributes`) all draw from that one state.
+**Progress UI:** `enum ImportFlowState` (idle → downloading → transcribing → extracting → done/failed) is an observed property of `AppEnvironment`. `ImportToastBanner` (top of the tab view), `ImportProgressScreen`, and the Live Activity ([CookingImportActivity.swift](../AICookBook/Shared/CookingImportActivity.swift), `ActivityAttributes`) all draw from that one state.
 
 **Share Extension:** [ShareExtension/ShareViewController.swift](../ShareExtension/ShareViewController.swift). In Instagram you tap Share → CraveCircle. The extension sends the link to the server and opens the app with `cravecircle://import?job=<id>`. `onOpenURL` in the `@main` struct catches that and resumes the progress UI.
 
@@ -630,12 +659,12 @@ You can add a recipe by pasting a reel link, picking a video, taking or picking 
 | `.task { }` | `RootView` (bootstrap), `HomeScreen` (feed), `GroceryScreen` (load list), `RecipeReelScreen` |
 | `.task(id:)` | Home search-miss logging, Recipe Detail nutrition. Restarts when the value changes |
 | `Task { }` from a button | Login's Google button, grocery check-off sync |
-| **`actor`** | **`actor APIClient`** ([APIClient.swift:3](../AICookBook/APIClient.swift)): one network client shared safely between tasks. Calls from outside use `await` |
+| **`actor`** | **`actor APIClient`** ([APIClient.swift:3](../AICookBook/Services/Networking/APIClient.swift)): one network client shared safely between tasks. Calls from outside use `await` |
 | **`@MainActor`** | `AppEnvironment` (all UI state), `requestPushAuthorization()`, `GoogleAuthSession` |
-| **`async let`** | [SupabaseData.swift:411](../AICookBook/SupabaseData.swift): fetch **likes and saves in parallel**, then `await (likesData, savesData)` |
-| **`withTaskGroup`** | [AppEnvironment.swift:1890](../AICookBook/AppEnvironment.swift): **race** the translation request against a 25-second timer; take whichever finishes first, then `group.cancelAll()`. That's a timeout built from a task group |
-| `Task.detached` | Image decoding and JSON encoding off the main thread (e.g. [DesignComponents.swift:174](../AICookBook/DesignComponents.swift)) so scrolling stays smooth |
-| `withCheckedContinuation` | [OnDeviceTranscriber.swift](../AICookBook/OnDeviceTranscriber.swift): wraps the old callback-based `SFSpeechRecognizer.requestAuthorization` so we can `await` it |
+| **`async let`** | [SupabaseData.swift:411](../AICookBook/Services/Networking/SupabaseData.swift): fetch **likes and saves in parallel**, then `await (likesData, savesData)` |
+| **`withTaskGroup`** | [AppEnvironment.swift:1890](../AICookBook/App/AppEnvironment.swift): **race** the translation request against a 25-second timer; take whichever finishes first, then `group.cancelAll()`. That's a timeout built from a task group |
+| `Task.detached` | Image decoding and JSON encoding off the main thread (e.g. [DesignComponents.swift:174](../AICookBook/DesignSystem/DesignComponents.swift)) so scrolling stays smooth |
+| `withCheckedContinuation` | [OnDeviceTranscriber.swift](../AICookBook/Services/RecipeImport/OnDeviceTranscriber.swift): wraps the old callback-based `SFSpeechRecognizer.requestAuthorization` so we can `await` it |
 | `Task.sleep(for: .seconds(...))` | Debouncing search, refreshing at roughly 0s, 30s and 90s after the app returns to the foreground. (Uses the modern `Duration` form, not the old nanoseconds one) |
 
 ---
@@ -644,8 +673,8 @@ You can add a recipe by pasting a reel link, picking a video, taking or picking 
 
 | What | Where | Why |
 |---|---|---|
-| Login tokens | **Keychain**, [TokenStore.swift](../AICookBook/TokenStore.swift) | Secure, encrypted storage for secrets |
-| Recipes, grocery, collections, comments | JSON in Application Support, [LocalStore.swift](../AICookBook/LocalStore.swift) | Offline cache; **one file set per user** (`AccountScope`) so two accounts on one phone don't mix |
+| Login tokens | **Keychain**, [TokenStore.swift](../AICookBook/Services/Auth/TokenStore.swift) | Secure, encrypted storage for secrets |
+| Recipes, grocery, collections, comments | JSON in Application Support, [LocalStore.swift](../AICookBook/Services/Storage/LocalStore.swift) | Offline cache; **one file set per user** (`AccountScope`) so two accounts on one phone don't mix |
 | Small preferences | `@AppStorage` (UserDefaults) | Language, sort mode, autoplay, cat on/off |
 | Backend | Supabase (Postgres + Auth + REST) via `SupabaseData` / `SupabaseAuthClient` | Accounts, likes, saves, friends, sharing |
 | Images | `URLCache` with limits | Memory and disk stay bounded |
@@ -655,10 +684,10 @@ You can add a recipe by pasting a reel link, picking a video, taking or picking 
 ## 16. Other targets and extras (quick mentions)
 
 - **Widget + Live Activity:** `CookingWidget/` (WidgetKit + ActivityKit). Quick-action tiles open `cravecircle://grocery`, `cravecircle://add` and so on.
-- **Friends / Circle:** [FriendsScreen.swift](../AICookBook/FriendsScreen.swift), [AddFriendSheet.swift](../AICookBook/AddFriendSheet.swift), [SharedScreen.swift](../AICookBook/SharedScreen.swift), [CircleNotificationsSheet.swift](../AICookBook/CircleNotificationsSheet.swift).
-- **Collections:** [CollectionsScreen.swift](../AICookBook/CollectionsScreen.swift), [CollectionDetailScreen.swift](../AICookBook/CollectionDetailScreen.swift).
-- **Meal plan:** [MealPlanScreen.swift](../AICookBook/MealPlanScreen.swift). Plans a recipe for a day/slot and schedules a cook-reminder notification.
-- **Studio (creator tools):** [StudioScreen.swift](../AICookBook/StudioScreen.swift). Drafts → publish.
+- **Friends / Circle:** [FriendsScreen.swift](../AICookBook/Features/Social/FriendsScreen.swift), [AddFriendSheet.swift](../AICookBook/Features/Social/AddFriendSheet.swift), [SharedScreen.swift](../AICookBook/Features/Social/SharedScreen.swift), [CircleNotificationsSheet.swift](../AICookBook/Features/Social/CircleNotificationsSheet.swift).
+- **Collections:** [CollectionsScreen.swift](../AICookBook/Features/Social/CollectionsScreen.swift), [CollectionDetailScreen.swift](../AICookBook/Features/Social/CollectionDetailScreen.swift).
+- **Meal plan:** [MealPlanScreen.swift](../AICookBook/Features/MealPlan/MealPlanScreen.swift). Plans a recipe for a day/slot and schedules a cook-reminder notification.
+- **Studio (creator tools):** [StudioScreen.swift](../AICookBook/Features/Profile/StudioScreen.swift). Drafts → publish.
 - **Unit tests:** [AICookBookTests/LogicTests.swift](../AICookBookTests/LogicTests.swift). Tests the logic (ingredient scaling, grocery sorting and so on) without the UI.
 
 ---
@@ -666,7 +695,7 @@ You can add a recipe by pasting a reel link, picking a video, taking or picking 
 ## 17. Likely teacher questions with model answers
 
 **Q: Where does your app start?**
-`AICookBook/AICookBookApp.swift`, the `@main struct CraveCircleApp: App`. Its `body` is a `WindowGroup` scene that shows `RootView`, with our `AppEnvironment` injected using `.environment(...)`.
+`AICookBook/App/AICookBookApp.swift`, the `@main struct CraveCircleApp: App`. Its `body` is a `WindowGroup` scene that shows `RootView`, with our `AppEnvironment` injected using `.environment(...)`.
 
 **Q: How do different screens share data?**
 One `@Observable` class, `AppEnvironment`. It's created once with `@State` in the App, put in the environment with `.environment(...)`, and read with `@Environment(AppEnvironment.self)` in every screen. SwiftUI tracks which properties each screen reads, so a screen only redraws when something *it uses* changes. (Before the migration this was `ObservableObject` + `@StateObject` + `@EnvironmentObject`; you may see those names in older tutorials.)

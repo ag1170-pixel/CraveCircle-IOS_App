@@ -82,7 +82,7 @@ struct RecipeEditScreen: View {
                 Section("Cook time") {
                     DurationWheel(minutes: minutesBinding(for: $draft.cookTime))
                 }
-                
+
                 // Community Visibility section intentionally removed for now (per 2026-10-07 UI batch).
                 // The draft.visibility field is kept (defaults to .everyone) so publishing still works.
 

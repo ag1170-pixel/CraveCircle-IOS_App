@@ -685,7 +685,7 @@ struct RecipeDetailScreen: View {
                     } label: {
                         Label("Share with Circle", systemImage: "paperplane")
                     }
-                    
+
                     Button {
                         Haptics.tap()
                         showReportSheet = true
@@ -794,7 +794,7 @@ struct RecipeDetailScreen: View {
             Image(systemName: "lock.circle.fill")
                 .font(.system(size: 64))
                 .foregroundStyle(AppTheme.accentSoft)
-            
+
             Text("Followers Only")
                 .font(AppFont.display(24, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)

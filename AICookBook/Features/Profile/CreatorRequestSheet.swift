@@ -130,7 +130,7 @@ struct CreatorRequestSheet: View {
         Task {
             let safeHandle = handle.trimmingCharacters(in: .whitespaces)
             let safeUrl = url.trimmingCharacters(in: .whitespaces)
-            
+
             // Try backend submission
             let ok = await environment.submitCreatorRequest(
                 platform: platform,
@@ -138,14 +138,14 @@ struct CreatorRequestSheet: View {
                 url: safeUrl,
                 note: nil
             )
-            
+
             await MainActor.run {
                 submitting = false
                 if ok || !environment.hasRealSession {
                     // Simulate success if in dev mode (no real session), otherwise real success
                     Haptics.success()
                     withAnimation { done = true }
-                    
+
                     // Fallback to email to ensure adityagupta2646@gmail.com gets it
                     if !ok || !environment.hasRealSession {
                         sendEmailToAdmin(platform: platform, handle: safeHandle, url: safeUrl)
@@ -157,13 +157,13 @@ struct CreatorRequestSheet: View {
                     withAnimation { done = true }
                 }
             }
-            
+
             // Also store it in the admin sqlite database for easy list viewing
             let content = "Platform: \(platform)\nHandle/Email: \(safeHandle)\nLink: \(safeUrl)"
             try? await environment.submitFeedback(type: "creator_request", content: content, email: safeHandle, handle: environment.currentUser?.username)
         }
     }
-    
+
     private func sendEmailToAdmin(platform: String, handle: String, url: String) {
         let subject = "Creator Request: \(handle)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let body = "Platform: \(platform)\nHandle/Email: \(handle)\nLink: \(url)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""

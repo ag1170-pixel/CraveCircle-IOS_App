@@ -200,7 +200,7 @@ struct CraveCircleApp: App {
                     }
 
                     let pathComponents = url.pathComponents.filter { $0 != "/" }
-                    
+
                     // Format: cravecircle://recipe/<id> OR https://cravecircle.cc/recipe/<id>
                     if (isCustomScheme && url.host == "recipe") || (isUniversalLink && pathComponents.first == "recipe") {
                         let id = url.lastPathComponent

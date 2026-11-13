@@ -9,10 +9,10 @@
 ## 1. Summary of What Was Done
 
 1. **Recipe Catalog Expansion (10 → 26 Dishes):**
-   - Expanded built-in recipes in `AICookBook/SampleRecipes.swift` from 10 to 26 dishes.
+   - Expanded built-in recipes in `AICookBook/Models/SampleRecipes.swift` from 10 to 26 dishes.
    - Varied cuisines: Mexican (Birria Tacos), Japanese (Crispy Gyoza, Beef Udon), Italian (Mushroom Risotto, Margherita Pizza, Tiramisu), French (Onion Soup Gratinée), Thai (Pad Krapow), Indian (Chicken Tikka Masala), Mediterranean (Falafel Mezze Bowl), Vietnamese (Summer Rolls), and Breakfast/Dessert (Sourdough Avocado Toast, Açaí Power Bowl, Molten Lava Cake).
    - Every ingredient line strictly has explicit quantity and unit (`200g`, `1 tbsp`, `2 cloves`, `1 cup`) so `NutritionEstimator` and `IngredientScaler` execute accurately without heuristic failure.
-   - Mapped all recipes to universal 1024×1024 imagesets in `AICookBook/Assets.xcassets/` (`recipe_<slug>`).
+   - Mapped all recipes to universal 1024×1024 imagesets in `AICookBook/Resources/Assets.xcassets/` (`recipe_<slug>`).
    - Clean build confirmed with `xcodebuild` targeting `iPhone 17 Pro` simulator (`** BUILD SUCCEEDED **`). Committed (`26a6dc2`) and pushed to `crave-app/main`.
 
 2. **Ponytail Integration (GitHub & Coding Architecture):**
@@ -24,7 +24,7 @@
 
 ## 2. Files Modified / Created in This Repo
 
-### 1. `AICookBook/SampleRecipes.swift`
+### 1. `AICookBook/Models/SampleRecipes.swift`
 * **Changes:** Appended 16 fully formed `Recipe(...)` entries to `Recipe.placeholderRecipes` (total = 26 recipes).
 * **Why:** Fulfills `docs/archive/ANTIGRAVITY_CONTENT_TASK.md` goal of growing the starter catalog so the Home feed, Library, and search feel vibrant and production-ready on launch.
 * **Integrity:** Kept `nutrition: nil` on new recipes to leverage on-device macro estimation; all ingredients strictly include units.
@@ -46,9 +46,9 @@
 
 ### 4. Untouched Architect Files (Respecting `docs/archive/WORK_DIVISION.md`)
 * Preserved your unstaged working-tree additions in:
-  - `AICookBook/AppEnvironment.swift` (`ownedRecipes`, `myDrafts`, `myPublished`)
-  - `AICookBook/LibraryScreen.swift`
-  - `AICookBook/StudioScreen.swift`
+  - `AICookBook/App/AppEnvironment.swift` (`ownedRecipes`, `myDrafts`, `myPublished`)
+  - `AICookBook/Features/Home/LibraryScreen.swift`
+  - `AICookBook/Features/Profile/StudioScreen.swift`
 * Did NOT touch: `AppConfig.swift`, `Models.swift`, `Nutrition.swift`, `project.pbxproj`, `Config/`.
 
 ---

@@ -17,9 +17,9 @@
 		A1C5965EFA48BE72855521E8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AD283A8C955D8588104A2836 /* Assets.xcassets */; };
 		B6FC95F59352FB875DA085DD /* CookingImportActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98577CBFB17090AC8A76AA7D /* CookingImportActivity.swift */; };
 		B8807DE5533E0FC8A709E9F5 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F474FCE780F18081789464D /* ShareViewController.swift */; };
-		BB76E0991DD9258D3CFB1041 /* ShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = E2D3D86C2EDBB6A4ED35F07C /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		BB76E0991DD9258D3CFB1041 /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E2D3D86C2EDBB6A4ED35F07C /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		CB9E0A3F6E2FABC2E742266C /* CookingLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53BCF7436D2DD79D9E3C668C /* CookingLiveActivity.swift */; };
-		E7020FC081FED9CF5DAEF928 /* CookingWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = BCADE85055928759A7A10D75 /* CookingWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		E7020FC081FED9CF5DAEF928 /* CookingWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BCADE85055928759A7A10D75 /* CookingWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -47,16 +47,16 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		8AFA48623A656F57B0E044DB /* Embed App Extensions */ = {
+		8AFA48623A656F57B0E044DB /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				BB76E0991DD9258D3CFB1041 /* ShareExtension.appex in Embed App Extensions */,
-				E7020FC081FED9CF5DAEF928 /* CookingWidget.appex in Embed App Extensions */,
+				BB76E0991DD9258D3CFB1041 /* ShareExtension.appex in Embed Foundation Extensions */,
+				E7020FC081FED9CF5DAEF928 /* CookingWidget.appex in Embed Foundation Extensions */,
 			);
-			name = "Embed App Extensions";
+			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -72,7 +72,7 @@
 		8521A2941EFCF24A179FFACB /* Signing.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Signing.xcconfig; path = Config/Signing.xcconfig; sourceTree = "<group>"; };
 		8BB474169F6A3DC7D08C720A /* CookingWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CookingWidgetBundle.swift; sourceTree = "<group>"; };
 		9189F5948181ABDFBC2BDE98 /* QuickActionsWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickActionsWidget.swift; sourceTree = "<group>"; };
-		98577CBFB17090AC8A76AA7D /* CookingImportActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CookingImportActivity.swift; path = AICookBook/CookingImportActivity.swift; sourceTree = "<group>"; };
+		98577CBFB17090AC8A76AA7D /* CookingImportActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CookingImportActivity.swift; path = AICookBook/Shared/CookingImportActivity.swift; sourceTree = "<group>"; };
 		AD283A8C955D8588104A2836 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BCADE85055928759A7A10D75 /* CookingWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CookingWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C04660930E4E2FD0277B90E7 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
@@ -204,7 +204,7 @@
 				27945DAD2F9F211200B8F8B8 /* Sources */,
 				27945DAE2F9F211200B8F8B8 /* Frameworks */,
 				27945DAF2F9F211200B8F8B8 /* Resources */,
-				8AFA48623A656F57B0E044DB /* Embed App Extensions */,
+				8AFA48623A656F57B0E044DB /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
@@ -215,9 +215,9 @@
 			fileSystemSynchronizedGroups = (
 				27945DB32F9F211200B8F8B8 /* AICookBook */,
 			);
+			name = AICookBook;
 			packageProductDependencies = (
 			);
-			name = AICookBook;
 			productName = AICookBook;
 			productReference = 27945DB12F9F211200B8F8B8 /* AICookBook.app */;
 			productType = "com.apple.product-type.application";
@@ -282,7 +282,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2640;
-				LastUpgradeCheck = 2640;
+				LastUpgradeCheck = 2720;
 				TargetAttributes = {
 					27945DB02F9F211200B8F8B8 = {
 						CreatedOnToolsVersion = 26.4.1;
@@ -298,10 +298,10 @@
 			);
 			mainGroup = 27945DA82F9F211200B8F8B8;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
-			productRefGroup = 27945DB22F9F211200B8F8B8 /* Products */;
 			packageReferences = (
 			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 27945DB22F9F211200B8F8B8 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -403,12 +403,6 @@
 			targetProxy = 960ED6233EB3AA490401D36D /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		139371B98F8E18859F439381 /* Debug */ = {
@@ -525,6 +519,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -582,6 +577,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};

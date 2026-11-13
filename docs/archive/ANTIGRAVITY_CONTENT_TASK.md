@@ -6,8 +6,8 @@
 ---
 
 ## Where the work goes (your files — don't touch logic files)
-- **Recipe data:** `AICookBook/SampleRecipes.swift` — add new `Recipe(...)` entries to the `placeholderRecipes` array. **This file is yours.**
-- **Images:** `AICookBook/Assets.xcassets/recipe_<slug>.imageset/` — one imageset per recipe (match the existing `recipe_*` imagesets exactly: a `Contents.json` + the image file).
+- **Recipe data:** `AICookBook/Models/SampleRecipes.swift` — add new `Recipe(...)` entries to the `placeholderRecipes` array. **This file is yours.**
+- **Images:** `AICookBook/Resources/Assets.xcassets/recipe_<slug>.imageset/` — one imageset per recipe (match the existing `recipe_*` imagesets exactly: a `Contents.json` + the image file).
 - **Do NOT edit** `Models.swift`, `AppEnvironment.swift`, or any other logic file — the `Recipe` shape is fixed; just fill it in.
 
 ## The recipe shape (copy an existing entry and change the values)

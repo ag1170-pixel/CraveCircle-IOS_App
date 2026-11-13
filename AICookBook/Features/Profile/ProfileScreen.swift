@@ -36,7 +36,7 @@ struct ProfileScreen: View {
     @AppStorage("custom_api_url") private var customApiUrl = "https://import.cravecircle.cc"
     @AppStorage("kitchen_cat_enabled") private var kitchenCatEnabled = true   // the playful chef-cat on Home
     @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
-    
+
     private var plannedCountDetail: String? {
         let n = environment.plannedMeals.count
         return n == 0 ? "None yet" : (n == 1 ? "1 planned" : "\(n) planned")
@@ -61,11 +61,11 @@ struct ProfileScreen: View {
     private var unreadSharedCount: Int {
         let lastDate = Date(timeIntervalSince1970: lastOpenedSharedScreen)
         let myId = environment.currentUser?.id ?? "me"
-        return environment.sharedLog.filter { 
-            ($0.toUserId == myId || $0.toUserId == "me") && $0.createdAt > lastDate 
+        return environment.sharedLog.filter {
+            ($0.toUserId == myId || $0.toUserId == "me") && $0.createdAt > lastDate
         }.count
     }
-    
+
     @State private var showLanguagePicker = false
     @State private var showTranscribeTest = false
     @State private var showServerPicker = false
@@ -387,7 +387,7 @@ struct ProfileScreen: View {
                     Divider().overlay(AppTheme.separator).padding(.leading, 56)
                     SettingRow(icon: "waveform", title: "On-device transcription", detail: "Beta", tint: AppTheme.accent) { showTranscribeTest = true }
                 }
-                
+
                 // "Preview cooking island" is a dev-only demo of the Live Activity. Hidden from
                 // end-users because it isn't a feature they'd want; admin-gated so we can still
                 // show the Dynamic Island render during reviews or debugging.
@@ -695,7 +695,7 @@ struct AccountSheet: View {
                 }
                 .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
-                
+
                 // User-controlled data erasure — a lighter alternative to full account delete.
                 MyDataSection()
 
@@ -1057,11 +1057,11 @@ struct DeleteAccountScreen: View {
                 Text("Delete Account")
                     .font(AppFont.display(24, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
-                
+
                 Text("Do you want to deactivate your account temporarily, or delete it permanently?")
                     .font(AppFont.body(16))
                     .foregroundStyle(AppTheme.textSecondary)
-                
+
                 VStack(spacing: AppSpacing.md) {
                     Button {
                         Haptics.success()
@@ -1082,7 +1082,7 @@ struct DeleteAccountScreen: View {
                         .overlay(RoundedRectangle(cornerRadius: AppRadius.card).stroke(AppTheme.hairline, lineWidth: 1))
                     }
                     .buttonStyle(PressableStyle())
-                    
+
                     Button {
                         Haptics.tap()
                         withAnimation { step = 1 }
@@ -1107,11 +1107,11 @@ struct DeleteAccountScreen: View {
                 Text("Why are you leaving?")
                     .font(AppFont.display(24, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
-                
+
                 Text("We're sorry to see you go. Please let us know what issues you faced so we can learn and improve.")
                     .font(AppFont.body(16))
                     .foregroundStyle(AppTheme.textSecondary)
-                
+
                 TextEditor(text: $feedbackText)
                     .font(AppFont.body(16))
                     .foregroundStyle(AppTheme.textPrimary)
@@ -1119,9 +1119,9 @@ struct DeleteAccountScreen: View {
                     .frame(height: 120)
                     .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.sm))
                     .overlay(RoundedRectangle(cornerRadius: AppRadius.sm).stroke(AppTheme.hairline, lineWidth: 1))
-                
+
                 Spacer()
-                
+
                 Button {
                     Task {
                         isDeleting = true
@@ -1163,7 +1163,7 @@ struct DeleteAccountSheet: View {
     @State private var deleteMode: Int = 0 // 0 = Temporary, 1 = Permanent
     @State private var reason: String = ""
     @State private var isDeleting = false
-    
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -1171,9 +1171,9 @@ struct DeleteAccountSheet: View {
                     Text("We're sorry to see you go.")
                         .font(AppFont.display(24, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
-                    
+
                     LimeSegmentedControl(segments: ["Temporary Disable", "Permanent Delete"], selection: $deleteMode)
-                    
+
                     if deleteMode == 0 {
                         Text("Your account will be hidden from the community. You can reactivate it anytime by logging back in.")
                             .font(AppFont.body(15))
@@ -1183,11 +1183,11 @@ struct DeleteAccountSheet: View {
                             Text("Why are you deleting your account?")
                                 .font(AppFont.body(16, weight: .semibold))
                                 .foregroundStyle(AppTheme.textPrimary)
-                            
+
                             Text("Please tell us about any issues you faced so we can learn and improve.")
                                 .font(AppFont.body(14))
                                 .foregroundStyle(AppTheme.textSecondary)
-                            
+
                             TextEditor(text: $reason)
                                 .font(AppFont.body(15))
                                 .frame(minHeight: 120)
@@ -1197,9 +1197,9 @@ struct DeleteAccountSheet: View {
                                 .overlay(RoundedRectangle(cornerRadius: AppRadius.card).stroke(AppTheme.hairline, lineWidth: 1))
                         }
                     }
-                    
+
                     Spacer(minLength: 40)
-                    
+
                     Button(role: .destructive) {
                         deleteAccount()
                     } label: {
@@ -1215,7 +1215,7 @@ struct DeleteAccountSheet: View {
                     }
                     .buttonStyle(PressableStyle())
                     .disabled(isDeleting || (deleteMode == 1 && reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
-                    
+
                     if deleteMode == 1 && reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text("Please provide a reason to permanently delete your account.")
                             .font(AppFont.body(12))
@@ -1247,7 +1247,7 @@ struct DeleteAccountSheet: View {
             }
         }
     }
-    
+
     private func deleteAccount() {
         isDeleting = true
         Task {

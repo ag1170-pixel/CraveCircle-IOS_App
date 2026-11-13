@@ -22,7 +22,7 @@ import SwiftUI
 struct SharedScreen: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var selection = 0
-    
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -35,7 +35,7 @@ struct SharedScreen: View {
                 .frame(maxWidth: .infinity)
                 .background(AppTheme.background)
                 .overlay(alignment: .bottom) { Divider().overlay(AppTheme.separator) }
-                
+
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         let records = environment.sharedLog.filter { rec in
@@ -47,7 +47,7 @@ struct SharedScreen: View {
                                 return rec.fromUserId == (environment.currentUser?.id ?? "me")
                             }
                         }
-                        
+
                         if records.isEmpty {
                             EmptyRecipesState { }
                                 .padding(.top, 40)
@@ -74,7 +74,7 @@ private struct SharedRecordRow: View {
     let record: SharedRecipeRecord
     let recipe: Recipe?
     @Environment(AppEnvironment.self) private var environment
-    
+
     var body: some View {
         Button {
             Haptics.tap()
@@ -109,7 +109,7 @@ private struct SharedRecordRow: View {
                         .font(AppFont.body(15, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
-                    
+
                     Text(record.fromUserId == environment.currentUser?.id ? "Sent via \(record.channel ?? "Link")" : "Received")
                         .font(AppFont.body(13))
                         .foregroundStyle(AppTheme.textSecondary)

@@ -561,7 +561,7 @@ struct SupabaseData {
               let http = response as? HTTPURLResponse else { return false }
         return (200..<300).contains(http.statusCode)
     }
-    
+
     /// Upload a recipe cover to the public `recipe-thumbnails` Storage bucket and return its public
     /// https URL (nil on failure). Needed because imported covers are saved as device-local files —
     /// other users can't load those, so a published recipe must carry a shareable URL.

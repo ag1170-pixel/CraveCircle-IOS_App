@@ -37,7 +37,7 @@ a value of a specific Swift type, and the framework enforces the structure.
   transcript to the on-device model and ask it to produce a `Recipe` struct —
   ingredients grouped by section, directions ordered, times parsed.
 - No API key, no network round-trip, no per-request cost, no privacy exposure.
-  See `AICookBook/RecipeExtractor.swift` — the whole extraction is behind
+  See `AICookBook/Services/RecipeImport/RecipeExtractor.swift` — the whole extraction is behind
   `#if canImport(FoundationModels)`.
 - On a device without Apple Intelligence we fall back to a heuristic parser so
   the import still works. The heuristic is honest about being less polished.
@@ -48,7 +48,7 @@ iOS 26's `SpeechAnalyzer` lets us transcribe audio on the Neural Engine without
 shipping a Whisper model. We feed it the reel's audio file; it hands us back
 clean timestamped transcription.
 
-- Our `AICookBook/OnDeviceTranscriber.swift` is a 100-line wrapper over
+- Our `AICookBook/Services/RecipeImport/OnDeviceTranscriber.swift` is a 100-line wrapper over
   `SpeechAnalyzer` + `SpeechTranscriber`.
 - Audio never leaves the phone.
 
@@ -68,7 +68,7 @@ Apple ships SFSpeechRecognizer with built-in acoustic noise cancellation and
 hardware beam-forming. We bind that into a wake-word pattern ("Hey Crave") and
 sustain-mode listening while the flashcards are up.
 
-- `AICookBook/VoiceCommandController.swift` — on-device, zero network.
+- `AICookBook/Services/Voice/VoiceCommandController.swift` — on-device, zero network.
 - Honors Reduce Motion and VoiceOver, pauses when the user is screen-reading.
 
 ### 2.5 ActivityKit — Live Activity for the import progress banner
@@ -114,13 +114,13 @@ CraveCircle is **a complete product that fits that direction**:
 
 Three concrete claims the reviewers can verify:
 
-1. **Open `AICookBook/RecipeExtractor.swift`** — it imports `FoundationModels`
+1. **Open `AICookBook/Services/RecipeImport/RecipeExtractor.swift`** — it imports `FoundationModels`
    and uses guided generation with a `@Generable Recipe` type. That is Apple's
    recommended pattern verbatim.
-2. **Open `AICookBook/OnDeviceTranscriber.swift`** — it uses
+2. **Open `AICookBook/Services/RecipeImport/OnDeviceTranscriber.swift`** — it uses
    `SpeechAnalyzer(modules: [transcriber])` on-device, exactly the shape Apple
    shows in the iOS 26 docs.
-3. **Open `AICookBook/VoiceCommandController.swift` + `FloatingVoiceAssistantView.swift`**
+3. **Open `AICookBook/Services/Voice/VoiceCommandController.swift` + `FloatingVoiceAssistantView.swift`**
    — a working wake-word implementation with the Apple-blessed audio session
    setup.
 

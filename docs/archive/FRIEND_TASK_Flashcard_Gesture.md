@@ -47,7 +47,7 @@ voice sibling feature; your focus is the **hand gesture**.)
 ## 5. Your task — polish the hand-gesture navigation
 **Files you'll work in:**
 - `AICookBook/HandGestureController.swift` — front-camera hand-pose detection + swipe logic (the brains).
-- `AICookBook/FlashcardCookScreen.swift` — the flashcard UI, the status indicator, and how a
+- `AICookBook/Features/CookMode/FlashcardCookScreen.swift` — the flashcard UI, the status indicator, and how a
   recognized swipe animates the card (the feel).
 - `FloatingVoiceAssistantView.swift` / `VoiceCommandController.swift` exist for the **voice** sibling —
   only touch if your gesture work genuinely overlaps.

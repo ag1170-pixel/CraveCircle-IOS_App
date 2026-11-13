@@ -187,12 +187,12 @@ final class AppEnvironment {
     // Social & Follows
     private(set) var followedCreators: Set<String> = [] { didSet { persist(Array(followedCreators), "followed_creators.json") } }
     private(set) var savedRecipeIds: Set<String> = []
-    
+
     // Friends & Circle
     private(set) var circleFriends: [FriendItem] = [] { didSet { persist(circleFriends, "circle_friends.json") } }
     private(set) var incomingRequests: [FriendRequestItem] = [] { didSet { persist(incomingRequests, "friend_requests_in.json") } }
     private(set) var outgoingRequests: [FriendRequestItem] = [] { didSet { persist(outgoingRequests, "friend_requests_out.json") } }
-    
+
     // Collections
     // New installs start with zero collections. The sample "Weeknight Dinners · 8" collections
     // used to seed here but they looked like real content the user had created — a lie on first
@@ -205,7 +205,7 @@ final class AppEnvironment {
     private(set) var studioDraftIds: Set<String> = [] { didSet { persist(Array(studioDraftIds), "studio_drafts.json") } }
     /// Scheduled cooks. Sorted by `when` ascending for display convenience.
     private(set) var plannedMeals: [PlannedMeal] = [] { didSet { persist(plannedMeals, "meal_plan.json") } }
-    
+
     // Notifications & Activity
     private(set) var circleNotifications: [CircleNotificationItem] = [] { didSet { persist(circleNotifications, "notifications.json") } }
 
@@ -794,7 +794,7 @@ final class AppEnvironment {
         }
     }
 
-    
+
 
     /// True when this recipe belongs to the user's personal on-device library (imported reels or user-created recipes).
     /// These are protected from being overwritten or clobbered by remote public feed syncs.
@@ -878,7 +878,7 @@ final class AppEnvironment {
     /// The recipe list the detail pager should swipe through. Set alongside `selectedRecipe`
     /// whenever the caller has a narrower context (e.g. Library's Liked/Saved/Created tabs) so a
     /// left/right swipe stays inside what's actually on screen, not the full unfiltered library.
-    
+
     /// Owner call (2026-10-28): a guest gets 10 free recipe opens, then a sign-in wall. We count
      /// UNIQUE recipe ids so re-tapping the same card doesn't burn through the budget.
     static let guestViewLimit = 10
@@ -1223,20 +1223,20 @@ final class AppEnvironment {
     }
 
     // MARK: - Community MVP Logic Stubs
-    
+
     var sharedLog: [SharedRecipeRecord] = [] { didSet { persist(sharedLog, "shared_log.json") } }
-    
+
     var communityFeed: [Recipe] {
         recipes.filter { isFollowing(creatorHandle: $0.ownerUsername ?? "") }
     }
-    
+
     func canView(_ recipe: Recipe) -> Bool {
         if recipe.visibility == .everyone { return true }
         if isOwner(of: recipe) { return true }
         if let username = recipe.ownerUsername, isFollowing(creatorHandle: username) { return true }
         return false
     }
-    
+
     /// Share a recipe with any CraveCircle user by their @username — no creator role required.
     /// Delivers to their cloud "Shared with you" inbox. Returns false if the username can't be found.
     func shareRecipeToUsername(recipeId: String, username: String) async -> Bool {
@@ -1385,7 +1385,7 @@ final class AppEnvironment {
     private var onboardedUserIds: Set<String> {
         Set(onboardedUserIdsRaw.split(separator: ",").map(String.init).filter { !$0.isEmpty })
     }
-    
+
     private var deletedRecipeIds: Set<String> {
         get { Set(deletedRecipeIdsRaw.split(separator: ",").map(String.init).filter { !$0.isEmpty }) }
         set { deletedRecipeIdsRaw = newValue.joined(separator: ",") }
@@ -1639,13 +1639,13 @@ final class AppEnvironment {
         savedRecipeIds.remove(id)
         likedRecipeIds.remove(id)
         studioDraftIds.remove(id)
-        
+
         var deletedSet = deletedRecipeIds
         deletedSet.insert(id)
         deletedRecipeIds = deletedSet
-        
+
         if selectedRecipe?.id == id { selectedRecipe = nil }
-        
+
         let ownerId = currentUser?.id ?? "me"
         Task {
             // Tell the real Supabase backend to delete it
@@ -2311,7 +2311,7 @@ final class AppEnvironment {
     private func recipeHasContent(_ r: Recipe) -> Bool {
         r.ingredients.contains { !$0.items.isEmpty } || !r.directions.isEmpty
     }
-    
+
     func loadGroceryList() async {
         // Grocery is local-first in this build (items carry client-side UUIDs). Only adopt the
         // backend list when it actually has items — an empty response must not wipe the
@@ -2383,7 +2383,7 @@ final class AppEnvironment {
         }
         return true
     }
-    
+
     func isFollowing(creatorHandle: String) -> Bool {
         followedCreators.contains(creatorHandle)
     }
@@ -2443,7 +2443,7 @@ final class AppEnvironment {
     private func cancelCookNudge(recipeId: String) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["cook-nudge-\(recipeId)"])
     }
-    
+
     func isSaved(recipeId: String) -> Bool {
         savedRecipeIds.contains(recipeId)
     }
@@ -2575,12 +2575,12 @@ final class AppEnvironment {
             ownedCollections.insert(item, at: 0)
         }
     }
-    
+
     func deleteCollection(id: UUID) {
         ownedCollections.removeAll { $0.id == id }
         sharedCollections.removeAll { $0.id == id }
     }
-    
+
     func addRecipeToCollection(recipeId: String, collectionId: UUID) {
         if let idx = ownedCollections.firstIndex(where: { $0.id == collectionId }) {
             if !ownedCollections[idx].recipeIds.contains(recipeId) {
@@ -2599,7 +2599,7 @@ final class AppEnvironment {
     func isDraft(recipeId: String) -> Bool {
         studioDraftIds.contains(recipeId)
     }
-    
+
     func publishDraft(recipeId: String) {
         guard requireRealSessionOrPrompt(reason: .publishRecipe) else { return }
         guard canPublish,
@@ -2617,7 +2617,7 @@ final class AppEnvironment {
         circleNotifications.insert(notif, at: 0)
         Task { await syncRecipes() }
     }
-    
+
     func unpublishRecipe(recipeId: String) {
         guard canPublish,
               let recipe = recipes.first(where: { $0.id == recipeId }),
@@ -2836,7 +2836,7 @@ final class AppEnvironment {
     }
 
     // MARK: - Telemetry / Recommendation Engine
-    
+
     struct InteractionEvent: Codable {
         let id: String
         let recipeId: String
@@ -2844,7 +2844,7 @@ final class AppEnvironment {
         let durationSeconds: Int?
         let timestamp: Date
     }
-    
+
     // Network queue — events waiting to be sent to the backend. Persisted so a batch that hasn't
     // reached the size threshold isn't lost when the app is killed. Capped so it can't grow forever
     // while the backend RPC doesn't exist yet.
@@ -3204,7 +3204,7 @@ final class AppEnvironment {
         }
         #endif
     }
-    
+
     private func beginPolling(jobId: String) {
         importTask?.cancel()
         importTask = Task { [weak self] in
@@ -3227,7 +3227,7 @@ final class AppEnvironment {
                 attempts += 1
                 do {
                     let job = try await self.apiClient.fetchImportJob(jobId: jobId)
-                    
+
                     await MainActor.run {
                         self.importState = .polling(jobId: jobId, status: job.status)
                     }
@@ -3264,7 +3264,7 @@ final class AppEnvironment {
                             }
                             self.markRecipeDirty(recipe.id)
                             Task { await self.syncRecipes() }
-                            
+
                             // Do NOT auto-set selectedRecipe here. It causes a presentation conflict
                             // if the ImportProgressScreen sheet is currently active. Let the user
                             // explicitly tap "View" or "Open recipe" to select it.
@@ -3278,7 +3278,7 @@ final class AppEnvironment {
                         }
                         return
                     }
-                    
+
                     // Reset errors since we successfully polled a non-terminal status
                     consecutiveErrors = 0
                 } catch {

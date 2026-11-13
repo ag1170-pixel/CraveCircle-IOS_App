@@ -1,0 +1,80 @@
+# CraveCircle SwiftLint config.
+# Based on the swiftlint-style skill defaults (.claude/skills/swiftlint-style/assets/default-swiftlint.yml),
+# tuned for this codebase: safety rules are hard errors; size and line-length limits are WARNINGS for now
+# because ~750 long lines and 16 oversized files already exist (see the backlog in the Obsidian vault note
+# Projects/CraveCircle/Topics/SwiftLint-Style.md). Tighten the error values as that backlog shrinks.
+#
+# Run locally:  swiftlint lint            (check)
+#               swiftlint --fix           (auto-fix whitespace, colons, commas, trailing newline, ...)
+# CI:           swiftlint lint --strict   (fails on warnings too — only once the backlog is cleared)
+
+included:
+  - AICookBook
+  - AICookBookTests
+  - CookingWidget
+  - ShareExtension
+
+excluded:
+  - AICookBook/Resources
+  - AICookBook/Models/SampleRecipes.swift   # 2,800 lines of seed data, not hand-written logic
+  - build
+  - DerivedData
+  - .build
+  - GestureFlashcards                       # separate prototype app
+  - whisper-transcriber                     # separate tool
+
+disabled_rules:
+  - todo   # `// TODO:` comments are allowed
+
+opt_in_rules:
+  - comment_spacing
+  - control_statement
+  - duplicate_conditions
+  - duplicate_enum_cases
+  - duplicate_imports
+  - duplicated_key_in_dictionary_literal
+  - empty_parentheses_with_trailing_closure
+  - for_where
+  - function_name_whitespace
+  - leading_whitespace
+  - mark
+  - multiple_closures_with_trailing_closure
+  - shorthand_operator
+  - syntactic_sugar
+  - unavailable_condition
+  - unneeded_break_in_switch
+  - unused_closure_parameter
+  - unused_enumerated
+  - unused_optional_binding
+
+# --- Safety: these fail the build -------------------------------------------------------------
+force_cast: error
+force_try: error
+trailing_whitespace: error
+
+# --- Size: warnings now, errors only far past today's worst offender ----------------------------
+line_length:
+  warning: 120
+  error: 400
+  ignores_urls: true
+  ignores_comments: true
+
+file_length:
+  warning: 400
+  error: 4000          # AppEnvironment.swift is ~3,400 lines; lower this as files are split
+
+type_body_length:
+  warning: 250
+  error: 4000
+
+function_body_length:
+  warning: 60
+  error: 400
+
+cyclomatic_complexity:
+  warning: 12
+  error: 40
+
+identifier_name:
+  min_length: 1        # allow conventional short names (i, x, id) in small scopes
+  excluded: [id, x, y, i, j]
