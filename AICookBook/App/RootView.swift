@@ -376,37 +376,58 @@ struct MainTabView: View {
         // Instagram's iOS 26 bar is the system UITabBar: one floating Liquid Glass
         // platter (the "glass bubble"), five equal icons, selection capsule drawn by UIKit,
         // shrinks on scroll. This is Gowtham's original bar, restored verbatim.
-        TabView(selection: $tab) {
-            Tab(value: AppTab.home) {
-                HomeScreen(showingImportSheet: importSheetBinding)
-            } label: {
-                Image(systemName: AppTab.home.icon)
-                    .accessibilityLabel(AppTab.home.title)
+        NavigationStack {
+            TabView(selection: $tab) {
+                Tab(value: AppTab.home) {
+                    HomeScreen(showingImportSheet: importSheetBinding)
+                } label: {
+                    Image(systemName: AppTab.home.icon)
+                        .accessibilityLabel(AppTab.home.title)
+                }
+                Tab(value: AppTab.discover) {
+                    // Discover is now the full-screen recipe reel (Instagram/TikTok style, Hinge swipes).
+                    // Search lives on Home now (SearchScreen was removed in the cleanup pass).
+                    RecipeReelScreen(tabSignal: discoverSignal, reel: $discoverReel, currentID: $discoverCurrentID)
+                } label: {
+                    Image(systemName: AppTab.discover.icon)
+                        .accessibilityLabel(AppTab.discover.title)
+                }
+                Tab(value: AppTab.groceries) {
+                    GroceryScreen()
+                } label: {
+                    Image(systemName: AppTab.groceries.icon)
+                        .accessibilityLabel(AppTab.groceries.title)
+                }
+                Tab(value: AppTab.profile) {
+                    ProfileScreen()
+                } label: {
+                    Image(systemName: AppTab.profile.icon)
+                        .accessibilityLabel(AppTab.profile.title)
+                }
             }
-            Tab(value: AppTab.discover) {
-                // Discover is now the full-screen recipe reel (Instagram/TikTok style, Hinge swipes).
-                // Search lives on Home now (SearchScreen was removed in the cleanup pass).
-                RecipeReelScreen(tabSignal: discoverSignal, reel: $discoverReel, currentID: $discoverCurrentID)
-            } label: {
-                Image(systemName: AppTab.discover.icon)
-                    .accessibilityLabel(AppTab.discover.title)
-            }
-            Tab(value: AppTab.groceries) {
-                GroceryScreen()
-            } label: {
-                Image(systemName: AppTab.groceries.icon)
-                    .accessibilityLabel(AppTab.groceries.title)
-            }
-            Tab(value: AppTab.profile) {
-                ProfileScreen()
-            } label: {
-                Image(systemName: AppTab.profile.icon)
-                    .accessibilityLabel(AppTab.profile.title)
+            .navigationDestination(isPresented: Binding(
+                get: { environment.selectedRecipe != nil },
+                set: { isPresented in
+                    if !isPresented { environment.dismissRecipeDetail() }
+                }
+            )) {
+                RecipeDetailPager(
+                    start: environment.selectedRecipe ?? Recipe.placeholderRecipes[0],
+                    context: environment.recipeSwipeContext ?? environment.recipes
+                )
+                .environment(environment)
+                .toolbarBackground(.hidden, for: .navigationBar)
+                .sheet(isPresented: Bindable(environment).showGuestPaywall) { guestWall }
+                .sheet(item: importFeedbackTarget(whileRecipeOpen: true)) { importFeedbackSheet($0) }
             }
         }
         // Osta-style: Import is a floating round button, not a tab (keeps the glassy 4-icon bar).
         // Import FAB everywhere EXCEPT Discover — the reel is immersive and the FAB would cover the rail.
-        .overlay(alignment: .bottomTrailing) { if tab != .discover && !environment.hidesImportFAB { importFAB } }
+        .overlay(alignment: .bottomTrailing) {
+            if tab != .discover && environment.selectedRecipe == nil && !environment.hidesImportFAB {
+                importFAB
+            }
+        }
         .tabBarMinimizeBehavior(.onScrollDown)
         .background {
             DiscoverTabTapCatcher(
@@ -534,25 +555,6 @@ struct MainTabView: View {
             // back to .idle — close the progress sheet too. Without this the sheet stays up and,
             // because .idle renders as stage-0, shows a spinner forever ("buffering + Cancel dead").
             if state == .idle { showingProgressDetail = false }
-        }
-        // Presented while any recipe is open. Keyed on "is open", not on which recipe: swiping to
-        // another recipe changes `selectedRecipe`, and an item-keyed cover would close and
-        // re-present itself (the "another recipe pops up" glitch).
-        .fullScreenCover(isPresented: Binding(
-            get: { environment.selectedRecipe != nil },
-            set: { if !$0 { environment.dismissRecipeDetail() } }
-        )) {
-            RecipeDetailPager(
-                start: environment.selectedRecipe ?? Recipe.placeholderRecipes[0],
-                context: environment.recipeSwipeContext ?? environment.recipes
-            )
-                .environment(environment)
-                // A sheet on RootView can't present while this cover is up, so the recipe
-                // page hosts the guest wall itself (like / follow / save / comment / share).
-                // `@Environment` gives a read-only reference; `Bindable(...)` makes a `$`-style
-                // binding to one property of the @Observable model.
-                .sheet(isPresented: Bindable(environment).showGuestPaywall) { guestWall }
-                .sheet(item: importFeedbackTarget(whileRecipeOpen: true)) { importFeedbackSheet($0) }
         }
         .sheet(isPresented: Binding(
             get: { environment.showGuestPaywall && environment.selectedRecipe == nil },

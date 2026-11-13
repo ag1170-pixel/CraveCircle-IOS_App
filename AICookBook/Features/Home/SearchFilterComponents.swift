@@ -86,24 +86,25 @@ struct DietToggle: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 DietMarkIcon(mark: mark, tint: tint)
                 Capsule()
                     .fill(isOn ? tint : AppTheme.hairline)
-                    .frame(width: 34, height: 20)
+                    .frame(width: 30, height: 18)
                     .overlay(alignment: isOn ? .trailing : .leading) {
                         Circle()
                             .fill(AppTheme.surface)
-                            .frame(width: 16, height: 16)
+                            .frame(width: 14, height: 14)
                             .padding(2)
                             .shadow(color: .black.opacity(0.12), radius: 1, y: 1)
                     }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
         }
+        .frame(minHeight: 44)
         .buttonStyle(PressableStyle())
         .accessibilityLabel(label)
         .accessibilityValue(isOn ? "On" : "Off")
@@ -122,16 +123,68 @@ struct FilterChip: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold))
                 Text(title)
                     .font(AppFont.body(12, weight: .semibold))
             }
             .foregroundStyle(isOn ? AppTheme.onAccent : AppTheme.textPrimary)
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
             .background(isOn ? AppTheme.accent : AppTheme.surface, in: Capsule())
             .overlay(Capsule().stroke(isOn ? Color.clear : AppTheme.hairline, lineWidth: 1))
         }
+        .frame(minHeight: 44)
         .buttonStyle(PressableStyle())
+    }
+}
+
+/// Search destination and colors for a cuisine tile shown below an empty Home search.
+struct SearchCuisineSuggestion: Identifiable {
+    let title: String
+    let searchTerm: String
+    let gradientStart: Color
+    let gradientEnd: Color
+    let usesOutlinePlate: Bool
+
+    var id: String { title }
+}
+
+struct SearchCuisineCard: View {
+    let cuisine: SearchCuisineSuggestion
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [cuisine.gradientStart, cuisine.gradientEnd],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(alignment: .top) {
+                    Image(cuisine.usesOutlinePlate ? "SearchCuisinePlateOutline" : "SearchCuisinePlate")
+                        .padding(.top, 12)
+                }
+                .overlay {
+                    Image("SearchCuisineFood")
+                }
+                .overlay {
+                    Image("SearchCuisineForkKnife")
+                }
+                .overlay(alignment: .bottomLeading) {
+                    Text(cuisine.title)
+                        .font(AppFont.body(17, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.leading, 14)
+                        .padding(.bottom, 10)
+                }
+                .frame(height: 96)
+                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel("Browse \(cuisine.title) recipes")
+        .accessibilityHint("Search for \(cuisine.searchTerm)")
     }
 }
