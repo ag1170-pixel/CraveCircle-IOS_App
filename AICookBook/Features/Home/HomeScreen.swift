@@ -39,6 +39,7 @@ struct HomeScreen: View {
     @Environment(AppEnvironment.self) private var environment
     @Binding var showingImportSheet: Bool
     @State private var showNotifications = false
+    @State private var showMealPlan = false
     @State private var query = ""                       // search moved here from the old Search tab
     @State private var searchQuery = ""
     @AppStorage("recent_home_searches") private var recentSearchesCSV: String = ""
@@ -121,6 +122,10 @@ struct HomeScreen: View {
                 if environment.pendingSearchFocus { focusSearchSoon(proxy) }
             }
             }
+            .navigationDestination(isPresented: $showMealPlan) {
+                MealPlanScreen()
+            }
+            .onChange(of: showMealPlan) { _, open in environment.hidesImportFAB = open }
             .navigationDestination(isPresented: $navigateToLibrary) {
                 LibraryScreen()
             }
@@ -153,13 +158,16 @@ struct HomeScreen: View {
             }
             // Mail removed; import moved to the tab bar (+). Only the notifications bell remains (right).
             HStack {
-                Spacer()
                 // Instagram pattern: a single red dot when there's anything new (unread activity
                 // or a pending follow request). No number — a count on the bell is noise.
                 let unread = environment.circleNotifications.contains { !$0.isRead }
                             || !environment.incomingRequests.isEmpty
                 iconButton("bell", label: "Notifications", showsDot: unread) {
                     Haptics.tap(); showNotifications = true
+                }
+                Spacer()
+                iconButton("calendar", label: "Meal plan") {
+                    Haptics.tap(); showMealPlan = true
                 }
             }
         }

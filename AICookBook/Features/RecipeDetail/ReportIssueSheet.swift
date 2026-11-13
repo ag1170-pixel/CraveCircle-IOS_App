@@ -176,7 +176,7 @@ struct ReportIssueSheet: View {
                     }
                 }
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationTitle("Report Issue")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -401,7 +401,7 @@ struct RecipeReportDetail: View {
             }
             .padding(20)
         }
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
         .navigationTitle(payload?.recipe.title ?? "Report")
         .navigationBarTitleDisplayMode(.inline)
     }

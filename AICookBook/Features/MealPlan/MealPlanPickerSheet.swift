@@ -1,219 +1,362 @@
 //
-// ==============================================================================
-// CRAVECIRCLE iOS - CODE REVIEW REFERENCE
-// FILE: MealPlanPickerSheet.swift
-// ==============================================================================
-//
-// 1. PURPOSE:
-//    Modal sheet allowing users to add an active recipe to a specific day and meal slot.
-//
-// 2. ARCHITECTURAL ROLE:
-//    Selector view providing intuitive day-of-week and meal-type (Breakfast/Lunch/Dinner) buttons.
-//
-// 3. MENTOR EXPLANATION (15-Second Verbal Summary):
-//    "MealPlanPickerSheet connects recipe discovery to weekly planning. Tapping 'Add to Meal Plan' on any dish presents this sheet to schedule the meal for a specific day in one tap."
-//
-// ==============================================================================
-//
-
-//
 //  MealPlanPickerSheet.swift
 //  CraveCircle (AICookBook)
 //
-//  One native-feel sheet to add a recipe to the meal plan. Three parts, no typing:
-//    1. Quick picks row — Today / Tomorrow / This weekend. One tap and the picker's done.
-//    2. Apple's `DatePicker(..., [.date, .hourAndMinute])` graphical style — spin a wheel.
-//    3. Breakfast / Lunch / Dinner / Snack segmented control — defaults to the slot the
-//       picked time suggests.
-//    4. Save button at the bottom.
+//  "Add to meal plan" sheet from a recipe page: month calendar (dots mark meals already
+//  planned that day, one per meal slot), meal chips, time and servings, one primary button.
 //
 
 import SwiftUI
 
-// MARK: - SwiftUI View Component
 struct MealPlanPickerSheet: View {
     let recipe: Recipe
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
 
-    @State private var when: Date
-    @State private var slot: MealSlot
+    @State private var day: Date
+    @State private var month: Date
+    @State private var slot: MealSlot = .dinner
+    @State private var time: Date
+    @State private var servings: Int
+    @State private var editingTime = false
     @State private var saving = false
+
+    private let cal = Calendar.current
 
     init(recipe: Recipe) {
         self.recipe = recipe
-        // Default: tomorrow at 7 PM — covers the most common "plan tomorrow's dinner" case.
         let cal = Calendar.current
-        let base = cal.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-        let d = cal.date(bySettingHour: 19, minute: 0, second: 0, of: base) ?? base
-        _when = State(initialValue: d)
-        _slot = State(initialValue: .dinner)
+        let today = cal.startOfDay(for: Date())
+        _day = State(initialValue: today)
+        _month = State(initialValue: cal.date(from: cal.dateComponents([.year, .month], from: today)) ?? today)
+        _time = State(initialValue: cal.date(bySettingHour: 19, minute: 30, second: 0, of: today) ?? today)
+        _servings = State(initialValue: recipe.servings ?? 2)
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    HStack(spacing: 10) {
-                        quickPick("Today",    date: today(hour: 19))
-                        quickPick("Tomorrow", date: tomorrow(hour: 19))
-                        quickPick("Weekend",  date: nextSaturday(hour: 19))
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-                    .padding(.vertical, 4)
-                }
-
-                Section("When") {
-                    DatePicker("Date & time", selection: $when, displayedComponents: [.date, .hourAndMinute])
-                        .datePickerStyle(.graphical)
-                        .onChange(of: when) { _, newValue in
-                            // Auto-pick a slot that fits the picked time; user can override.
-                            slot = MealSlot.suggested(for: newValue)
-                        }
-                }
-
-                Section("Meal") {
-                    Picker("Meal", selection: $slot) {
-                        ForEach(MealSlot.allCases) { s in
-                            Label(s.displayName, systemImage: s.systemImage).tag(s)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .listRowBackground(Color.clear)
-                }
-
-                // Show existing plans for this recipe so a double-booking is obvious.
-                let existing = environment.plannedMeals(for: recipe.id)
-                if !existing.isEmpty {
-                    Section("Already planned") {
-                        ForEach(existing) { m in
-                            HStack {
-                                Image(systemName: m.slot.systemImage)
-                                    .foregroundStyle(AppTheme.textSecondary)
-                                Text(formatted(m.when))
-                                    .font(AppFont.body(14))
-                                Spacer()
-                                Button(role: .destructive) {
-                                    Task { await environment.unplanMeal(id: m.id) }
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(AppTheme.destructive)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppSpacing.md) {
+                header
+                recipeRow
+                calendarCard
+                mealChips
+                detailsCard
+                addButton
             }
-            .scrollContentBackground(.hidden)
-            .background(AppTheme.background.ignoresSafeArea())
-            .navigationTitle("Plan to cook")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        Haptics.tap()
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .frame(width: 30, height: 30)
-                            .background(AppTheme.surfaceElevated, in: Circle())
-                            .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 0.8))
-                    }
-                    .buttonStyle(PressableStyle())
-                    .accessibilityLabel("Close")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Haptics.success()
-                        save()
-                    } label: {
-                        Group {
-                            if saving {
-                                ProgressView().tint(.white)
-                            } else {
-                                Text("Save")
-                                    .font(AppFont.body(14, weight: .bold))
-                                    .foregroundStyle(AppTheme.onBrand)
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 7)
-                        .frame(minWidth: 64, minHeight: 32)
-                        .background(AppTheme.brand, in: Capsule())
-                        .shadow(color: .black.opacity(0.12), radius: 4, y: 1)
-                        .contentShape(Capsule())
-                    }
-                    .buttonStyle(PressableStyle())
-                    .disabled(saving)
-                }
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.top, AppSpacing.lg)
+            .padding(.bottom, AppSpacing.md)
+        }
+        .scrollIndicators(.hidden)
+        .presentationBackground { AppScreenBackground() }
+    }
+
+    // MARK: Header
+
+    private var header: some View {
+        HStack {
+            Text("Add to meal plan")
+                .font(AppFont.display(24, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+            Spacer()
+            Button {
+                Haptics.tap()
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .frame(width: 44, height: 44)
+                    .overlay(Circle().stroke(AppTheme.textSecondary.opacity(0.6), lineWidth: 1.2))
+                    .contentShape(Circle())
             }
-            .tint(AppTheme.accentInk)
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel("Close")
         }
     }
 
-    // MARK: Quick-pick chip
+    private var recipeRow: some View {
+        HStack(spacing: 12) {
+            RecipeCoverImage(recipe: recipe)
+                .scaledToFill()
+                .frame(width: 52, height: 52)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(recipe.title)
+                    .font(AppFont.body(16, weight: .semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(2)
+                Text(recipeMeta)
+                    .font(AppFont.body(13))
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+        }
+    }
 
-    private func quickPick(_ label: String, date: Date) -> some View {
+    private var recipeMeta: String {
+        var parts: [String] = []
+        if let s = recipe.servings { parts.append("\(s) servings") }
+        if let t = recipe.cookTime ?? recipe.prepTime, !t.isEmpty { parts.append(t) }
+        return parts.joined(separator: " · ")
+    }
+
+    // MARK: Calendar
+
+    private var calendarCard: some View {
+        VStack(spacing: 14) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(month.formatted(.dateTime.month(.wide)))
+                    .font(AppFont.display(20, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text(month.formatted(.dateTime.year()))
+                    .font(AppFont.display(20, weight: .regular))
+                    .foregroundStyle(AppTheme.textSecondary)
+                Spacer()
+                monthButton("chevron.left", by: -1, label: "Previous month")
+                monthButton("chevron.right", by: 1, label: "Next month")
+            }
+
+            HStack(spacing: 0) {
+                ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, s in
+                    Text(s)
+                        .font(AppFont.body(12, weight: .medium))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 6) {
+                ForEach(Array(monthCells.enumerated()), id: \.offset) { _, date in
+                    if let date { dayCell(date) } else { Color.clear.frame(height: 48) }
+                }
+            }
+        }
+        .padding(AppSpacing.md)
+        .background(AppTheme.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+    }
+
+    private func monthButton(_ icon: String, by delta: Int, label: String) -> some View {
         Button {
             Haptics.tap()
-            when = date
-            slot = MealSlot.suggested(for: date)
+            withAnimation(AppMotion.snappy) {
+                month = cal.date(byAdding: .month, value: delta, to: month) ?? month
+            }
         } label: {
-            Text(label)
-                .font(AppFont.body(14, weight: .semibold))
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(AppTheme.brand)
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    private func dayCell(_ date: Date) -> some View {
+        let selected = cal.isDate(date, inSameDayAs: day)
+        let isToday = cal.isDateInToday(date)
+        let past = date < cal.startOfDay(for: Date())
+        let slots = plannedSlots(on: date)
+        return Button {
+            Haptics.select()
+            withAnimation(AppMotion.snappy) { day = date }
+        } label: {
+            VStack(spacing: 4) {
+                Text(date.formatted(.dateTime.day()))
+                    .font(AppFont.body(17, weight: selected || isToday ? .bold : .regular))
+                    .foregroundStyle(selected ? Color.white : (isToday ? AppTheme.brand : AppTheme.textPrimary))
+                    .frame(width: 34, height: 34)
+                    .background(selected ? AppTheme.brand : .clear, in: Circle())
+                HStack(spacing: 3) {
+                    ForEach(slots, id: \.self) { Circle().fill($0.color).frame(width: 5, height: 5) }
+                }
+                .frame(height: 5)
+            }
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .opacity(past ? 0.4 : 1)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(past)
+        .accessibilityLabel(date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    // MARK: Meal
+
+    private var mealChips: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("MEAL")
+                .font(AppFont.body(12, weight: .semibold))
+                .kerning(0.8)
+                .foregroundStyle(AppTheme.textSecondary)
+            HStack(spacing: 6) {
+                ForEach(MealSlot.allCases) { s in
+                    let on = s == slot
+                    Button {
+                        Haptics.select()
+                        withAnimation(AppMotion.snappy) {
+                            slot = s
+                            time = cal.date(bySettingHour: defaultHour(for: s).h, minute: defaultHour(for: s).m,
+                                            second: 0, of: time) ?? time
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            if on { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)) }
+                            Text(s.displayName).font(AppFont.body(15, weight: .medium))
+                        }
+                        .lineLimit(1)
+                        .fixedSize()
+                        .foregroundStyle(on ? AppTheme.onAccent : AppTheme.textPrimary)
+                        .padding(.horizontal, 14)
+                        .frame(height: 40)
+                        .background(on ? AppTheme.accent : AppTheme.surface, in: Capsule())
+                        .overlay(Capsule().stroke(on ? .clear : AppTheme.hairline, lineWidth: 1))
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+        }
+    }
+
+    private func defaultHour(for s: MealSlot) -> (h: Int, m: Int) {
+        switch s {
+        case .breakfast: return (8, 30)
+        case .lunch:     return (13, 0)
+        case .dinner:    return (19, 30)
+        case .snack:     return (16, 30)
+        }
+    }
+
+    // MARK: Time + servings
+
+    private var detailsCard: some View {
+        VStack(spacing: 0) {
+            Button {
+                Haptics.tap()
+                withAnimation(AppMotion.snappy) { editingTime.toggle() }
+            } label: {
+                detailRow(icon: "clock", title: "Time", value: time.formatted(date: .omitted, time: .shortened),
+                          chevron: editingTime ? "chevron.down" : "chevron.right")
+            }
+            .buttonStyle(.plain)
+            if editingTime {
+                DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 150)
+                    .clipped()
+            }
+            Divider().overlay(AppTheme.separator).padding(.leading, 44)
+            HStack(spacing: 12) {
+                Image(systemName: "person.2.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .frame(width: 20)
+                Text("Servings")
+                    .font(AppFont.body(17))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Spacer()
+                Stepper(value: $servings, in: 1...24) {
+                    Text("\(servings)")
+                        .font(AppFont.body(17))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .monospacedDigit()
+                }
+                .fixedSize()
+                .accessibilityLabel("Servings")
+                .accessibilityValue("\(servings)")
+            }
+            .padding(.horizontal, AppSpacing.md)
+            .frame(minHeight: 56)
+        }
+        .background(AppTheme.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+    }
+
+    private func detailRow(icon: String, title: String, value: String, chevron: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 15))
+                .foregroundStyle(AppTheme.textSecondary)
+                .frame(width: 20)
+            Text(title)
+                .font(AppFont.body(17))
                 .foregroundStyle(AppTheme.textPrimary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(AppTheme.surface, in: Capsule())
-                .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            Spacer()
+            Text(value)
+                .font(AppFont.body(17))
+                .foregroundStyle(AppTheme.textSecondary)
+            Image(systemName: chevron)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+        }
+        .padding(.horizontal, AppSpacing.md)
+        .frame(minHeight: 56)
+        .contentShape(Rectangle())
+    }
+
+    // MARK: Add
+
+    private var addButton: some View {
+        Button(action: save) {
+            HStack(spacing: 8) {
+                if saving {
+                    ProgressView().tint(AppTheme.onAccent)
+                } else {
+                    Image(systemName: "calendar.badge.plus")
+                    Text("Add to \(day.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))")
+                }
+            }
+            .font(AppFont.body(17, weight: .semibold))
+            .foregroundStyle(AppTheme.onAccent)
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .background(AppTheme.accent, in: Capsule())
+            .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())
-    }
-
-    // MARK: Date helpers
-
-    private func today(hour: Int) -> Date {
-        Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) ?? Date()
-    }
-
-    private func tomorrow(hour: Int) -> Date {
-        let base = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-        return Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: base) ?? base
-    }
-
-    private func nextSaturday(hour: Int) -> Date {
-        let cal = Calendar.current
-        let today = Date()
-        // 7 = Saturday in Gregorian calendar
-        var days = (7 - cal.component(.weekday, from: today) + 7) % 7
-        if days == 0 { days = 7 }
-        let base = cal.date(byAdding: .day, value: days, to: today) ?? today
-        return cal.date(bySettingHour: hour, minute: 0, second: 0, of: base) ?? base
-    }
-
-    private func formatted(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "EEE, MMM d · h:mm a"
-        return f.string(from: date)
+        .disabled(saving)
+        .padding(.top, AppSpacing.xs)
     }
 
     private func save() {
+        guard !saving else { return }
         saving = true
+        let parts = cal.dateComponents([.hour, .minute], from: time)
+        let when = cal.date(bySettingHour: parts.hour ?? 19, minute: parts.minute ?? 0, second: 0, of: day) ?? day
         Task {
-            let meal = await environment.planMeal(recipeId: recipe.id, when: when, slot: slot)
-            await MainActor.run {
-                saving = false
-                if meal != nil {
-                    Haptics.success()
-                    dismiss()
-                } else {
-                    Haptics.warning()
-                }
+            let meal = await environment.planMeal(recipeId: recipe.id, when: when, slot: slot, servings: servings)
+            saving = false
+            if meal != nil {
+                Haptics.success()
+                dismiss()
+            } else {
+                Haptics.warning()
             }
         }
+    }
+
+    // MARK: Derivations
+
+    private var weekdaySymbols: [String] {
+        let s = cal.veryShortStandaloneWeekdaySymbols
+        let first = cal.firstWeekday - 1
+        return Array(s[first...] + s[..<first])
+    }
+
+    /// Leading blanks, then each day of `month`.
+    private var monthCells: [Date?] {
+        guard let range = cal.range(of: .day, in: .month, for: month) else { return [] }
+        let lead = (cal.component(.weekday, from: month) - cal.firstWeekday + 7) % 7
+        let days = range.compactMap { cal.date(byAdding: .day, value: $0 - 1, to: month) }
+        return Array(repeating: nil, count: lead) + days
+    }
+
+    private func plannedSlots(on date: Date) -> [MealSlot] {
+        let used = Set(environment.plannedMeals.filter { cal.isDate($0.when, inSameDayAs: date) }.map(\.slot))
+        return MealSlot.allCases.filter(used.contains)
     }
 }

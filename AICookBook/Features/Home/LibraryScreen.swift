@@ -104,7 +104,7 @@ struct LibraryScreen: View {
             .padding(.top, AppSpacing.xs)
             .padding(.bottom, AppSpacing.xl)
         }
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
         .scrollIndicators(.hidden)
         .navigationTitle("Library")
         .navigationBarTitleDisplayMode(.large)

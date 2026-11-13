@@ -37,26 +37,8 @@ struct ProfileScreen: View {
     @AppStorage("kitchen_cat_enabled") private var kitchenCatEnabled = true   // the playful chef-cat on Home
     @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
 
-    private var plannedCountDetail: String? {
-        let n = environment.plannedMeals.count
-        return n == 0 ? "None yet" : (n == 1 ? "1 planned" : "\(n) planned")
-    }
 
-    /// Next upcoming cook — drives the richer Meal Plan row preview below.
-    private var nextPlannedMeal: (meal: PlannedMeal, recipe: Recipe)? {
-        let now = Date()
-        guard let next = environment.plannedMeals.first(where: { $0.when >= now }) else { return nil }
-        guard let recipe = environment.recipes.first(where: { $0.id == next.recipeId }) else { return nil }
-        return (next, recipe)
-    }
 
-    private func whenPhrase(_ date: Date) -> String {
-        let cal = Calendar.current
-        if cal.isDateInToday(date)     { return "today" }
-        if cal.isDateInTomorrow(date)  { return "tomorrow" }
-        let fmt = DateFormatter(); fmt.dateFormat = "EEE"
-        return fmt.string(from: date)
-    }
 
     private var unreadSharedCount: Int {
         let lastDate = Date(timeIntervalSince1970: lastOpenedSharedScreen)
@@ -121,13 +103,13 @@ struct ProfileScreen: View {
             EditProfileSheet()
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground { AppScreenBackground() }
         }
         .sheet(isPresented: $showLanguagePicker) {
             LanguagePickerSheet(selection: $langCode)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground { AppScreenBackground() }
         }
         .sheet(isPresented: $showTranscribeTest) {
             TranscribeTestView()
@@ -256,54 +238,6 @@ struct ProfileScreen: View {
 
     // MARK: Settings
 
-    /// Richer Meal Plan row: calendar icon on the left, title + next-cook preview on the
-     /// right (slot · recipe · when). Falls back to a clean empty state when nothing's planned.
-    private var mealPlanRow: some View {
-        HStack(spacing: AppSpacing.sm) {
-            Image(systemName: "calendar")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 30, height: 30)
-                .background(Color.green, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Meal Plan")
-                    .font(AppFont.body(16, weight: .medium))
-                    .foregroundStyle(AppTheme.textPrimary)
-                if let next = nextPlannedMeal {
-                    Text("\(next.meal.slot.displayName) \(whenPhrase(next.meal.when)) · \(next.recipe.title)")
-                        .font(AppFont.body(12))
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(1)
-                } else {
-                    Text("Nothing planned · tap to add")
-                        .font(AppFont.body(12))
-                        .foregroundStyle(AppTheme.textTertiary)
-                }
-            }
-
-            Spacer(minLength: 8)
-
-            if let next = nextPlannedMeal {
-                RecipeCoverImage(recipe: next.recipe)
-                    .frame(width: 40, height: 40)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            } else if let n = Optional(environment.plannedMeals.count), n > 0 {
-                Text("\(n)")
-                    .font(AppFont.body(13, weight: .bold))
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(AppTheme.accentSoft, in: Capsule())
-            }
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(AppTheme.textTertiary)
-        }
-        .padding(.horizontal, AppSpacing.md)
-        .padding(.vertical, 11)
-        .contentShape(Rectangle())
-    }
 
     private var settings: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -320,9 +254,6 @@ struct ProfileScreen: View {
                 SettingRow(icon: "bell.badge", title: "Notifications", detail: "On", tint: .orange) {
                     showNotifications = true
                 }
-                Divider().overlay(AppTheme.separator).padding(.leading, 56)
-                NavigationLink { MealPlanScreen() } label: { mealPlanRow }
-                    .buttonStyle(.plain)
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
                 SettingRow(icon: "tray.and.arrow.down", title: "Shared with you", detail: nil, badgeCount: unreadSharedCount, tint: .pink) {
                     lastOpenedSharedScreen = Date().timeIntervalSince1970
@@ -628,7 +559,7 @@ struct ProfileScreen: View {
             KitchenServerSheet(serverUrl: $customApiUrl)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground { AppScreenBackground() }
         }
         .confirmationDialog("Contact Developer", isPresented: $showContactOptions, titleVisibility: .visible) {
             Button("Email: adityagupta2646@gmail.com") {
@@ -715,7 +646,7 @@ struct AccountSheet: View {
                 }
                 .padding(AppSpacing.lg)
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             // No inline nav title — the avatar + name below is the title. Prior build set
             // `navigationTitle("Account")` with inline mode in a `.medium` detent, which stacked
             // the title and the avatar at the same y and collided in dark mode.
@@ -958,7 +889,7 @@ struct KitchenServerSheet: View {
                 }
                 .padding(AppSpacing.lg)
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationTitle("Kitchen Server")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1148,7 +1079,7 @@ struct DeleteAccountScreen: View {
             Spacer()
         }
         .padding(AppSpacing.lg)
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -1225,7 +1156,7 @@ struct DeleteAccountSheet: View {
                 }
                 .padding(AppSpacing.lg)
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationTitle("Delete Account")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1336,7 +1267,7 @@ struct EditProfileSheet: View {
                 }
                 .padding(AppSpacing.lg)
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

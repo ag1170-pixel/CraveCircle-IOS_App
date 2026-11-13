@@ -226,7 +226,7 @@ struct DeveloperToolsScreen: View {
             }
             .padding(AppSpacing.md)
         }
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
         .navigationTitle("Developer Tools")
         .navigationBarTitleDisplayMode(.inline)
         .task {

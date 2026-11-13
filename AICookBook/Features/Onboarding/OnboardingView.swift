@@ -81,7 +81,7 @@ struct OnboardingView: View {
             .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
                                     removal: .move(edge: .leading).combined(with: .opacity)))
         }
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
     }
 
     // MARK: Header (brand + progress + back)

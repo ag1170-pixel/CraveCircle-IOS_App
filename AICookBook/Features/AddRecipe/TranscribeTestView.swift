@@ -93,7 +93,7 @@ struct TranscribeTestView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationTitle("On-device transcription")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }

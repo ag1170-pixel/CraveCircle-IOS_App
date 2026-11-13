@@ -41,7 +41,7 @@ struct WebImportScreen: View {
             WebImportRepresentable(model: model)
             bottomBar
         }
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
         .onAppear { model.ownerId = environment.currentUser?.id ?? "" }
     }
 

@@ -63,7 +63,7 @@ struct StudioScreen: View {
             .padding(.top, AppSpacing.sm)
             .padding(.bottom, AppSpacing.xl)
         }
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
         .navigationTitle("Studio")
         .navigationBarTitleDisplayMode(.large)
         .toolbar(.hidden, for: .tabBar)

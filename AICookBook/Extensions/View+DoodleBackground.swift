@@ -28,6 +28,6 @@ import SwiftUI
 extension View {
     /// Static food-doodle wallpaper behind this screen's content.
     func doodleScreenBackground() -> some View {
-        background(DoodleWallpaper())
+        background(AppScreenBackground(doodle: true))
     }
 }

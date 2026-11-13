@@ -50,7 +50,7 @@ struct RootView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
         // One app-level tint so system controls (alerts, pickers, links) match the UI accent.
         .tint(AppTheme.accentInk)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: environment.appState)
@@ -103,7 +103,7 @@ struct LoginView: View {
                 form
             }
         }
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
         .scrollDismissesKeyboard(.interactively)
         .scrollIndicators(.hidden)
     }
@@ -369,7 +369,7 @@ struct MainTabView: View {
             .environment(environment)
             .presentationDetents([.medium])
             .presentationDragIndicator(.hidden)
-            .presentationBackground(AppTheme.background)
+            .presentationBackground { AppScreenBackground() }
     }
 
     var body: some View {
@@ -406,7 +406,7 @@ struct MainTabView: View {
         }
         // Osta-style: Import is a floating round button, not a tab (keeps the glassy 4-icon bar).
         // Import FAB everywhere EXCEPT Discover — the reel is immersive and the FAB would cover the rail.
-        .overlay(alignment: .bottomTrailing) { if tab != .discover { importFAB } }
+        .overlay(alignment: .bottomTrailing) { if tab != .discover && !environment.hidesImportFAB { importFAB } }
         .tabBarMinimizeBehavior(.onScrollDown)
         .background {
             DiscoverTabTapCatcher(
@@ -456,12 +456,12 @@ struct MainTabView: View {
         .sheet(isPresented: $showingImportSheet) {
             AddRecipeSheet(showing: $showingImportSheet)
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground { AppScreenBackground() }
         }
         .sheet(isPresented: $showingAddGrocery) {
             AddGroceryItemSheet()
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground { AppScreenBackground() }
         }
         .onChange(of: environment.pendingImportRequest) { _, requested in
             // Onboarding asked to import a first reel — open the sheet once, then clear the flag.
@@ -527,7 +527,7 @@ struct MainTabView: View {
             ImportProgressScreen(reopenImport: { importSheetBinding.wrappedValue = true })
                 .presentationDetents([.fraction(0.85), .large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(AppTheme.background)
+                .presentationBackground { AppScreenBackground() }
         }
         .onChange(of: environment.importState) { _, state in
             // When an import is cancelled/cleared (Cancel, Close, or "View Recipe"), the state goes
@@ -535,11 +535,17 @@ struct MainTabView: View {
             // because .idle renders as stage-0, shows a spinner forever ("buffering + Cancel dead").
             if state == .idle { showingProgressDetail = false }
         }
-        .fullScreenCover(item: Binding(
-            get: { environment.selectedRecipe },
-            set: { _ in environment.dismissRecipeDetail() }
-        )) { recipe in
-            RecipeDetailPager(start: recipe)
+        // Presented while any recipe is open. Keyed on "is open", not on which recipe: swiping to
+        // another recipe changes `selectedRecipe`, and an item-keyed cover would close and
+        // re-present itself (the "another recipe pops up" glitch).
+        .fullScreenCover(isPresented: Binding(
+            get: { environment.selectedRecipe != nil },
+            set: { if !$0 { environment.dismissRecipeDetail() } }
+        )) {
+            RecipeDetailPager(
+                start: environment.selectedRecipe ?? Recipe.placeholderRecipes[0],
+                context: environment.recipeSwipeContext ?? environment.recipes
+            )
                 .environment(environment)
                 // A sheet on RootView can't present while this cover is up, so the recipe
                 // page hosts the guest wall itself (like / follow / save / comment / share).

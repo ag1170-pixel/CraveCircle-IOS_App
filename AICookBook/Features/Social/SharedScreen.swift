@@ -61,7 +61,7 @@ struct SharedScreen: View {
                     }
                 }
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationTitle("Shared Recipes")
             .navigationBarTitleDisplayMode(.inline)
         }

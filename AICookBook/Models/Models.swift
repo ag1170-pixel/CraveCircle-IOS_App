@@ -17,6 +17,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 /// App account role. Consumers browse; approved creators and admins can publish to the feed.
 enum AccountRole: String, Codable {
@@ -748,6 +749,16 @@ enum MealSlot: String, Codable, CaseIterable, Hashable, Identifiable {
     case breakfast, lunch, dinner, snack
     var id: String { rawValue }
 
+    /// Calendar color for this meal: breakfast yellow, lunch blue, dinner coral, snack green.
+    var color: Color {
+        switch self {
+        case .breakfast: return Color(hex: "E8C35A")
+        case .lunch:     return Color(hex: "8AA7BF")
+        case .dinner:    return Color(hex: "D9634A")
+        case .snack:     return Color(hex: "8DB58A")
+        }
+    }
+
     /// Default slot picked from a cook time — "when it is" nudges the user to the right slot
     /// without them having to tap anything. User can override, of course.
     static func suggested(for date: Date, in calendar: Calendar = .current) -> MealSlot {
@@ -828,6 +839,8 @@ struct PlannedMeal: Codable, Identifiable, Hashable {
     /// plan can cancel the local notification too.
     var reminderIdentifier: String?
     var createdAt: Date = Date()
+    /// Servings the user plans to cook. Kept on this phone only (the server row has no column).
+    var servings: Int? = nil
 }
 
 enum CraveCircleInvariantChecks {

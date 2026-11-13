@@ -88,7 +88,7 @@ struct NewRecipeWizard: View {
                     .transition(.opacity.combined(with: .move(edge: .trailing)))
                 }
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

@@ -94,7 +94,7 @@ struct CookModeScreen: View {
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
         }
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
         .tint(AppTheme.accentInk)
         .leadingEdgeBack { dismiss() }
     }

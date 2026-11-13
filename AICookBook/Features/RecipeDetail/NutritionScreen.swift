@@ -74,7 +74,7 @@ struct NutritionScreen: View {
                 Spacer()
             }
         }
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
         .leadingEdgeBack { dismiss() }
         .task { environment.refreshAuthoritativeNutrition(for: recipe) }
     }

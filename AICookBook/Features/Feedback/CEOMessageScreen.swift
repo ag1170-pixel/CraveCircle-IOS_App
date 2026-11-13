@@ -45,7 +45,7 @@ struct CEOMessageScreen: View {
                 .padding(.top, AppSpacing.md)
                 .padding(.bottom, 110)   // room for the pinned button
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .safeAreaInset(edge: .bottom) { writeButton }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

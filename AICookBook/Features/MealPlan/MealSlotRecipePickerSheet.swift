@@ -63,7 +63,7 @@ struct MealSlotRecipePickerSheet: View {
                     }
                 }
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationTitle("Plan \(slot.displayName.lowercased())")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

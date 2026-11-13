@@ -58,6 +58,35 @@ struct DoodleWallpaper: View {
     }
 }
 
+/// Full-screen page background. Dark mode is a warm brown glow at the top fading into the
+/// near-black base (the Grocery / onboarding look). Light mode keeps the cream base, with the
+/// food doodles on the screens that use them.
+struct AppScreenBackground: View {
+    var doodle = false
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        Group {
+            if scheme == .dark {
+                LinearGradient(
+                    stops: [
+                        .init(color: Color(hex: "463128"), location: 0),
+                        .init(color: Color(hex: "33261F"), location: 0.35),
+                        .init(color: Color(hex: "29211B"), location: 0.7),
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+            } else if doodle {
+                DoodleWallpaper()
+            } else {
+                AppTheme.background
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+}
+
 // View helpers extracted to their own files:
 //   colorInvert(if:)        → View+ConditionalInvert.swift
 //   doodleScreenBackground() → View+DoodleBackground.swift
@@ -644,10 +673,11 @@ func boldQuantities(_ text: String, size: CGFloat) -> AttributedString {
 }
 
 /// Ingredient row: the amount comes first, in bold, then the name.
-func ingredientLine(_ text: String, size: CGFloat) -> AttributedString {
+func ingredientLine(_ text: String, size: CGFloat, capitalizeName: Bool = false) -> AttributedString {
     let parts = IngredientListFormat.displayParts(text)
-    guard !parts.amount.isEmpty else { return AttributedString(parts.name) }
-    let combined = parts.name.isEmpty ? parts.amount : parts.amount + " " + parts.name
+    let name = capitalizeName ? parts.name.capitalizedFirst : parts.name
+    guard !parts.amount.isEmpty else { return AttributedString(name) }
+    let combined = name.isEmpty ? parts.amount : parts.amount + " " + name
     var attr = AttributedString(combined)
     let hi = attr.index(attr.startIndex, offsetByCharacters: parts.amount.count)
     attr[attr.startIndex..<hi].font = AppFont.body(size, weight: .bold)
@@ -664,6 +694,8 @@ struct ChecklistRow: View {
     var minHeight: CGFloat = 44
     var stepNumber: Int? = nil
     var chips: [String] = []
+    /// Small tag beside the title, e.g. "2 recipes" when one grocery row covers several dishes.
+    var badge: String? = nil
     var checkLeading: Bool = false
     let checked: Bool
     let action: () -> Void
@@ -685,11 +717,26 @@ struct ChecklistRow: View {
         HStack(alignment: .center, spacing: AppSpacing.sm) {
             if checkLeading { checkImage }
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(AppFont.body(17))
-                    .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.textPrimary)
-                    .strikethrough(checked, color: AppTheme.textTertiary)
-                    .multilineTextAlignment(.leading)
+                HStack(spacing: 8) {
+                    Text(title)
+                        .font(AppFont.body(17))
+                        .foregroundStyle(checked ? AppTheme.textTertiary : AppTheme.textPrimary)
+                        .strikethrough(checked, color: AppTheme.textTertiary)
+                        .multilineTextAlignment(.leading)
+                    if let badge {
+                        HStack(spacing: 3) {
+                            Image(systemName: "link").font(.system(size: 10, weight: .bold))
+                            Text(badge)
+                        }
+                            .font(AppFont.body(12, weight: .semibold))
+                            .foregroundStyle(Color(light: Color(hex: "1F6FD1"), dark: Color(hex: "8DB8F0")))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color(light: Color(hex: "E3EEFB"), dark: Color(hex: "23303F")), in: Capsule())
+                            .fixedSize()
+                            .opacity(checked ? 0.5 : 1)
+                    }
+                }
                 if let subtitle, !subtitle.characters.isEmpty {
                     Text(subtitle)
                         .font(AppFont.body(15))
@@ -829,6 +876,7 @@ private struct ChecklistScrollProbe: UIViewRepresentable {
     final class Probe: UIView {
         var onHeight: ((CGFloat) -> Void)?
         private var last: CGFloat = 0
+        private var beforeLast: CGFloat = 0
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
@@ -844,6 +892,17 @@ private struct ChecklistScrollProbe: UIViewRepresentable {
             guard let collection = sequence(first: superview, next: { $0?.superview }).compactMap({ $0 as? UICollectionView }).first else { return }
             let content = collection.collectionViewLayout.collectionViewContentSize.height
             guard content > 1, abs(content - last) > 0.5 else { return }
+            // Resizing the list re-lays it out; if that flips back to the height before last,
+            // settle on the taller one instead of bouncing between the two forever.
+            if abs(content - beforeLast) <= 0.5 {
+                let settled = max(content, last)
+                beforeLast = settled
+                last = settled
+                let report = onHeight
+                DispatchQueue.main.async { report?(settled) }
+                return
+            }
+            beforeLast = last
             last = content
             let report = onHeight
             DispatchQueue.main.async { report?(content) }
@@ -1177,6 +1236,14 @@ struct GuestWallView: View {
             .buttonStyle(PressableStyle())
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
+    }
+}
+
+extension String {
+    /// First letter upper-cased, the rest untouched ("fresh baby spinach" → "Fresh baby spinach").
+    var capitalizedFirst: String {
+        guard let first else { return self }
+        return first.uppercased() + dropFirst()
     }
 }

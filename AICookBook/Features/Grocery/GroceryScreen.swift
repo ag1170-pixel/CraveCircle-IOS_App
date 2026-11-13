@@ -250,8 +250,16 @@ struct GroceryScreen: View {
                                    showRecipe: false)
                 }
             } else {
-                ForEach(GrocerySort.grouped(shownItems), id: \.aisle) { section in
-                    grocerySection(title: section.aisle.label, icon: section.aisle.icon, items: section.items, showRecipe: true)
+                ForEach(GrocerySort.groupedMerged(shownItems), id: \.aisle) { section in
+                    Section {
+                        ForEach(section.rows) { mergedRow($0) }
+                    } header: {
+                        HStack {
+                            Label(section.aisle.label, systemImage: section.aisle.icon)
+                            Spacer()
+                            Text("\(section.rows.filter { !$0.checked }.count)/\(section.rows.count)")
+                        }
+                    }
                 }
             }
         }
@@ -263,8 +271,9 @@ struct GroceryScreen: View {
     }
 
     private var estimatedListHeight: CGFloat {
-        let sections = sortMode == .recipe ? visibleGroups.count : GrocerySort.grouped(shownItems).count
-        return CGFloat(shownItems.count) * 60 + CGFloat(max(sections, 1)) * 40 + 12
+        let sections = sortMode == .recipe ? visibleGroups.count : GrocerySort.groupedMerged(shownItems).count
+        let rows = sortMode == .recipe ? shownItems.count : GrocerySort.merged(shownItems).count
+        return CGFloat(rows) * 60 + CGFloat(max(sections, 1)) * 40 + 12
     }
 
     @ViewBuilder
@@ -289,12 +298,33 @@ struct GroceryScreen: View {
             return AttributedString(recipe)
         }()
         return ChecklistRow(
-            title: parts.nameDashAmount ? ingredientLine(item.ingredientName, size: 17) : AttributedString(parts.name),
+            title: parts.nameDashAmount ? ingredientLine(item.ingredientName, size: 17, capitalizeName: true)
+                                        : AttributedString(parts.name.capitalizedFirst),
             subtitle: subtitle,
             trailing: parts.nameDashAmount ? nil : parts.amount,
             checked: item.checked
         ) {
             toggle(item)
+        }
+        .listRowBackground(AppTheme.surface)
+        .readChecklistHeight($listHeight)
+    }
+
+    /// Aisle-view row. The same ingredient from several recipes is one row: a "2 recipes" tag
+    /// next to the name, the dishes listed underneath, and one tick for all of them.
+    private func mergedRow(_ row: GrocerySort.MergedRow) -> some View {
+        let first = row.items[0]
+        let parts = IngredientListFormat.displayParts(first.ingredientName)
+        let amount = GrocerySort.combinedAmount(row.items.map { IngredientListFormat.displayParts($0.ingredientName).amount })
+        let recipes = row.recipes
+        return ChecklistRow(
+            title: AttributedString(parts.name.capitalizedFirst),
+            subtitle: AttributedString(recipes.joined(separator: " · ")),
+            trailing: amount,
+            badge: recipes.count > 1 ? "\(recipes.count) recipes" : nil,
+            checked: row.checked
+        ) {
+            toggle(row)
         }
         .listRowBackground(AppTheme.surface)
         .readChecklistHeight($listHeight)
@@ -345,6 +375,18 @@ struct GroceryScreen: View {
             environment.toggleGroceryItemLocal(id: item.id)
         }
         Task { await environment.toggleGroceryItem(id: item.id, checked: !item.checked) }
+    }
+
+    private func toggle(_ row: GrocerySort.MergedRow) {
+        let target = !row.checked
+        Haptics.toggle(target)
+        let changing = row.items.filter { $0.checked != target }
+        withAnimation(AppMotion.snappy) {
+            for item in changing { environment.toggleGroceryItemLocal(id: item.id) }
+        }
+        Task {
+            for item in changing { await environment.toggleGroceryItem(id: item.id, checked: target) }
+        }
     }
 
     private func addItem() {

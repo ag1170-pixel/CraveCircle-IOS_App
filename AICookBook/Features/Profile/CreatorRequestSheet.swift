@@ -73,7 +73,7 @@ struct CreatorRequestSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationTitle("Become a Creator")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

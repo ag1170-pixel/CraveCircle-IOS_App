@@ -65,7 +65,7 @@ struct ScaleRecipeSheet: View {
                 .padding(.bottom, 100) // Clear bottom pinned button
             }
             .scrollIndicators(.hidden)
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationTitle("Scale Recipe")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

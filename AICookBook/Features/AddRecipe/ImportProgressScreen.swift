@@ -105,7 +105,7 @@ struct ImportProgressScreen: View {
             footer.padding(AppSpacing.lg)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
     }
 
     // MARK: Headline

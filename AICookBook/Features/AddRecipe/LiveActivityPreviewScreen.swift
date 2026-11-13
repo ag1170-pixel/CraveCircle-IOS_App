@@ -71,7 +71,7 @@ struct LiveActivityPreviewScreen: View {
             .padding(.vertical, AppSpacing.lg)
             .frame(maxWidth: .infinity)
         }
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
         .navigationTitle("Cooking Island")
         .navigationBarTitleDisplayMode(.inline)
         .task { await loop() }

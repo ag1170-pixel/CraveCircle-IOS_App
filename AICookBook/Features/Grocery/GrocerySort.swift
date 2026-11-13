@@ -134,6 +134,124 @@ enum GrocerySort {
         }
     }
 
+    /// One row on the aisle list: the same ingredient from several recipes collapsed together.
+    struct MergedRow: Identifiable {
+        let items: [GroceryItem]
+        var id: String { items[0].id }
+        var checked: Bool { items.allSatisfy(\.checked) }
+        /// Distinct dishes this ingredient came from, in list order ("Added by you" for hand-added).
+        var recipes: [String] {
+            var seen = Set<String>()
+            return items.map(dishName).filter { seen.insert($0).inserted }
+        }
+    }
+
+    /// Collapse rows that are the same ingredient (by `coreName`) into one, keeping first-seen order.
+    static func merged(_ items: [GroceryItem]) -> [MergedRow] {
+        var order: [String] = []
+        var buckets: [String: [GroceryItem]] = [:]
+        for item in items {
+            let core = mergeKey(item.ingredientName)
+            let key = core.isEmpty ? item.id : core
+            if buckets[key] == nil { order.append(key) }
+            buckets[key, default: []].append(item)
+        }
+        return order.compactMap { buckets[$0].map(MergedRow.init) }
+    }
+
+    /// Prep and grade words that don't change what you buy ("minced garlic" is still garlic).
+    private static let prepWords: Set<String> = [
+        "minced", "chopped", "fresh", "freshly", "extra", "virgin", "unsalted", "salted", "ground",
+        "dried", "grated", "sliced", "diced", "crushed", "finely", "roughly", "thinly", "large",
+        "small", "medium", "whole", "boneless", "skinless", "peeled", "cubed", "softened", "melted",
+        "organic", "ripe", "raw", "toasted", "roasted", "shredded", "halved", "quartered", "julienned",
+    ]
+
+    /// Key for merging the same ingredient across recipes: `coreName` minus prep words, last
+    /// word singular. "2 tbsp extra virgin olive oil" and "1 tbsp olive oil" → "olive oil".
+    static func mergeKey(_ s: String) -> String {
+        var words = coreName(s).split(separator: " ").map(String.init).filter { !prepWords.contains($0) }
+        if var last = words.popLast() {
+            if last.hasSuffix("oes") { last.removeLast(2) }
+            else if last.hasSuffix("s"), !last.hasSuffix("ss"), last.count > 3 { last.removeLast() }
+            words.append(last)
+        }
+        return words.joined(separator: " ")
+    }
+
+    /// Aisle sections built from merged rows.
+    static func groupedMerged(_ items: [GroceryItem]) -> [(aisle: GroceryAisle, rows: [MergedRow])] {
+        var buckets: [GroceryAisle: [MergedRow]] = [:]
+        for row in merged(items) { buckets[aisle(for: row.items[0].ingredientName), default: []].append(row) }
+        return GroceryAisle.allCases.compactMap { a in
+            guard let rows = buckets[a], !rows.isEmpty else { return nil }
+            return (a, rows)
+        }
+    }
+
+    /// Combined amount for a merged row. Same unit → summed ("0.5 cup" + "0.25 cup" → "0.75 cup");
+    /// anything else is listed ("2 + 1 tbsp").
+    static func combinedAmount(_ amounts: [String]) -> String {
+        let parts = amounts.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard parts.count > 1 else { return parts.first ?? "" }
+        let parsed = parts.map(parseAmount)
+        if parsed.allSatisfy({ $0 != nil }) {
+            let values = parsed.compactMap { $0 }
+            let unit = values[0].unit
+            if values.allSatisfy({ singular($0.unit) == singular(unit) }) {
+                let total = values.reduce(0) { $0 + $1.value }
+                let number = formatNumber(total)
+                guard !unit.isEmpty else { return number }
+                return "\(number) \(total > 1 ? plural(unit) : singular(unit))"
+            }
+        }
+        var seen = Set<String>()
+        return parts.filter { seen.insert($0.lowercased()).inserted }.joined(separator: " + ")
+    }
+
+    private static func parseAmount(_ s: String) -> (value: Double, unit: String)? {
+        let glyphs: [Character: Double] = ["¼": 0.25, "½": 0.5, "¾": 0.75, "⅓": 1.0/3, "⅔": 2.0/3, "⅛": 0.125]
+        var tokens = s.lowercased().split(separator: " ").map(String.init)
+        var value = 0.0, found = false
+        while let t = tokens.first {
+            if let g = t.first, t.count == 1, let v = glyphs[g] { value += v }
+            else if let v = Double(t) { value += v }
+            else if t.contains("/"), case let f = t.split(separator: "/"), f.count == 2,
+                    let n = Double(f[0]), let d = Double(f[1]), d != 0 { value += n / d }
+            else if let m = t.range(of: #"^[0-9.]+"#, options: .regularExpression), let v = Double(t[m]) {
+                value += v; found = true
+                tokens[0] = String(t[m.upperBound...]); break
+            } else { break }
+            found = true
+            tokens.removeFirst()
+        }
+        guard found else { return nil }
+        return (value, tokens.joined(separator: " "))
+    }
+
+    private static func singular(_ u: String) -> String {
+        switch u {
+        case "cups": return "cup"
+        case "tablespoons": return "tablespoon"
+        case "teaspoons": return "teaspoon"
+        case "cloves": return "clove"
+        case "grams": return "gram"
+        case "pieces": return "piece"
+        case "slices": return "slice"
+        default: return u
+        }
+    }
+
+    private static func plural(_ u: String) -> String {
+        let s = singular(u)
+        return ["cup", "clove", "piece", "slice", "gram", "tablespoon", "teaspoon"].contains(s) ? s + "s" : s
+    }
+
+    private static func formatNumber(_ v: Double) -> String {
+        let rounded = (v * 100).rounded() / 100
+        return rounded == rounded.rounded() ? String(Int(rounded)) : String(rounded)
+    }
+
     private static let units: Set<String> = ["cup","cups","tbsp","tablespoon","tablespoons","tsp",
         "teaspoon","teaspoons","g","gram","grams","kg","ml","l","oz","ounce","ounces","lb","lbs",
         "pound","pounds","clove","cloves","pinch","can","cans","slice","slices","piece","pieces",

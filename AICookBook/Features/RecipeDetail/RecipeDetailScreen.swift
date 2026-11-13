@@ -347,7 +347,7 @@ struct RecipeDetailScreen: View {
 
                 heroFooter
                     .padding(.horizontal, AppSpacing.md)
-                    .padding(.bottom, 42)
+                    .padding(.bottom, 14)
                     .offset(y: reduceMotion ? 0 : -stretch)
             }
         }
@@ -667,16 +667,17 @@ struct RecipeDetailScreen: View {
 
                     Button {
                         Haptics.tap()
-                        showScaleRecipeSheet = true
+                        showMealPlanner = true
                     } label: {
-                        Label("Scale Recipe", systemImage: "slider.horizontal.2.square")
+                        Label("Meal Plan", systemImage: "calendar")
                     }
 
                     Button {
                         Haptics.tap()
-                        showAddToGrocerySheet = true
+                        environment.dismissRecipeDetail()
+                        environment.requestTabSwitch(.groceries)
                     } label: {
-                        Label("Add to Grocery List", systemImage: "basket")
+                        Label("Grocery List", systemImage: "basket")
                     }
 
                     Button {
@@ -1130,49 +1131,56 @@ struct RecipeDetailScreen: View {
 struct RecipeDetailPager: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var index = 0
+    @State private var index: Int
     @State private var segment = 0            // 0 = Ingredients, 1 = Directions
-    @State private var resolved = false
-    private let startId: String
+    /// The swipe list as it was when the pager opened. Reading the live list made a different
+    /// recipe flash up while closing (closing clears the swipe context mid-animation).
+    @State private var list: [Recipe]
 
-    init(start: Recipe) { self.startId = start.id }
+    init(start: Recipe, context: [Recipe]) {
+        var recipes = context
+        let found = recipes.firstIndex { $0.id == start.id }
+        if found == nil { recipes.insert(start, at: 0) }   // opened from a feed outside the list
+        _list = State(initialValue: recipes)
+        _index = State(initialValue: found ?? 0)
+    }
 
     private var swipeAnim: Animation {
         reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.4, dampingFraction: 0.85)
     }
 
+    /// Latest copy of a recipe (edits, nutrition) by id; falls back to the opened snapshot.
+    private func current(_ r: Recipe) -> Recipe {
+        environment.recipes.first { $0.id == r.id } ?? r
+    }
+
     var body: some View {
-        // Swipe within the caller's context (e.g. Library's Liked/Saved/Created tab) when one was
-        // given, so left/right stays inside what's actually on screen; otherwise the full library.
-        let recipes = environment.recipeSwipeContext ?? environment.recipes
-        let safe = min(max(index, 0), max(recipes.count - 1, 0))
+        let safe = min(max(index, 0), max(list.count - 1, 0))
         Group {
-            if recipes.indices.contains(safe) {
-                RecipeDetailScreen(recipe: recipes[safe], tab: $segment, onSwitchRecipe: { dir in
+            if list.indices.contains(safe) {
+                RecipeDetailScreen(recipe: current(list[safe]), tab: $segment, onSwitchRecipe: { dir in
                     // Swipe OUTSIDE the Ingredients/Directions region → previous / next recipe.
-                    if (dir > 0 && index < recipes.count - 1) || (dir < 0 && index > 0) {
+                    if (dir > 0 && index < list.count - 1) || (dir < 0 && index > 0) {
                         guard environment.canViewRecipe() else {
                             environment.dismissRecipeDetail()
                             return
                         }
                     }
                     withAnimation(swipeAnim) {
-                        if dir > 0, index < recipes.count - 1 { index += 1; segment = 0 }
+                        if dir > 0, index < list.count - 1 { index += 1; segment = 0 }
                         else if dir < 0, index > 0 { index -= 1; segment = 0 }
                         else { return }
                     }
                     Haptics.select()
                 })
-                .id(recipes[safe].id)     // fresh per-recipe state; segment persists via binding
+                .id(list[safe].id)     // fresh per-recipe state; segment persists via binding
             }
         }
-        .background(AppTheme.background.ignoresSafeArea())
-        .onAppear {
-            if !resolved { index = recipes.firstIndex { $0.id == startId } ?? 0; resolved = true }
-        }
+        .background(AppScreenBackground())
         .onChange(of: index) { _, next in
-            guard recipes.indices.contains(next) else { return }
-            environment.selectRecipe(recipes[next], in: environment.recipeSwipeContext)
+            // Keep `selectedRecipe` pointing at the page on screen (nutrition, share, guest budget).
+            guard list.indices.contains(next), environment.selectedRecipe != nil else { return }
+            environment.selectRecipe(current(list[next]), in: environment.recipeSwipeContext)
         }
     }
 }

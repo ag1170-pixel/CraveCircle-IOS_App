@@ -80,7 +80,7 @@ struct CreatorProfileSheet: View {
                 .padding(.top, AppSpacing.md)
                 .padding(.bottom, AppSpacing.xl)
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

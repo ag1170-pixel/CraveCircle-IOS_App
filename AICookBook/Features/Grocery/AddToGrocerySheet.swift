@@ -79,7 +79,7 @@ struct AddToGrocerySheet: View {
                 .padding(.bottom, 120) // Leave clearance for bottom pinned bar
             }
             .scrollIndicators(.hidden)
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationTitle("Add to Grocery")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

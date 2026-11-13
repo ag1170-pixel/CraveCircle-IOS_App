@@ -53,7 +53,7 @@ struct AddFriendSheet: View {
                 Spacer()
             }
             .padding(AppSpacing.md)
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationTitle("Add to Circle")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -40,7 +40,7 @@ struct CircleNotificationsScreen: View {
 
     var body: some View {
         content
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .tabBar)

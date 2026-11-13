@@ -1046,6 +1046,8 @@ final class AppEnvironment {
     /// Set by a pushed screen (e.g. Library, once it's cycled past its own last filter tab) to ask
     /// the root tab bar to switch main tabs. MainTabView observes this and clears it after acting.
     var pendingTabSwitch: AppTab?
+    /// Screens with their own bottom bar (Meal Plan) hide the floating + while they're up.
+    var hidesImportFAB = false
 
     /// Set by the "Search" Home-screen quick action: switch to Home AND focus the search field so the
     /// user lands straight on the keyboard-ready search box. HomeScreen observes and clears it.
@@ -1464,11 +1466,9 @@ final class AppEnvironment {
 
     /// Add a planned cook. Optimistic locally; mirrors to Supabase if signed in. Also schedules
     /// a local notification 30 minutes before `when` so the kitchen reminder actually fires.
-    func planMeal(recipeId: String, when: Date, slot: MealSlot) async -> PlannedMeal? {
+    func planMeal(recipeId: String, when: Date, slot: MealSlot, servings: Int? = nil) async -> PlannedMeal? {
         guard requireRealSessionOrPrompt(reason: .save) else { return nil }
-        // Suggest a slot if the caller passed .snack-as-default; but we trust the caller too.
-        let safeSlot = slot
-        var meal = PlannedMeal(recipeId: recipeId, when: when, slot: safeSlot)
+        var meal = PlannedMeal(recipeId: recipeId, when: when, slot: slot, servings: servings)
         // Schedule the local notification BEFORE recording so we can stash its identifier.
         let title = recipes.first(where: { $0.id == recipeId })?.title ?? "a recipe"
         meal.reminderIdentifier = await scheduleCookReminder(for: meal, title: title)
@@ -1501,7 +1501,10 @@ final class AppEnvironment {
         guard hasRealSession else { return }
         guard let remote = await supabase.fetchMyMealPlan() else { return }
         var byId = Dictionary(uniqueKeysWithValues: plannedMeals.map { ($0.id, $0) })
-        for row in remote { byId[row.id] = row }
+        for var row in remote {
+            row.servings = byId[row.id]?.servings   // servings live on this phone only
+            byId[row.id] = row
+        }
         let merged = Array(byId.values).sorted { $0.when < $1.when }
         await MainActor.run { plannedMeals = merged }
     }

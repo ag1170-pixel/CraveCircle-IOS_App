@@ -54,7 +54,7 @@ struct FeedbackFormView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                AppTheme.background.ignoresSafeArea()
+                AppScreenBackground()
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: AppSpacing.lg) {
@@ -194,7 +194,7 @@ struct FeedbackFormView: View {
 
     private var thankYouOverlay: some View {
         ZStack {
-            AppTheme.background.ignoresSafeArea()
+            AppScreenBackground()
             VStack(spacing: 20) {
                 Text("💌").font(.system(size: 72))
                 Text("Message on its way.")

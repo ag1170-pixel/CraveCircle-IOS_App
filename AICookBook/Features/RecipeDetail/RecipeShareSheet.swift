@@ -54,7 +54,7 @@ struct RecipeShareSheet: View {
                 .padding(.top, AppSpacing.md)
                 .padding(.bottom, AppSpacing.xl)
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationTitle("Share Recipe")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

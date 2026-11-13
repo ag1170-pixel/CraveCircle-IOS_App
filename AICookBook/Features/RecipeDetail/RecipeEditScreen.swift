@@ -140,7 +140,7 @@ struct RecipeEditScreen: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .navigationTitle("Edit recipe")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

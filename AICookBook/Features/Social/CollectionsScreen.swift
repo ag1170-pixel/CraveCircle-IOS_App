@@ -48,7 +48,7 @@ struct CollectionsScreen: View {
                 .padding(.top, AppSpacing.xs)
                 .padding(.bottom, AppSpacing.xl)
             }
-            .background(AppTheme.background.ignoresSafeArea())
+            .background(AppScreenBackground())
             .scrollIndicators(.hidden)
             .navigationTitle("Collections")
             .navigationBarTitleDisplayMode(.large)
@@ -73,7 +73,7 @@ struct CollectionsScreen: View {
                 CreateCollectionSheet()
                     .presentationDetents([.height(320)])
                     .presentationDragIndicator(.visible)
-                    .presentationBackground(AppTheme.background)
+                    .presentationBackground { AppScreenBackground() }
             }
             .tint(AppTheme.accentInk)
         }

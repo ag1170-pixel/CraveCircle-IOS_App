@@ -63,7 +63,7 @@ struct FriendsScreen: View {
             .padding(.top, AppSpacing.xs)
             .padding(.bottom, 90)    // room for the invite banner (tab bar is hidden)
         }
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
         .scrollIndicators(.hidden)
         // Hide the floating app tab bar on this screen — otherwise the parent "+" FAB sits on top
         // of the Invite button and the whole bottom looks jammed. Instagram's follow screens do
@@ -799,7 +799,7 @@ struct RequestsScreen: View {
             }
             .padding(AppSpacing.md)
         }
-        .background(AppTheme.background.ignoresSafeArea())
+        .background(AppScreenBackground())
         .navigationTitle("Requests")
         .navigationBarTitleDisplayMode(.inline)
     }

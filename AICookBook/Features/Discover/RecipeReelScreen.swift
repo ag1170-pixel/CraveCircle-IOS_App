@@ -284,7 +284,7 @@ private struct ReelCell: View {
                             .padding(.top, AppSpacing.md)
                             .padding(.bottom, AppSpacing.xl)
                     }
-                    .background(AppTheme.background.ignoresSafeArea())
+                    .background(AppScreenBackground())
                     .navigationTitle("Comments")
                     .navigationBarTitleDisplayMode(.inline)
                 }
