@@ -3013,17 +3013,34 @@ final class AppEnvironment {
             history: interactionHistory,
             excluding: excluded,
             preferredCuisines: preferredCuisines,
-            limit: 8
+            limit: Self.suggestionLimit
         )
         PerformanceDiagnostics.record("Local recommendation ranking", since: rankingStart)
         // Show on-device picks INSTANTLY (never wait on a slow/offline backend for first content)…
         if suggestedRecipes.isEmpty { setSuggestions(local) }
-        // …then upgrade to the cross-user server feed if/when it responds.
-        if let remote = await supabase.suggestedRecipes(limit: 8), !remote.isEmpty {
-            setSuggestions(remote)
+        // …then blend in the cross-user server feed when it responds. Blend, not replace: the
+        // built-in catalog (incl. the Food.com seed recipes) only exists on the phone.
+        if let remote = await supabase.suggestedRecipes(limit: Self.suggestionLimit / 2), !remote.isEmpty {
+            setSuggestions(Self.interleave(remote, local, excluding: excluded, limit: Self.suggestionLimit))
         } else if suggestedRecipes.isEmpty {
             setSuggestions(local)
         }
+    }
+
+    /// 4 in the Suggested grid + the rest in the More picks rail.
+    private static let suggestionLimit = 16
+
+    /// Alternate server and on-device picks, skipping duplicates and excluded ids.
+    private static func interleave(_ a: [Recipe], _ b: [Recipe], excluding: Set<String>, limit: Int) -> [Recipe] {
+        var seen = excluding
+        var out: [Recipe] = []
+        for i in 0..<max(a.count, b.count) {
+            for r in [a.indices.contains(i) ? a[i] : nil, b.indices.contains(i) ? b[i] : nil].compactMap({ $0 })
+            where seen.insert(r.id).inserted {
+                out.append(r)
+            }
+        }
+        return Array(out.prefix(limit))
     }
 
     /// Publish a suggestions list + its per-item "why" reasons (behavior first, else onboarding cuisine).
