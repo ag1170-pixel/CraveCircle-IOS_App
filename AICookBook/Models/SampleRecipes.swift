@@ -2782,5 +2782,5 @@ extension Recipe {
             )
         )
 
-    ]
+    ] + foodComSeedRecipes   // 50 curated Food.com recipes (FoodComSeedRecipes.swift)
 }

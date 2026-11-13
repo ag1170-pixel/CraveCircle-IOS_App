@@ -9,10 +9,27 @@ This dataset extracts, cleans, normalizes, and structures 50 top-rated recipes f
 - **Formats Included:**
   - `cravecircle_50_recipes.json`: Universal JSON array matching CraveCircle models.
   - `seed_50_recipes.sql`: Ready-to-execute PostgreSQL statements for Supabase (`cravecircle.recipes`).
-  - `Seed50Recipes.swift`: Ready-to-drop Swift file conforming to CraveCircle's `Recipe` model.
   - `image_generation_manifest.json`: Exact tailored culinary prompts, aspect ratio (1:1), and generation status for all 50 recipes.
-  - `xcassets/`: 50 Xcode image asset bundles (`.imageset`) complete with `Contents.json`.
-  - `images/`: High-resolution square food photography.
+  - `images/`: Original 1024×1024 food photography (source files).
+  - `generate.py`: Cleans the JSON and regenerates the Swift and SQL from it.
+
+## How it's wired into the app
+- `cravecircle_50_recipes.json` is the single source of truth.
+- `AICookBook/Models/FoodComSeedRecipes.swift` is generated from it and appended to
+  `Recipe.placeholderRecipes`, so the 50 recipes ship as built-in feed recipes (searchable,
+  openable, with nutrition) like the existing samples.
+- Photos live in `AICookBook/Resources/Assets.xcassets/recipe_*.imageset`, re-encoded to
+  ~280 KB each; `thumbnailUrl` is the asset name.
+- `seed_50_recipes.sql` (optional) loads the same rows into `cravecircle.recipes`, owned by
+  the oldest admin profile, and is safe to re-run.
+
+To change a recipe: edit the JSON, then run from the repo root:
+
+```bash
+python3 cravecircle_seed_dataset/generate.py "$PWD"
+```
+
+To add photos for new recipes, copy the image into `Assets.xcassets` as `recipe_<name>.imageset`.
 
 ## Image Generation Progress (50 / 50 Complete — 100%)
 Every single recipe image is 100% unique and generated via the custom AI food photography pipeline (1:1 square ratio, 1024×1024, warm natural directional lighting, rustic tableware, authentic garnishes, shallow depth of field). Zero placeholder duplicates.
