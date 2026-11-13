@@ -68,6 +68,12 @@ json.dump(recipes, open(f"{ds}/cravecircle_50_recipes.json", "w"), indent=2, ens
 open(f"{ds}/cravecircle_50_recipes.json", "a").write("\n")
 
 
+# Full public URL. Bump PHOTO_VERSION after re-uploading a photo: Cloudflare caches per URL
+# (including "not found" answers), so a new version is the way to get fresh images.
+PHOTO_BASE = "https://db.cravecircle.cc/storage/v1/object/public/recipe-thumbnails"
+PHOTO_VERSION = 1
+
+
 def sq(s):
     return "'" + s.replace("'", "''") + "'"
 
@@ -78,15 +84,15 @@ sql = [
     "--",
     "-- Owner: the profile whose username is set below. Use a dedicated kitchen account, NOT your",
     "-- own: recipes you own count as yours (Your Library) and are left out of Fresh / Suggested.",
-    "-- Photos: thumbnail_url is e.g. 'recipe_carbonara'; the app loads it from the public",
-    "-- recipe-thumbnails bucket as recipe_carbonara.jpg (upload with upload_images.sh first).",
-    "-- Safe to re-run: existing ids are left alone.",
+    "-- Photos: thumbnail_url is the full public URL in the recipe-thumbnails bucket, with ?v=N",
+    "-- to get past Cloudflare's cache (upload with upload_images.sh first).",
+    "-- Safe to re-run: existing ids only get their photo URL and nutrition refreshed.",
     "",
     "SET search_path = cravecircle, public;",
     "",
     "DO $$",
     "DECLARE",
-    "    seed_username text := 'cravecircle_kitchen';   -- change to your kitchen account's username",
+    "    seed_username text := 'aicookbook';   -- house creator account that owns the built-in samples",
     "    seed_owner uuid;",
     "BEGIN",
     "    SELECT id INTO seed_owner FROM cravecircle.profiles WHERE username = seed_username;",
@@ -100,19 +106,21 @@ sql = [
 ]
 rows = []
 for r in recipes:
+    # dailyCalories is required by older app builds' decoder; leaving it out broke their whole feed.
     nut = {k: r["nutrition"][k] for k in ("calories", "carbsG", "proteinG", "fatG", "estimated")}
+    nut["dailyCalories"] = 2000
     rows.append(
         "        (" + ", ".join([
             sq(r["id"]), "seed_owner", sq(r["title"]), sq(r["description"]), sq(r["prepTime"]),
             sq(r["cookTime"]), str(r["servings"]),
             sq(json.dumps(r["ingredients"], ensure_ascii=False)) + "::jsonb",
             sq(json.dumps(r["directions"], ensure_ascii=False)) + "::jsonb",
-            sq(r["thumbnailUrl"]), sq(r["ownerUsername"]), sq(r["sourceLanguage"]),
+            sq(f"{PHOTO_BASE}/{r['thumbnailUrl']}.jpg?v={PHOTO_VERSION}"), sq(r["ownerUsername"]), sq(r["sourceLanguage"]),
             sq(json.dumps(nut)) + "::jsonb", "'everyone'",
         ]) + ")"
     )
 sql.append(",\n".join(rows))
-sql += ["    ON CONFLICT (id) DO NOTHING;", "END $$;", ""]
+sql += ["    ON CONFLICT (id) DO UPDATE SET thumbnail_url = EXCLUDED.thumbnail_url, nutrition = EXCLUDED.nutrition;", "END $$;", ""]
 open(f"{ds}/seed_50_recipes.sql", "w").write("\n".join(sql))
 
 print("recipes:", len(recipes))

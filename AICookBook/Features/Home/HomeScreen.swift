@@ -372,9 +372,32 @@ struct HomeScreen: View {
                     }, onRemove: nil, showsIcon: false)
                 }
             }
+            searchIdeasSection
             browseCuisineSection
         }
         .padding(.horizontal, AppSpacing.md)
+    }
+
+    /// Recipe cards under the suggestions so a focused, empty search is never a blank screen.
+    /// Same shuffle as Fresh in your Circle, so it varies between visits.
+    @ViewBuilder private var searchIdeasSection: some View {
+        let ideas = Array(freshFeedRecipes.prefix(6))
+        if !ideas.isEmpty {
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                suggestionHeader("Recipes to try", clearAction: nil)
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: AppSpacing.md),
+                    GridItem(.flexible(), spacing: AppSpacing.md)
+                ], spacing: AppSpacing.md) {
+                    ForEach(ideas) { recipe in
+                        LibraryCard(recipe: recipe) {
+                            searchFocused = false
+                            environment.selectRecipe(recipe, in: ideas)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private var browseCuisineSection: some View {

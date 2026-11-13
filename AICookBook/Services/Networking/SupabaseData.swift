@@ -845,9 +845,16 @@ private struct RemoteCommentRow: Decodable {
 
 /// Decodes the snake_case recipe rows the RPC returns into the app's `Recipe` model.
 enum SupabaseRecipeDecoder {
+    /// Skips rows that don't decode instead of failing the whole response: one malformed recipe
+    /// used to empty the entire server feed for every user.
     static func decode(_ data: Data) throws -> [Recipe] {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode([Recipe].self, from: data)
+        return try decoder.decode([Lossy].self, from: data).compactMap(\.recipe)
+    }
+
+    private struct Lossy: Decodable {
+        let recipe: Recipe?
+        init(from decoder: Decoder) throws { recipe = try? Recipe(from: decoder) }
     }
 }

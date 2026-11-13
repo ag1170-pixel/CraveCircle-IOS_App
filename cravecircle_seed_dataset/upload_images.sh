@@ -29,7 +29,7 @@ dir="$(cd "$(dirname "$0")" && pwd)/images"
 ok=0
 for img in "$dir"/recipe_*.jpg; do
   name="$(basename "$img")"
-  body="$(curl -s -w $'\n%{http_code}' -X POST \
+  body="$(curl -s --max-time 60 -w $'\n%{http_code}' -X POST \
     "$base/storage/v1/object/recipe-thumbnails/$name" \
     -H "Authorization: Bearer $key" \
     -H "apikey: $key" \
