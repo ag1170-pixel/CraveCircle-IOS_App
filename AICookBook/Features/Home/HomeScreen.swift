@@ -611,7 +611,9 @@ struct HomeScreen: View {
                 .padding(.horizontal, AppSpacing.md)
                 LazyVGrid(columns: columns, spacing: AppSpacing.md) {
                     ForEach(recipes) { recipe in
-                        LibraryCard(recipe: recipe) { environment.selectRecipe(recipe, in: recipes) }
+                        LibraryCard(recipe: recipe, reservesTitleLines: recipes.count > 1) {
+                            environment.selectRecipe(recipe, in: recipes)
+                        }
                     }
                 }
                 .padding(.horizontal, AppSpacing.md)
@@ -1127,6 +1129,8 @@ struct FreshCard: View {
 // MARK: - SwiftUI View Component
 struct LibraryCard: View {
     let recipe: Recipe
+    /// Reserve two title lines so cards in a row line up. Off when the card stands alone.
+    var reservesTitleLines = true
     let onTap: () -> Void
     @Environment(AppEnvironment.self) private var environment
 
@@ -1173,7 +1177,7 @@ struct LibraryCard: View {
                 .font(AppFont.body(15, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(2)
-                .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
+                .frame(maxWidth: .infinity, minHeight: reservesTitleLines ? 40 : nil, alignment: .topLeading)
             CreatorLine(handle: recipe.ownerUsername)
             MetaLine(recipe: recipe)
         }
