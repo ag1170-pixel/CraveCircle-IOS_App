@@ -70,6 +70,10 @@ struct RecipeDetailScreen: View {
     @State private var galleryIndex = 0
     @State private var galleryFrame: CGRect = .zero   // hero gallery's rect (in "detail" space)
     @State private var segmentFrame: CGRect = .zero   // Ingredients/Directions box rect (in "detail" space)
+    /// When a finger last dragged 25pt or more. A row under a sideways swipe must not get ticked:
+    /// the scroll view only cancels a row's tap on vertical drags.
+    @State private var lastDragAt = Date.distantPast
+    private var justDragged: Bool { Date().timeIntervalSince(lastDragAt) < 0.3 }
     @State private var topBarGlass = false            // frosted strip only once content is under the buttons
 
     private let heroHeight: CGFloat = 380
@@ -137,7 +141,9 @@ struct RecipeDetailScreen: View {
         // Starts near the left edge are left to the system's swipe-back.
         .simultaneousGesture(
             DragGesture(minimumDistance: 25, coordinateSpace: .named("detail"))
+                .onChanged { _ in lastDragAt = Date() }
                 .onEnded { value in
+                    lastDragAt = Date()
                     guard !showCustomizationMenu,
                           value.startLocation.x > 32,
                           segmentFrame.contains(value.startLocation),
@@ -974,6 +980,7 @@ struct RecipeDetailScreen: View {
                         let shown = IngredientListFormat.scaledLine(item, from: baseServings, to: servings)
                         VStack(spacing: 0) {
                             ChecklistRow(title: ingredientLine(shown, size: 17), checkLeading: true, checked: checkedIngredients.contains(key)) {
+                                guard !justDragged else { return }
                                 toggleChecklistItem(&checkedIngredients, key)
                             }
                             if itemIndex < group.items.count - 1 {
@@ -1000,6 +1007,7 @@ struct RecipeDetailScreen: View {
                         chips: [],
                         checked: checkedSteps.contains(i)
                     ) {
+                        guard !justDragged else { return }
                         toggleChecklistItem(&checkedSteps, i)
                     }
                     // Step timers live in the cook-mode flashcards only (owner call), not in this list.
