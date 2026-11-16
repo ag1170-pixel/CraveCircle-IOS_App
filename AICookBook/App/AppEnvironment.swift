@@ -520,10 +520,6 @@ final class AppEnvironment {
             return
         }
         elevateFounderIfMatches(email: email)
-        // Fresh sign-in → clear the guest free-view counter so the previous session's taps don't
-        // follow them in. The user's own likes/follows/saves are user-id-scoped elsewhere, so they
-        // naturally start empty for a brand-new account.
-        resetGuestViewCounter()
         // Move everything the guest did on this device over to the signed-in account BEFORE we
         // hydrate — likes, saves, follows, comments, notifications, drafts, grocery list, picked
         // cuisines, interaction history. Nothing of theirs should get stranded on the guest id.
@@ -885,10 +881,6 @@ final class AppEnvironment {
     /// whenever the caller has a narrower context (e.g. Library's Liked/Saved/Created tabs) so a
     /// left/right swipe stays inside what's actually on screen, not the full unfiltered library.
 
-    /// Owner call (2026-10-28): a guest gets 10 free recipe opens, then a sign-in wall. We count
-     /// UNIQUE recipe ids so re-tapping the same card doesn't burn through the budget.
-    static let guestViewLimit = 10
-    private var guestViewedIdsRaw: String = AppEnvironment.storedDefault("guest_viewed_ids", "") { didSet { UserDefaults.standard.set(guestViewedIdsRaw, forKey: "guest_viewed_ids") } }
     /// Timestamp of the most recent app-active transition. Used by the daily-nudge scheduler to
     /// avoid pinging an actively-engaged user. Stored as reference-date seconds for @AppStorage.
     private var lastAppActiveAtRaw: Double = AppEnvironment.storedDefault("last_app_active_at", 0) { didSet { UserDefaults.standard.set(lastAppActiveAtRaw, forKey: "last_app_active_at") } }
@@ -904,35 +896,6 @@ final class AppEnvironment {
         lastAppActiveAtRaw > 0 ? Date(timeIntervalSinceReferenceDate: lastAppActiveAtRaw) : nil
     }
     var showGuestPaywall = false
-
-    private var guestViewedIds: Set<String> {
-        get { Set(guestViewedIdsRaw.split(separator: ",").map(String.init).filter { !$0.isEmpty }) }
-        set { guestViewedIdsRaw = newValue.sorted().joined(separator: ",") }
-    }
-
-    /// Signed-in users: always true. Guests: true until they've opened `guestViewLimit` distinct
-    /// recipes, then false (and the paywall is raised). Called from `selectRecipe`.
-    func canViewRecipe(_ recipeId: String? = nil) -> Bool {
-        if !isGuest { return true }
-        var seen = guestViewedIds
-        if let id = recipeId { seen.insert(id); guestViewedIds = seen }
-        if seen.count > Self.guestViewLimit {
-            promptGuestToSignIn(reason: .generic)
-            return false
-        }
-        return true
-    }
-
-    /// Clears the per-id counter on sign-in / sign-up so the next guest session starts fresh.
-    func resetGuestViewCounter() {
-        guestViewedIdsRaw = ""
-    }
-
-    /// How many free recipe views the guest has left. UI hint — a small chip under the search bar.
-    var guestViewsRemaining: Int {
-        guard isGuest else { return Int.max }
-        return max(0, Self.guestViewLimit - guestViewedIds.count)
-    }
 
     /// Guest tried to import, publish, share, or do anything that writes to our catalog. Raises
     /// the paywall with a message that invites them in rather than scolding them.
@@ -970,9 +933,7 @@ final class AppEnvironment {
     private(set) var recipeSwipeContext: [Recipe]?
 
     func selectRecipe(_ recipe: Recipe, in context: [Recipe]? = nil) {
-        // For guests this records the recipe id in the view budget. Returns false (and raises
-        // the paywall) once they've opened `guestViewLimit` distinct recipes.
-        guard canViewRecipe(recipe.id) else { return }
+        // Public recipes remain browseable to guests; only account actions are sign-in gated.
         recipeSwipeContext = context
         var openedRecipe = recipe
         if let cached = nutritionCache[recipe.id],
@@ -2326,6 +2287,8 @@ final class AppEnvironment {
     }
 
     func loadGroceryList() async {
+        // Guest grocery data is device-local. Avoid sending guest IDs to signed-in API endpoints.
+        guard !isGuest, hasRealSession else { groceryError = nil; return }
         // Grocery is local-first in this build (items carry client-side UUIDs). Only adopt the
         // backend list when it actually has items — an empty response must not wipe the
         // locally-added / demo items the user is looking at.
@@ -2340,6 +2303,7 @@ final class AppEnvironment {
     }
 
     func toggleGroceryItem(id: String, checked: Bool) async {
+        guard !isGuest, hasRealSession else { return }
         // Local toggle is the source of truth here; the remote sync is best-effort. A missing
         // backend row must not surface an error banner over a checkbox that already flipped.
         do {

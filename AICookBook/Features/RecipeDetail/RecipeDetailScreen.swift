@@ -1515,13 +1515,7 @@ struct RecipeDetailPager: View {
         Group {
             if list.indices.contains(safe) {
                 RecipeDetailScreen(recipe: current(list[safe]), tab: $segment, onSwitchRecipe: { dir in
-                    // Swipe OUTSIDE the Ingredients/Directions region → previous / next recipe.
-                    if (dir > 0 && index < list.count - 1) || (dir < 0 && index > 0) {
-                        guard environment.canViewRecipe() else {
-                            environment.dismissRecipeDetail()
-                            return
-                        }
-                    }
+                    // Guests can browse through public recipes without a sign-in quota.
                     withAnimation(swipeAnim) {
                         if dir > 0, index < list.count - 1 { index += 1; segment = 0 }
                         else if dir < 0, index > 0 { index -= 1; segment = 0 }
