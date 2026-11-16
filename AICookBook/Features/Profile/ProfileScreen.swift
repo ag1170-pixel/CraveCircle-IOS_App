@@ -65,22 +65,20 @@ struct ProfileScreen: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: AppSpacing.xl) {
-                    header
-                    settings
-                }
-                .padding(.horizontal, AppSpacing.md)
-                .padding(.top, AppSpacing.lg)
-                .padding(.bottom, AppSpacing.xl)
+        ScrollView {
+            VStack(spacing: AppSpacing.xl) {
+                header
+                settings
             }
-            .doodleScreenBackground()
-            .scrollIndicators(.hidden)
-            .navigationTitle("Profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.top, AppSpacing.lg)
+            .padding(.bottom, AppSpacing.xl)
         }
+        .doodleScreenBackground()
+        .scrollIndicators(.hidden)
+        .navigationTitle("Profile")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .tint(AppTheme.accentInk)
         // Mirror the Recipe Language into the App Group so the Share Extension (separate process)
         // imports shared reels in this language instead of always English.

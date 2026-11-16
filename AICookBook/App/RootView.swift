@@ -445,6 +445,10 @@ struct MainTabView: View {
                         .accessibilityLabel(AppTab.profile.title)
                 }
             }
+            .navigationTitle(tab == .profile ? "Profile" : "")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar(tab == .profile ? .visible : .hidden, for: .navigationBar)
             .navigationDestination(isPresented: Binding(
                 get: { environment.selectedRecipe != nil },
                 set: { isPresented in
