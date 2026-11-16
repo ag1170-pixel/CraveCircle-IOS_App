@@ -1063,17 +1063,19 @@ struct FreshCard: View {
     let recipe: Recipe
     let onTap: () -> Void
     @Environment(AppEnvironment.self) private var environment
-
-    /// Two cards fit with a slice of the next one peeking on the right — the peek is the cue that
-    /// there's more to swipe (no text hint needed). The -24 per card frees ~48pt for that peek.
-    static var cardWidth: CGFloat { (ScreenMetrics.bounds.width - AppSpacing.md * 3) / 2 - 24 }
+    @ScaledMetric(relativeTo: .body) private var titleSlotHeight: CGFloat = 40
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Fixed frame + scaledToFill + clip — no GeometryReader (a grid of them is slow to render).
-            RecipeCoverImage(recipe: recipe)
-                .scaledToFill()
-                .frame(width: Self.cardWidth, height: Self.cardWidth * 0.78)
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .aspectRatio(1 / 0.78, contentMode: .fit)
+                .overlay {
+                    RecipeCoverImage(recipe: recipe)
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .clipped()
                 .clipShape(RoundedRectangle(cornerRadius: AppRadius.tile, style: .continuous))
                 .overlay(alignment: .topTrailing) {
                     if recipe.visibility == .followers {
@@ -1090,11 +1092,15 @@ struct FreshCard: View {
                 .font(AppFont.body(15, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(2)
-                .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
+                .frame(maxWidth: .infinity, minHeight: titleSlotHeight, alignment: .topLeading)
             CreatorLine(handle: recipe.ownerUsername)
             MetaLine(recipe: recipe)
         }
-        .frame(width: Self.cardWidth, alignment: .leading)
+        // Derive the rail card width from its actual scroll viewport. Screen bounds are too wide
+        // when this view is rotated or shown in an iPad multitasking window.
+        .containerRelativeFrame(.horizontal) { width, _ in
+            max(112, (width - AppSpacing.md * 3) / 2 - 24)
+        }
         .contentShape(Rectangle())
         .onTapGesture { Haptics.tap(); onTap() }
         .contextMenu {
@@ -1129,6 +1135,7 @@ struct LibraryCard: View {
     let recipe: Recipe
     let onTap: () -> Void
     @Environment(AppEnvironment.self) private var environment
+    @ScaledMetric(relativeTo: .body) private var titleSlotHeight: CGFloat = 40
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1173,7 +1180,7 @@ struct LibraryCard: View {
                 .font(AppFont.body(15, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(2)
-                .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
+                .frame(maxWidth: .infinity, minHeight: titleSlotHeight, alignment: .topLeading)
             CreatorLine(handle: recipe.ownerUsername)
             MetaLine(recipe: recipe)
         }
@@ -1213,6 +1220,8 @@ struct SuggestedGridCard: View {
     let recipe: Recipe
     let onTap: () -> Void
     @Environment(AppEnvironment.self) private var environment
+    @ScaledMetric(relativeTo: .body) private var titleSlotHeight: CGFloat = 40
+    @ScaledMetric(relativeTo: .body) private var reasonSlotHeight: CGFloat = 28
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1243,7 +1252,7 @@ struct SuggestedGridCard: View {
                 .font(AppFont.body(15, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(2)
-                .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
+                .frame(maxWidth: .infinity, minHeight: titleSlotHeight, alignment: .topLeading)
             CreatorLine(handle: recipe.ownerUsername)
             MetaLine(recipe: recipe)
             // Reserve a fixed slot for the reason chip so every card is the SAME height — a card
@@ -1256,7 +1265,7 @@ struct SuggestedGridCard: View {
                     Color.clear
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 28, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: reasonSlotHeight, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -1273,6 +1282,8 @@ struct SuggestedRailCard: View {
     let recipe: Recipe
     let onTap: () -> Void
     @Environment(AppEnvironment.self) private var environment
+    @ScaledMetric(relativeTo: .body) private var titleSlotHeight: CGFloat = 44
+    @ScaledMetric(relativeTo: .body) private var reasonSlotHeight: CGFloat = 28
 
     static let cardWidth: CGFloat = 240
 
@@ -1303,7 +1314,7 @@ struct SuggestedRailCard: View {
                 .font(AppFont.body(16, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(2)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .topLeading)
+                .frame(maxWidth: .infinity, minHeight: titleSlotHeight, alignment: .topLeading)
             CreatorLine(handle: recipe.ownerUsername)
             MetaLine(recipe: recipe)
             Group {
@@ -1313,7 +1324,7 @@ struct SuggestedRailCard: View {
                     Color.clear
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 28, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: reasonSlotHeight, alignment: .topLeading)
         }
         .frame(width: Self.cardWidth, alignment: .leading)
         .contentShape(Rectangle())
@@ -1336,6 +1347,8 @@ func cover(_ recipe: Recipe) -> some View {
 // MARK: - SwiftUI View Component
 struct CreatorLine: View {
     let handle: String?
+    @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 16
+
     var body: some View {
         HStack(spacing: 3) {
             Text(handle ?? "@cravecircle")
@@ -1346,12 +1359,15 @@ struct CreatorLine: View {
                 .font(.system(size: 10))
                 .foregroundStyle(AppTheme.accentInk)
         }
+        .frame(height: rowHeight, alignment: .leading)
     }
 }
 
 // MARK: - SwiftUI View Component
 struct MetaLine: View {
     let recipe: Recipe
+    @ScaledMetric(relativeTo: .body) private var rowHeight: CGFloat = 16
+
     var body: some View {
         let parts = [
             recipe.servings.map { "\($0) servings" },
@@ -1361,6 +1377,8 @@ struct MetaLine: View {
             .font(AppFont.body(11, weight: .medium))
             .foregroundStyle(AppTheme.accentInk)
             .lineLimit(1)
+            .frame(height: rowHeight, alignment: .leading)
+            .accessibilityHidden(parts.isEmpty)
     }
 }
 
