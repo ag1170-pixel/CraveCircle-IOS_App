@@ -100,7 +100,7 @@ struct DietToggle: View {
                     }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .frame(height: 40)
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
         }
@@ -120,15 +120,16 @@ struct FilterChip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            HStack(spacing: 7) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 18, height: 18)
                 Text(title)
-                    .font(AppFont.body(12, weight: .semibold))
+                    .font(AppFont.body(13, weight: .semibold))
             }
             .foregroundStyle(isOn ? AppTheme.onAccent : AppTheme.textPrimary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .frame(height: 40)
             .background(isOn ? AppTheme.accent : AppTheme.surface, in: Capsule())
             .overlay(Capsule().stroke(isOn ? Color.clear : AppTheme.hairline, lineWidth: 1))
         }

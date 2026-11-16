@@ -661,10 +661,11 @@ struct HomeScreen: View {
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
-                            Text("Clear").font(AppFont.body(14, weight: .semibold))
+                            Text("Clear").font(AppFont.body(13, weight: .semibold))
                         }
                         .foregroundStyle(AppTheme.textSecondary)
-                        .padding(.horizontal, 12).padding(.vertical, 9)
+                        .padding(.horizontal, 12)
+                        .frame(height: 40)
                     }
                     .buttonStyle(PressableStyle())
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
