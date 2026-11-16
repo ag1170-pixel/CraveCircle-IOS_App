@@ -401,64 +401,47 @@ struct MainTabView: View {
         // Instagram's iOS 26 bar is the system UITabBar: one floating Liquid Glass
         // platter (the "glass bubble"), five equal icons, selection capsule drawn by UIKit,
         // shrinks on scroll. This is Gowtham's original bar, restored verbatim.
-        NavigationStack {
-            TabView(selection: $tab) {
-                Tab(value: AppTab.home) {
-                    HomeScreen(showingImportSheet: importSheetBinding)
-                } label: {
-                    Image(systemName: AppTab.home.icon)
-                        .accessibilityLabel(AppTab.home.title)
-                }
-                Tab(value: AppTab.discover) {
-                    if visitedTabs.contains(.discover) {
-                        // Search lives on Home; the immersive reel loads only on first visit.
-                        RecipeReelScreen(
-                            tabSignal: discoverSignal,
-                            reel: $discoverReel,
-                            currentID: $discoverCurrentID
-                        )
-                    } else {
-                        Color.clear
-                    }
-                } label: {
-                    Image(systemName: AppTab.discover.icon)
-                        .accessibilityLabel(AppTab.discover.title)
-                }
-                Tab(value: AppTab.groceries) {
-                    if visitedTabs.contains(.groceries) {
-                        GroceryScreen()
-                    } else {
-                        Color.clear
-                    }
-                } label: {
-                    Image(systemName: AppTab.groceries.icon)
-                        .accessibilityLabel(AppTab.groceries.title)
-                }
-                Tab(value: AppTab.profile) {
-                    if visitedTabs.contains(.profile) {
-                        ProfileScreen()
-                    } else {
-                        Color.clear
-                    }
-                } label: {
-                    Image(systemName: AppTab.profile.icon)
-                        .accessibilityLabel(AppTab.profile.title)
-                }
+        TabView(selection: $tab) {
+            Tab(value: AppTab.home) {
+                HomeScreen(showingImportSheet: importSheetBinding)
+            } label: {
+                Image(systemName: AppTab.home.icon)
+                    .accessibilityLabel(AppTab.home.title)
             }
-            .navigationDestination(isPresented: Binding(
-                get: { environment.selectedRecipe != nil },
-                set: { isPresented in
-                    if !isPresented { environment.dismissRecipeDetail() }
+            Tab(value: AppTab.discover) {
+                if visitedTabs.contains(.discover) {
+                    // Search lives on Home; the immersive reel loads only on first visit.
+                    RecipeReelScreen(
+                        tabSignal: discoverSignal,
+                        reel: $discoverReel,
+                        currentID: $discoverCurrentID
+                    )
+                } else {
+                    Color.clear
                 }
-            )) {
-                RecipeDetailPager(
-                    start: environment.selectedRecipe ?? Recipe.placeholderRecipes[0],
-                    context: environment.recipeSwipeContext ?? environment.recipes
-                )
-                .environment(environment)
-                .toolbarBackground(.hidden, for: .navigationBar)
-                .sheet(isPresented: Bindable(environment).showGuestPaywall) { guestWall }
-                .sheet(item: importFeedbackTarget(whileRecipeOpen: true)) { importFeedbackSheet($0) }
+            } label: {
+                Image(systemName: AppTab.discover.icon)
+                    .accessibilityLabel(AppTab.discover.title)
+            }
+            Tab(value: AppTab.groceries) {
+                if visitedTabs.contains(.groceries) {
+                    GroceryScreen()
+                } else {
+                    Color.clear
+                }
+            } label: {
+                Image(systemName: AppTab.groceries.icon)
+                    .accessibilityLabel(AppTab.groceries.title)
+            }
+            Tab(value: AppTab.profile) {
+                if visitedTabs.contains(.profile) {
+                    ProfileScreen()
+                } else {
+                    Color.clear
+                }
+            } label: {
+                Image(systemName: AppTab.profile.icon)
+                    .accessibilityLabel(AppTab.profile.title)
             }
         }
         // Osta-style: Import is a floating round button, not a tab (keeps the glassy 4-icon bar).
@@ -595,6 +578,25 @@ struct MainTabView: View {
             // back to .idle — close the progress sheet too. Without this the sheet stays up and,
             // because .idle renders as stage-0, shows a spinner forever ("buffering + Cancel dead").
             if state == .idle { showingProgressDetail = false }
+        }
+        // Presented while any recipe is open. Keyed on "is open", not on which recipe: swiping to
+        // another recipe changes `selectedRecipe`, and an item-keyed cover would close and
+        // re-present itself (the "another recipe pops up" glitch).
+        .fullScreenCover(isPresented: Binding(
+            get: { environment.selectedRecipe != nil },
+            set: { if !$0 { environment.dismissRecipeDetail() } }
+        )) {
+            RecipeDetailPager(
+                start: environment.selectedRecipe ?? Recipe.placeholderRecipes[0],
+                context: environment.recipeSwipeContext ?? environment.recipes
+            )
+                .environment(environment)
+                // A sheet on RootView can't present while this cover is up, so the recipe
+                // page hosts the guest wall itself (like / follow / save / comment / share).
+                // `@Environment` gives a read-only reference; `Bindable(...)` makes a `$`-style
+                // binding to one property of the @Observable model.
+                .sheet(isPresented: Bindable(environment).showGuestPaywall) { guestWall }
+                .sheet(item: importFeedbackTarget(whileRecipeOpen: true)) { importFeedbackSheet($0) }
         }
         .sheet(isPresented: Binding(
             get: { environment.showGuestPaywall && environment.selectedRecipe == nil },

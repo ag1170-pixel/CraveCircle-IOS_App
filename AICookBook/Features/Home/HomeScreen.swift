@@ -645,16 +645,12 @@ struct HomeScreen: View {
             HStack(spacing: 8) {
                 DietToggle(mark: .veg, tint: Self.vegMark, isOn: filters.diet == .veg, label: "Vegetarian") { setDiet(.veg) }
                 DietToggle(mark: .nonVeg, tint: Self.nonVegMark, isOn: filters.diet == .nonVeg, label: "Non-vegetarian") { setDiet(.nonVeg) }
-                filterChip("Under 15m", image: "timer", isOn: filters.time == .under15) {
-                    setTime(.under15)
-                }
-                filterChip("15–30m", image: "clock.fill", isOn: filters.time == .mid) {
-                    setTime(.mid)
-                }
-                filterChip("30m+", image: "clock", isOn: filters.time == .long) {
-                    setTime(.long)
-                }
-                filterChip("High protein", image: "dumbbell", isOn: filters.highProtein) {
+                filterDivider
+                FilterChip(title: "Under 15m", systemImage: "timer", isOn: filters.time == .under15) { setTime(.under15) }
+                FilterChip(title: "15–30m", systemImage: "clock.fill", isOn: filters.time == .mid) { setTime(.mid) }
+                FilterChip(title: "30m+", systemImage: "clock", isOn: filters.time == .long) { setTime(.long) }
+                filterDivider
+                FilterChip(title: "High protein", systemImage: "dumbbell", isOn: filters.highProtein) {
                     Haptics.select()
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { filters.highProtein.toggle() }
                 }
@@ -668,9 +664,8 @@ struct HomeScreen: View {
                             Text("Clear").font(AppFont.body(14, weight: .semibold))
                         }
                         .foregroundStyle(AppTheme.textSecondary)
-                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .padding(.horizontal, 12).padding(.vertical, 9)
                     }
-                    .frame(minHeight: 44)
                     .buttonStyle(PressableStyle())
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
                 }
@@ -688,13 +683,11 @@ struct HomeScreen: View {
     private static let vegMark = Color(light: Color(hex: "1B7F3A"), dark: Color(hex: "3DDC6E"))
     private static let nonVegMark = Color(light: Color(hex: "C7362A"), dark: Color(hex: "FF5A48"))
 
-    private func filterChip(
-        _ title: String,
-        image: String,
-        isOn: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        FilterChip(title: title, systemImage: image, isOn: isOn, action: action)
+    private var filterDivider: some View {
+        Rectangle()
+            .fill(AppTheme.hairline)
+            .frame(width: 1, height: 20)
+            .padding(.horizontal, 2)
     }
 
     private func setDiet(_ d: DietFilter) {

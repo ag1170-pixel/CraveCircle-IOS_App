@@ -79,6 +79,7 @@ struct ProfileScreen: View {
             .scrollIndicators(.hidden)
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
         }
         .tint(AppTheme.accentInk)
         // Mirror the Recipe Language into the App Group so the Share Extension (separate process)
