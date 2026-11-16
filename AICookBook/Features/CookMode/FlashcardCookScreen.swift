@@ -134,7 +134,7 @@ struct FlashcardCookScreen: View {
                 ClockRingView(timer: timer,
                               idleMinutes: currentDuration ?? 0,
                               diameter: 108,
-                              tint: Color(hex: "1B1712")) {
+                              tint: Color(hex: "F2B89B")) {
                     toggleTimer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
@@ -381,9 +381,225 @@ final class CookTimer {
     }
 }
 
+/// Stable identity for a split line in a recipe direction. `stepIndex` identifies the source
+/// direction and `lineIndex` identifies the displayed line produced from that direction.
+struct RecipeDirectionLineID: Hashable {
+    let recipeID: String
+    let stepIndex: Int
+    let lineIndex: Int
+}
+
+/// A display-ready direction line. The detail screen uses this same flattened representation for
+/// its checklist and timer actions so a timer stays attached to the instruction that started it.
+struct RecipeDirectionLine: Identifiable, Hashable {
+    let id: RecipeDirectionLineID
+    let stepNumber: Int
+    let text: String
+    let durationSeconds: Int?
+
+    var durationMinutes: Int? {
+        guard let durationSeconds else { return nil }
+        return max(1, durationSeconds / 60 + (durationSeconds % 60 == 0 ? 0 : 1))
+    }
+}
+
+/// Flatten directions using the same line splitting as the recipe detail UI and annotate explicit
+/// cooking durations. Stable IDs are independent of the flattened display number.
+func recipeDirectionLines(recipeID: String, directions: [DirectionStep]) -> [RecipeDirectionLine] {
+    var result: [RecipeDirectionLine] = []
+    for direction in directions.sorted(by: { $0.stepIndex < $1.stepIndex }) {
+        for (lineIndex, text) in DirectionStepParser.shortLines(direction.text).enumerated() {
+            result.append(RecipeDirectionLine(
+                id: RecipeDirectionLineID(recipeID: recipeID,
+                                          stepIndex: direction.stepIndex,
+                                          lineIndex: lineIndex),
+                stepNumber: result.count + 1,
+                text: text,
+                durationSeconds: stepDurationSeconds(text)
+            ))
+        }
+    }
+    return result
+}
+
+enum RecipeDirectionTimerStatus: String, Hashable {
+    case running
+    case paused
+    case completed
+}
+
+/// One recipe-direction timer. An absent entry represents the idle state; completed entries remain
+/// in the store until dismissed so the UI can expose completion and restart actions.
+struct RecipeDirectionTimerEntry: Identifiable, Hashable {
+    let id: RecipeDirectionLineID
+    let stepNumber: Int
+    let instruction: String
+    let durationSeconds: Int
+    var remainingSeconds: Int
+    var status: RecipeDirectionTimerStatus
+    var deadline: Date?
+
+    var progress: Double {
+        guard durationSeconds > 0 else { return 0 }
+        return 1 - Double(remainingSeconds) / Double(durationSeconds)
+    }
+
+    var clockText: String {
+        if remainingSeconds >= 3_600 {
+            return String(format: "%d:%02d:%02d", remainingSeconds / 3_600,
+                          (remainingSeconds / 60) % 60, remainingSeconds % 60)
+        }
+        return String(format: "%d:%02d", remainingSeconds / 60, remainingSeconds % 60)
+    }
+}
+
+/// Holds independent timers for the recipe Directions screen. Deadlines, rather than accumulated
+/// ticks, keep countdowns accurate after view updates and refresh them when the app becomes active.
+@MainActor
+@Observable
+final class RecipeDirectionTimerStore {
+    private(set) var entries: [RecipeDirectionLineID: RecipeDirectionTimerEntry] = [:]
+
+    @ObservationIgnored private var ticker: Timer?
+    @ObservationIgnored private var activeObserver: NSObjectProtocol?
+
+    init() {
+        activeObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.refresh() }
+        }
+    }
+
+    deinit {
+        ticker?.invalidate()
+        if let activeObserver { NotificationCenter.default.removeObserver(activeObserver) }
+    }
+
+    var orderedEntries: [RecipeDirectionTimerEntry] {
+        entries.values.sorted {
+            if $0.status == .completed && $1.status != .completed { return false }
+            if $1.status == .completed && $0.status != .completed { return true }
+            return $0.stepNumber < $1.stepNumber
+        }
+    }
+
+    /// Starts a new timer or deliberately restarts a completed timer. Existing running or paused
+    /// timers are left untouched, so starting another direction never replaces one silently.
+    @discardableResult
+    func start(for line: RecipeDirectionLine) -> Bool {
+        guard let durationSeconds = line.durationSeconds, durationSeconds > 0 else { return false }
+        if let current = entries[line.id], current.status != .completed { return false }
+
+        entries[line.id] = RecipeDirectionTimerEntry(
+            id: line.id,
+            stepNumber: line.stepNumber,
+            instruction: line.text,
+            durationSeconds: durationSeconds,
+            remainingSeconds: durationSeconds,
+            status: .running,
+            deadline: Date().addingTimeInterval(TimeInterval(durationSeconds))
+        )
+        Haptics.tap()
+        refresh()
+        return true
+    }
+
+    func pause(_ id: RecipeDirectionLineID) {
+        refresh()
+        guard var entry = entries[id], entry.status == .running else { return }
+        entry.remainingSeconds = remaining(until: entry.deadline)
+        entry.deadline = nil
+        entry.status = .paused
+        entries[id] = entry
+        refreshTicker()
+    }
+
+    func resume(_ id: RecipeDirectionLineID) {
+        guard var entry = entries[id], entry.status == .paused else { return }
+        entry.deadline = Date().addingTimeInterval(TimeInterval(entry.remainingSeconds))
+        entry.status = .running
+        entries[id] = entry
+        refreshTicker()
+    }
+
+    /// Restarts a paused or completed timer at its original duration.
+    func restart(_ id: RecipeDirectionLineID) {
+        guard var entry = entries[id], entry.status != .running else { return }
+        entry.remainingSeconds = entry.durationSeconds
+        entry.deadline = Date().addingTimeInterval(TimeInterval(entry.durationSeconds))
+        entry.status = .running
+        entries[id] = entry
+        Haptics.tap()
+        refreshTicker()
+    }
+
+    /// Stops and removes a running or paused timer. Completed entries use `dismissCompleted`.
+    func stop(_ id: RecipeDirectionLineID) {
+        guard let existing = entries[id], existing.status != .completed else { return }
+        entries[id] = nil
+        Haptics.tap()
+        refreshTicker()
+    }
+
+    func dismissCompleted(_ id: RecipeDirectionLineID) {
+        guard entries[id]?.status == .completed else { return }
+        entries[id] = nil
+    }
+
+    /// Recomputes every running timer from its deadline. The UI can also call this on foreground
+    /// activation; the store observes `didBecomeActive` itself as a defensive refresh.
+    func refresh() {
+        let now = Date()
+        var finishedAny = false
+        for id in Array(entries.keys) {
+            guard var entry = entries[id], entry.status == .running,
+                  let deadline = entry.deadline else { continue }
+            let seconds = max(0, Int(ceil(deadline.timeIntervalSince(now))))
+            if seconds == 0 {
+                entry.remainingSeconds = 0
+                entry.deadline = nil
+                entry.status = .completed
+                finishedAny = true
+            } else {
+                entry.remainingSeconds = seconds
+            }
+            entries[id] = entry
+        }
+        if finishedAny { CookTimer.playAlarm() }
+        refreshTicker()
+    }
+
+    private func remaining(until deadline: Date?) -> Int {
+        guard let deadline else { return 0 }
+        return max(0, Int(ceil(deadline.timeIntervalSinceNow)))
+    }
+
+    private func refreshTicker() {
+        let hasRunning = entries.values.contains { $0.status == .running }
+        guard hasRunning else {
+            ticker?.invalidate()
+            ticker = nil
+            return
+        }
+        guard ticker == nil else { return }
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.refresh() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        ticker = timer
+    }
+}
+
 /// The white clock on a card. Idle: a timer glyph + the step's minutes. Running: the live countdown
 /// with the ring draining. Tap to start/stop.
 private struct ClockRingView: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .body) private var contentScale: CGFloat = 1
+
     var timer: CookTimer
     var idleMinutes: Int
     var diameter: CGFloat = 92
@@ -393,36 +609,82 @@ private struct ClockRingView: View {
     var body: some View {
         Button(action: onTap) {
             ZStack {
-                Circle().fill(.white)
-                    .shadow(color: .black.opacity(0.18), radius: 6, y: 2)
-                Circle().stroke(tint.opacity(0.18), lineWidth: 5)
+                Circle()
+                    .fill(Color.clear)
+                    .overlay {
+                        Circle().fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.10), Color(hex: "6D4636").opacity(0.12), .clear],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    }
+                Circle().stroke(.white.opacity(0.16), lineWidth: 5)
                     .padding(6)
                 Circle()
                     .trim(from: 0, to: timer.running ? timer.progress : 1)
                     .stroke(tint, style: StrokeStyle(lineWidth: 5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .padding(6)
-                    .animation(.linear(duration: 0.9), value: timer.progress)
+                    .shadow(color: tint.opacity(0.36), radius: 4, y: 0)
+                    .animation(reduceMotion ? nil : .linear(duration: 0.9), value: timer.progress)
                 VStack(spacing: 1) {
                     if timer.running {
                         Text(timer.clockText)
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .font(AppFont.mono(19, weight: .bold))
                             .monospacedDigit()
                             .foregroundStyle(tint)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     } else {
                         Image(systemName: "timer").font(.system(size: 17, weight: .bold)).foregroundStyle(tint)
                         Text("\(idleMinutes) min")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .font(AppFont.body(12, weight: .bold))
                             .foregroundStyle(tint)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                 }
             }
-            .frame(width: 92, height: 92)
-            .scaleEffect(diameter / 92)
-            .frame(width: diameter, height: diameter)
+            .frame(width: diameter * contentScale, height: diameter * contentScale)
         }
         .buttonStyle(PressableStyle())
+        .modifier(FlashcardTimerGlassSurface(reduceTransparency: reduceTransparency, tint: tint))
         .accessibilityLabel(timer.running ? "Stop timer" : "Start \(idleMinutes) minute timer")
+        .accessibilityValue(timer.running ? "Running, \(timer.clockText) remaining" : "Ready, \(idleMinutes) minutes")
+    }
+}
+
+private struct FlashcardTimerGlassSurface: ViewModifier {
+    let reduceTransparency: Bool
+    let tint: Color
+
+    func body(content: Content) -> some View {
+        Group {
+            if reduceTransparency {
+                content.background(Color(hex: "201A16"), in: Circle())
+            } else {
+                content.glassEffect(.regular.interactive(), in: Circle())
+            }
+        }
+        .overlay {
+            Circle().stroke(
+                LinearGradient(
+                    colors: [Color.white.opacity(reduceTransparency ? 0.28 : 0.72), tint.opacity(0.45), Color.white.opacity(0.08)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: 1.7
+            )
+            .allowsHitTesting(false)
+        }
+        .overlay {
+            Circle().stroke(Color.white.opacity(0.10), lineWidth: 0.8).padding(4)
+                .allowsHitTesting(false)
+        }
+        .shadow(color: .black.opacity(0.34), radius: 18, y: 8)
+        .shadow(color: tint.opacity(0.12), radius: 7, y: 1)
     }
 }
 
@@ -442,20 +704,77 @@ enum FlashCard {
     }
 }
 
-/// Parse an explicit cooking time out of step prose. Requires minute/hour WORDS so plain numbers
-/// (oven temps, counts) don't false-trigger. Sums hours + minutes.
+/// Parse one explicit duration from a direction. Plain numbers (oven temperatures and quantities)
+/// are ignored. A contiguous hour/minute/second amount such as "1 hour and 30 minutes" is treated
+/// as one duration; ranges and distinct intervals in a single line are considered ambiguous.
+func stepDurationSeconds(_ text: String) -> Int? {
+    parseStepDurationSeconds(text, includeSeconds: true)
+}
+
+/// Flashcards historically expose minute precision, so keep their parser on minute/hour values.
 func stepDurationMinutes(_ text: String) -> Int? {
-    let t = text.lowercased()
-    func firstInt(_ pattern: String) -> Int? {
-        guard let re = try? NSRegularExpression(pattern: pattern),
-              let m = re.firstMatch(in: t, range: NSRange(t.startIndex..., in: t)),
-              let r = Range(m.range(at: 1), in: t) else { return nil }
-        return Int(t[r])
+    guard text.range(of: #"(?i)\b(?:seconds?|secs?|sec)\b"#, options: .regularExpression) == nil,
+          let seconds = parseStepDurationSeconds(text, includeSeconds: false),
+          seconds % 60 == 0 else { return nil }
+    return seconds / 60
+}
+
+private func parseStepDurationSeconds(_ text: String, includeSeconds: Bool) -> Int? {
+    let normalized = text.lowercased()
+    let rangePattern = #"\b\d+\s*(?:[-–—]|\bto\b)\s*\d+\s*(?:hours?|hrs?|hr|minutes?|mins?|min|seconds?|secs?|sec)\b"#
+    if normalized.range(of: rangePattern, options: .regularExpression) != nil { return nil }
+
+    let unitPattern = includeSeconds
+        ? #"(?<![\p{L}\p{N}.])(\d+)\s*(hours?|hrs?|hr|minutes?|mins?|min|seconds?|secs?|sec)\b"#
+        : #"(?<![\p{L}\p{N}.])(\d+)\s*(hours?|hrs?|hr|minutes?|mins?|min)\b"#
+    guard let regex = try? NSRegularExpression(pattern: unitPattern, options: [.caseInsensitive]) else { return nil }
+    let searchRange = NSRange(normalized.startIndex..., in: normalized)
+    let matches = regex.matches(in: normalized, range: searchRange)
+    guard !matches.isEmpty, matches.count <= (includeSeconds ? 3 : 2) else { return nil }
+
+    struct Part {
+        let value: Int
+        let unitOrder: Int
+        let multiplier: Int
+        let fullRange: Range<String.Index>
     }
-    let h = firstInt("(\\d+)\\s*(?:hours?|hrs?|hr)\\b")
-    let m = firstInt("(\\d+)\\s*(?:minutes?|mins?|min)\\b")
-    guard h != nil || m != nil else { return nil }
-    return (h ?? 0) * 60 + (m ?? 0)
+    var parts: [Part] = []
+    for match in matches {
+        guard let valueRange = Range(match.range(at: 1), in: normalized),
+              let unitRange = Range(match.range(at: 2), in: normalized),
+              let fullRange = Range(match.range, in: normalized),
+              let value = Int(normalized[valueRange]) else { return nil }
+        let unit = String(normalized[unitRange])
+        let part: Part
+        if unit.hasPrefix("h") {
+            part = Part(value: value, unitOrder: 0, multiplier: 3_600, fullRange: fullRange)
+        } else if unit.hasPrefix("m") {
+            part = Part(value: value, unitOrder: 1, multiplier: 60, fullRange: fullRange)
+        } else {
+            part = Part(value: value, unitOrder: 2, multiplier: 1, fullRange: fullRange)
+        }
+        parts.append(part)
+    }
+
+    if parts.count > 1 {
+        for index in 1..<parts.count {
+            let previous = parts[index - 1]
+            let current = parts[index]
+            guard current.unitOrder > previous.unitOrder else { return nil }
+            let separator = String(normalized[previous.fullRange.upperBound..<current.fullRange.lowerBound])
+            guard separator.range(of: #"^\s*(?:and\s*)?$"#, options: .regularExpression) != nil else { return nil }
+        }
+    }
+
+    var total = 0
+    for part in parts {
+        let (seconds, multiplyOverflow) = part.value.multipliedReportingOverflow(by: part.multiplier)
+        guard !multiplyOverflow else { return nil }
+        let (sum, addOverflow) = total.addingReportingOverflow(seconds)
+        guard !addOverflow else { return nil }
+        total = sum
+    }
+    return total > 0 ? total : nil
 }
 
 /// One step = one wheel row. Renders just this step's content, centred vertically and left-aligned;

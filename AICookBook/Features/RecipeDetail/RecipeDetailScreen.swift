@@ -40,6 +40,8 @@ struct RecipeDetailScreen: View {
     private let onSwitchRecipe: ((Int) -> Void)?     // +1 next / -1 prev — swipe OUTSIDE the segment region
     @State private var checkedIngredients: Set<String> = []
     @State private var checkedSteps: Set<Int> = []
+    @State private var directionTimerStore = RecipeDirectionTimerStore()
+    @State private var showDirectionTimers = false
     @State private var descriptionExpanded = false
     @State private var descFullHeight: CGFloat = 0        // natural height of the full description
     @State private var descClampedHeight: CGFloat = 0     // height when clamped to 3 lines
@@ -206,6 +208,11 @@ struct RecipeDetailScreen: View {
                 .padding(.trailing, 20)
                 .padding(.bottom, 24)
         }
+        .overlay(alignment: .bottomLeading) {
+            activeDirectionTimersButton
+                .padding(.leading, 16)
+                .padding(.bottom, 24)
+        }
         .scrollIndicators(.hidden)
         .fullScreenCover(isPresented: $showCook) {
             FlashcardCookScreen(recipe: recipe)
@@ -224,6 +231,11 @@ struct RecipeDetailScreen: View {
         .sheet(isPresented: $showMealPlanner) {
             MealPlanPickerSheet(recipe: recipe)
                 .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showDirectionTimers) {
+            DirectionTimerListSheet(store: directionTimerStore, recipeID: recipe.id)
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .fullScreenCover(isPresented: $showEdit) {
@@ -980,21 +992,195 @@ struct RecipeDetailScreen: View {
     // MARK: Directions
 
     private var directionsList: some View {
-        let lines = recipe.directions
-            .sorted { $0.stepIndex < $1.stepIndex }
-            .flatMap { DirectionStepParser.shortLines($0.text) }
+        let lines = recipeDirectionLines(recipeID: recipe.id, directions: recipe.directions)
         return VStack(alignment: .leading, spacing: 12) {
-            ForEach(Array(lines.enumerated()), id: \.offset) { i, line in
-                ChecklistRow(
-                    title: boldQuantities(line, size: 17),
-                    subtitle: nil,
-                    stepNumber: i + 1,
-                    chips: [],
-                    checked: checkedSteps.contains(i)
-                ) {
-                    toggleChecklistItem(&checkedSteps, i)
+            ForEach(Array(lines.enumerated()), id: \.element.id) { i, line in
+                VStack(alignment: .leading, spacing: 8) {
+                    ChecklistRow(
+                        title: boldQuantities(line.text, size: 17),
+                        subtitle: nil,
+                        stepNumber: line.stepNumber,
+                        chips: [],
+                        checked: checkedSteps.contains(i)
+                    ) {
+                        toggleChecklistItem(&checkedSteps, i)
+                    }
+
+                    if let durationSeconds = line.durationSeconds {
+                        directionTimerAction(for: line, durationSeconds: durationSeconds)
+                            .padding(.leading, 42)
+                    }
                 }
             }
+        }
+    }
+
+    private func directionTimerAction(for line: RecipeDirectionLine, durationSeconds: Int) -> some View {
+        let timer = directionTimerStore.entries[line.id]
+        return HStack(spacing: 8) {
+            Image(systemName: timer?.status == .completed ? "checkmark.circle.fill" : "timer")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(timer?.status == .completed ? AppTheme.accentInk : AppTheme.textSecondary)
+                .accessibilityHidden(true)
+
+            Text(timerDurationLabel(durationSeconds))
+                .font(AppFont.body(13, weight: .semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+
+            if let timer {
+                Text(timerStatusText(timer))
+                    .font(AppFont.body(13, weight: .semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .accessibilityLabel(timerAccessibilityValue(timer))
+                Spacer(minLength: 4)
+                Button {
+                    switch timer.status {
+                    case .running: directionTimerStore.pause(timer.id)
+                    case .paused: directionTimerStore.resume(timer.id)
+                    case .completed: directionTimerStore.restart(timer.id)
+                    }
+                } label: {
+                    Label(timerInlineActionTitle(timer), systemImage: timerInlineActionSymbol(timer))
+                        .font(AppFont.body(13, weight: .bold))
+                        .foregroundStyle(AppTheme.accentInk)
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 44)
+                        .background(AppTheme.accentSoft, in: Capsule())
+                }
+                .buttonStyle(PressableStyle())
+                .overlay(Capsule().stroke(AppTheme.brand.opacity(0.32), lineWidth: 1.6))
+                .shadow(color: AppTheme.brand.opacity(0.13), radius: 5, y: 2)
+                .accessibilityLabel(timerInlineActionTitle(timer) + " timer for step \(line.stepNumber)")
+                .accessibilityValue(timerAccessibilityValue(timer))
+            } else {
+                Spacer(minLength: 4)
+                Button {
+                    _ = directionTimerStore.start(for: line)
+                } label: {
+                    Label("Start", systemImage: "play.fill")
+                        .font(AppFont.body(13, weight: .bold))
+                        .foregroundStyle(AppTheme.onAccent)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 44)
+                        .background(AppTheme.accent, in: Capsule())
+                }
+                .buttonStyle(PressableStyle())
+                .overlay(Capsule().stroke(Color.white.opacity(0.24), lineWidth: 1))
+                .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
+                .accessibilityLabel("Start \(timerDurationLabel(durationSeconds)) timer for step \(line.stepNumber)")
+            }
+        }
+        .padding(.leading, 8)
+        .padding(.trailing, 4)
+        .padding(.vertical, 4)
+        .background {
+            RoundedRectangle(cornerRadius: AppRadius.tile, style: .continuous)
+                .fill(reduceTransparency ? AnyShapeStyle(AppTheme.surfaceElevated) : AnyShapeStyle(.regularMaterial))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.tile, style: .continuous)
+                        .fill(AppTheme.brand.opacity(0.05))
+                }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.tile, style: .continuous)
+                .stroke(AppTheme.brand.opacity(0.32), lineWidth: 1.7)
+                .overlay(alignment: .top) {
+                    RoundedRectangle(cornerRadius: AppRadius.tile, style: .continuous).stroke(
+                        LinearGradient(
+                            colors: [.white.opacity(reduceTransparency ? 0.18 : 0.5), .white.opacity(0.03)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.8
+                    )
+                }
+                .allowsHitTesting(false)
+        }
+        .shadow(color: .black.opacity(0.055), radius: 7, y: 3)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var activeDirectionTimersButton: some View {
+        let entries = directionTimerStore.orderedEntries.filter { $0.id.recipeID == recipe.id }
+        return Group {
+            if !entries.isEmpty {
+                Button {
+                    Haptics.tap()
+                    showDirectionTimers = true
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: "timer")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(AppTheme.brand)
+                        Text(entries.count == 1 ? "1 Timer" : "\(entries.count) Timers")
+                            .font(AppFont.body(14, weight: .bold))
+                        if let running = entries.first(where: { $0.status == .running }) {
+                            Text(running.clockText)
+                                .font(AppFont.mono(14, weight: .bold))
+                                .monospacedDigit()
+                                .contentTransition(reduceMotion ? .identity : .numericText())
+                        }
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 11, weight: .bold))
+                            .accessibilityHidden(true)
+                    }
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .padding(.horizontal, 15)
+                    .frame(minHeight: 50)
+                }
+                .buttonStyle(PressableStyle())
+                .modifier(DirectionsTimerCapsuleSurface(reduceTransparency: reduceTransparency))
+                .accessibilityLabel("Show \(entries.count) cooking timers")
+                .accessibilityHint("Opens the list of timers for this recipe")
+                .accessibilityValue(entries.map { "Step \($0.stepNumber), \(timerAccessibilityValue($0))" }.joined(separator: ". "))
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(reduceMotion ? nil : AppMotion.snappy, value: entries.count)
+    }
+
+    private func timerDurationLabel(_ seconds: Int) -> String {
+        let hours = seconds / 3_600
+        let minutes = (seconds % 3_600) / 60
+        let remainingSeconds = seconds % 60
+        if hours > 0 {
+            return minutes == 0 ? "\(hours) hr" : "\(hours) hr \(minutes) min"
+        }
+        if minutes > 0 {
+            return remainingSeconds == 0 ? "\(minutes) min" : "\(minutes) min \(remainingSeconds) sec"
+        }
+        return "\(remainingSeconds) sec"
+    }
+
+    private func timerStatusText(_ timer: RecipeDirectionTimerEntry) -> String {
+        switch timer.status {
+        case .running: return timer.clockText
+        case .paused: return "Paused · \(timer.clockText)"
+        case .completed: return "Timer complete"
+        }
+    }
+
+    private func timerAccessibilityValue(_ timer: RecipeDirectionTimerEntry) -> String {
+        switch timer.status {
+        case .running: return "Running, \(timer.clockText) remaining"
+        case .paused: return "Paused, \(timer.clockText) remaining"
+        case .completed: return "Completed"
+        }
+    }
+
+    private func timerInlineActionTitle(_ timer: RecipeDirectionTimerEntry) -> String {
+        switch timer.status {
+        case .running: return "Pause"
+        case .paused: return "Resume"
+        case .completed: return "Restart"
+        }
+    }
+
+    private func timerInlineActionSymbol(_ timer: RecipeDirectionTimerEntry) -> String {
+        switch timer.status {
+        case .running: return "pause.fill"
+        case .paused: return "play.fill"
+        case .completed: return "arrow.clockwise"
         }
     }
 
@@ -1120,6 +1306,199 @@ struct RecipeDetailScreen: View {
             return top > 0 ? top + 4 : 54
         }
         return 56
+    }
+}
+
+private struct DirectionsTimerCapsuleSurface: ViewModifier {
+    let reduceTransparency: Bool
+
+    func body(content: Content) -> some View {
+        Group {
+            if reduceTransparency {
+                content.background(AppTheme.surfaceElevated, in: Capsule(style: .continuous))
+            } else {
+                content.glassEffect(.regular.interactive(), in: Capsule(style: .continuous))
+            }
+        }
+        .overlay {
+            Capsule(style: .continuous).stroke(AppTheme.brand.opacity(0.42), lineWidth: 1.8)
+                .allowsHitTesting(false)
+        }
+        .overlay(alignment: .top) {
+            Capsule(style: .continuous).stroke(
+                LinearGradient(
+                    colors: [.white.opacity(reduceTransparency ? 0.2 : 0.7), .white.opacity(0.04)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ),
+                lineWidth: 0.8
+            )
+            .allowsHitTesting(false)
+        }
+        .shadow(color: .black.opacity(0.17), radius: 12, y: 5)
+    }
+}
+
+private struct DirectionTimerListSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    let store: RecipeDirectionTimerStore
+    let recipeID: String
+
+    private var entries: [RecipeDirectionTimerEntry] {
+        store.orderedEntries.filter { $0.id.recipeID == recipeID }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if entries.isEmpty {
+                    ContentUnavailableView {
+                        Label("No timers", systemImage: "timer")
+                    } description: {
+                        Text("Start a timer from a timed direction and it’ll appear here.")
+                    } actions: {
+                        Button("Done") { dismiss() }
+                            .buttonStyle(.borderedProminent)
+                            .tint(AppTheme.accent)
+                            .foregroundStyle(AppTheme.onAccent)
+                            .frame(minHeight: 44)
+                    }
+                } else {
+                    List {
+                        ForEach(entries) { entry in
+                            timerRow(entry)
+                                .listRowBackground(Color.clear)
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .background(AppTheme.background)
+            .navigationTitle("Cooking Timers")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .font(AppFont.body(15, weight: .semibold))
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+            }
+        }
+        .tint(AppTheme.accentInk)
+    }
+
+    private func timerRow(_ entry: RecipeDirectionTimerEntry) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("STEP \(entry.stepNumber)")
+                    .font(AppFont.label(11, weight: .bold))
+                    .tracking(0.7)
+                    .foregroundStyle(AppTheme.textTertiary)
+                Text(entry.instruction)
+                    .font(AppFont.body(15, weight: .semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ProgressView(value: min(max(entry.progress, 0), 1))
+                .tint(entry.status == .completed ? AppTheme.brand : AppTheme.accentInk)
+                .accessibilityLabel("Timer progress for step \(entry.stepNumber)")
+                .accessibilityValue(entry.status == .completed ? "Complete" : "\(Int(entry.progress * 100)) percent")
+
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.clockText)
+                        .font(AppFont.mono(22, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .contentTransition(reduceMotion ? .identity : .numericText())
+                    Text(entry.status == .completed ? "Timer complete" : timerAccessibilityValue(entry))
+                        .font(AppFont.body(13, weight: .medium))
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+                Spacer(minLength: 12)
+                timerActions(entry)
+            }
+        }
+        .padding(14)
+        .background {
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .fill(reduceTransparency ? AnyShapeStyle(AppTheme.surfaceElevated) : AnyShapeStyle(.regularMaterial))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                        .fill(AppTheme.brand.opacity(0.04))
+                }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .stroke(AppTheme.brand.opacity(0.30), lineWidth: 1.6)
+                .overlay(alignment: .top) {
+                    RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(
+                        LinearGradient(
+                            colors: [.white.opacity(reduceTransparency ? 0.16 : 0.48), .white.opacity(0.02)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.8
+                    )
+                }
+                .allowsHitTesting(false)
+        }
+        .shadow(color: .black.opacity(0.045), radius: 6, y: 2)
+    }
+
+    @ViewBuilder private func timerActions(_ entry: RecipeDirectionTimerEntry) -> some View {
+        switch entry.status {
+        case .running:
+            HStack(spacing: 8) {
+                actionButton("Pause", symbol: "pause.fill", id: entry.id) { store.pause(entry.id) }
+                actionButton("Stop", symbol: "stop.fill", id: entry.id, isDestructive: true) { store.stop(entry.id) }
+            }
+        case .paused:
+            HStack(spacing: 8) {
+                actionButton("Resume", symbol: "play.fill", id: entry.id) { store.resume(entry.id) }
+                actionButton("Stop", symbol: "stop.fill", id: entry.id, isDestructive: true) { store.stop(entry.id) }
+            }
+        case .completed:
+            HStack(spacing: 8) {
+                actionButton("Restart", symbol: "arrow.clockwise", id: entry.id) { store.restart(entry.id) }
+                actionButton("Dismiss", symbol: "xmark", id: entry.id, isDestructive: true) {
+                    store.dismissCompleted(entry.id)
+                }
+            }
+        }
+    }
+
+    private func actionButton(
+        _ title: String,
+        symbol: String,
+        id: RecipeDirectionLineID,
+        isDestructive: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(AppFont.body(13, weight: .bold))
+                .foregroundStyle(isDestructive ? AppTheme.destructive : AppTheme.accentInk)
+                .padding(.horizontal, 10)
+                .frame(minHeight: 44)
+                .background(AppTheme.accentSoft, in: Capsule())
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel("\(title) timer for step \(entries.first(where: { $0.id == id })?.stepNumber ?? 0)")
+        .accessibilityValue(entries.first(where: { $0.id == id }).map(timerAccessibilityValue) ?? "")
+    }
+
+    private func timerAccessibilityValue(_ entry: RecipeDirectionTimerEntry) -> String {
+        switch entry.status {
+        case .running: return "Running, \(entry.clockText) remaining"
+        case .paused: return "Paused, \(entry.clockText) remaining"
+        case .completed: return "Completed"
+        }
     }
 }
 
