@@ -29,8 +29,8 @@ import SwiftUI
 // MARK: - SwiftUI View Component
 struct FloatingVoiceAssistantView: View {
     var voice: VoiceCommandController
-    /// True only on a flashcard that shows the clock, so "Start" is mentioned just then.
-    var showsStartHint = false
+    /// The timer word to mention ("Start" or "Stop"), only on a flashcard that shows the clock.
+    var timerHint: String? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
@@ -136,8 +136,11 @@ struct FloatingVoiceAssistantView: View {
         if voice.permissionDenied {
             return "Mic / Speech Off"
         }
-        if !voice.lastHeard.isEmpty && (voice.lastHeard == "Next" || voice.lastHeard == "Back" || voice.lastHeard == "Timer") {
-            return voice.lastHeard == "Timer" ? "Timer started" : "\(voice.lastHeard) Step!"
+        switch voice.lastHeard {
+        case "Timer": return "Timer started"
+        case "Stop": return "Timer stopped"
+        case "Next", "Back": return "\(voice.lastHeard) Step!"
+        default: break
         }
         if voice.wakeActive {
             return "I'm listening!"
@@ -153,9 +156,8 @@ struct FloatingVoiceAssistantView: View {
             return "Enable in Settings > CraveCircle"
         }
         if voice.wakeActive {
-            return showsStartHint
-                ? "Say “Forward”, “Backward”, or “Start”"
-                : "Say “Forward” or “Backward”"
+            if let timerHint { return "Say “Forward”, “Backward”, or “\(timerHint)”" }
+            return "Say “Forward” or “Backward”"
         }
         return "Say “Hey Crave” to activate"
     }

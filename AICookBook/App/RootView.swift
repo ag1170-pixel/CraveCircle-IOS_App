@@ -339,7 +339,7 @@ struct MainTabView: View {
         Binding(
             get: { showingImportSheet },
             set: { wantsOpen in
-                if wantsOpen && environment.isGuest {
+                if wantsOpen && environment.isGuest && AppEnvironment.guestRestrictionsEnabled {
                     environment.promptGuestToSignIn(reason: .importRecipe)
                 } else {
                     showingImportSheet = wantsOpen
@@ -540,7 +540,9 @@ struct MainTabView: View {
             // instead; writing a recipe needs an account to save it to.
             if requested {
                 environment.pendingNewRecipe = false
-                if environment.isGuest { environment.promptGuestToSignIn(reason: .publishRecipe) }
+                if environment.isGuest && AppEnvironment.guestRestrictionsEnabled {
+                    environment.promptGuestToSignIn(reason: .publishRecipe)
+                }
                 else {
                     // Studio opens over AddRecipeSheet. If this fires from Studio, dismissing
                     // Studio alone leaves the Add-Recipe sheet on top of MainTabView and the

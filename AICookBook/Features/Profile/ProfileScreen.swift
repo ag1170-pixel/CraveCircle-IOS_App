@@ -1425,7 +1425,7 @@ struct EditProfileSheet: View {
     }
 
     private func save() async {
-        guard !environment.isGuest else {
+        guard !(environment.isGuest && AppEnvironment.guestRestrictionsEnabled) else {
             dismiss()
             environment.promptGuestToSignIn(reason: .generic)
             return

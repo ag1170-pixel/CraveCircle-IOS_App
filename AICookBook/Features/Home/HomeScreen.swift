@@ -40,6 +40,10 @@ struct HomeScreen: View {
     @Binding var showingImportSheet: Bool
     @State private var showNotifications = false
     @State private var showMealPlan = false
+    /// Community Recipes shows this many cards; reaching the last one reveals the next batch.
+    @State private var communityVisibleCount = HomeScreen.communityBatchSize
+    @State private var isRevealingCommunity = false
+    private static let communityBatchSize = 10
     @State private var query = ""                       // search moved here from the old Search tab
     @State private var searchQuery = ""
     @AppStorage("recent_home_searches") private var recentSearchesCSV: String = ""
@@ -977,9 +981,6 @@ struct HomeScreen: View {
                 Text("Community Recipes")
                     .font(AppFont.display(20, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
-                Text("· \(communityRecipes.count)")
-                    .font(AppFont.body(14, weight: .bold))
-                    .foregroundStyle(AppTheme.textSecondary)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, AppSpacing.md)
@@ -989,22 +990,51 @@ struct HomeScreen: View {
                 GridItem(.flexible(), spacing: AppSpacing.md, alignment: .top),
                 GridItem(.flexible(), spacing: AppSpacing.md, alignment: .top)
             ], spacing: AppSpacing.md) {
-                ForEach(communityRecipes) { recipe in
+                ForEach(visibleCommunityRecipes) { recipe in
                     SuggestedGridCard(recipe: recipe) {
-                        environment.selectRecipe(recipe, in: communityRecipes)
+                        environment.selectRecipe(recipe, in: visibleCommunityRecipes)
                     }
                     .onAppear {
-                        if recipe.id == communityRecipes.last?.id {
-                            Task { await environment.loadMoreRecipes() }
-                        }
+                        if recipe.id == visibleCommunityRecipes.last?.id { revealMoreCommunity() }
                     }
                 }
             }
             .padding(.horizontal, AppSpacing.md)
 
-            communityEndMarker
-                .padding(.top, AppSpacing.lg)
-                .padding(.horizontal, AppSpacing.md)
+            if isRevealingCommunity {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, AppSpacing.md)
+                    .accessibilityLabel("Loading more recipes")
+            } else if !hasMoreCommunity {
+                communityEndMarker
+                    .padding(.top, AppSpacing.lg)
+                    .padding(.horizontal, AppSpacing.md)
+            }
+        }
+    }
+
+    private var visibleCommunityRecipes: [Recipe] {
+        Array(communityRecipes.prefix(communityVisibleCount))
+    }
+
+    private var hasMoreCommunity: Bool {
+        communityVisibleCount < communityRecipes.count || environment.hasMoreRecipes
+    }
+
+    /// Show the next batch of 10 when the last visible card scrolls in. Fetches another page
+    /// from the server first when the phone has run out of loaded recipes.
+    private func revealMoreCommunity() {
+        guard !isRevealingCommunity, hasMoreCommunity else { return }
+        isRevealingCommunity = true
+        Task {
+            if communityVisibleCount + Self.communityBatchSize > communityRecipes.count {
+                await environment.loadMoreRecipes()
+            } else {
+                try? await Task.sleep(for: .milliseconds(350))   // brief pause so batches read as batches
+            }
+            communityVisibleCount = min(communityVisibleCount + Self.communityBatchSize, communityRecipes.count)
+            isRevealingCommunity = false
         }
     }
 
@@ -1017,7 +1047,7 @@ struct HomeScreen: View {
                     .foregroundStyle(AppTheme.textTertiary)
                 Rectangle().fill(AppTheme.hairline).frame(height: 1)
             }
-            Text("You're all caught up · \(communityRecipes.count) recipes in your circle")
+            Text("You're all caught up")
                 .font(AppFont.body(13))
                 .foregroundStyle(AppTheme.textTertiary)
             Button {

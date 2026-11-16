@@ -33,7 +33,7 @@ import QuartzCore
 
 @Observable
 final class VoiceCommandController: NSObject {
-    enum Command { case next, previous, startTimer }
+    enum Command { case next, previous, startTimer, stopTimer }
 
     private(set) var isListening = false
     private(set) var available = true
@@ -95,6 +95,8 @@ final class VoiceCommandController: NSObject {
     private let timerWords: Set<String> = [
         "start", "starts", "timer", "clock", "timers", "timmer"
     ]
+    // "stop" ends the running timer. Matched exactly: one edit away is "step", "shop", "atop".
+    private let stopWords: Set<String> = ["stop", "stops", "stopped", "cancel"]
 
     // MARK: Lifecycle
 
@@ -250,7 +252,7 @@ final class VoiceCommandController: NSObject {
         req.taskHint = .search
         req.contextualStrings = ["next", "forward", "back", "backward", "previous", "front",
                                  "next step", "go back", "start", "start timer", "start the timer",
-                                 "start clock", "timer", "clock"]
+                                 "start clock", "timer", "clock", "stop", "stop timer", "stop the timer"]
         request = req
         lastProcessedSegments = 0            // fresh transcription → scan from the start
         publish { self.isListening = true }
@@ -313,6 +315,11 @@ final class VoiceCommandController: NSObject {
                 lastProcessedSegments = i + 1
                 fireCommand(.previous)
                 return
+            } else if stopWords.contains(word) {
+                // Checked before the timer words so "stop timer" stops instead of starting.
+                lastProcessedSegments = i + 1
+                fireCommand(.stopTimer)
+                return
             } else if isCommand(word, in: timerWords) {
                 lastProcessedSegments = i + 1
                 fireCommand(.startTimer)
@@ -336,6 +343,7 @@ final class VoiceCommandController: NSObject {
             case .next:       self.lastHeard = "Next"
             case .previous:   self.lastHeard = "Back"
             case .startTimer: self.lastHeard = "Timer"
+            case .stopTimer:  self.lastHeard = "Stop"
             }
             Haptics.tap()
             self.onCommand?(cmd)
@@ -345,7 +353,7 @@ final class VoiceCommandController: NSObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak self] in
             guard let self, self.wakeActive else { return }
             self.publish {
-                if ["Next", "Back", "Timer"].contains(self.lastHeard) {
+                if ["Next", "Back", "Timer", "Stop"].contains(self.lastHeard) {
                     self.lastHeard = ""
                 }
             }

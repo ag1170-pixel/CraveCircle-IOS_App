@@ -670,7 +670,8 @@ final class AppEnvironment {
         var handle = trim(username); if let h = handle, h.hasPrefix("@") { handle = String(h.dropFirst()) }
         let b = trim(bio), ig = trim(instagram), tt = trim(tiktok), yt = trim(youtube), fb = trim(facebook), pin = trim(pinterest)
 
-        let result = await supabase.updateMyProfile(
+        // A guest has no server profile; keep the edit on this phone.
+        let result = guestHasFullAccess ? .ok : await supabase.updateMyProfile(
             fullName:     name,
             username:     (handle?.isEmpty == false) ? handle : nil,
             avatarUrl:    nil,
@@ -726,7 +727,7 @@ final class AppEnvironment {
     /// Any signed-in user can file a report against a recipe, a comment, or another user.
     /// Guests go through the sign-in wall first — reporting needs an identity.
     func submitReport(targetType: ReportTargetType, targetId: String, reason: String, note: String? = nil) async -> Bool {
-        if isGuest {
+        if isGuest, Self.guestRestrictionsEnabled {
             promptGuestToSignIn(reason: .generic)
             return false
         }
@@ -897,6 +898,12 @@ final class AppEnvironment {
     /// Off for now (owner call): guests can open any number of recipes. Set to true to bring back
     /// the `guestViewLimit` wall. Likes, saves, comments and imports still need an account.
     static let guestViewLimitEnabled = false
+    /// Off for now (owner call): a guest can do everything a signed-in user can — import, like,
+    /// save, follow, comment, plan, open Studio. Set to true to bring the sign-in walls back.
+    /// Without an account nothing reaches the server, so guest activity stays on this phone.
+    static let guestRestrictionsEnabled = false
+    /// True when guest sign-in walls are switched off and this user is a guest.
+    var guestHasFullAccess: Bool { !Self.guestRestrictionsEnabled && (isGuest || !hasRealSession) }
     private var guestViewedIdsRaw: String = AppEnvironment.storedDefault("guest_viewed_ids", "") { didSet { UserDefaults.standard.set(guestViewedIdsRaw, forKey: "guest_viewed_ids") } }
     /// Timestamp of the most recent app-active transition. Used by the daily-nudge scheduler to
     /// avoid pinging an actively-engaged user. Stored as reference-date seconds for @AppStorage.
@@ -1232,7 +1239,7 @@ final class AppEnvironment {
 
     /// Admin OR creator can publish. Prior build hard-coded this to admin only, so friends who
      /// got approved as creators still saw Publish disabled — defer to the role's own capability.
-    var canPublish: Bool { currentUser?.canPublish == true }
+    var canPublish: Bool { currentUser?.canPublish == true || guestHasFullAccess }
 
     /// Pull the latest profile row (role, bio, links, onboarded_at). Called on foreground so a
     /// creator-request approval made while the app was backgrounded unlocks Studio / Publish on
@@ -1720,7 +1727,7 @@ final class AppEnvironment {
         // R5: if the user is a guest when the share arrives, stash the URL to UserDefaults so
         // signing in or signing up (whenever that happens — minutes or days later) can pick it
         // up. Otherwise the reel they wanted is lost the moment they tap "Not now".
-        if await MainActor.run(body: { isGuest }) {
+        if await MainActor.run(body: { isGuest && Self.guestRestrictionsEnabled }) {
             // This runs with no URL on every launch/foreground, so only raise the wall when a
             // link was really shared (deep link, or the Share Extension's App Group hand-off).
             var shared = passedURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -2406,6 +2413,7 @@ final class AppEnvironment {
     /// was blocked. `reason` picks the paywall copy so the user sees context for what they tried.
     @discardableResult
     func requireRealSessionOrPrompt(reason: GuestPromptReason = .generic) -> Bool {
+        guard Self.guestRestrictionsEnabled else { return true }
         if isGuest || !hasRealSession {
             promptGuestToSignIn(reason: reason)
             return false
@@ -2757,7 +2765,9 @@ final class AppEnvironment {
     /// Nil when the comment is shared. A message means it was not posted.
     func addComment(recipeId: String, text: String, image: UIImage? = nil) async -> String? {
         // Guests can't post — the comment would never leave the device.
-        if isGuest || !hasRealSession {
+        // With guest walls off, a guest's comment is kept on this phone only.
+        let canPost = supabase.hasSession
+        if !canPost, Self.guestRestrictionsEnabled {
             await MainActor.run { promptGuestToSignIn(reason: .comment) }
             return "Sign in to post a comment."
         }
@@ -2771,9 +2781,6 @@ final class AppEnvironment {
             imageData = ImageDownscale.jpeg(from: raw, maxPixel: 1200, quality: 0.7) ?? raw
         }
         guard !trimmed.isEmpty || imageData != nil else { return nil }
-        guard supabase.hasSession else {
-            return "Sign in to comment so other people can see it."
-        }
         let user = currentUser?.fullName ?? "You"
         let handle = currentUser?.username ?? "@cravecircle"
         let newComment = RecipeComment(
@@ -2787,14 +2794,14 @@ final class AppEnvironment {
             imageData: imageData,
             createdAt: Date()
         )
-        if !trimmed.isEmpty {
+        if !trimmed.isEmpty, canPost {
             let posted = await supabase.postComment(newComment)
             if !posted { return "Couldn't share that comment. Try again." }
         }
         var list = recipeComments[recipeId] ?? []
         list.insert(newComment, at: 0)
         recipeComments[recipeId] = list
-        if !trimmed.isEmpty {
+        if !trimmed.isEmpty, canPost {
             await refreshComments(for: recipeId)
         }
         logInteraction(recipeId: recipeId, eventType: "comment")
