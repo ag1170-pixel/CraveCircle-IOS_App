@@ -23,7 +23,8 @@
 //  Hands-free, LANDSCAPE flashcards for cooking. One big, glanceable card per step on a bold
 //  color (the colour changes every card), with the previous/next step faint above and below.
 //  Navigate by voice ("next" / "back") or by swiping. If a step mentions a time ("cook for
-//  15 minutes") a clock appears — say "start timer" (or tap it) to count down; it beeps when done.
+//  15 minutes") a timer bar appears beneath the step — say "start timer" (or tap Start) to count
+//  down; it beeps when done.
 //  Forces landscape while open, honours Reduce Motion.
 //
 
@@ -37,7 +38,6 @@ struct FlashcardCookScreen: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var voice = VoiceCommandController()
     @State private var timer = CookTimer()
 
@@ -107,7 +107,7 @@ struct FlashcardCookScreen: View {
             // centred step big and the neighbours faint above/below. Scrolling moves one STEP at a
             // time with a smooth transition — not a whole 3-step page.
             GeometryReader { geo in
-                let rowH = geo.size.height * 0.52
+                let rowH = geo.size.height * 0.68
                 // The wheel ignores the safe area and the status bar is hidden, so SwiftUI's
                 // insets are 0 and the step line runs under the Dynamic Island. Read the window
                 // and keep a floor that clears the island on whichever side the phone is rotated.
@@ -115,7 +115,23 @@ struct FlashcardCookScreen: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 0) {
                         ForEach(cards.indices, id: \.self) { i in
-                            CardContent(card: cards[i], stepCount: stepCount, ink: color(for: index).ink)
+                            CardContent(
+                                card: cards[i],
+                                stepCount: stepCount,
+                                ink: color(for: index).ink,
+                                isCurrent: i == index,
+                                currentDuration: i == index ? currentDuration : nil,
+                                currentStepNumber: i == index ? currentStepNumber : nil,
+                                timerStepNumber: timerStepNumber,
+                                timer: timer,
+                                timerTint: Color(hex: "F2B89B"),
+                                onStart: startTimer,
+                                onPause: pauseTimer,
+                                onResume: resumeTimer,
+                                onStop: stopTimer,
+                                onRestart: restartTimer,
+                                onDismiss: dismissCompletedTimer
+                            )
                                 .padding(.leading, max(88, edges.left + 24))
                                 .padding(.trailing, max(88, edges.right + 28))
                                 .frame(width: geo.size.width, height: rowH)
@@ -136,42 +152,6 @@ struct FlashcardCookScreen: View {
             }
             .ignoresSafeArea()
 
-            if timer.running || timer.completed || currentDuration != nil {
-                HStack(spacing: 10) {
-                    ClockRingView(
-                        timer: timer,
-                        idleMinutes: timer.running || timer.completed ? timer.total / 60 : currentDuration ?? 0,
-                        stepNumber: timer.running || timer.completed ? timerStepNumber : currentStepNumber,
-                        diameter: 108,
-                        tint: Color(hex: "F2B89B")
-                    ) {
-                        toggleTimer()
-                    }
-
-                    if timer.completed {
-                        Button {
-                            dismissCompletedTimer()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(Color(hex: "F2B89B"))
-                                .frame(width: 44, height: 44)
-                        }
-                        .buttonStyle(PressableStyle())
-                        .modifier(FlashcardTimerGlassSurface(
-                            reduceTransparency: reduceTransparency,
-                            tint: Color(hex: "F2B89B")
-                        ))
-                        .accessibilityLabel("Dismiss completed timer for step \(timerStepNumber ?? 0)")
-                        .accessibilityValue("Completed")
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                .padding(.leading, max(14, Self.displayEdgeInsets.left + 10))
-                .padding(.bottom, max(14, Self.displayEdgeInsets.bottom + 8))
-                .transition(.scale.combined(with: .opacity))
-            }
-
             VStack {
                 topBar
                 if voice.permissionDenied { permissionBanner }
@@ -186,12 +166,14 @@ struct FlashcardCookScreen: View {
                 stepRail
                     .frame(maxHeight: .infinity, alignment: .center)
                     .padding(.top, 78)
-                    .padding(.bottom, (timer.running || currentDuration != nil) ? 140 : 28)
+                    .padding(.bottom, 28)
                     .padding(.trailing, max(18, Self.displayEdgeInsets.right + 10))
             }
             .animation(.spring(response: 0.45, dampingFraction: 0.75), value: voice.wakeActive)
             .animation(.easeInOut(duration: 0.25), value: voice.permissionDenied)
             .animation(reduceMotion ? nil : AppMotion.snappy, value: timer.running)
+            .animation(reduceMotion ? nil : AppMotion.snappy, value: timer.paused)
+            .animation(reduceMotion ? nil : AppMotion.snappy, value: timer.completed)
         }
         .foregroundStyle(color(for: index).ink)
         .onAppear {
@@ -229,33 +211,34 @@ struct FlashcardCookScreen: View {
 
     /// Voice "start" only begins a countdown, and only on a step that shows the clock.
     private func startTimer() {
-        guard let minutes = currentDuration, minutes > 0, !timer.running else { return }
+        guard let minutes = currentDuration, minutes > 0, !timer.running, !timer.paused else { return }
         Haptics.tap()
         timerStepNumber = currentStepNumber
         timer.start(minutes: minutes)
     }
 
-    private func toggleTimer() {
-        if timer.completed {
-            let minutes = timer.total / 60
-            guard minutes > 0 else { return }
-            Haptics.tap()
-            timer.start(minutes: minutes)
-            return
-        }
-        if timer.running {
-            timer.stop()
-            timerStepNumber = nil
-            Haptics.tap()
-            return
-        }
-        guard let minutes = currentDuration, minutes > 0 else {
-            Haptics.warning()   // nothing to time on this step
-            return
-        }
+    private func pauseTimer() {
+        timer.pause()
         Haptics.tap()
-        timerStepNumber = currentStepNumber
+    }
+
+    private func resumeTimer() {
+        timer.resume()
+        Haptics.tap()
+    }
+
+    private func stopTimer() {
+        timer.stop()
+        timerStepNumber = nil
+        Haptics.tap()
+    }
+
+    private func restartTimer() {
+        let minutes = timer.total / 60
+        guard minutes > 0 else { return }
+        timerStepNumber = timerStepNumber ?? currentStepNumber
         timer.start(minutes: minutes)
+        Haptics.tap()
     }
 
     private func dismissCompletedTimer() {
@@ -386,9 +369,11 @@ final class CookTimer {
     private(set) var remaining = 0   // seconds left
     private(set) var total = 0
     private(set) var running = false
+    private(set) var paused = false
     private(set) var completed = false
 
     private var ticker: Timer?
+    private var deadline: Date?
 
     var progress: Double { total > 0 ? Double(remaining) / Double(total) : 0 }
     var clockText: String { String(format: "%d:%02d", remaining / 60, remaining % 60) }
@@ -401,26 +386,74 @@ final class CookTimer {
         remaining = total
         guard total > 0 else { return }
         running = true
-        ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                if self.remaining <= 1 { self.finish() } else { self.remaining -= 1 }
-            }
-        }
+        deadline = Date().addingTimeInterval(TimeInterval(total))
+        scheduleTicker()
+        refreshCountdown()
+    }
+
+    func pause() {
+        refreshCountdown()
+        guard running else { return }
+        remaining = secondsRemaining(until: deadline)
+        deadline = nil
+        running = false
+        paused = true
+        invalidateTicker()
+    }
+
+    func resume() {
+        guard paused else { return }
+        guard remaining > 0 else { finish(); return }
+        deadline = Date().addingTimeInterval(TimeInterval(remaining))
+        paused = false
+        running = true
+        scheduleTicker()
+        refreshCountdown()
     }
 
     func stop() {
-        ticker?.invalidate(); ticker = nil
+        invalidateTicker()
+        deadline = nil
         running = false
+        paused = false
         completed = false
     }
 
     private func finish() {
+        guard !completed else { return }
         remaining = 0
-        ticker?.invalidate(); ticker = nil
+        deadline = nil
+        invalidateTicker()
         running = false
+        paused = false
         completed = true
         Self.playAlarm()
+    }
+
+    private func refreshCountdown() {
+        guard running, let deadline else { return }
+        let seconds = secondsRemaining(until: deadline)
+        if seconds == 0 { finish() }
+        else { remaining = seconds }
+    }
+
+    private func secondsRemaining(until deadline: Date?) -> Int {
+        guard let deadline else { return 0 }
+        return max(0, Int(ceil(deadline.timeIntervalSinceNow)))
+    }
+
+    private func scheduleTicker() {
+        guard ticker == nil else { return }
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            DispatchQueue.main.async { self?.refreshCountdown() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        ticker = timer
+    }
+
+    private func invalidateTicker() {
+        ticker?.invalidate()
+        ticker = nil
     }
 
     /// Three system beeps + a success haptic — a clear "time's up" without bundling an audio file.
@@ -647,126 +680,6 @@ final class RecipeDirectionTimerStore {
     }
 }
 
-/// The white clock on a card. Idle: a timer glyph + the step's minutes. Running: the live countdown
-/// with the ring draining. Tap to start/stop.
-private struct ClockRingView: View {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ScaledMetric(relativeTo: .body) private var contentScale: CGFloat = 1
-
-    var timer: CookTimer
-    var idleMinutes: Int
-    var stepNumber: Int?
-    var diameter: CGFloat = 92
-    var tint: Color
-    var onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            ZStack {
-                Circle()
-                    .fill(Color.clear)
-                    .overlay {
-                        Circle().fill(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.10), Color(hex: "6D4636").opacity(0.12), .clear],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                    }
-                Circle().stroke(.white.opacity(0.16), lineWidth: 5)
-                    .padding(6)
-                Circle()
-                    .trim(from: 0, to: timer.running ? timer.progress : 1)
-                    .stroke(tint, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .padding(6)
-                    .shadow(color: tint.opacity(0.36), radius: 4, y: 0)
-                    .animation(reduceMotion ? nil : .linear(duration: 0.9), value: timer.progress)
-                VStack(spacing: 1) {
-                    if let stepNumber {
-                        Text("STEP \(stepNumber)")
-                            .font(AppFont.label(11, weight: .bold))
-                            .tracking(0.7)
-                            .foregroundStyle(tint.opacity(0.88))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                    if timer.completed {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 16, weight: .heavy))
-                            .foregroundStyle(tint)
-                        Text("DONE")
-                            .font(AppFont.label(11, weight: .bold))
-                            .tracking(0.6)
-                            .foregroundStyle(tint)
-                    } else if timer.running {
-                        Text(timer.clockText)
-                            .font(AppFont.mono(19, weight: .bold))
-                            .monospacedDigit()
-                            .foregroundStyle(tint)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    } else {
-                        Image(systemName: "timer").font(.system(size: 17, weight: .bold)).foregroundStyle(tint)
-                        Text("\(idleMinutes) min")
-                            .font(AppFont.body(12, weight: .bold))
-                            .foregroundStyle(tint)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                }
-            }
-            .frame(width: diameter * contentScale, height: diameter * contentScale)
-        }
-        .buttonStyle(PressableStyle())
-        .modifier(FlashcardTimerGlassSurface(reduceTransparency: reduceTransparency, tint: tint))
-        .accessibilityLabel(timer.completed
-                            ? "Restart completed timer for step \(stepNumber ?? 0)"
-                            : (timer.running
-                               ? "Stop timer for step \(stepNumber ?? 0)"
-                               : "Start \(idleMinutes) minute timer for step \(stepNumber ?? 0)"))
-        .accessibilityValue(timer.completed
-                            ? "Completed, \(timer.total / 60) minutes"
-                            : (timer.running
-                               ? "Running, \(timer.clockText) remaining"
-                               : "Ready, \(idleMinutes) minutes"))
-    }
-}
-
-private struct FlashcardTimerGlassSurface: ViewModifier {
-    let reduceTransparency: Bool
-    let tint: Color
-
-    func body(content: Content) -> some View {
-        Group {
-            if reduceTransparency {
-                content.background(Color(hex: "201A16"), in: Circle())
-            } else {
-                content.glassEffect(.regular.interactive(), in: Circle())
-            }
-        }
-        .overlay {
-            Circle().stroke(
-                LinearGradient(
-                    colors: [Color.white.opacity(reduceTransparency ? 0.28 : 0.72), tint.opacity(0.45), Color.white.opacity(0.08)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                lineWidth: 1.7
-            )
-            .allowsHitTesting(false)
-        }
-        .overlay {
-            Circle().stroke(Color.white.opacity(0.10), lineWidth: 0.8).padding(4)
-                .allowsHitTesting(false)
-        }
-        .shadow(color: .black.opacity(0.34), radius: 18, y: 8)
-        .shadow(color: tint.opacity(0.12), radius: 7, y: 1)
-    }
-}
-
 // MARK: - Card model + content
 
 enum FlashCard {
@@ -859,18 +772,238 @@ private func parseStepDurationSeconds(_ text: String, includeSeconds: Bool) -> I
 /// One step = one wheel row. Renders just this step's content, centred vertically and left-aligned;
 /// the wheel itself shows the neighbouring steps (faint) above and below.
 private struct CardContent: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let card: FlashCard
     let stepCount: Int
     let ink: Color
+    let isCurrent: Bool
+    let currentDuration: Int?
+    let currentStepNumber: Int?
+    let timerStepNumber: Int?
+    let timer: CookTimer
+    let timerTint: Color
+    let onStart: () -> Void
+    let onPause: () -> Void
+    let onResume: () -> Void
+    let onStop: () -> Void
+    let onRestart: () -> Void
+    let onDismiss: () -> Void
 
     var body: some View {
-        VStack {
+        VStack(spacing: AppSpacing.sm) {
             Spacer(minLength: 0)
-            content
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                content
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if isCurrent {
+                    timerBar
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder private var timerBar: some View {
+        if timer.completed {
+            if timerStepNumber == currentStepNumber {
+                completedTimer
+            } else {
+                compactTimerStatus(isComplete: true)
+            }
+        } else if timer.running || timer.paused {
+            if timerStepNumber == currentStepNumber {
+                activeTimer
+            } else {
+                compactTimerStatus(isComplete: false)
+            }
+        } else if let currentDuration {
+            idleTimer(durationMinutes: currentDuration)
+        }
+    }
+
+    private var sourceStep: Int { timerStepNumber ?? currentStepNumber ?? 0 }
+
+    private var elapsedProgress: Double {
+        min(max(1 - timer.progress, 0), 1)
+    }
+
+    private func compactTimerStatus(isComplete: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !isComplete {
+                ProgressView(value: elapsedProgress)
+                    .progressViewStyle(.linear)
+                    .tint(timerTint)
+                    .animation(reduceMotion ? nil : .linear(duration: 0.75), value: elapsedProgress)
+                    .accessibilityLabel("Timer progress for step \(sourceStep)")
+                    .accessibilityValue("\(timer.clockText) remaining")
+            }
+            HStack(spacing: 8) {
+                Image(systemName: isComplete ? "checkmark.circle.fill" : "timer")
+                    .foregroundStyle(timerTint)
+                Text(isComplete
+                     ? "Timer finished · Step \(sourceStep)"
+                     : "Timer · Step \(sourceStep) · \(timer.paused ? "Paused · " : "")\(timer.clockText) remaining")
+                    .font(AppFont.body(14, weight: .semibold))
+                    .foregroundStyle(ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    compactTimerControls
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    compactTimerControls
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder private var compactTimerControls: some View {
+        if timer.completed {
+            timerButton(
+                title: "Start again",
+                symbol: "arrow.clockwise",
+                prominent: true,
+                accessibilityLabel: "Start timer again for step \(sourceStep)",
+                action: onRestart
+            )
+            timerButton(
+                title: "Dismiss",
+                symbol: "xmark",
+                prominent: false,
+                accessibilityLabel: "Dismiss completed timer for step \(sourceStep)",
+                action: onDismiss
+            )
+        } else {
+            timerButton(
+                title: timer.paused ? "Resume" : "Pause",
+                symbol: timer.paused ? "play.fill" : "pause.fill",
+                prominent: true,
+                accessibilityLabel: "\(timer.paused ? "Resume" : "Pause") timer for step \(sourceStep)",
+                action: timer.paused ? onResume : onPause
+            )
+            timerButton(
+                title: "Stop",
+                symbol: "stop.fill",
+                prominent: false,
+                accessibilityLabel: "Stop timer for step \(sourceStep)",
+                action: onStop
+            )
+        }
+    }
+
+    private var activeTimer: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ProgressView(value: elapsedProgress)
+                .progressViewStyle(.linear)
+                .tint(timerTint)
+                .animation(reduceMotion ? nil : .linear(duration: 0.75), value: elapsedProgress)
+                .accessibilityLabel("Timer progress for step \(sourceStep)")
+                .accessibilityValue("\(timer.clockText) remaining")
+
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("TIMER · STEP \(sourceStep)")
+                        .font(AppFont.label(11, weight: .bold))
+                        .tracking(0.8)
+                        .foregroundStyle(ink.opacity(0.75))
+                    Text(timer.paused ? "Paused · \(timer.clockText) remaining" : "\(timer.clockText) remaining")
+                        .font(AppFont.mono(15, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(ink)
+                        .contentTransition(reduceMotion ? .identity : .numericText())
+                }
+                Spacer(minLength: 8)
+                timerButton(
+                    title: timer.paused ? "Resume" : "Pause",
+                    symbol: timer.paused ? "play.fill" : "pause.fill",
+                    prominent: true,
+                    accessibilityLabel: "\(timer.paused ? "Resume" : "Pause") timer for step \(sourceStep)"
+                ) {
+                    timer.paused ? onResume() : onPause()
+                }
+                timerButton(
+                    title: "Stop",
+                    symbol: "stop.fill",
+                    prominent: false,
+                    accessibilityLabel: "Stop timer for step \(sourceStep)",
+                    action: onStop
+                )
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var completedTimer: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Label("Timer finished", systemImage: "checkmark.circle.fill")
+                    .font(AppFont.body(14, weight: .bold))
+                    .foregroundStyle(timerTint)
+                Text("Step \(sourceStep) · \(timer.total / 60) min")
+                    .font(AppFont.body(13, weight: .medium))
+                    .foregroundStyle(ink.opacity(0.78))
+            }
+            Spacer(minLength: 8)
+            timerButton(
+                title: "Start again",
+                symbol: "arrow.clockwise",
+                prominent: true,
+                accessibilityLabel: "Start timer again for step \(sourceStep)",
+                action: onRestart
+            )
+            timerButton(
+                title: "Dismiss",
+                symbol: "xmark",
+                prominent: false,
+                accessibilityLabel: "Dismiss completed timer for step \(sourceStep)",
+                action: onDismiss
+            )
+        }
+    }
+
+    private func idleTimer(durationMinutes: Int) -> some View {
+        HStack(spacing: 10) {
+            Label("\(durationMinutes) min timer", systemImage: "timer")
+                .font(AppFont.body(14, weight: .semibold))
+                .foregroundStyle(ink)
+            Spacer(minLength: 8)
+            timerButton(
+                title: "Start",
+                symbol: "play.fill",
+                prominent: true,
+                accessibilityLabel: "Start \(durationMinutes) minute timer for step \(currentStepNumber ?? 0)",
+                action: onStart
+            )
+        }
+    }
+
+    private func timerButton(
+        title: String,
+        symbol: String,
+        prominent: Bool,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(AppFont.body(13, weight: .bold))
+                .foregroundStyle(prominent ? Color(hex: "26170F") : .white)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
+                .background(
+                    prominent ? AnyShapeStyle(timerTint) : AnyShapeStyle(.white.opacity(0.14)),
+                    in: Capsule(style: .continuous)
+                )
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel(accessibilityLabel)
     }
 
     @ViewBuilder private var content: some View {
