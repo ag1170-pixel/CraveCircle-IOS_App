@@ -129,6 +129,26 @@ struct RecipeDetailScreen: View {
             guard let selected, selected.id == recipe.id, selected.nutrition != recipe.nutrition else { return }
             recipe.nutrition = selected.nutrition
         }
+        .coordinateSpace(.named("detail"))
+        // iOS 26 lets a right swipe anywhere pop the screen. On Directions that swipe should go
+        // back to Ingredients, so only the left-edge swipe pops there.
+        .background(ContentPopGesture(enabled: tab == 0))
+        // Swipe left/right on the Ingredients/Directions box to switch between the two.
+        // Starts near the left edge are left to the system's swipe-back.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 25, coordinateSpace: .named("detail"))
+                .onEnded { value in
+                    guard !showCustomizationMenu,
+                          value.startLocation.x > 32,
+                          segmentFrame.contains(value.startLocation),
+                          abs(value.translation.width) > abs(value.translation.height) * 1.3,
+                          abs(value.translation.width) > 50 else { return }
+                    let next = value.translation.width < 0 ? 1 : 0   // left → Directions, right → Ingredients
+                    guard next != tab else { return }
+                    withAnimation(reduceMotion ? nil : AppMotion.snappy) { tab = next }
+                    Haptics.select()
+                }
+        )
         .overlay(alignment: .bottom) {
             if showGroceryBanner {
                 HStack(spacing: 8) {
@@ -755,7 +775,7 @@ struct RecipeDetailScreen: View {
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
             .tint(AppTheme.accentInk)
-            // Swipes that start on this box toggle Ingredients⇄Directions; swipes elsewhere change recipe.
+            // Swipes that start on this box toggle Ingredients⇄Directions.
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("detail")) } action: { segmentFrame = $0 }
 
             NutritionSummaryCard(recipe: recipe) {
@@ -982,11 +1002,7 @@ struct RecipeDetailScreen: View {
                     ) {
                         toggleChecklistItem(&checkedSteps, i)
                     }
-
-                    if let durationSeconds = line.durationSeconds {
-                        directionTimerAction(for: line, durationSeconds: durationSeconds)
-                            .padding(.leading, 42)
-                    }
+                    // Step timers live in the cook-mode flashcards only (owner call), not in this list.
                 }
             }
         }
@@ -1484,6 +1500,37 @@ private struct DirectionTimerListSheet: View {
 // Region-based swiping: a swipe INSIDE the Ingredients/Directions section toggles those two; a
 // swipe ANYWHERE ELSE on the page moves to the previous/next recipe. RecipeDetailScreen owns the
 // gesture (it knows the section's frame) and calls back here to change the recipe.
+/// Turns the navigation controller's swipe-back-from-anywhere gesture on or off for this screen.
+/// The left-edge swipe-back is a separate recognizer and is never touched.
+private struct ContentPopGesture: UIViewControllerRepresentable {
+    let enabled: Bool
+
+    func makeUIViewController(context: Context) -> Controller { Controller() }
+
+    func updateUIViewController(_ controller: Controller, context: Context) {
+        controller.enabled = enabled
+        controller.apply()
+    }
+
+    final class Controller: UIViewController {
+        var enabled = true
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            apply()
+        }
+
+        override func viewWillDisappear(_ animated: Bool) {
+            super.viewWillDisappear(animated)
+            navigationController?.interactiveContentPopGestureRecognizer?.isEnabled = true
+        }
+
+        func apply() {
+            navigationController?.interactiveContentPopGestureRecognizer?.isEnabled = enabled
+        }
+    }
+}
+
 struct RecipeDetailPager: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

@@ -894,6 +894,9 @@ final class AppEnvironment {
     /// Owner call (2026-10-28): a guest gets 10 free recipe opens, then a sign-in wall. We count
      /// UNIQUE recipe ids so re-tapping the same card doesn't burn through the budget.
     static let guestViewLimit = 10
+    /// Off for now (owner call): guests can open any number of recipes. Set to true to bring back
+    /// the `guestViewLimit` wall. Likes, saves, comments and imports still need an account.
+    static let guestViewLimitEnabled = false
     private var guestViewedIdsRaw: String = AppEnvironment.storedDefault("guest_viewed_ids", "") { didSet { UserDefaults.standard.set(guestViewedIdsRaw, forKey: "guest_viewed_ids") } }
     /// Timestamp of the most recent app-active transition. Used by the daily-nudge scheduler to
     /// avoid pinging an actively-engaged user. Stored as reference-date seconds for @AppStorage.
@@ -919,7 +922,7 @@ final class AppEnvironment {
     /// Signed-in users: always true. Guests: true until they've opened `guestViewLimit` distinct
     /// recipes, then false (and the paywall is raised). Called from `selectRecipe`.
     func canViewRecipe(_ recipeId: String? = nil) -> Bool {
-        if !isGuest { return true }
+        if !isGuest || !Self.guestViewLimitEnabled { return true }
         var seen = guestViewedIds
         if let id = recipeId { seen.insert(id); guestViewedIds = seen }
         if seen.count > Self.guestViewLimit {
@@ -936,7 +939,7 @@ final class AppEnvironment {
 
     /// How many free recipe views the guest has left. UI hint — a small chip under the search bar.
     var guestViewsRemaining: Int {
-        guard isGuest else { return Int.max }
+        guard isGuest, Self.guestViewLimitEnabled else { return Int.max }
         return max(0, Self.guestViewLimit - guestViewedIds.count)
     }
 

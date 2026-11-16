@@ -913,8 +913,8 @@ struct HomeScreen: View {
             let overflow  = Array(all.dropFirst(Self.gridTakeCount))
 
             LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: AppSpacing.md),
-                GridItem(.flexible(), spacing: AppSpacing.md)
+                GridItem(.flexible(), spacing: AppSpacing.md, alignment: .top),
+                GridItem(.flexible(), spacing: AppSpacing.md, alignment: .top)
             ], spacing: AppSpacing.md) {
                 ForEach(gridPicks) { recipe in
                     SuggestedGridCard(recipe: recipe) {
@@ -986,8 +986,8 @@ struct HomeScreen: View {
             .padding(.top, AppSpacing.sm)
 
             LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: AppSpacing.md),
-                GridItem(.flexible(), spacing: AppSpacing.md)
+                GridItem(.flexible(), spacing: AppSpacing.md, alignment: .top),
+                GridItem(.flexible(), spacing: AppSpacing.md, alignment: .top)
             ], spacing: AppSpacing.md) {
                 ForEach(communityRecipes) { recipe in
                     SuggestedGridCard(recipe: recipe) {
@@ -1472,12 +1472,15 @@ struct SuggestedGridCard: View {
                 if let why = environment.suggestionReasons[recipe.id] {
                     SuggestionReasonChip(text: why).lineLimit(2)
                 } else {
-                    Color.clear
+                    // Fixed height: a bare Color.clear grows to fill the row and shrinks the photo.
+                    Color.clear.frame(height: reasonSlotHeight)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: reasonSlotHeight, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Keep the card at its own height so a taller neighbour can't stretch or squeeze it.
+        .fixedSize(horizontal: false, vertical: true)
         .contentShape(Rectangle())
         .onTapGesture { Haptics.tap(); onTap() }
     }
@@ -1532,7 +1535,8 @@ struct SuggestedRailCard: View {
                 if let why = environment.suggestionReasons[recipe.id] {
                     SuggestionReasonChip(text: why).lineLimit(2)
                 } else {
-                    Color.clear
+                    // Fixed height: a bare Color.clear grows to fill the row and shrinks the photo.
+                    Color.clear.frame(height: reasonSlotHeight)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: reasonSlotHeight, alignment: .topLeading)
