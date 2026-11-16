@@ -199,7 +199,9 @@ struct Recipe: Codable, Identifiable, Hashable {
     var ownerUsername: String?
     var sourceLanguage: String?   // BCP-47 code of the reel's original language, if translated
     var nutrition: RecipeNutrition?   // per-serving; server-computed from ingredients, else estimated
-    var sourceUrl: String?        // URL of the source Instagram / TikTok reel
+    /// Original source, or a local `cravecircle://import/...` provenance marker for photo imports.
+    /// Import provenance is kept so imported material never enters Studio or the public catalog.
+    var sourceUrl: String?
     var visibility: RecipeVisibility = .everyone
     /// Explicit meal slots the creator (or admin backfill) tagged this recipe with. Nil / empty
     /// = classifier infers from title + ingredients. Optional so old local saves decode cleanly.
@@ -282,7 +284,15 @@ struct Recipe: Codable, Identifiable, Hashable {
         return !isSocialImportURL(raw)
     }
 
-    var staysOnThisPhone: Bool { Self.isSocialImportURL(sourceUrl) || Self.isWebImportURL(sourceUrl) }
+    static func isLocalImportMarker(_ raw: String?) -> Bool {
+        raw?.lowercased().hasPrefix("cravecircle://import/") == true
+    }
+
+    var staysOnThisPhone: Bool {
+        Self.isSocialImportURL(sourceUrl)
+            || Self.isWebImportURL(sourceUrl)
+            || Self.isLocalImportMarker(sourceUrl)
+    }
 
     /// Written in the app by this account. A web page or someone else's reel is not created.
     func wasWrittenHere(by username: String?) -> Bool {

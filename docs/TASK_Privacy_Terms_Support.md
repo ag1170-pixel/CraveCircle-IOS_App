@@ -1,5 +1,10 @@
 # Task: Privacy Policy, Terms of Service & Support pages (CraveCircle)
 
+> **Superseded draft note (2026-11-17):** Use
+> [`LEGAL_DRAFTS_2026-11-17.md`](LEGAL_DRAFTS_2026-11-17.md) as the current source for public
+> copy. This older implementation brief predates the private-import policy and must not be used to
+> claim that imported recipes can be published or shared.
+
 **For:** whoever implements this (Antigravity for the website side is ideal — you already work in the `cravecircle` web repo + Vercel).
 **Goal:** three publicly reachable pages — **Privacy Policy**, **Terms of Service**, **Support/Contact** — so the iOS app can be submitted to the App Store (Apple *requires* a Privacy Policy URL, and a support URL in App Store Connect).
 

@@ -252,7 +252,7 @@ enum NutritionEstimator {
             let servings: Int?
         }
         let data = (try? JSONEncoder().encode(Inputs(ingredients: recipe.ingredients, servings: recipe.servings))) ?? Data()
-        let versionedData = Data("nutrition-estimate-v1|".utf8) + data
+        let versionedData = Data("nutrition-estimate-v2|".utf8) + data
         return SHA256.hash(data: versionedData).map { String(format: "%02x", $0) }.joined()
     }
 
@@ -269,7 +269,7 @@ enum NutritionEstimator {
                 let low = item.lowercased()
                 if GrocerySort.coreName(item).lowercased().split(separator: " ").last == "water",
                    !low.contains("coconut"), !low.contains("rose") { continue }
-                let (grams, name) = parse(item)
+                guard let (grams, name) = parse(item) else { continue }
                 // Curated table FIRST (correct for common & Indian items), then the bundled offline
                 // USDA dataset for the long tail — same order and data as the server.
                 let macro: Macro
@@ -341,13 +341,32 @@ enum NutritionEstimator {
     /// grams per one unit — matched as a WHOLE word (so "garlic" never matches "g").
     private static let unitGrams: [String: Double] = [
         "kg": 1000, "g": 1, "gram": 1, "grams": 1, "mg": 0.001,
-        "l": 1000, "litre": 1000, "ml": 1,
         "lb": 454, "lbs": 454, "oz": 28,
-        "cup": 200, "cups": 200, "tbsp": 15, "tablespoon": 15, "tablespoons": 15,
-        "tsp": 5, "teaspoon": 5, "teaspoons": 5,
         "clove": 5, "cloves": 5, "slice": 20, "slices": 20,
         "can": 400, "pinch": 0.5, "egg": 50, "eggs": 50,
         "roti": 45, "rotis": 45, "chapati": 45
+    ]
+
+    // Typical grams per US cup (236.588 mL), for named foods in standard preparation.
+    // These are estimates, not universal densities. Unknown volume foods are omitted from
+    // the estimate instead of being assigned an arbitrary mass.
+    private static let volumeGramsPerCup: [(String, Double)] = [
+        ("coconut milk", 240), ("almond flour", 96), ("chickpea flour", 92),
+        ("gram flour", 92), ("brown sugar", 220), ("granulated sugar", 200),
+        ("powdered sugar", 120), ("sugar", 200), ("all purpose flour", 120),
+        ("wheat flour", 120), ("flour", 120), ("cornstarch", 128), ("rice", 185),
+        ("oats", 90), ("spinach", 30), ("shredded cheese", 113), ("cheese", 113),
+        ("onion", 160), ("tomato", 180), ("honey", 340), ("butter", 227),
+        ("oil", 218), ("yogurt", 245), ("yoghurt", 245), ("curd", 245),
+        ("dahi", 245), ("cream", 240), ("milk", 240), ("water", 236.588),
+        ("vanilla extract", 237)
+    ]
+    private static let volumeMilliliters: [String: Double] = [
+        "cup": 236.588, "cups": 236.588,
+        "tbsp": 14.787, "tablespoon": 14.787, "tablespoons": 14.787,
+        "tsp": 4.929, "teaspoon": 4.929, "teaspoons": 4.929,
+        "ml": 1, "milliliter": 1, "milliliters": 1,
+        "l": 1000, "litre": 1000, "litres": 1000, "liter": 1000, "liters": 1000
     ]
 
     /// Typical grams of ONE piece for count items — nuts & whole spices included, so "15 cashews"
@@ -368,7 +387,7 @@ enum NutritionEstimator {
         "juice","paste","ketchup","mustard","mayo","garlic","ginger","sake","wine"]
 
     /// Extract a gram amount + the lowercased ingredient line (used for the table lookup).
-    static func parse(_ line: String) -> (grams: Double, name: String) {
+    static func parse(_ line: String) -> (grams: Double, name: String)? {
         let lower = line.lowercased()
         // A blog writes the real weight in parentheses: "2 tablespoons (30 grams) butter".
         // The first number is often a count, so the parenthetical weight wins.
@@ -410,6 +429,14 @@ enum NutritionEstimator {
         if let unit = letters.first(where: { unitGrams[$0] != nil }), let g = unitGrams[unit] {
             return (q * g, lower)
         }
+        if let unit = letters.first(where: { volumeMilliliters[$0] != nil }) {
+            let core = GrocerySort.coreName(s).lowercased()
+            guard let gramsPerCup = volumeGramsPerCup.first(where: { core.contains($0.0) })?.1 else {
+                return nil
+            }
+            let gramsPerMilliliter = gramsPerCup / 236.588
+            return (q * volumeMilliliters[unit]! * gramsPerMilliliter, lower)
+        }
         if s.contains("to taste") || s.contains("pinch") { return (1.0, lower) }
         if s.contains("handful") { return (30.0, lower) }
 
@@ -432,9 +459,17 @@ enum NutritionEstimator {
                   qty > 0 else { return }
             if inner.range(of: #"\bkg\b"#, options: .regularExpression) != nil { found = qty * 1000 }
             else if inner.range(of: #"\bgrams?\b"#, options: .regularExpression) != nil { found = qty }
-            else if inner.range(of: #"\bml\b"#, options: .regularExpression) != nil { found = qty }
             else if inner.range(of: #"\boz\b"#, options: .regularExpression) != nil { found = qty * 28 }
             else if inner.range(of: #"\bg\b"#, options: .regularExpression) != nil { found = qty }
+            else {
+                let words = inner.lowercased().split { !$0.isLetter }.map(String.init)
+                if let unit = words.first(where: { volumeMilliliters[$0] != nil }),
+                   let gramsPerCup = volumeGramsPerCup.first(where: {
+                       GrocerySort.coreName(line).lowercased().contains($0.0)
+                   })?.1 {
+                    found = qty * volumeMilliliters[unit]! * gramsPerCup / 236.588
+                }
+            }
         }
         return found
     }

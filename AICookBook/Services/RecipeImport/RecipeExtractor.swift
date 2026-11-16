@@ -105,7 +105,7 @@ enum RecipeExtractor {
         var title: String
         @Guide(description: "Ingredient groups. Use a single group with an empty name when the recipe isn't grouped.")
         var groups: [GGroup]
-        @Guide(description: "The cooking steps in order, imperative voice, no numbering.")
+        @Guide(description: "The cooking steps in order, imperative voice, no numbering. Each step must be a complete, actionable sentence. Never emit empty brackets, placeholders, or a container phrase without its action.")
         var steps: [String]
     }
 
@@ -229,8 +229,26 @@ enum RecipeExtractor {
     /// occurrence, and cap the step at 400 chars so even an unsalvageable hallucination can't fill
     /// the card.
     static func clean(_ text: String) -> String {
-        let normalised = text
+        let withoutEmptyDelimiters = text
+            .replacingOccurrences(
+                of: #"\(\s*[\p{P}\s]*\)"#,
+                with: " ",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: #"\[\s*[\p{P}\s]*\]"#,
+                with: " ",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: #"\{\s*[\p{P}\s]*\}"#,
+                with: " ",
+                options: .regularExpression
+            )
+        let normalised = withoutEmptyDelimiters
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: " ,", with: ",")
+            .replacingOccurrences(of: " .", with: ".")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalised.isEmpty,
               let re = try? NSRegularExpression(pattern: #"\b(\w+)(?:\s+\1\b){2,}"#, options: [.caseInsensitive])

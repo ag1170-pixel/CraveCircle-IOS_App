@@ -129,7 +129,6 @@ struct FlashcardCookScreen: View {
                                 onStart: startTimer,
                                 onPause: pauseTimer,
                                 onResume: resumeTimer,
-                                onStop: stopTimer,
                                 onRestart: restartTimer,
                                 onDismiss: dismissCompletedTimer
                             )
@@ -206,7 +205,8 @@ struct FlashcardCookScreen: View {
 
     /// The timer word the chef bubble should mention on this card, if any.
     private var voiceTimerHint: String? {
-        if timer.running || timer.paused || timer.completed { return "Stop" }
+        if timer.running { return "Stop" }
+        if timer.paused || timer.completed { return "Start" }
         return currentDuration != nil ? "Start" : nil
     }
 
@@ -217,10 +217,9 @@ struct FlashcardCookScreen: View {
         else { startTimer() }
     }
 
-    /// Voice "stop": end a running or paused timer, or clear a finished one.
+    /// Voice "stop" pauses the countdown without discarding its remaining time.
     private func voiceStop() {
-        if timer.completed { dismissCompletedTimer() }
-        else if timer.running || timer.paused { stopTimer() }
+        if timer.running { pauseTimer() }
     }
 
     private func move(by delta: Int) {
@@ -245,12 +244,6 @@ struct FlashcardCookScreen: View {
 
     private func resumeTimer() {
         timer.resume()
-        Haptics.tap()
-    }
-
-    private func stopTimer() {
-        timer.stop()
-        timerStepNumber = nil
         Haptics.tap()
     }
 
@@ -809,7 +802,6 @@ private struct CardContent: View {
     let onStart: () -> Void
     let onPause: () -> Void
     let onResume: () -> Void
-    let onStop: () -> Void
     let onRestart: () -> Void
     let onDismiss: () -> Void
 
@@ -962,11 +954,11 @@ private struct CardContent: View {
         case .idle:
             return showsVoiceHint ? "Tap or say “Start”" : "Step \(sourceStep) timer"
         case .running:
-            return showsVoiceHint ? "Step \(sourceStep) · say “Stop”" : "Step \(sourceStep) · remaining"
+            return showsVoiceHint ? "Step \(sourceStep) · say “Stop” to pause" : "Step \(sourceStep) · remaining"
         case .paused:
             return showsVoiceHint ? "Paused · say “Start”" : "Paused · step \(sourceStep)"
         case .completed:
-            return "Step \(sourceStep) · \(timer.total / 60) min"
+            return showsVoiceHint ? "Done · say “Start” to run again" : "Step \(sourceStep) · \(timer.total / 60) min"
         }
     }
 
@@ -980,13 +972,9 @@ private struct CardContent: View {
             case .running:
                 timerButton(title: "Pause", symbol: "pause.fill",
                             accessibilityLabel: "Pause timer for step \(sourceStep)", action: onPause)
-                timerIconButton(symbol: "stop.fill",
-                                accessibilityLabel: "Stop timer for step \(sourceStep)", action: onStop)
             case .paused:
                 timerButton(title: "Resume", symbol: "play.fill",
                             accessibilityLabel: "Resume timer for step \(sourceStep)", action: onResume)
-                timerIconButton(symbol: "stop.fill",
-                                accessibilityLabel: "Stop timer for step \(sourceStep)", action: onStop)
             case .completed:
                 timerButton(title: "Again", symbol: "arrow.clockwise",
                             accessibilityLabel: "Start timer again for step \(sourceStep)", action: onRestart)

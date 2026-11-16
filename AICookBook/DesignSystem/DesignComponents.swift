@@ -920,7 +920,7 @@ enum DirectionStepParser {
 
     /// One direction, broken into short lines. No stacked sentences, no trailing period.
     static func shortLines(_ raw: String) -> [String] {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = sanitized(raw)
         guard !trimmed.isEmpty else { return [] }
         var pieces = splitClauses(trimmed).flatMap(splitThen)
         pieces = pieces.flatMap { splitIfLong($0) }
@@ -980,7 +980,7 @@ enum DirectionStepParser {
     }
 
     private static func tidyLine(_ text: String) -> String {
-        var t = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        var t = sanitized(text)
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: ".,;"))
         let fillers = ["and ", "then ", "thoroughly ", "gently ", "carefully ", "immediately ", "meanwhile ", "next ", "now ", "finally "]
@@ -997,6 +997,31 @@ enum DirectionStepParser {
         t = t.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let first = t.first else { return "" }
         return first.uppercased() + t.dropFirst()
+    }
+
+    /// Removes malformed empty delimiters left by OCR or an incomplete model response. This is
+    /// intentionally narrow: meaningful notes such as "(optional)" remain untouched.
+    static func sanitized(_ raw: String) -> String {
+        raw
+            .replacingOccurrences(
+                of: #"\(\s*[\p{P}\s]*\)"#,
+                with: " ",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: #"\[\s*[\p{P}\s]*\]"#,
+                with: " ",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: #"\{\s*[\p{P}\s]*\}"#,
+                with: " ",
+                options: .regularExpression
+            )
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: " ,", with: ",")
+            .replacingOccurrences(of: " .", with: ".")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func parse(_ raw: String) -> ParsedStep {

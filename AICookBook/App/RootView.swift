@@ -175,8 +175,11 @@ struct LoginView: View {
 
             submitButton.padding(.top, AppSpacing.xxs)
 
-            googleButton
+            appleGuestDemoButton
                 .padding(.top, AppSpacing.sm)
+
+            googleButton
+                .padding(.top, AppSpacing.xs)
 
             Button {
                 Haptics.tap()
@@ -195,6 +198,37 @@ struct LoginView: View {
             .disabled(loading)
         }
         .padding(AppSpacing.lg)
+    }
+
+    /// Temporary demo shortcut. It deliberately creates a local guest session and does not
+    /// present Apple authentication or claim that an Apple account was verified.
+    private var appleGuestDemoButton: some View {
+        VStack(spacing: 6) {
+            Button {
+                Haptics.tap()
+                environment.continueAsGuest()
+            } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: "apple.logo")
+                        .font(.system(size: 18, weight: .medium))
+                    Text("Sign in with Apple · Guest demo")
+                        .font(AppFont.body(15, weight: .semibold))
+                }
+                .foregroundStyle(AppTheme.textPrimary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(AppTheme.surface, in: Capsule())
+                .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+            }
+            .buttonStyle(PressableStyle())
+            .disabled(loading)
+            .accessibilityHint("Demo only. Continues as a guest without Apple account authentication.")
+
+            Text("Demo only — this opens a guest session; Apple sign-in is not connected.")
+                .font(AppFont.body(11, weight: .medium))
+                .foregroundStyle(AppTheme.textTertiary)
+                .multilineTextAlignment(.center)
+        }
     }
 
     private var submitButton: some View {

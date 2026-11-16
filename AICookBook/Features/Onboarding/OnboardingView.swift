@@ -72,8 +72,6 @@ struct OnboardingView: View {
                 case .tutorialShare:    tutorialShare
                 case .tutorialPanel:    tutorialPanel
                 case .tutorialPickApp:  tutorialPickApp
-                case .tutorialWebsite:  tutorialWebsite
-                case .tutorialCamera:   tutorialCamera
                 case .tutorialImported: tutorialImported
                 }
             }
@@ -399,7 +397,7 @@ struct OnboardingView: View {
             }
             socialIconsRow
                 .padding(.top, AppSpacing.md)
-            phoneMockup(dim: false, chip: nil)
+            phoneMockup(content: .reel)
                 .padding(.vertical, AppSpacing.sm)
             Spacer(minLength: 0)
             primaryButton("Show me how") { advance(to: .tutorialShare) }
@@ -427,39 +425,28 @@ struct OnboardingView: View {
         .frame(width: 36, height: 36)
     }
 
-    // MARK: Steps 9–11 — three share-sheet coachmarks
+    // MARK: Steps 9–12 — a privacy-safe, real-food import walkthrough
 
     private var tutorialShare: some View {
-        tutorialPage(title: "Smart social media imports", source: .instagram,
-                     chip: nil, phoneContent: .reel, primary: "Next") {
+        tutorialPage(title: "1. Find a recipe clip",
+                     subtitle: "When you find a recipe you like, tap Share.",
+                     phoneContent: .reel, primary: "Next") {
             advance(to: .tutorialPanel)
         }
     }
 
     private var tutorialPanel: some View {
-        tutorialPage(title: "Smart social media imports", source: .instagram,
-                     chip: nil, phoneContent: .sharePanel, primary: "Next") {
+        tutorialPage(title: "2. Open Share to…",
+                     subtitle: "Open the sharing options below the clip.",
+                     phoneContent: .sharePanel, primary: "Next") {
             advance(to: .tutorialPickApp)
         }
     }
 
     private var tutorialPickApp: some View {
-        tutorialPage(title: "Pick CraveCircle", source: .instagram,
-                     chip: nil, phoneContent: .appPicker, primary: "Next") {
-            advance(to: .tutorialWebsite)
-        }
-    }
-
-    private var tutorialWebsite: some View {
-        tutorialPage(title: "Works with any recipe website", source: .website,
-                     chip: nil, phoneContent: .recipeWebsite, primary: "Next") {
-            advance(to: .tutorialCamera)
-        }
-    }
-
-    private var tutorialCamera: some View {
-        tutorialPage(title: "Even handwritten notes", source: .camera,
-                     chip: nil, phoneContent: .cameraScan, primary: "Next") {
+        tutorialPage(title: "3. Choose CraveCircle",
+                     subtitle: "Select CraveCircle and we’ll turn the clip into a recipe.",
+                     phoneContent: .appPicker, primary: "See your recipe") {
             advance(to: .tutorialImported)
         }
     }
@@ -504,12 +491,9 @@ struct OnboardingView: View {
         .padding(AppSpacing.lg)
     }
 
-    /// Big centered title, tappable source chip row, mock card below, primary pill + skip link.
-    /// Each mock paints its own coral ring over its target control (inline) — no overlay system,
-    /// so a ring can't drift onto empty space.
+    /// Big centered title, explanatory text, a privacy-safe tutorial card, primary pill + skip link.
     private func tutorialPage(title: String,
-                              source: TutorialSource,
-                              chip: TutorialChip?,
+                              subtitle: String,
                               phoneContent: PhoneContent,
                               primary: String,
                               onPrimary: @escaping () -> Void) -> some View {
@@ -519,11 +503,15 @@ struct OnboardingView: View {
                     .font(AppFont.display(26, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
                     .multilineTextAlignment(.center)
-                sourceChipsRow(active: source)
+                Text(subtitle)
+                    .font(AppFont.body(14, weight: .medium))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, AppSpacing.md)
             }
             .padding(.top, AppSpacing.sm)
 
-            phoneMockup(chip: chip, content: phoneContent)
+            phoneMockup(content: phoneContent)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             primaryButton(primary, action: onPrimary)
@@ -536,14 +524,9 @@ struct OnboardingView: View {
         .padding(AppSpacing.lg)
     }
 
-    // Overload used by `awesome` (hero slide) where no chip is needed.
-    private func phoneMockup(dim: Bool, chip: TutorialChip?) -> some View {
-        phoneMockup(chip: chip, content: .reel)
-    }
-
-    /// Soft rounded card mock with the content inside and an optional coachmark chip. Any
-    /// highlight ring over a target control is painted inside the mock itself, not here.
-    private func phoneMockup(chip: TutorialChip?, content: PhoneContent) -> some View {
+    /// Soft rounded card mock with the content inside. Any highlight ring over a target control
+    /// is painted inside the mock itself, not here.
+    private func phoneMockup(content: PhoneContent) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(AppTheme.surfaceElevated)
@@ -554,13 +537,6 @@ struct OnboardingView: View {
             content.view
                 .padding(14)
                 .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            if let chip {
-                chip.view
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: chip.align.alignment)
-                    .padding(chip.align.padding)
-                    .offset(y: chip.yOffset)
-                    .allowsHitTesting(false)
-            }
         }
         .frame(maxWidth: 280)
         .aspectRatio(0.52, contentMode: .fit)
@@ -696,8 +672,7 @@ private extension OnboardingView {
     enum Step: Hashable {
         case welcome, goals, goalsAffirmation, goalDetail
         case recipeSources, howHeard, cuisinesStep
-        case awesome, tutorialShare, tutorialPanel, tutorialPickApp
-        case tutorialWebsite, tutorialCamera, tutorialImported
+        case awesome, tutorialShare, tutorialPanel, tutorialPickApp, tutorialImported
 
         /// 0…1 progress for the top bar (welcome has no bar).
         var progress: CGFloat {
@@ -710,11 +685,9 @@ private extension OnboardingView {
             case .howHeard:         return 0.62
             case .cuisinesStep:     return 0.72
             case .awesome:          return 0.82
-            case .tutorialShare:    return 0.86
-            case .tutorialPanel:    return 0.89
-            case .tutorialPickApp:  return 0.92
-            case .tutorialWebsite:  return 0.95
-            case .tutorialCamera:   return 0.97
+            case .tutorialShare:    return 0.87
+            case .tutorialPanel:    return 0.91
+            case .tutorialPickApp:  return 0.95
             case .tutorialImported: return 1.00
             }
         }
@@ -732,9 +705,7 @@ private extension OnboardingView {
             case .tutorialShare:    return .awesome
             case .tutorialPanel:    return .tutorialShare
             case .tutorialPickApp:  return .tutorialPanel
-            case .tutorialWebsite:  return .tutorialPickApp
-            case .tutorialCamera:   return .tutorialWebsite
-            case .tutorialImported: return .tutorialCamera
+            case .tutorialImported: return .tutorialPickApp
             }
         }
     }
@@ -843,48 +814,10 @@ private enum HearAbout: String, CaseIterable, Identifiable, Hashable {
     }
 }
 
-// MARK: - Tutorial chip + phone mockup content
-
-private struct TutorialChip {
-    enum Align {
-        case bottomCenter, bottomLeading, topLeading
-        var alignment: Alignment {
-            switch self {
-            case .bottomCenter:  return .bottom
-            case .bottomLeading: return .bottomLeading
-            case .topLeading:    return .topLeading
-            }
-        }
-        var padding: CGFloat {
-            switch self {
-            case .bottomCenter:  return 24
-            case .bottomLeading: return 20
-            case .topLeading:    return 24
-            }
-        }
-    }
-
-    let text: String
-    let align: Align
-    let yOffset: CGFloat
-
-    var view: some View {
-        Text(text)
-            .font(AppFont.body(14, weight: .bold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(
-                LinearGradient(colors: [AppTheme.brand, Color(hex: "E58BB8")],
-                               startPoint: .topLeading, endPoint: .bottomTrailing),
-                in: Capsule()
-            )
-            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 2)
-    }
-}
+// MARK: - Phone mockup content
 
 private enum PhoneContent {
-    case reel, sharePanel, appPicker, recipeWebsite, cameraScan, importedRecipe
+    case reel, sharePanel, appPicker, importedRecipe
 
     @ViewBuilder
     var view: some View {
@@ -892,49 +825,12 @@ private enum PhoneContent {
         case .reel:            PhoneReel()
         case .sharePanel:      PhoneSharePanel()
         case .appPicker:       PhoneAppPicker()
-        case .recipeWebsite:   PhoneRecipeWebsite()
-        case .cameraScan:      PhoneCameraScan()
         case .importedRecipe:  PhoneImportedRecipe()
         }
     }
 }
 
 // MARK: Highlight ring — coral ring that marks the target control on each tutorial step.
-
-// MARK: Source selector — Instagram / Website / Camera
-
-enum TutorialSource { case instagram, website, camera }
-
-private extension OnboardingView {
-    /// Tappable chip row — jump between the three tutorial tracks without going step-by-step.
-    func sourceChipsRow(active: TutorialSource) -> some View {
-        HStack(spacing: 8) {
-            sourceChip(icon: "camera.fill", label: "Instagram", on: active == .instagram) {
-                advance(to: .tutorialShare)
-            }
-            sourceChip(icon: "globe", label: "Website", on: active == .website) {
-                advance(to: .tutorialWebsite)
-            }
-            sourceChip(icon: "camera.viewfinder", label: "Camera", on: active == .camera) {
-                advance(to: .tutorialCamera)
-            }
-        }
-    }
-
-    func sourceChip(icon: String, label: String, on: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: icon).font(.system(size: 11, weight: .semibold))
-                Text(label).font(AppFont.body(13, weight: .semibold))
-            }
-            .foregroundStyle(on ? AppTheme.onAccent : AppTheme.textSecondary)
-            .padding(.horizontal, 12).padding(.vertical, 7)
-            .background(on ? AppTheme.textPrimary : AppTheme.surface, in: Capsule())
-            .overlay(Capsule().stroke(on ? Color.clear : AppTheme.hairline, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-}
 
 // MARK: - SwiftUI View Component
 private struct PhoneRecipeWebsite: View {
@@ -1060,62 +956,44 @@ private struct PhoneCameraScan: View {
 // MARK: - SwiftUI View Component
 private struct PhoneReel: View {
     var body: some View {
-        // Reference OB9: full-bleed vertical reel with a right rail of counts (heart / comment
-        // / reshare / share / bookmark) and a bottom creator strip. We draw it stylised so no
-        // real Instagram UI is shipped; the highlighted icon is the paper-plane share.
+        // Original cooking-clip illustration: a bundled dish asset, never another app's UI or a
+        // real creator profile.
         ZStack {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(AppTheme.accentSoft)
-                .overlay(
-                    Image(systemName: "fork.knife.circle.fill")
-                        .font(.system(size: 44))
-                        .foregroundStyle(AppTheme.brand.opacity(0.7))
-                )
+            Color.black.opacity(0.92)
 
-            // Right rail — counts under each icon
-            VStack(spacing: 8) {
-                reelRailItem(icon: "heart.fill", label: "827K")
-                reelRailItem(icon: "bubble.right.fill", label: "1,288")
-                reelRailItem(icon: "arrow.2.squarepath", label: "16.4K")
-                reelRailItem(icon: "paperplane.fill", label: "266K", highlighted: true)
-                reelRailItem(icon: "bookmark.fill", label: "183K")
-            }
-            .padding(.trailing, 6)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+            // `scaledToFit` deliberately preserves the whole dish. The earlier fill treatment
+            // cut off the recipe photo on smaller phones, which made the tutorial look broken.
+            Image("recipe_chocolate_lava_cake")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // Bottom creator strip — handle is a grey bar (no real id shown)
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.72)],
+                startPoint: .center,
+                endPoint: .bottom
+            )
+
             VStack {
                 Spacer()
-                HStack(spacing: 6) {
-                    Circle().fill(AppTheme.hairline).frame(width: 18, height: 18)
-                    Capsule().fill(AppTheme.hairline).frame(width: 52, height: 7)
-                    Spacer()
-                    Text("Follow")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Color.white.opacity(0.2), in: Capsule())
-                }
-                .padding(8)
-                .background(LinearGradient(colors: [.clear, Color.black.opacity(0.4)],
-                                           startPoint: .top, endPoint: .bottom))
-            }
-        }
-    }
-
-    private func reelRailItem(icon: String, label: String, highlighted: Bool = false) -> some View {
-        VStack(spacing: 2) {
-            ZStack {
-                if highlighted {
-                    Circle().fill(AppTheme.brand.opacity(0.25)).frame(width: 24, height: 24)
-                }
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .bold))
+                HStack(alignment: .bottom, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Cooking clip")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Tap Share to save this recipe")
+                            .font(.system(size: 9, weight: .medium))
+                    }
                     .foregroundStyle(.white)
+                    Spacer()
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                        .background(AppTheme.brand, in: Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.8), lineWidth: 2))
+                }
+                .padding(12)
             }
-            Text(label).font(.system(size: 7, weight: .semibold)).foregroundStyle(.white)
         }
     }
 }
@@ -1123,16 +1001,14 @@ private struct PhoneReel: View {
 // MARK: - SwiftUI View Component
 private struct PhoneSharePanel: View {
     var body: some View {
-        // Reference OB10: thumbnail at top, search bar, contact grid with handles as grey bars
-        // (no real IDs), bottom app row with Share-to… highlighted.
+        // Neutral sharing illustration with food thumbnails and generic labels only.
         VStack(spacing: 8) {
             Capsule().fill(AppTheme.hairline).frame(width: 36, height: 4)
-            RoundedRectangle(cornerRadius: 8)
-                .fill(AppTheme.accentSoft)
-                .overlay(Image(systemName: "fork.knife.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(AppTheme.brand.opacity(0.7)))
+            Image("recipe_chocolate_lava_cake")
+                .resizable()
+                .scaledToFill()
                 .frame(height: 56)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             HStack(spacing: 6) {
                 HStack(spacing: 4) {
                     Image(systemName: "magnifyingglass").font(.system(size: 9))
@@ -1146,17 +1022,22 @@ private struct PhoneSharePanel: View {
                     .background(AppTheme.surface, in: Circle())
             }
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                ForEach(0..<6, id: \.self) { _ in
+                ForEach(0..<6, id: \.self) { index in
                     VStack(spacing: 3) {
-                        Circle().fill(AppTheme.accentSoft).frame(width: 30, height: 30)
-                        Capsule().fill(AppTheme.hairline).frame(width: 28, height: 5)
+                        tutorialDishThumb(index: index)
+                            .frame(width: 30, height: 30)
+                            .clipShape(Circle())
+                        Text("User \(index + 1)")
+                            .font(.system(size: 7, weight: .medium))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .lineLimit(1)
                     }
                 }
             }
             Spacer(minLength: 0)
             HStack(spacing: 6) {
                 shareBottomIcon(name: "link",                     label: "Copy")
-                shareBottomIcon(name: "phone.bubble.fill",        label: "WhatsApp")
+                shareBottomIcon(name: "message.fill",             label: "Messages")
                 shareBottomIcon(name: "square.and.arrow.up",      label: "Share to…", highlighted: true)
                 shareBottomIcon(name: "plus.rectangle.on.rectangle", label: "Story")
                 shareBottomIcon(name: "message.fill",             label: "Messages")
@@ -1181,14 +1062,23 @@ private struct PhoneSharePanel: View {
             Text(label).font(.system(size: 7)).foregroundStyle(AppTheme.textSecondary).lineLimit(1)
         }
     }
+
+    private func tutorialDishThumb(index: Int) -> some View {
+        let assets = [
+            "recipe_chocolate_lava_cake", "recipe_paneer_butter_masala", "recipe_chicken_chettinad",
+            "recipe_paneer_wrap", "recipe_tomato_rigatoni", "recipe_chocolate_lava_cake"
+        ]
+        return Image(assets[index % assets.count])
+            .resizable()
+            .scaledToFill()
+    }
 }
 
 // MARK: - SwiftUI View Component
 private struct PhoneAppPicker: View {
     var body: some View {
-        // Reference OB11: iOS system share sheet — preview card at top ("Reel from …" with the
-        // handle as a grey bar), recent-sharer avatar, row of app icons with CraveCircle
-        // highlighted, bottom actions.
+        // Original destination-picker illustration. It explains the action without reproducing
+        // a system share sheet or exposing a person's recent-share list.
         VStack(spacing: 8) {
             Capsule().fill(AppTheme.hairline).frame(width: 36, height: 4)
 
@@ -1196,14 +1086,11 @@ private struct PhoneAppPicker: View {
             HStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(AppTheme.surface)
-                    .overlay(Image(systemName: "safari").font(.system(size: 14)).foregroundStyle(AppTheme.textSecondary))
+                    .overlay(Image(systemName: "link").font(.system(size: 14)).foregroundStyle(AppTheme.textSecondary))
                     .frame(width: 32, height: 32)
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 3) {
-                        Text("Reel from").font(.system(size: 9, weight: .semibold))
-                        Capsule().fill(AppTheme.hairline).frame(width: 36, height: 6)
-                    }
-                    Text("instagram.com").font(.system(size: 8))
+                    Text("Recipe link").font(.system(size: 9, weight: .semibold))
+                    Text("Ready to import").font(.system(size: 8))
                         .foregroundStyle(AppTheme.textSecondary)
                 }
                 Spacer()
@@ -1212,20 +1099,11 @@ private struct PhoneAppPicker: View {
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.hairline, lineWidth: 1))
 
-            // Recent sharer row
-            HStack(spacing: 10) {
-                VStack(spacing: 2) {
-                    Circle().fill(AppTheme.accentSoft).frame(width: 30, height: 30)
-                    Capsule().fill(AppTheme.hairline).frame(width: 24, height: 5)
-                }
-                Spacer()
-            }
-
             // App icons — CraveCircle highlighted
             HStack(spacing: 8) {
-                sysAppTile(symbol: "swirl.circle.righthalf.filled", tint: Color(hex: "F26A5A"), label: "Kulfi")
-                sysAppTile(symbol: "camera.fill",                    tint: Color(hex: "C13584"), label: "Instagram")
-                sysAppTile(symbol: "mappin.circle.fill",             tint: Color(hex: "7E5CFF"), label: "District")
+                sysAppTile(symbol: "message.fill", tint: Color(hex: "4CAF50"), label: "Messages")
+                sysAppTile(symbol: "folder.fill", tint: Color(hex: "4A90E2"), label: "Files")
+                sysAppTile(symbol: "note.text", tint: Color(hex: "F0B429"), label: "Notes")
                 ZStack {
                     sysAppTile(symbol: "fork.knife", tint: AppTheme.brand, label: "CraveCircle")
                     RoundedRectangle(cornerRadius: 10, style: .continuous)

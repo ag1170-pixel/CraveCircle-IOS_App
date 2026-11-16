@@ -15,6 +15,7 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
 import glob
 import json
 import os
@@ -42,13 +43,32 @@ import sqlite3
 
 # Basic in-memory scaffolding for recipes (Preview only)
 RECIPES: dict[str, dict] = {}
-JOBS: dict[str, dict] = {}
 GROCERY_LIST: list[dict] = []
 
 DB_PATH = os.environ.get("DB_PATH", "/tmp/cravecircle_admin.db")
+YTDLP_TIMEOUT_S = max(1.0, float(os.environ.get("YTDLP_TIMEOUT_S", "45")))
+
+
+def _db_connect() -> sqlite3.Connection:
+    if DB_PATH != ":memory:":
+        os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, timeout=15)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 15000")
+    return conn
+
+
+@contextmanager
+def _db_transaction():
+    conn = _db_connect()
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = _db_connect()
     c = conn.cursor()
     c.execute('''
         CREATE TABLE IF NOT EXISTS feedback (
@@ -71,10 +91,45 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS import_jobs (
+            id TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
+            url TEXT NOT NULL,
+            target_language TEXT,
+            user_id TEXT,
+            recipe_id TEXT,
+            error_message TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS imported_recipes (
+            id TEXT PRIMARY KEY,
+            payload TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     conn.commit()
     conn.close()
 
 init_db()
+
+
+def _purge_expired_import_results() -> None:
+    """Bound undelivered import retention when a device never returns to fetch its result."""
+    with _db_transaction() as conn:
+        conn.execute(
+            "DELETE FROM imported_recipes WHERE created_at < datetime('now', '-30 minutes')"
+        )
+        conn.execute(
+            "DELETE FROM import_jobs WHERE status = 'done' "
+            "AND recipe_id NOT IN (SELECT id FROM imported_recipes)"
+        )
+
+
+_purge_expired_import_results()
 
 COOKIES_BROWSER = os.getenv("COOKIES_BROWSER")
 # Netscape cookies.txt inside the container (mounted). Lets us authenticate Instagram /
@@ -236,18 +291,24 @@ def _run_ytdlp(extra_args: list[str], url: str) -> subprocess.CompletedProcess:
         auth = ["--cookies-from-browser", COOKIES_BROWSER]
 
     try:
-        res = subprocess.run(base + auth + extra_args + [url], capture_output=True, text=True)
+        res = subprocess.run(base + auth + extra_args + [url], capture_output=True, text=True,
+                             timeout=YTDLP_TIMEOUT_S)
         if res.returncode == 0:
             return res
 
         # A public URL can fail *because* of stale cookies — retry once anonymously.
         if auth:
-            res_anon = subprocess.run(base + extra_args + [url], capture_output=True, text=True)
+            res_anon = subprocess.run(base + extra_args + [url], capture_output=True, text=True,
+                                      timeout=YTDLP_TIMEOUT_S)
             if res_anon.returncode == 0:
                 return res_anon
             res = res_anon
 
         raise RuntimeError(_friendly_ytdlp_error(res.stderr, url))
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"The video download timed out after {YTDLP_TIMEOUT_S:g} seconds. Please retry."
+        ) from exc
     finally:
         if tmp_cookies_path and os.path.exists(tmp_cookies_path):
             try:
@@ -263,8 +324,96 @@ def _check_key(provided: Optional[str]) -> None:
 
 @app.on_event("startup")
 def _warm() -> None:
+    _restore_import_state()
     _model()
     _seed_initial_recipes()
+
+
+def _restore_import_state() -> None:
+    """Restore completed recipes and make jobs interrupted by a process restart terminal."""
+    conn = _db_connect()
+    try:
+        conn.execute(
+            "UPDATE import_jobs SET status='error', error_message=?, updated_at=CURRENT_TIMESTAMP "
+            "WHERE status IN ('queued', 'downloading', 'transcribing', 'extracting')",
+            ("The import was interrupted by a backend restart. Please try again.",),
+        )
+        for row in conn.execute("SELECT payload FROM imported_recipes"):
+            try:
+                recipe = json.loads(row["payload"])
+                if isinstance(recipe, dict) and recipe.get("id"):
+                    RECIPES[recipe["id"]] = recipe
+            except (TypeError, json.JSONDecodeError):
+                print("[import] skipped malformed persisted recipe", flush=True)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _create_import_job(job: dict) -> None:
+    with _db_transaction() as conn:
+        conn.execute(
+            "INSERT INTO import_jobs (id,status,url,target_language,user_id,recipe_id,error_message) "
+            "VALUES (:id,:status,:url,:target_language,:user_id,:recipe_id,:error_message)", job,
+        )
+
+
+def _update_import_job(job_id: str, **values) -> None:
+    allowed = {"status", "recipe_id", "error_message"}
+    if not values or not values.keys() <= allowed:
+        raise ValueError("Invalid import job update")
+    assignments = ", ".join(f"{key} = ?" for key in values)
+    parameters = list(values.values()) + [job_id]
+    with _db_transaction() as conn:
+        cursor = conn.execute(
+            f"UPDATE import_jobs SET {assignments}, updated_at=CURRENT_TIMESTAMP WHERE id = ?",
+            parameters,
+        )
+        if cursor.rowcount != 1:
+            raise KeyError(f"Import job {job_id} no longer exists")
+
+
+def _get_import_job(job_id: str) -> dict | None:
+    with _db_transaction() as conn:
+        row = conn.execute("SELECT * FROM import_jobs WHERE id = ?", (job_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def _complete_import_job(job_id: str, recipe: dict) -> None:
+    """Persist the result and terminal job state together so they cannot disagree."""
+    # This record exists only long enough for the importing device to fetch it. It is never a
+    # community-feed record, and `get_recipe` removes it after delivery.
+    recipe = dict(recipe)
+    recipe["private_import"] = True
+    payload = json.dumps(recipe, ensure_ascii=False, separators=(",", ":"))
+    with _db_transaction() as conn:
+        conn.execute(
+            "INSERT INTO imported_recipes (id,payload) VALUES (?,?) "
+            "ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
+            (recipe["id"], payload),
+        )
+        cursor = conn.execute(
+            "UPDATE import_jobs SET recipe_id=?,status='done',error_message=NULL, "
+            "updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (recipe["id"], job_id),
+        )
+        if cursor.rowcount != 1:
+            raise KeyError(f"Import job {job_id} no longer exists")
+    RECIPES[recipe["id"]] = recipe
+
+
+def _consume_imported_recipe(recipe_id: str) -> None:
+    """Remove a delivered import result and its job metadata from the relay."""
+    with _db_transaction() as conn:
+        conn.execute("DELETE FROM imported_recipes WHERE id = ?", (recipe_id,))
+        conn.execute("DELETE FROM import_jobs WHERE recipe_id = ?", (recipe_id,))
+    RECIPES.pop(recipe_id, None)
+
+
+def _imported_recipe_ids() -> set[str]:
+    with _db_transaction() as conn:
+        rows = conn.execute("SELECT id FROM imported_recipes").fetchall()
+    return {row["id"] for row in rows}
 
 
 def _seed_initial_recipes() -> None:
@@ -394,12 +543,33 @@ _PROCESSED = ("roll","breaded","battered","canned","gravy","dish","baby","infant
 
 _UNIT_GRAMS = {
     "kg": 1000, "g": 1, "gram": 1, "grams": 1, "gm": 1, "gms": 1, "mg": 0.001,
-    "l": 1000, "litre": 1000, "liter": 1000, "ml": 1,
     "lb": 454, "lbs": 454, "pound": 454, "pounds": 454, "oz": 28, "ounce": 28, "ounces": 28,
-    "cup": 200, "cups": 200, "tbsp": 15, "tablespoon": 15, "tablespoons": 15,
-    "tsp": 5, "teaspoon": 5, "teaspoons": 5, "clove": 3, "cloves": 3,
+    "clove": 3, "cloves": 3,
     "slice": 20, "slices": 20, "can": 400, "cans": 400, "pinch": 0.5,
     "egg": 50, "eggs": 50, "roti": 45, "chapati": 45, "packet": 200, "pack": 200,
+}
+
+# Typical weights for one US cup (236.588 mL), used only for named foods. These are
+# estimates for standard preparation (e.g. spooned flour, packed brown sugar), not universal
+# densities. Unknown volume ingredients are excluded from the estimate rather than guessed.
+_VOLUME_GRAMS_PER_CUP = [
+    ("coconut milk", 240), ("almond flour", 96), ("chickpea flour", 92), ("gram flour", 92),
+    ("brown sugar", 220), ("granulated sugar", 200), ("powdered sugar", 120), ("sugar", 200),
+    ("all purpose flour", 120), ("whole wheat flour", 120), ("wheat flour", 120),
+    ("flour", 120), ("cornstarch", 128), ("rice", 185), ("oats", 90),
+    ("spinach", 30), ("shredded cheese", 113), ("cheese", 113),
+    ("chopped onion", 160), ("onion", 160), ("tomato", 180),
+    ("honey", 340), ("butter", 227), ("oil", 218), ("yogurt", 245),
+    ("yoghurt", 245), ("curd", 245), ("dahi", 245), ("cream", 240),
+    ("milk", 240), ("water", 236.588), ("vanilla extract", 237),
+]
+_VOLUME_ML = {
+    "cup": 236.588, "cups": 236.588,
+    "tbsp": 14.787, "tablespoon": 14.787, "tablespoons": 14.787,
+    "tsp": 4.929, "teaspoon": 4.929, "teaspoons": 4.929,
+    "ml": 1.0, "milliliter": 1.0, "milliliters": 1.0,
+    "l": 1000.0, "litre": 1000.0, "litres": 1000.0,
+    "liter": 1000.0, "liters": 1000.0,
 }
 
 # Prep/adjective/unit words removed before a food lookup so "finely chopped fresh onion" -> "onion".
@@ -447,11 +617,38 @@ def _core_name(item: str) -> str:
     return " ".join(words[:4]).strip()
 
 
-def _parse_grams(item: str) -> float:
+def _volume_grams_per_cup(item: str) -> float | None:
+    core = _core_name(item)
+    for name, grams in _VOLUME_GRAMS_PER_CUP:
+        if name in core:
+            return grams
+    return None
+
+
+def _parse_grams(item: str) -> float | None:
     """Best-effort grams for one ingredient line: kg/g/ml/cups/tbsp, '1 1/2', unicode fractions,
     '2-3' ranges, word-numbers, 'to taste'/'a pinch'/'handful', and count items ('2 eggs',
     '3 onions') via typical per-piece weights."""
     s = item.lower().strip()
+    # Parenthetical weights are more precise than a household-volume approximation.
+    explicit = re.search(r"\(([^)]{0,48})\)", s)
+    if explicit:
+        amount = re.search(r"\d+(?:\.\d+)?", explicit.group(1))
+        if amount:
+            value = float(amount.group(0))
+            inside = explicit.group(1).lower()
+            if re.search(r"\bkg\b", inside):
+                return value * 1000
+            if re.search(r"\b(?:grams?|g)\b", inside):
+                return value
+            if re.search(r"\b(?:oz|ounces?)\b", inside):
+                return value * 28
+            volume_unit = next((w for w in re.findall(r"[a-z]+", inside) if w in _VOLUME_ML), None)
+            if volume_unit:
+                grams_per_cup = _volume_grams_per_cup(s)
+                if grams_per_cup is None:
+                    return None
+                return value * _VOLUME_ML[volume_unit] * grams_per_cup / 236.588
     s = re.sub(r"(\d+)\s*[-–—]\s*(\d+)", lambda m: str((int(m.group(1)) + int(m.group(2))) / 2), s)
 
     qty = None
@@ -481,6 +678,12 @@ def _parse_grams(item: str) -> float:
     unit = next((w for w in re.findall(r"[a-z]+", s) if w in _UNIT_GRAMS), None)
     if unit:
         return qty * _UNIT_GRAMS[unit]
+    volume_unit = next((w for w in re.findall(r"[a-z]+", s) if w in _VOLUME_ML), None)
+    if volume_unit:
+        grams_per_cup = _volume_grams_per_cup(s)
+        if grams_per_cup is None:
+            return None
+        return qty * _VOLUME_ML[volume_unit] * grams_per_cup / 236.588
     if "to taste" in s or "pinch" in s:
         return 1.0
     if "handful" in s:
@@ -784,6 +987,8 @@ def estimate_nutrition(ingredients: list[dict], servings: int = 2) -> dict:
             if _core_name(item).split()[-1:] == ["water"] and "coconut" not in lower and "rose" not in lower:
                 continue
             grams = _parse_grams(item)
+            if grams is None:
+                continue
             # Curated table FIRST — hand-tuned and correct for common & Indian items (USDA's fuzzy
             # search mismatches colloquial terms, e.g. "curd" -> tofu, "mutton" -> a processed loaf).
             # USDA fills the long tail (specific vegetables/cuts the table doesn't list).
@@ -1047,6 +1252,42 @@ def _has_recipe_content(parsed: dict) -> bool:
     return has_ing or has_dir
 
 
+_DANGLING_CONTAINER = re.compile(
+    r"^(?:in|into|on|over|under)\s+(?:a|the|your)\s+"
+    r"(?:large\s+|medium\s+|small\s+|mixing\s+)?"
+    r"(?:bowl|pan|pot|skillet|tray|dish|plate|board)$",
+    re.I,
+)
+
+
+def _clean_direction_text(raw: str) -> str:
+    """Keep source wording, while removing OCR/model placeholders that can never be cooked."""
+    text = re.sub(r"\(\s*[\W_]*\)", " ", raw or "")
+    text = re.sub(r"\[\s*[\W_]*\]", " ", text)
+    text = re.sub(r"\{\s*[\W_]*\}", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return re.sub(r"\s+([,.;:])", r"\1", text)
+
+
+def _validated_directions(directions: list[str]) -> list[str]:
+    """Discard blank placeholders and join a dangling container with its following action."""
+    cleaned = [_clean_direction_text(direction) for direction in directions]
+    cleaned = [direction for direction in cleaned if len(direction) >= 3]
+    result: list[str] = []
+    index = 0
+    while index < len(cleaned):
+        current = cleaned[index]
+        if _DANGLING_CONTAINER.match(current) and index + 1 < len(cleaned):
+            following = cleaned[index + 1]
+            if _IMPERATIVE.match(following):
+                result.append(f"{current}, {following[:1].lower()}{following[1:]}")
+                index += 2
+                continue
+        result.append(current)
+        index += 1
+    return result
+
+
 _FOOD_WORDS = {
     # English
     "cook","cooking","recipe","fry","fried","bake","baked","boil","boiled","roast","grill","saute",
@@ -1287,8 +1528,9 @@ def assemble_recipe(caption: str, transcript: str, ocr_text: str, has_speech: bo
     if not title:
         title = _spoken_dish_name(transcript) or "Delicious Homemade Recipe"
 
-    # Drop promo / intro / CTA lines that aren't actual cooking steps.
-    directions = [d for d in directions if not _INTRO_LINE.match(d)]
+    # Drop promo / intro / CTA lines that aren't actual cooking steps, then reject malformed
+    # placeholder tokens before this payload can reach a user's recipe detail screen.
+    directions = _validated_directions([d for d in directions if not _INTRO_LINE.match(d)])
 
     if len(directions) < 3 and groups:
         directions = _enrich_short_directions(directions, groups, title)
@@ -1300,7 +1542,7 @@ def assemble_recipe(caption: str, transcript: str, ocr_text: str, has_speech: bo
             split_dirs.extend(parts)
         else:
             split_dirs.append(d)
-    directions = split_dirs
+    directions = _validated_directions(split_dirs)
 
     serving_count = _parse_servings(caption, video_title, " ".join(directions))
     # A stated per-serving macro line wins. Otherwise keep the ingredient estimate.
@@ -1399,7 +1641,7 @@ def _save_reel_cover(recipe_id: str, poster_url: Optional[str], video_path: Opti
 
 
 def _process_reel_import(job_id: str, url: str, target_language: str, user_id: Optional[str] = None) -> None:
-    JOBS[job_id]["status"] = "downloading"
+    _update_import_job(job_id, status="downloading")
     local_tmp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".tmp")
     os.makedirs(local_tmp, exist_ok=True)
 
@@ -1417,7 +1659,7 @@ def _process_reel_import(job_id: str, url: str, target_language: str, user_id: O
             transcript, source_lang, has_speech = "", "en", False
 
             # 1) Download AUDIO only (small & fast) to check for narration and transcribe it.
-            JOBS[job_id]["status"] = "downloading"
+            _update_import_job(job_id, status="downloading")
             audio_out = os.path.join(tmp, "audio.%(ext)s")
             try:
                 _run_ytdlp(["-f", "bestaudio/best", "-o", audio_out], url)
@@ -1427,7 +1669,7 @@ def _process_reel_import(job_id: str, url: str, target_language: str, user_id: O
 
             # 2) VAD: is a person actually narrating, or is it just a music/B-roll bed?
             if audio_files:
-                JOBS[job_id]["status"] = "transcribing"
+                _update_import_job(job_id, status="transcribing")
                 has_speech, _secs = detect_speech(audio_files[0])
                 if has_speech:                       # only pay for Whisper when someone's talking
                     try:
@@ -1439,7 +1681,7 @@ def _process_reel_import(job_id: str, url: str, target_language: str, user_id: O
 
             # 3) Merge caption + audio (best per field). 
             # Our extraction heuristics (like quantities) and food gate are English-based.
-            JOBS[job_id]["status"] = "extracting"
+            _update_import_job(job_id, status="extracting")
             from .translate import translate_texts
             if caption:
                 t_cap = translate_texts([caption], "en")
@@ -1492,7 +1734,7 @@ def _process_reel_import(job_id: str, url: str, target_language: str, user_id: O
             #    iOS "Translated from …" badge lights up.
             text_lang = recipe_text_lang(transcript, source_lang)
             if _norm_lang(target_language) and _norm_lang(target_language) != _norm_lang(text_lang):
-                JOBS[job_id]["status"] = "extracting"
+                _update_import_job(job_id, status="extracting")
                 parsed = translate_recipe(parsed, text_lang, target_language)
 
 
@@ -1518,15 +1760,15 @@ def _process_reel_import(job_id: str, url: str, target_language: str, user_id: O
                 "visibility": "everyone"
             }
 
-            RECIPES[recipe_id] = recipe_obj
-            JOBS[job_id]["recipe_id"] = recipe_id
-            JOBS[job_id]["status"] = "done"
+            _complete_import_job(job_id, recipe_obj)
             
             _send_apns_push(recipe_id, recipe_obj.get("title", "Recipe"), user_id)
 
     except Exception as e:
-        JOBS[job_id]["status"] = "error"
-        JOBS[job_id]["error_message"] = str(e)
+        try:
+            _update_import_job(job_id, status="error", error_message=str(e)[:500])
+        except Exception as persist_error:
+            print(f"[import:{job_id}] failed to save terminal error: {persist_error}", flush=True)
 
 
 # MARK: - Feedback & Admin Endpoints
@@ -1743,8 +1985,8 @@ class ImportRequest(BaseModel):
 
 @app.post("/reels/import")
 async def submit_reel_import(req: ImportRequest, bg: BackgroundTasks) -> dict:
-    job_id = f"job-{uuid.uuid4().hex[:10]}"
-    JOBS[job_id] = {
+    job_id = f"job-{uuid.uuid4().hex}"
+    _create_import_job({
         "id": job_id,
         "status": "queued",
         "url": req.url,
@@ -1752,14 +1994,14 @@ async def submit_reel_import(req: ImportRequest, bg: BackgroundTasks) -> dict:
         "user_id": req.user_id,
         "recipe_id": None,
         "error_message": None
-    }
+    })
     bg.add_task(_process_reel_import, job_id, req.url, req.target_language, req.user_id)
     return {"job_id": job_id, "status": "queued"}
 
 
 @app.get("/reels/import/{job_id}")
 async def get_import_job(job_id: str) -> dict:
-    job = JOBS.get(job_id)
+    job = _get_import_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return {
@@ -1772,9 +2014,10 @@ async def get_import_job(job_id: str) -> dict:
 
 @app.get("/recipes")
 async def list_recipes(limit: int = 20, offset: int = 0) -> list[dict]:
-    # Newest first, so a freshly imported reel is always in the first page the app fetches
-    # (old oldest-first slicing hid new imports once there were >limit recipes).
-    all_recs = list(RECIPES.values())[::-1]
+    # Import results are private hand-offs, never catalog entries. This filter also protects
+    # records made before the `private_import` marker was added.
+    imported_ids = _imported_recipe_ids()
+    all_recs = [recipe for recipe in RECIPES.values() if recipe["id"] not in imported_ids][::-1]
     return all_recs[offset : offset + limit]
 
 
@@ -1783,6 +2026,10 @@ async def get_recipe(recipe_id: str) -> dict:
     recipe = RECIPES.get(recipe_id)
     if not recipe:
         raise HTTPException(status_code=404, detail="Recipe not found")
+    if recipe.get("private_import"):
+        delivered = dict(recipe)
+        _consume_imported_recipe(recipe_id)
+        return delivered
     return recipe
 
 

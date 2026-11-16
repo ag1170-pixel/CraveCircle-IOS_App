@@ -1095,6 +1095,12 @@ final class AppEnvironment {
         if let i = recipes.firstIndex(where: { $0.id == updated.id }) { recipes[i] = updated }
         else { recipes.insert(updated, at: 0) }
         if selectedRecipe?.id == updated.id { selectedRecipe = updated }
+        // An imported recipe is deliberately private, including after a local edit. Its source
+        // provenance blocks Studio/public sync; only original Studio recipes enter the queue.
+        guard !updated.staysOnThisPhone else {
+            unsyncedRecipeIds.remove(updated.id)
+            return
+        }
         markRecipeDirty(updated.id)
         Task { await syncRecipes() }
     }
@@ -1138,9 +1144,15 @@ final class AppEnvironment {
             }          // single assignment → one persist
             if added > 0 { hasMoreRecipes = true }   // new content available to scroll
         }
-        // PUSH — send my own changed recipes up; clear the dirty flag only on success.
-        // Only an admin push reaches the public catalog. Everyone else's recipes stay on this phone.
+        // PUSH — send only a creator's or admin's original Studio work. Imported material is
+        // library-only by policy, regardless of who imported it.
         if canPublish, supabase.hasSession, let uid = currentUser?.id {
+            // Clear stale dirty markers from older builds that queued an import before the
+            // private-library policy was enforced. Nothing is uploaded for these records.
+            let privateImportIDs = unsyncedRecipeIds.filter { id in
+                recipes.first(where: { $0.id == id })?.staysOnThisPhone == true
+            }
+            unsyncedRecipeIds.subtract(privateImportIDs)
             // Backfill (once per session): recipes published before Storage upload still carry a
             // device-local cover in the cloud (unreachable to others → placeholder). Re-flag my own
             // local-cover recipes whose image file still exists so the upload path fixes them.
@@ -1174,9 +1186,8 @@ final class AppEnvironment {
                 // R3 + R4: classify the push result instead of swallowing failures.
                 // .ok           → clear dirty, published recipe lands on the server
                 // .unauthorized → token expired; refresh once and retry so we don't LOSE the write
-                // .importPublishBlocked → server trigger refused (non-admin publishing an import).
-                //                 Move the recipe back to Studio drafts so the Publish button
-                //                 isn't silently a no-op, and tell the user why.
+                // .importPublishBlocked → server trigger refused an imported recipe. Keep it in
+                //                 the private library; never create a Studio draft from it.
                 // .failed       → keep dirty, we'll retry on the next sync. No data loss.
                 let dirtyIds = dirty.map { $0.id }
                 switch await supabase.upsertRecipes(dirty, ownerId: uid) {
@@ -1190,11 +1201,10 @@ final class AppEnvironment {
                         errorMessage = "Your session expired. Sign in again to publish this recipe."
                     }
                 case .importPublishBlocked:
-                    // Imports can't be published by non-admins. Un-publish them locally so the
-                    // user sees them back in Studio Drafts and knows the Publish didn't take.
-                    for id in dirtyIds { studioDraftIds.insert(id) }
+                    // This is a defence-in-depth path for old local data. Imported recipes belong
+                    // in the library, not in Studio or the public catalog.
                     unsyncedRecipeIds.subtract(dirtyIds)
-                    errorMessage = "Imports can't be published — write your own version in Studio first."
+                    errorMessage = "Imported recipes stay private in your library. Create an original recipe in Studio to publish."
                 case .failed(let msg):
                     #if DEBUG
                     print("recipe push failed, keeping dirty: \(msg)")
@@ -1271,25 +1281,24 @@ final class AppEnvironment {
     /// Share a recipe with any CraveCircle user by their @username — no creator role required.
     /// Delivers to their cloud "Shared with you" inbox. Returns false if the username can't be found.
     func shareRecipeToUsername(recipeId: String, username: String) async -> Bool {
+        // Imported recipes are private reference material. Do not upload, deep-link, or deliver
+        // them to another account; the original source remains available through Watch instead.
+        guard let recipe = recipes.first(where: { $0.id == recipeId }), !recipe.staysOnThisPhone else {
+            return false
+        }
         let handle = AppConfig.shareHandle(username)
         guard !handle.isEmpty, let toId = await supabase.resolveProfileId(username: handle) else { return false }
-        let recipe = recipes.first(where: { $0.id == recipeId })
-        // A private import is not in the public catalog. Upload it as followers-only so the
-        // recipient can open it (shares_select policy) without it showing up for everyone.
-        if var recipe, let uid = currentUser?.id, isOwner(of: recipe) {
-            // Covers web imports too: a creator sharing a blog recipe to a friend must not push it
-            // into the public catalog as `.everyone`.
-            if !canPublish || recipe.staysOnThisPhone { recipe.visibility = .followers }
+        if let uid = currentUser?.id, isOwner(of: recipe) {
             _ = await supabase.upsertRecipes([recipe], ownerId: uid)
         }
         let ok = await supabase.recordShare(recipeId: recipeId, toUserId: toId, channel: "in-app",
-                                            title: recipe?.title, thumbnail: recipe?.thumbnailUrl)
+                                            title: recipe.title, thumbnail: recipe.thumbnailUrl)
         if ok {
             sharedLog.insert(SharedRecipeRecord(
                 id: UUID().uuidString, recipeId: recipeId,
                 fromUserId: currentUser?.id ?? "me", toUserId: toId,
                 createdAt: Date(), channel: "in-app",
-                recipeTitle: recipe?.title, recipeThumbnail: recipe?.thumbnailUrl), at: 0)
+                recipeTitle: recipe.title, recipeThumbnail: recipe.thumbnailUrl), at: 0)
         }
         return ok
     }
@@ -2075,9 +2084,9 @@ final class AppEnvironment {
         }
         recipe.thumbnailUrl = saved.first
         recipe.galleryUrls = saved.count > 1 ? saved : nil
+        recipe.sourceUrl = "cravecircle://import/photo/\(recipe.id)"
+        recipe.visibility = .followers
         recipes.insert(recipe, at: 0)
-        markRecipeDirty(recipe.id)
-        Task { await syncRecipes() }
         importState = .done(recipeId: recipe.id)
         notifyImportDone(recipeId: recipe.id, recipeTitle: recipe.title)
     }
@@ -2312,10 +2321,9 @@ final class AppEnvironment {
         }
         if Task.isCancelled { return }
 
-        if let reelLink { recipe.sourceUrl = reelLink }
+        recipe.sourceUrl = reelLink ?? "cravecircle://import/reel/\(recipe.id)"
+        recipe.visibility = .followers
         recipes.insert(recipe, at: 0)
-        markRecipeDirty(recipe.id)
-        Task { await syncRecipes() }
         // Do NOT auto-set selectedRecipe here.
         importState = .done(recipeId: recipe.id)
         notifyImportDone(recipeId: recipe.id, recipeTitle: recipe.title)
@@ -3333,6 +3341,10 @@ final class AppEnvironment {
                         // translation is best-effort). Ensure the user's chosen Recipe Language on the
                         // app side too — no-op if the server already delivered it in the target.
                         recipe = await self.translateToPreferredLanguage(recipe)
+                        if recipe.sourceUrl?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+                            recipe.sourceUrl = "cravecircle://import/share/\(recipe.id)"
+                        }
+                        recipe.visibility = .followers
                         recipe = await self.storeCoverLocally(recipe)
                         await MainActor.run {
                             if let index = self.recipes.firstIndex(where: { $0.id == recipe.id }) {
@@ -3340,9 +3352,6 @@ final class AppEnvironment {
                             } else {
                                 self.recipes.insert(recipe, at: 0)
                             }
-                            self.markRecipeDirty(recipe.id)
-                            Task { await self.syncRecipes() }
-
                             // Do NOT auto-set selectedRecipe here. It causes a presentation conflict
                             // if the ImportProgressScreen sheet is currently active. Let the user
                             // explicitly tap "View" or "Open recipe" to select it.

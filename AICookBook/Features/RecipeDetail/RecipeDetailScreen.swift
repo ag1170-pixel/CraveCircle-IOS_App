@@ -134,11 +134,9 @@ struct RecipeDetailScreen: View {
             recipe.nutrition = selected.nutrition
         }
         .coordinateSpace(.named("detail"))
-        // iOS 26 lets a right swipe anywhere pop the screen. On Directions that swipe should go
-        // back to Ingredients, so only the left-edge swipe pops there.
-        .background(ContentPopGesture(enabled: tab == 0))
-        // Swipe left/right on the Ingredients/Directions box to switch between the two.
-        // Starts near the left edge are left to the system's swipe-back.
+        // Disable iOS 26's content-wide pop recognizer. The native edge-back gesture remains
+        // available, while centered swipes are handled by the tab or recipe pager below.
+        .background(ContentPopGesture(enabled: false))
         .simultaneousGesture(
             DragGesture(minimumDistance: 25, coordinateSpace: .named("detail"))
                 .onChanged { _ in lastDragAt = Date() }
@@ -146,13 +144,29 @@ struct RecipeDetailScreen: View {
                     lastDragAt = Date()
                     guard !showCustomizationMenu,
                           value.startLocation.x > 32,
-                          segmentFrame.contains(value.startLocation),
                           abs(value.translation.width) > abs(value.translation.height) * 1.3,
                           abs(value.translation.width) > 50 else { return }
-                    let next = value.translation.width < 0 ? 1 : 0   // left → Directions, right → Ingredients
-                    guard next != tab else { return }
-                    withAnimation(reduceMotion ? nil : AppMotion.snappy) { tab = next }
-                    Haptics.select()
+
+                    if segmentFrame.contains(value.startLocation) {
+                        let next = value.translation.width < 0 ? 1 : 0   // left → Directions, right → Ingredients
+                        guard next != tab else { return }
+                        withAnimation(reduceMotion ? nil : AppMotion.snappy) { tab = next }
+                        Haptics.select()
+                        return
+                    }
+
+                    // The hero has its own photo pager. Let it move between photos first;
+                    // when it is already at that end, the same swipe can change recipes.
+                    if galleryFrame.contains(value.startLocation) {
+                        let images = recipe.galleryImages
+                        let canChangePhoto = images.count > 1 && (
+                            (value.translation.width < 0 && galleryIndex < images.count - 1)
+                                || (value.translation.width > 0 && galleryIndex > 0)
+                        )
+                        if canChangePhoto { return }
+                    }
+
+                    onSwitchRecipe?(value.translation.width < 0 ? 1 : -1) // left → next, right → previous
                 }
         )
         .overlay(alignment: .bottom) {
@@ -755,33 +769,34 @@ struct RecipeDetailScreen: View {
                 showCook = true
             }
 
-            // Segmented picker in the house style: cream selected pill, dark text, readable unselected label.
-            LimeSegmentedControl(segments: ["Ingredients", "Directions"], selection: $tab)
-                .padding(.top, 2)
+            // This whole region belongs to the Ingredients/Directions swipe, including its picker.
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                LimeSegmentedControl(segments: ["Ingredients", "Directions"], selection: $tab)
+                    .padding(.top, 2)
 
-            // Smooth horizontal slide for the Ingredients ⇄ Directions switch (tracks the swipe
-            // direction) instead of a crossfade — reads like a real tab transition.
-            Group {
-                if tab == 0 {
-                    ingredientsList
-                        .transition(.asymmetric(insertion: .move(edge: .leading),
-                                                removal: .move(edge: .leading)).combined(with: .opacity))
-                } else {
-                    directionsList
-                        .transition(.asymmetric(insertion: .move(edge: .trailing),
-                                                removal: .move(edge: .trailing)).combined(with: .opacity))
+                // Smooth horizontal slide (tracks swipe direction) instead of a crossfade.
+                Group {
+                    if tab == 0 {
+                        ingredientsList
+                            .transition(.asymmetric(insertion: .move(edge: .leading),
+                                                    removal: .move(edge: .leading)).combined(with: .opacity))
+                    } else {
+                        directionsList
+                            .transition(.asymmetric(insertion: .move(edge: .trailing),
+                                                    removal: .move(edge: .trailing)).combined(with: .opacity))
+                    }
                 }
+                .animation(AppMotion.smooth, value: tab)
+                .contentShape(Rectangle())
+                .clipped()
+                // Opaque box so the list sits ON the wallpaper, not inside it.
+                .padding(AppSpacing.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+                .tint(AppTheme.accentInk)
             }
-            .animation(AppMotion.smooth, value: tab)
-            .contentShape(Rectangle())
-            .clipped()
-            // Opaque box so the ingredients/directions sit ON the wallpaper, not inside it.
-            .padding(AppSpacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
-            .tint(AppTheme.accentInk)
-            // Swipes that start on this box toggle Ingredients⇄Directions.
+            // All swipes starting in this box toggle Ingredients⇄Directions, never recipes.
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("detail")) } action: { segmentFrame = $0 }
 
             NutritionSummaryCard(recipe: recipe) {

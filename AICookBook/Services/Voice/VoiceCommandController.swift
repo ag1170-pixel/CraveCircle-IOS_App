@@ -95,8 +95,8 @@ final class VoiceCommandController: NSObject {
     private let timerWords: Set<String> = [
         "start", "starts", "timer", "clock", "timers", "timmer"
     ]
-    // "stop" ends the running timer. Matched exactly: one edit away is "step", "shop", "atop".
-    private let stopWords: Set<String> = ["stop", "stops", "stopped", "cancel"]
+    // "stop" pauses the running timer. Matched exactly: one edit away is "step", "shop", "atop".
+    private let stopWords: Set<String> = ["stop", "stops", "stopped"]
 
     // MARK: Lifecycle
 

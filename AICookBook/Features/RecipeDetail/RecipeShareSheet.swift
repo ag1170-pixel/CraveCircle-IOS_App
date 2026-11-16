@@ -41,11 +41,15 @@ struct RecipeShareSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.lg) {
                     recipePreviewCard
-                    usernameShareSection
-                    if !environment.circleFriends.isEmpty {
-                        circleFriendsSection
+                    if recipe.staysOnThisPhone {
+                        importedRecipePrivacyNotice
+                    } else {
+                        usernameShareSection
+                        if !environment.circleFriends.isEmpty {
+                            circleFriendsSection
+                        }
+                        quickActionsSection
                     }
-                    quickActionsSection
                     if !environment.ownedCollections.isEmpty {
                         collectionsSection
                     }
@@ -69,6 +73,22 @@ struct RecipeShareSheet: View {
     }
 
     // MARK: - Send to a CraveCircle user (by @username — any user, no creator role needed)
+
+    private var importedRecipePrivacyNotice: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Label("Private import", systemImage: "lock.fill")
+                .font(AppFont.body(16, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+            Text("Imported recipes stay in your library only. To revisit the original, use Watch on the recipe page.")
+                .font(AppFont.body(14))
+                .foregroundStyle(AppTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(AppSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+    }
 
     private var usernameShareSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.xs) {

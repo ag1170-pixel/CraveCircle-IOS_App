@@ -34,6 +34,7 @@ struct NutritionScreen: View {
     @Environment(\.dismiss) private var dismiss
     @State private var whole = false
     @State private var openMacro: MacroKind?
+    @State private var portionPickerFrame: CGRect = .zero
 
     private var hasNutrition: Bool {
         recipe.nutrition != nil || (environment.selectedRecipe?.id == recipe.id && environment.selectedRecipe?.nutrition != nil)
@@ -75,6 +76,20 @@ struct NutritionScreen: View {
             }
         }
         .background(AppScreenBackground())
+        .coordinateSpace(name: "nutrition")
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 25, coordinateSpace: .named("nutrition"))
+                .onEnded { value in
+                    guard portionPickerFrame.contains(value.startLocation),
+                          value.startLocation.x > 32,
+                          abs(value.translation.width) > abs(value.translation.height) * 1.3,
+                          abs(value.translation.width) > 50 else { return }
+                    let nextWhole = value.translation.width < 0
+                    guard nextWhole != whole else { return }
+                    withAnimation(AppMotion.smooth) { whole = nextWhole }
+                    Haptics.select()
+                }
+        )
         .leadingEdgeBack { dismiss() }
         .task { environment.refreshAuthoritativeNutrition(for: recipe) }
     }
@@ -141,6 +156,9 @@ struct NutritionScreen: View {
         }
         .padding(4)
         .background(AppTheme.accentSoft, in: Capsule())
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("nutrition")) } action: {
+            portionPickerFrame = $0
+        }
     }
 
     private func portionChip(_ title: String, on: Bool, tap: @escaping () -> Void) -> some View {

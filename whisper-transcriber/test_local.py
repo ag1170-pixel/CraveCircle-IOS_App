@@ -71,9 +71,7 @@ def estimate_nutrition(ingredients: list[dict], servings: int = 2) -> dict:
     """Computes nutrition and physical calorie-burn equivalents."""
     unit_grams = {
         "kg": 1000, "g": 1, "gram": 1, "grams": 1, "mg": 0.001,
-        "l": 1000, "litre": 1000, "ml": 1,
         "lb": 454, "lbs": 454, "oz": 28,
-        "cup": 200, "cups": 200, "tbsp": 15, "tablespoon": 15, "tsp": 5, "teaspoon": 5,
         "clove": 5, "cloves": 5, "slice": 20, "slices": 20, "can": 400, "pinch": 0.5,
         "egg": 50, "eggs": 50, "roti": 45, "chapati": 45
     }
@@ -121,14 +119,42 @@ def estimate_nutrition(ingredients: list[dict], servings: int = 2) -> dict:
                 else:
                     qty = float(raw_num)
             
-            # unit
+            # Mass units convert directly. Volume units need a known ingredient density.
             unit = None
             for w in re.findall(r"[a-z]+", lower):
                 if w in unit_grams:
                     unit = w
                     break
-            
-            grams = qty * unit_grams[unit] if unit else (qty * 60.0 if m_num else 80.0)
+            if unit:
+                grams = qty * unit_grams[unit]
+            else:
+                volume_ml = {
+                    "cup": 236.588, "cups": 236.588,
+                    "tbsp": 14.787, "tablespoon": 14.787, "tablespoons": 14.787,
+                    "tsp": 4.929, "teaspoon": 4.929, "teaspoons": 4.929,
+                    "ml": 1.0, "l": 1000.0,
+                }
+                volume_unit = next((w for w in re.findall(r"[a-z]+", lower) if w in volume_ml), None)
+                if volume_unit:
+                    weights_per_cup = [
+                        ("coconut milk", 240), ("almond flour", 96), ("chickpea flour", 92),
+                        ("gram flour", 92), ("brown sugar", 220), ("granulated sugar", 200),
+                        ("sugar", 200),
+                        ("powdered sugar", 120), ("all purpose flour", 120),
+                        ("whole wheat flour", 120), ("wheat flour", 120), ("flour", 120),
+                        ("cornstarch", 128), ("rice", 185), ("oats", 90), ("spinach", 30),
+                        ("shredded cheese", 113), ("cheese", 113), ("onion", 160),
+                        ("tomato", 180), ("honey", 340), ("butter", 227), ("oil", 218),
+                        ("yogurt", 245), ("yoghurt", 245), ("curd", 245), ("dahi", 245),
+                        ("cream", 240), ("milk", 240), ("water", 236.588),
+                        ("vanilla extract", 237),
+                    ]
+                    weight = next((g for name, g in weights_per_cup if name in lower), None)
+                    if weight is None:
+                        continue
+                    grams = qty * volume_ml[volume_unit] * weight / 236.588
+                else:
+                    grams = qty * 60.0 if m_num else 80.0
             
             macro = None
             for key, val in table:

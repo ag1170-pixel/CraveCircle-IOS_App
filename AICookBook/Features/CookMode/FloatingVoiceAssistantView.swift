@@ -138,7 +138,7 @@ struct FloatingVoiceAssistantView: View {
         }
         switch voice.lastHeard {
         case "Timer": return "Timer started"
-        case "Stop": return "Timer stopped"
+        case "Stop": return "Timer paused"
         case "Next", "Back": return "\(voice.lastHeard) Step!"
         default: break
         }

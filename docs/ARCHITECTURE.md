@@ -26,8 +26,9 @@ Android app from the older diagram are left out because the iOS app does not cal
    and the phone understands it without sending audio anywhere.
 5. **You like, save, follow, comment, plan meals, build a grocery list.** Each action is saved on
    the phone first, then copied to the server when you are signed in.
-6. **The server decides what is allowed.** The app hides buttons, but the database is what refuses
-   a request that breaks the rules (for example, only an admin can publish to everyone).
+6. **The server decides what is allowed.** Imported recipes are private references in the person's
+   library. The app and database both refuse to publish or share them; only original Studio work can
+   enter the public catalog.
 
 ---
 
@@ -358,8 +359,8 @@ App > OnDevice: RecipeExtractor (LLM, else heuristic)
 OnDevice > App: title, ingredients, steps
 App > App: not food? stop and say so
 App > Backend: POST /translate-text (only if language differs)
-App > App: save to LocalStore, mark unsynced
-App > Supabase: push only if signed in and allowed to publish
+App > App: save import privately in LocalStore
+App > Supabase: only original Studio work may be pushed
 App > User: recipe in library
 
 // ---- Share: from another app ----
@@ -371,11 +372,12 @@ Backend > Social: yt-dlp fetch
 Backend > Backend: faster-whisper transcript
 Backend > Backend: tesseract OCR on frames
 Backend > Backend: assemble recipe + nutrition, translate
-Backend > Backend: save recipe in SQLite
+Backend > Backend: hold private result until the app retrieves it
 Backend > APNs: recipe ready
 APNs > App: notification
-App > Backend: GET /reels/import/{job} and /recipes
-Backend > App: the new recipe
+App > Backend: GET /reels/import/{job} then GET /recipes/{id}
+Backend > Backend: remove delivered private result and job metadata
+Backend > App: the new private recipe
 App > User: recipe in library
 ```
 
@@ -422,8 +424,8 @@ DB > App: name, username, role
 App > Edge: likes, saves, follows, comments, meal plan, shares
 REST > DB: INSERT or DELETE, RLS checks the row is mine
 App > Edge: rpc/get_suggested_recipes, rpc/log_interactions
-App > Edge: upsert recipes (only when the role may publish)
-DB > DB: trigger rejects a public import from a non-admin
+App > Edge: upsert original Studio recipes (only when the role may publish)
+DB > DB: trigger rejects every attempt to publish an imported recipe, including admin attempts
 
 // ---- Token expiry ----
 App > Edge: any request with an expired token
@@ -436,11 +438,12 @@ App > Edge: retry once
 
 ---
 
-## Known weak spots (checked in code today)
+## Reliability fixes completed (2026-11-17)
 
-| Where | What | Why it matters |
+| Area | Change | Remaining limit |
 |---|---|---|
-| `whisper-transcriber/app/main.py` `_run_ytdlp` | `subprocess.run` for yt-dlp has no timeout (ffmpeg and tesseract calls do) | One stuck download holds a worker forever |
-| `whisper-transcriber/app/main.py` `JOBS` | Import job status lives in a Python dict | A backend restart loses every in-flight job; the app polls a job id that no longer exists |
-| `AICookBook/Models/Nutrition.swift` | `"cup": 200` grams for every ingredient | A cup of flour and a cup of honey get the same weight, so calories drift |
-| `AppEnvironment.guestRestrictionsEnabled` | Off for now | Guests can do everything locally. Nothing reaches the server without a session, and the database still refuses non-admin publishing. Turn back on before release. |
+| Reel download | `_run_ytdlp` now enforces `YTDLP_TIMEOUT_S` (45 seconds by default) and reports a retryable timeout. | Each authenticated/anonymous attempt is bounded separately; this does not make the background worker durable. |
+| Import job state | Jobs and completed import payloads are held in SQLite only for delivery. The result is removed when the importing app retrieves it; undelivered results are purged after 30 minutes. Interrupted nonterminal jobs are marked failed with a retry message. | The retention changes require deployment of the backend code. Interrupted jobs are reported, not automatically resumed. |
+| Import privacy | Link, share, photo, and video imports get private provenance and remain library-only. The iOS app blocks sharing and Studio promotion; the supplied SQL migration removes the prior admin exception at the database boundary. | The SQL migration file must be applied through the approved Supabase deployment process; it has not been run against production from this workspace. |
+| Nutrition volume units | iOS and backend use named ingredient cup weights and convert tbsp/tsp/mL/L through those ingredient-specific densities. | These are typical estimates. Unknown volume ingredients are omitted from the estimate instead of receiving an invented mass; displayed estimates may therefore be partial. Explicit gram/oz quantities remain preferred. |
+| Guest access | `AppEnvironment.guestRestrictionsEnabled` remains off for now. | Guest activity remains device-local; backend RLS still applies. Turn restrictions back on before release. |

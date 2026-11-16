@@ -59,6 +59,7 @@ struct ProfileScreen: View {
     @State private var showEditProfile = false
     @State private var showContactOptions = false
     @State private var activeSafariURL: IdentifiableURL? = nil
+    @State private var activeLegalDocument: LocalLegalDocument? = nil
 
     private var language: AppLanguage {
         AppLanguage(rawValue: langCode) ?? LanguagePrefs.default
@@ -131,6 +132,11 @@ struct ProfileScreen: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .ignoresSafeArea()
+        }
+        .sheet(item: $activeLegalDocument) { document in
+            LocalLegalDocumentView(document: document)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showFeedbackForm) {
             FeedbackFormView()
@@ -510,7 +516,7 @@ struct ProfileScreen: View {
                     title: "Privacy Policy",
                     tint: .green
                 ) {
-                    activeSafariURL = IdentifiableURL(url: AppConfig.privacyPolicyURL)
+                    activeLegalDocument = .privacy
                 }
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
                 SettingRow(
@@ -518,7 +524,7 @@ struct ProfileScreen: View {
                     title: "Terms of Service",
                     tint: .blue
                 ) {
-                    activeSafariURL = IdentifiableURL(url: AppConfig.termsOfServiceURL)
+                    activeLegalDocument = .terms
                 }
             }
             .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
