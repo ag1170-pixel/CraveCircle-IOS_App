@@ -133,5 +133,74 @@ struct FilterChip: View {
             .overlay(Capsule().stroke(isOn ? Color.clear : AppTheme.hairline, lineWidth: 1))
         }
         .buttonStyle(PressableStyle())
+        .accessibilityLabel(title)
+        .accessibilityValue(isOn ? "Selected" : "Not selected")
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
+
+/// Search destination and colors for a cuisine tile shown below an empty Home search.
+struct SearchCuisineSuggestion: Identifiable {
+    let title: String
+    let searchTerm: String
+    let gradientStart: Color
+    let gradientEnd: Color
+    let usesOutlinePlate: Bool
+
+    var id: String { title }
+}
+
+struct SearchCuisineCard: View {
+    let cuisine: SearchCuisineSuggestion
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [cuisine.gradientStart, cuisine.gradientEnd],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(alignment: .top) {
+                    Image(cuisine.usesOutlinePlate ? "SearchCuisinePlateOutline" : "SearchCuisinePlate")
+                        .padding(.top, 12)
+                }
+                .overlay {
+                    Image("SearchCuisineFood")
+                }
+                .overlay {
+                    Image("SearchCuisineForkKnife")
+                }
+                .overlay(alignment: .bottomLeading) {
+                    Text(cuisine.title)
+                        .font(AppFont.body(17, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.leading, 14)
+                        .padding(.bottom, 10)
+                }
+                .frame(height: 96)
+                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel("Browse \(cuisine.title) recipes")
+        .accessibilityHint("Search for \(cuisine.searchTerm)")
+    }
+}
+
+#Preview("Filter Controls") {
+    ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 8) {
+            DietToggle(mark: .veg, tint: Color(hex: "1B7F3A"), isOn: true, label: "Vegetarian") {}
+            DietToggle(mark: .nonVeg, tint: Color(hex: "C7362A"), isOn: false, label: "Non-vegetarian") {}
+            FilterChip(title: "Under 15m", systemImage: "timer", isOn: true) {}
+            FilterChip(title: "15–30m", systemImage: "clock.fill", isOn: false) {}
+            FilterChip(title: "High protein", systemImage: "dumbbell", isOn: false) {}
+        }
+        .padding()
+    }
+    .background(AppTheme.background)
+}
+

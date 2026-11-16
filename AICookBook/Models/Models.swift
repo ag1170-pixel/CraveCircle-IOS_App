@@ -742,7 +742,6 @@ struct RecipeComment: Codable, Identifiable, Hashable {
     ]
 }
 
-#if DEBUG
 // MARK: - Meal Plan
 
 enum MealSlot: String, Codable, CaseIterable, Hashable, Identifiable {
@@ -843,6 +842,7 @@ struct PlannedMeal: Codable, Identifiable, Hashable {
     var servings: Int? = nil
 }
 
+#if DEBUG
 enum CraveCircleInvariantChecks {
     static let _runChecks: Void = {
         precondition(Recipe.isSocialImportURL(nil) == false)

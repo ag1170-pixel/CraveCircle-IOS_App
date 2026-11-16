@@ -465,7 +465,7 @@ struct SupabaseData {
     /// Pull recipes the current viewer is allowed to see. Works signed-out too — RLS still returns
     /// every `visibility = 'everyone'` recipe, which is how newly published creator/developer recipes
     /// show up in the app. Returns nil on failure so the caller keeps its local library untouched.
-    func fetchRecipes(limit: Int = 50, offset: Int = 0) async -> [Recipe]? {
+    func fetchRecipes(limit: Int = 200, offset: Int = 0) async -> [Recipe]? {
         guard let req = request(path: "rest/v1/recipes?select=*&order=updated_at.desc&limit=\(limit)&offset=\(offset)", method: "GET") else { return nil }
         guard let (data, resp) = try? await URLSession.shared.data(for: req),
               let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
@@ -845,9 +845,16 @@ private struct RemoteCommentRow: Decodable {
 
 /// Decodes the snake_case recipe rows the RPC returns into the app's `Recipe` model.
 enum SupabaseRecipeDecoder {
+    /// Skips rows that don't decode instead of failing the whole response: one malformed recipe
+    /// used to empty the entire server feed for every user.
     static func decode(_ data: Data) throws -> [Recipe] {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode([Recipe].self, from: data)
+        return try decoder.decode([Lossy].self, from: data).compactMap(\.recipe)
+    }
+
+    private struct Lossy: Decodable {
+        let recipe: Recipe?
+        init(from decoder: Decoder) throws { recipe = try? Recipe(from: decoder) }
     }
 }

@@ -66,6 +66,39 @@ struct HomeScreen: View {
     // Swiggy-style rotating search terms — only the quoted word cycles ("Search for 'pasta'").
     static let searchHints = ["pasta", "paneer", "cake", "biryani", "butter chicken", "something sweet"]
 
+    private let cuisineSuggestions: [SearchCuisineSuggestion] = [
+        SearchCuisineSuggestion(
+            title: "North Indian", searchTerm: "paneer",
+            gradientStart: Color(hex: "DDA64A"), gradientEnd: Color(hex: "573612"),
+            usesOutlinePlate: false
+        ),
+        SearchCuisineSuggestion(
+            title: "Italian", searchTerm: "pasta",
+            gradientStart: Color(hex: "E0603F"), gradientEnd: Color(hex: "5E1B0F"),
+            usesOutlinePlate: false
+        ),
+        SearchCuisineSuggestion(
+            title: "Japanese", searchTerm: "ramen",
+            gradientStart: Color(hex: "CDA77F"), gradientEnd: Color(hex: "47311F"),
+            usesOutlinePlate: true
+        ),
+        SearchCuisineSuggestion(
+            title: "Mexican", searchTerm: "taco",
+            gradientStart: Color(hex: "E3A442"), gradientEnd: Color(hex: "5B2A12"),
+            usesOutlinePlate: true
+        ),
+        SearchCuisineSuggestion(
+            title: "Thai", searchTerm: "thai",
+            gradientStart: Color(hex: "EBC76E"), gradientEnd: Color(hex: "7A4A1C"),
+            usesOutlinePlate: true
+        ),
+        SearchCuisineSuggestion(
+            title: "Desserts", searchTerm: "chocolate",
+            gradientStart: Color(hex: "E99090"), gradientEnd: Color(hex: "58232F"),
+            usesOutlinePlate: true
+        )
+    ]
+
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
@@ -308,109 +341,186 @@ struct HomeScreen: View {
 
     // MARK: Search suggestions — show when the field is focused and empty
 
-    /// Loose focus → the chips disappear. Everything inside stays trimmed, phone-view-friendly:
-    /// three short sections max, three rows each, no illustrations or extra chrome.
+    /// Empty focused search follows the Search reference with recent queries, suggestions,
+    /// and a compact cuisine grid.
     @ViewBuilder private var searchSuggestions: some View {
         let recents = recentSearches
         let creators = creatorSuggestions
         let trending = trendingSuggestions
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
+        VStack(alignment: .leading, spacing: AppSpacing.lg) {
             if !recents.isEmpty {
-                suggestionHeader("Recent") {
-                    recentSearchesCSV = ""
-                }
-                VStack(spacing: 8) {
-                    ForEach(recents, id: \.self) { q in
-                        recentRow(q, onTap: {
-                            query = q
-                            searchFocused = false
-                        }, onRemove: {
-                            recentSearchesCSV = recents.filter { $0 != q }.joined(separator: "\u{1F}")
-                        })
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    suggestionHeader("Recent") {
+                        recentSearchesCSV = ""
                     }
+                    recentSearchList(recents)
                 }
             }
             if !creators.isEmpty {
-                suggestionHeader("Your creators", clearAction: nil)
-                creatorRow(creators: creators)
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    suggestionHeader("Your creators", clearAction: nil)
+                    creatorRow(creators: creators)
+                }
             }
             if !trending.isEmpty {
-                suggestionHeader("Trending in your Circle", clearAction: nil)
-                suggestionChipRow(items: trending, onTap: { q in
-                    query = q
-                    recordRecentSearch(q)
-                    searchFocused = false
-                }, onRemove: nil)
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                    suggestionHeader("Trending in your Circle", clearAction: nil)
+                    suggestionChipRow(items: trending, onTap: { q in
+                        query = q
+                        recordRecentSearch(q)
+                        searchFocused = false
+                    }, onRemove: nil, showsIcon: false)
+                }
             }
-            if recents.isEmpty && creators.isEmpty && trending.isEmpty {
-                Text("Start typing to search your recipes.")
-                    .font(AppFont.body(13))
-                    .foregroundStyle(AppTheme.textTertiary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, AppSpacing.md)
-            }
+            searchIdeasSection
+            browseCuisineSection
         }
         .padding(.horizontal, AppSpacing.md)
+    }
+
+    /// Recipe cards under the suggestions so a focused, empty search is never a blank screen.
+    /// Same shuffle as Fresh in your Circle, so it varies between visits.
+    @ViewBuilder private var searchIdeasSection: some View {
+        let ideas = Array(freshFeedRecipes.prefix(6))
+        if !ideas.isEmpty {
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                suggestionHeader("Recipes to try", clearAction: nil)
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: AppSpacing.md),
+                    GridItem(.flexible(), spacing: AppSpacing.md)
+                ], spacing: AppSpacing.md) {
+                    ForEach(ideas) { recipe in
+                        LibraryCard(recipe: recipe) {
+                            searchFocused = false
+                            environment.selectRecipe(recipe, in: ideas)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var browseCuisineSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Text("Browse by cuisine")
+                .font(AppFont.body(22, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+            LazyVGrid(
+                columns: [GridItem(.flexible()), GridItem(.flexible())],
+                spacing: AppSpacing.sm
+            ) {
+                ForEach(cuisineSuggestions) { cuisine in
+                    SearchCuisineCard(cuisine: cuisine) {
+                        query = cuisine.searchTerm
+                        recordRecentSearch(cuisine.searchTerm)
+                        searchFocused = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func recentSearchList(_ recents: [String]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(recents.enumerated()), id: \.element) { index, term in
+                recentRow(
+                    term,
+                    onTap: {
+                        query = term
+                        searchFocused = false
+                    },
+                    onRemove: {
+                        recentSearchesCSV = recents.filter { $0 != term }.joined(separator: "\u{1F}")
+                    }
+                )
+                .padding(.leading, 16)
+                .padding(.trailing, 4)
+                if index < recents.count - 1 {
+                    Rectangle()
+                        .fill(AppTheme.hairline.opacity(0.55))
+                        .frame(height: 1)
+                        .padding(.leading, 16)
+                }
+            }
+        }
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
     }
 
     private func suggestionHeader(_ title: String, clearAction: (() -> Void)? = nil) -> some View {
         HStack {
             Text(title)
-                .font(AppFont.body(13, weight: .bold))
-                .foregroundStyle(AppTheme.textSecondary)
+                .font(AppFont.body(22, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
             Spacer()
             if let clearAction {
                 Button {
                     Haptics.tap()
                     clearAction()
                 } label: {
-                    HStack(spacing: 2) {
-                        Text("Clear").font(AppFont.body(13, weight: .semibold))
-                        Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold))
+                    HStack(spacing: 4) {
+                        Text("Clear").font(AppFont.body(15, weight: .semibold))
+                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
                     }
                     .foregroundStyle(AppTheme.brand)
                 }
+                .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 2)
     }
 
-    private func recentRow(_ text: String, onTap: @escaping () -> Void, onRemove: @escaping () -> Void) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "clock")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(AppTheme.textSecondary)
-            Text(text)
-                .font(AppFont.body(15, weight: .semibold))
-                .foregroundStyle(AppTheme.textPrimary)
-            Spacer(minLength: 0)
+    private func recentRow(
+        _ text: String,
+        onTap: @escaping () -> Void,
+        onRemove: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 0) {
+            Button(action: onTap) {
+                HStack(spacing: 12) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(AppTheme.textSecondary)
+                    Text(text)
+                        .font(AppFont.body(17))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
             Button {
-                Haptics.tap(); onRemove()
+                Haptics.tap()
+                onRemove()
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(AppTheme.textSecondary)
-                    .padding(6)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(text) from recent searches")
         }
-        .padding(.horizontal, 14).padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
-        .contentShape(Rectangle())
-        .onTapGesture { Haptics.tap(); onTap() }
+        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
     }
 
-    private func suggestionChipRow(items: [String], onTap: @escaping (String) -> Void,
-                                   onRemove: ((String) -> Void)?) -> some View {
+    private func suggestionChipRow(
+        items: [String],
+        onTap: @escaping (String) -> Void,
+        onRemove: ((String) -> Void)?,
+        showsIcon: Bool = true
+    ) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(items, id: \.self) { item in
                     HStack(spacing: 6) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(AppTheme.textTertiary)
+                        if showsIcon {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(AppTheme.textTertiary)
+                        }
                         Text(item)
                             .font(AppFont.body(13, weight: .semibold))
                             .foregroundStyle(AppTheme.textPrimary)
@@ -479,20 +589,21 @@ struct HomeScreen: View {
         return (followed + friendHandles).prefix(3).map { $0 }
     }
 
-    /// Up to 3 dish names from the suggested feed, filtered to the user's preferred cuisines when set.
+    /// Up to 5 dish names from suggested recipes, filtered to the user's preferred cuisines when set.
     private var trendingSuggestions: [String] {
+        let candidates = environment.suggestedRecipes.isEmpty ? environment.recipes : environment.suggestedRecipes
         let pool: [Recipe] = {
-            if environment.preferredCuisines.isEmpty { return environment.suggestedRecipes }
+            if environment.preferredCuisines.isEmpty { return candidates }
             let cuisines = environment.preferredCuisines.map { $0.lowercased() }
-            return environment.suggestedRecipes.filter { r in
+            return candidates.filter { r in
                 let hay = (r.title + " " + (r.description ?? "")).lowercased()
                 return cuisines.contains { hay.contains($0) }
             }
         }()
-        let seed = pool.isEmpty ? environment.suggestedRecipes : pool
+        let seed = pool.isEmpty ? candidates : pool
         var seen = Set<String>()
         var out: [String] = []
-        for r in seed where out.count < 3 {
+        for r in seed where out.count < 5 {
             let title = r.title.trimmingCharacters(in: .whitespacesAndNewlines)
             if seen.insert(title.lowercased()).inserted { out.append(title) }
         }
@@ -573,7 +684,10 @@ struct HomeScreen: View {
     private static let nonVegMark = Color(light: Color(hex: "C7362A"), dark: Color(hex: "FF5A48"))
 
     private var filterDivider: some View {
-        Rectangle().fill(AppTheme.hairline).frame(width: 1, height: 22).padding(.horizontal, 2)
+        Rectangle()
+            .fill(AppTheme.hairline)
+            .frame(width: 1, height: 20)
+            .padding(.horizontal, 2)
     }
 
     private func setDiet(_ d: DietFilter) {
@@ -611,7 +725,9 @@ struct HomeScreen: View {
                 .padding(.horizontal, AppSpacing.md)
                 LazyVGrid(columns: columns, spacing: AppSpacing.md) {
                     ForEach(recipes) { recipe in
-                        LibraryCard(recipe: recipe) { environment.selectRecipe(recipe, in: recipes) }
+                        LibraryCard(recipe: recipe, reservesTitleLines: recipes.count > 1) {
+                            environment.selectRecipe(recipe, in: recipes)
+                        }
                     }
                 }
                 .padding(.horizontal, AppSpacing.md)
@@ -637,12 +753,13 @@ struct HomeScreen: View {
     // recipe, which leaked other creators' recipes into your library and drained the Circle feed).
     private var freshFeedRecipes: [Recipe] {
         let pool = environment.recipes.filter { !environment.isOwner(of: $0) && !$0.isImportedFromSocial }
-        return Self.interleaveForDiscovery(pool)
+        var rng = FeedShuffleRNG(seed: environment.freshFeedSeed)
+        return Self.interleaveForDiscovery(pool.shuffled(using: &rng), rng: &rng)
     }
 
     /// High-diversity carousel ordering: ensures adjacent dishes NEVER share the same category,
     /// so the user experiences an authentic, mouth-watering mix (e.g. curry -> snack -> Italian -> rice -> dessert -> breakfast).
-    static func interleaveForDiscovery(_ list: [Recipe]) -> [Recipe] {
+    static func interleaveForDiscovery(_ list: [Recipe], rng: inout FeedShuffleRNG) -> [Recipe] {
         guard list.count > 1 else { return list }
 
         enum Bucket: Int, CaseIterable {
@@ -675,7 +792,7 @@ struct HomeScreen: View {
         var result: [Recipe] = []
         result.reserveCapacity(list.count)
 
-        var remainingBuckets = Bucket.allCases.filter { buckets[$0]?.isEmpty == false }
+        var remainingBuckets = Bucket.allCases.filter { buckets[$0]?.isEmpty == false }.shuffled(using: &rng)
         var lastBucket: Bucket? = nil
 
         while !remainingBuckets.isEmpty {
@@ -1127,6 +1244,8 @@ struct FreshCard: View {
 // MARK: - SwiftUI View Component
 struct LibraryCard: View {
     let recipe: Recipe
+    /// Reserve two title lines so cards in a row line up. Off when the card stands alone.
+    var reservesTitleLines = true
     let onTap: () -> Void
     @Environment(AppEnvironment.self) private var environment
 
@@ -1173,7 +1292,7 @@ struct LibraryCard: View {
                 .font(AppFont.body(15, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(2)
-                .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
+                .frame(maxWidth: .infinity, minHeight: reservesTitleLines ? 40 : nil, alignment: .topLeading)
             CreatorLine(handle: recipe.ownerUsername)
             MetaLine(recipe: recipe)
         }
@@ -1418,4 +1537,17 @@ struct Creator: Identifiable {
         .init(handle: "@chefbot", name: "Chef Bot"),
         .init(handle: "@aicookbook", name: "CraveCircle")
     ]
+}
+
+/// Seeded splitmix64, so one seed always yields the same Fresh order.
+struct FeedShuffleRNG: RandomNumberGenerator {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E3779B97F4A7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
+        z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
+        return z ^ (z >> 31)
+    }
 }

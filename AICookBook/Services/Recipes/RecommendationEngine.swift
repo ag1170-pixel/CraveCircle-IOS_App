@@ -157,15 +157,15 @@ enum RecommendationEngine {
     /// or ingredients. Keys are stable ids stored in `preferredCuisines`.
     static let cuisines: [(id: String, label: String, keywords: [String])] = [
         ("indian",        "Indian",        ["paneer","masala","curry","tikka","dal","daal","naan","tandoori","ghee","garam","biryani","chutney","samosa"]),
-        ("italian",       "Italian",       ["pasta","rigatoni","spaghetti","parmesan","basil","mozzarella","risotto","pesto","pizza","carbonara","lasagna"]),
-        ("mexican",       "Mexican",       ["taco","burrito","salsa","chipotle","guacamole","tortilla","quesadilla","enchilada","jalapeno"]),
+        ("italian",       "Italian",       ["pasta","rigatoni","spaghetti","parmesan","basil","mozzarella","risotto","pesto","pizza","carbonara","lasagna","fettuccine","alfredo","gnocchi","minestrone","bruschetta","ricotta","bolognese"]),
+        ("mexican",       "Mexican",       ["taco","burrito","salsa","chipotle","guacamole","tortilla","quesadilla","enchilada","jalapeno","fajita","carnitas","nacho","refried"]),
         ("korean",        "Korean",        ["gochujang","kimchi","bibimbap","bulgogi","tteokbokki","gochugaru"]),
-        ("thai",          "Thai",          ["thai","lemongrass","coconut milk","pad","tom yum","fish sauce","basil"]),
-        ("chinese",       "Chinese",       ["soy","hoisin","szechuan","sichuan","dumpling","fried rice","noodle","wok","ginger scallion"]),
+        ("thai",          "Thai",          ["thai","lemongrass","coconut milk","pad","tom yum","fish sauce","basil","pad thai"]),
+        ("chinese",       "Chinese",       ["soy","hoisin","szechuan","sichuan","dumpling","fried rice","noodle","wok","ginger scallion","stir-fry","stir fry","egg foo young","scallion"]),
         ("japanese",      "Japanese",      ["miso","soy","teriyaki","udon","ramen","sushi","dashi","panko","gyoza"]),
-        ("mediterranean", "Mediterranean", ["hummus","feta","olive","falafel","tahini","pita","tzatziki","shakshuka","harissa"]),
-        ("american",      "American",      ["burger","bbq","cheddar","bacon","fries","mac and cheese","buffalo","pancake"]),
-        ("desserts",      "Desserts",      ["sugar","chocolate","vanilla","cake","cookie","caramel","cream","pancake","tiramisu"])
+        ("mediterranean", "Mediterranean", ["hummus","feta","olive","falafel","tahini","pita","tzatziki","shakshuka","harissa","greek","kalamata"]),
+        ("american",      "American",      ["burger","bbq","cheddar","bacon","fries","mac and cheese","buffalo","pancake","ribs","pot pie","chowder","chili","waffle","macaroni","french toast"]),
+        ("desserts",      "Desserts",      ["sugar","chocolate","vanilla","cake","cookie","caramel","cream","pancake","tiramisu","brownie","cheesecake","shortbread","snickerdoodle","muffin","banana bread","pie","crepe"])
     ]
 
     private static func recipeText(_ r: Recipe) -> String {

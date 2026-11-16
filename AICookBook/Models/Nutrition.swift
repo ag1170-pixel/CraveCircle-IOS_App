@@ -72,6 +72,34 @@ struct RecipeNutrition: Codable, Hashable {
     var breakdown: [IngredientMacro]? = nil   // per-ingredient contributions (server or on-device)
     var estimated: Bool = false   // true when computed on-device rather than server-verified
 
+    init(calories: Double, carbsG: Double, proteinG: Double, fatG: Double, dailyCalories: Double = 2000,
+         breakdown: [IngredientMacro]? = nil, estimated: Bool = false) {
+        self.calories = calories
+        self.carbsG = carbsG
+        self.proteinG = proteinG
+        self.fatG = fatG
+        self.dailyCalories = dailyCalories
+        self.breakdown = breakdown
+        self.estimated = estimated
+    }
+
+    /// Server rows often leave out the optional fields; fall back to the defaults instead of
+    /// failing (a synthesized decoder would reject a row with no `dailyCalories`).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        calories = try c.decode(Double.self, forKey: .calories)
+        carbsG = try c.decode(Double.self, forKey: .carbsG)
+        proteinG = try c.decode(Double.self, forKey: .proteinG)
+        fatG = try c.decode(Double.self, forKey: .fatG)
+        dailyCalories = try c.decodeIfPresent(Double.self, forKey: .dailyCalories) ?? 2000
+        breakdown = try? c.decodeIfPresent([IngredientMacro].self, forKey: .breakdown)
+        estimated = try c.decodeIfPresent(Bool.self, forKey: .estimated) ?? false
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case calories, carbsG, proteinG, fatG, dailyCalories, breakdown, estimated
+    }
+
     /// Ingredients contributing to `kind`, biggest first, each with its % share of that macro.
     /// Only non-zero contributors; empty when there's no breakdown data to show.
     func contributions(for kind: MacroKind) -> [(item: IngredientMacro, percent: Int)] {
