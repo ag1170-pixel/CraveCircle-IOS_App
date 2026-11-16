@@ -28,7 +28,7 @@
 import Foundation
 
 extension Recipe {
-    static let placeholderRecipes: [Recipe] = [
+    static let starterRecipes: [Recipe] = [
         Recipe(
             id: "recipe-hot-honey-chicken",
             ownerId: "creator-nada",
@@ -2783,4 +2783,6 @@ extension Recipe {
         )
 
     ]
+
+    static let placeholderRecipes: [Recipe] = starterRecipes + foodComRecipes
 }

@@ -424,6 +424,7 @@ final class AppEnvironment {
             hydrateLocal()
             hydrateOnboardingAnswersFromProfile()
             await refreshRecipes()
+            await fetchSuggestedFeed(force: true)
             await hydrateLikesAndSavesFromServer()
             await hydrateMealPlanFromServer()
             await uploadDeviceTokenIfPossible()
@@ -435,6 +436,7 @@ final class AppEnvironment {
             appState = .signedIn
             hydrateLocal()
             await refreshRecipes()
+            await fetchSuggestedFeed(force: true)
             await uploadDeviceTokenIfPossible()
             syncSharedUserId()
         } catch {
@@ -448,6 +450,7 @@ final class AppEnvironment {
             appState = .signedIn
             hydrateLocal()
             await refreshRecipes()
+            await fetchSuggestedFeed(force: true)
         }
     }
 
@@ -836,7 +839,10 @@ final class AppEnvironment {
                     changed = true
                 }
             }
-            if changed { recipes = merged }
+            if changed {
+                recipes = merged
+                await fetchSuggestedFeed(force: true)
+            }
             recipePage = 1
             hasMoreRecipes = remote.count >= 50
         }
@@ -1116,7 +1122,10 @@ final class AppEnvironment {
                     merged.append(r); added += 1; changed = true
                 }
             }
-            if changed { recipes = merged }          // single assignment → one persist
+            if changed {
+                recipes = merged
+                await fetchSuggestedFeed(force: true)
+            }          // single assignment → one persist
             if added > 0 { hasMoreRecipes = true }   // new content available to scroll
         }
         // PUSH — send my own changed recipes up; clear the dirty flag only on success.
@@ -1644,6 +1653,10 @@ final class AppEnvironment {
         currentUser = UserProfile(id: guestUserId, username: "Guest", fullName: "Guest User", avatarUrl: nil, role: .user)
         hydrateLocal()
         appState = .signedIn
+        Task {
+            await refreshRecipes()
+            await fetchSuggestedFeed(force: true)
+        }
     }
 
     func deleteOwnedRecipe(id: String) {
@@ -3024,13 +3037,13 @@ final class AppEnvironment {
     private var activitySignature: String {
         let lastEvent = interactionHistory.last?.id ?? "-"
         return [lastEvent, "\(interactionHistory.count)", "\(likedRecipeIds.count)", "\(savedRecipeIds.count)",
-                "\(followedCreators.count)", preferredCuisines.sorted().joined(separator: ",")]
+                "\(followedCreators.count)", "\(recipes.count)", preferredCuisines.sorted().joined(separator: ",")]
             .joined(separator: "|")
     }
 
-    func fetchSuggestedFeed() async {
+    func fetchSuggestedFeed(force: Bool = false) async {
         let signature = activitySignature
-        if let snapshot = suggestionSnapshot, snapshot.signature == signature, !snapshot.recipes.isEmpty {
+        if !force, let snapshot = suggestionSnapshot, snapshot.signature == signature, !snapshot.recipes.isEmpty {
             if suggestedRecipes.isEmpty { setSuggestions(snapshot.recipes) }
             return
         }

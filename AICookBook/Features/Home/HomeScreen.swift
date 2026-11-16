@@ -121,6 +121,9 @@ struct HomeScreen: View {
                         if !environment.suggestedRecipes.isEmpty {
                             suggestedSection
                         }
+                        if !communityRecipes.isEmpty {
+                            communitySection
+                        }
                     }
                 }
                 // Just enough breathing room so the floating `+` FAB doesn't cover the last
@@ -138,12 +141,11 @@ struct HomeScreen: View {
             .scrollDisabled(catHeld)          // don't let the page scroll (and cancel the drag) while held
             .refreshable {
                 await environment.refreshRecipes()
-                await environment.fetchSuggestedFeed()
+                await environment.fetchSuggestedFeed(force: true)
             }
             .task {
-                if environment.suggestedRecipes.isEmpty {
-                    await environment.fetchSuggestedFeed()
-                }
+                await environment.refreshRecipes()
+                await environment.fetchSuggestedFeed(force: true)
                 await environment.loadSearchDemands()
             }
             .task(id: searchMissQuery) {
@@ -951,14 +953,90 @@ struct HomeScreen: View {
                 })
             }
 
-            // Intentional end-of-page marker so content doesn't just stop into the empty gap
-            // above the FAB. Soft hairline + quiet "View all in Discover" chip tells the user
-            // "you've seen the picks; here's where to go for more" — reads much more
-            // professional than cards → doodle wallpaper → floating button.
-            suggestedEndMarker
-                .padding(.top, AppSpacing.md)
+            if communityRecipes.isEmpty {
+                suggestedEndMarker
+                    .padding(.top, AppSpacing.md)
+                    .padding(.horizontal, AppSpacing.md)
+            }
+        }
+    }
+
+    // MARK: - Community Recipes
+
+    private var communityRecipes: [Recipe] {
+        // Showcase all public community & dataset recipes
+        environment.recipes.filter { !environment.isDraft(recipeId: $0.id) }
+    }
+
+    private var communitySection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "fork.knife")
+                    .foregroundStyle(Color(hex: "FF6B4A"))
+                    .font(.system(size: 18, weight: .semibold))
+                Text("Community Recipes")
+                    .font(AppFont.display(20, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text("· \(communityRecipes.count)")
+                    .font(AppFont.body(14, weight: .bold))
+                    .foregroundStyle(AppTheme.textSecondary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, AppSpacing.md)
+            .padding(.top, AppSpacing.sm)
+
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: AppSpacing.md),
+                GridItem(.flexible(), spacing: AppSpacing.md)
+            ], spacing: AppSpacing.md) {
+                ForEach(communityRecipes) { recipe in
+                    SuggestedGridCard(recipe: recipe) {
+                        environment.selectRecipe(recipe, in: communityRecipes)
+                    }
+                    .onAppear {
+                        if recipe.id == communityRecipes.last?.id {
+                            Task { await environment.loadMoreRecipes() }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, AppSpacing.md)
+
+            communityEndMarker
+                .padding(.top, AppSpacing.lg)
                 .padding(.horizontal, AppSpacing.md)
         }
+    }
+
+    private var communityEndMarker: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Rectangle().fill(AppTheme.hairline).frame(height: 1)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(AppTheme.textTertiary)
+                Rectangle().fill(AppTheme.hairline).frame(height: 1)
+            }
+            Text("You're all caught up · \(communityRecipes.count) recipes in your circle")
+                .font(AppFont.body(13))
+                .foregroundStyle(AppTheme.textTertiary)
+            Button {
+                Haptics.tap()
+                environment.requestTabSwitch(.discover)
+            } label: {
+                HStack(spacing: 6) {
+                    Text("Browse Discover")
+                        .font(AppFont.body(14, weight: .bold))
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 12, weight: .bold))
+                }
+                .foregroundStyle(AppTheme.accentInk)
+                .padding(.horizontal, 18).padding(.vertical, 10)
+                .background(AppTheme.accentSoft, in: Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var suggestedEndMarker: some View {

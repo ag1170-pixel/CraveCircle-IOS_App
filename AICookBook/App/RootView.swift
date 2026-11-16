@@ -606,9 +606,8 @@ struct MainTabView: View {
         )) { guestWall }
 
         .task {
-            if environment.recipes.isEmpty {
-                await environment.refreshRecipes()
-            }
+            await environment.refreshRecipes()
+            await environment.fetchSuggestedFeed(force: true)
         }
         .onChange(of: environment.pendingTabSwitch) { _, requested in
             guard let requested else { return }
