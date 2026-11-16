@@ -52,15 +52,15 @@ struct DietMarkIcon: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 3.5, style: .continuous)
-                .stroke(tint, lineWidth: 1.5)
+                .stroke(tint, lineWidth: 1.3)
             switch mark {
             case .veg:
-                Circle().fill(tint).padding(4)
+                Circle().fill(tint).padding(3.5)
             case .nonVeg:
-                DietTriangle().fill(tint).padding(4)
+                DietTriangle().fill(tint).padding(3.5)
             }
         }
-        .frame(width: 18, height: 18)
+        .frame(width: 15, height: 15)
         .accessibilityHidden(true)
     }
 }
@@ -76,7 +76,7 @@ private struct DietTriangle: Shape {
     }
 }
 
-/// Veg / non-veg switch: the boxed mark on the left, the knob on the right.
+/// Veg / non-veg filter pill: boxed mark on the left, label on the right.
 struct DietToggle: View {
     let mark: DietMark
     let tint: Color
@@ -84,30 +84,36 @@ struct DietToggle: View {
     let label: String
     let action: () -> Void
 
+    private var title: String {
+        switch mark {
+        case .veg: return "Veg"
+        case .nonVeg: return "Non-Veg"
+        }
+    }
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
                 DietMarkIcon(mark: mark, tint: tint)
-                Capsule()
-                    .fill(isOn ? tint : AppTheme.hairline)
-                    .frame(width: 30, height: 18)
-                    .overlay(alignment: isOn ? .trailing : .leading) {
-                        Circle()
-                            .fill(AppTheme.surface)
-                            .frame(width: 14, height: 14)
-                            .padding(2)
-                            .shadow(color: .black.opacity(0.12), radius: 1, y: 1)
-                    }
+                Text(title)
+                    .font(AppFont.body(12, weight: .semibold))
             }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+            .foregroundStyle(isOn ? tint : AppTheme.textPrimary)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            .background(
+                isOn ? tint.opacity(0.14) : AppTheme.surface,
+                in: Capsule()
+            )
+            .overlay(
+                Capsule()
+                    .stroke(isOn ? tint : AppTheme.hairline, lineWidth: 1)
+            )
         }
         .frame(minHeight: 44)
         .buttonStyle(PressableStyle())
         .accessibilityLabel(label)
-        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityValue(isOn ? "Selected" : "Not selected")
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
@@ -123,18 +129,21 @@ struct FilterChip: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                 Text(title)
                     .font(AppFont.body(12, weight: .semibold))
             }
             .foregroundStyle(isOn ? AppTheme.onAccent : AppTheme.textPrimary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
             .background(isOn ? AppTheme.accent : AppTheme.surface, in: Capsule())
             .overlay(Capsule().stroke(isOn ? Color.clear : AppTheme.hairline, lineWidth: 1))
         }
         .frame(minHeight: 44)
         .buttonStyle(PressableStyle())
+        .accessibilityLabel(title)
+        .accessibilityValue(isOn ? "Selected" : "Not selected")
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
 
@@ -188,3 +197,18 @@ struct SearchCuisineCard: View {
         .accessibilityHint("Search for \(cuisine.searchTerm)")
     }
 }
+
+#Preview("Filter Controls") {
+    ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 8) {
+            DietToggle(mark: .veg, tint: Color(hex: "1B7F3A"), isOn: true, label: "Vegetarian") {}
+            DietToggle(mark: .nonVeg, tint: Color(hex: "C7362A"), isOn: false, label: "Non-vegetarian") {}
+            FilterChip(title: "Under 15m", systemImage: "timer", isOn: true) {}
+            FilterChip(title: "15–30m", systemImage: "clock.fill", isOn: false) {}
+            FilterChip(title: "High protein", systemImage: "dumbbell", isOn: false) {}
+        }
+        .padding()
+    }
+    .background(AppTheme.background)
+}
+

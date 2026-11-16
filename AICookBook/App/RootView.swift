@@ -18,6 +18,14 @@
 
 import SwiftUI
 import UIKit
+import Lottie
+
+private enum LaunchLoader {
+    static let animation: LottieAnimation? = {
+        guard let data = NSDataAsset(name: "StartupLoader")?.data else { return nil }
+        return try? LottieAnimation.from(data: data)
+    }()
+}
 
 // MARK: - Root
 
@@ -29,10 +37,26 @@ struct RootView: View {
     var body: some View {
         Group {
             if environment.appState == .loading {
-                ProgressView()
-                    .controlSize(.large)
-                    .tint(AppTheme.textPrimary)
-                    .transition(.opacity)
+                VStack(spacing: AppSpacing.sm) {
+                    if reduceMotion {
+                        Image("CraveCircleLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 100, height: 100)
+                    } else if let animation = LaunchLoader.animation {
+                        LottieView(animation: animation)
+                            .playing(loopMode: .loop)
+                            .frame(width: 156, height: 156)
+                    } else {
+                        ProgressView()
+                            .controlSize(.large)
+                            .tint(AppTheme.textPrimary)
+                    }
+                    Text("Getting your kitchen ready")
+                        .font(AppFont.body(14, weight: .medium))
+                        .foregroundStyle(AppTheme.textSecondary)
+                }
+                .transition(.opacity)
             } else if environment.showPreAuthOnboarding {
                 // First run on this install: pitch the app BEFORE asking for sign-in.
                 // On completion we remember the choice and surface the login screen.
@@ -46,7 +70,7 @@ struct RootView: View {
                     .transition(.opacity)
             } else {
                 MainTabView()
-                    .transition(.opacity)
+                    .transition(.opacity.combined(with: .scale(scale: 0.985)))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -306,6 +330,7 @@ struct MainTabView: View {
     @State private var discoverSignal = DiscoverTabSignal()
     @State private var discoverReel: [Recipe] = []
     @State private var discoverCurrentID: String?
+    @State private var visitedTabs: Set<AppTab> = [.home]
 
     /// The ONE gate for the Add-a-recipe sheet. Every opener (+ button, Home empty state, import
     /// progress "reopen", onboarding) writes through this binding, so a guest gets the sign-in
@@ -385,21 +410,36 @@ struct MainTabView: View {
                         .accessibilityLabel(AppTab.home.title)
                 }
                 Tab(value: AppTab.discover) {
-                    // Discover is now the full-screen recipe reel (Instagram/TikTok style, Hinge swipes).
-                    // Search lives on Home now (SearchScreen was removed in the cleanup pass).
-                    RecipeReelScreen(tabSignal: discoverSignal, reel: $discoverReel, currentID: $discoverCurrentID)
+                    if visitedTabs.contains(.discover) {
+                        // Search lives on Home; the immersive reel loads only on first visit.
+                        RecipeReelScreen(
+                            tabSignal: discoverSignal,
+                            reel: $discoverReel,
+                            currentID: $discoverCurrentID
+                        )
+                    } else {
+                        Color.clear
+                    }
                 } label: {
                     Image(systemName: AppTab.discover.icon)
                         .accessibilityLabel(AppTab.discover.title)
                 }
                 Tab(value: AppTab.groceries) {
-                    GroceryScreen()
+                    if visitedTabs.contains(.groceries) {
+                        GroceryScreen()
+                    } else {
+                        Color.clear
+                    }
                 } label: {
                     Image(systemName: AppTab.groceries.icon)
                         .accessibilityLabel(AppTab.groceries.title)
                 }
                 Tab(value: AppTab.profile) {
-                    ProfileScreen()
+                    if visitedTabs.contains(.profile) {
+                        ProfileScreen()
+                    } else {
+                        Color.clear
+                    }
                 } label: {
                     Image(systemName: AppTab.profile.icon)
                         .accessibilityLabel(AppTab.profile.title)
@@ -571,7 +611,11 @@ struct MainTabView: View {
             withAnimation(.easeOut(duration: 0.25)) { tab = requested }
             environment.pendingTabSwitch = nil
         }
+        .onChange(of: tab) { _, selectedTab in
+            visitedTabs.insert(selectedTab)
+        }
         .onAppear {
+            visitedTabs.insert(tab)
             // A quick action fired before this view mounted (cold launch) sets pendingTabSwitch
             // before onChange is observing it — so consume it here too. Without this, the Grocery
             // quick action lands on Home (the default tab) because its switch was missed.

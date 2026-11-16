@@ -7,11 +7,15 @@ let package = Package(
     products: [
         .library(name: "AICookBook", targets: ["AICookBook"]),
     ],
-    dependencies: [],
+    dependencies: [
+        .package(url: "https://github.com/airbnb/lottie-spm.git", from: "4.6.1"),
+    ],
     targets: [
         .target(
             name: "AICookBook",
-            dependencies: [],
+            dependencies: [
+                .product(name: "Lottie", package: "lottie-spm"),
+            ],
             path: "AICookBook",
             exclude: ["Resources/Assets.xcassets"],
             resources: [

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A8B0A0E70123456789ABCDEF /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = A8B0A0E70123456789ABCDE0 /* Lottie */; };
 		07461873BB92CE6DCEE50617 /* CookingImportActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98577CBFB17090AC8A76AA7D /* CookingImportActivity.swift */; };
 		2A303018B560A693360B19EA /* LogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0D5D4D23ACE2F87DB8CF62 /* LogicTests.swift */; };
 		7906A88F190D4EF8293C4F71 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C04660930E4E2FD0277B90E7 /* Foundation.framework */; };
@@ -93,6 +94,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A8B0A0E70123456789ABCDEF /* Lottie in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -217,6 +219,7 @@
 			);
 			name = AICookBook;
 			packageProductDependencies = (
+				A8B0A0E70123456789ABCDE0 /* Lottie */,
 			);
 			productName = AICookBook;
 			productReference = 27945DB12F9F211200B8F8B8 /* AICookBook.app */;
@@ -299,6 +302,7 @@
 			mainGroup = 27945DA82F9F211200B8F8B8;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				A8B0A0E70123456789ABCDE1 /* XCRemoteSwiftPackageReference "lottie-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 27945DB22F9F211200B8F8B8 /* Products */;
@@ -413,6 +417,7 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AGCD6X7P8Z;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CraveCircle;
@@ -440,6 +445,7 @@
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = AGCD6X7P8Z;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = CraveCircle;
@@ -495,7 +501,6 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = YX9X5TTRA2;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -560,7 +565,6 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = YX9X5TTRA2;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -674,6 +678,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGNING_ALLOWED = NO;
+				DEVELOPMENT_TEAM = AGCD6X7P8Z;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(CRAVE_BUNDLE_ID).tests";
@@ -749,6 +754,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGNING_ALLOWED = NO;
+				DEVELOPMENT_TEAM = AGCD6X7P8Z;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(CRAVE_BUNDLE_ID).tests";
@@ -810,6 +816,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A8B0A0E70123456789ABCDE1 /* XCRemoteSwiftPackageReference "lottie-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/airbnb/lottie-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.6.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A8B0A0E70123456789ABCDE0 /* Lottie */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A8B0A0E70123456789ABCDE1 /* XCRemoteSwiftPackageReference "lottie-spm" */;
+			productName = Lottie;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 27945DA92F9F211200B8F8B8 /* Project object */;
 }

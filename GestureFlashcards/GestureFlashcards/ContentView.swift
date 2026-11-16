@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import UIKit
 
 struct ContentView: View {
@@ -50,8 +51,8 @@ struct ContentView: View {
         }
         .onAppear { camera.start() }
         .onDisappear { camera.stop() }
-        // Run the swipe detector on each new hand reading.
-        .onChange(of: camera.hand) { newHand in
+        // Observe distinct camera poses without the deprecated one-argument onChange overload.
+        .onReceive(camera.$hand.removeDuplicates().dropFirst()) { newHand in
             if let dir = detector.update(hand: newHand) {
                 navigate(dir)
             }
