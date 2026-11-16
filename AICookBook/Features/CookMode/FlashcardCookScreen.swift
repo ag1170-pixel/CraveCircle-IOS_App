@@ -23,7 +23,8 @@
 //  Hands-free, LANDSCAPE flashcards for cooking. One big, glanceable card per step on a bold
 //  color (the colour changes every card), with the previous/next step faint above and below.
 //  Navigate by voice ("next" / "back") or by swiping. If a step mentions a time ("cook for
-//  15 minutes") a clock appears — say "start timer" (or tap it) to count down; it beeps when done.
+//  15 minutes") a timer bar appears beneath the step — say "start timer" (or tap Start) to count
+//  down; it beeps when done.
 //  Forces landscape while open, honours Reduce Motion.
 //
 
@@ -41,6 +42,7 @@ struct FlashcardCookScreen: View {
     @State private var timer = CookTimer()
 
     @State private var index = 0
+    @State private var timerStepNumber: Int?
     @State private var voiceOn = true
     @State private var readAloud = false
     @State private var reader = SpeechReader()
@@ -78,6 +80,10 @@ struct FlashcardCookScreen: View {
 
     // Minutes mentioned in the current step, if any (drives the clock).
     private var currentDuration: Int? { cards.indices.contains(index) ? cards[index].durationMinutes : nil }
+    private var currentStepNumber: Int? {
+        guard cards.indices.contains(index), case .step(let number, _) = cards[index] else { return nil }
+        return number
+    }
 
     private var scrollBinding: Binding<Int?> {
         Binding(get: { index }, set: { if let v = $0 { index = v } })
@@ -101,7 +107,7 @@ struct FlashcardCookScreen: View {
             // centred step big and the neighbours faint above/below. Scrolling moves one STEP at a
             // time with a smooth transition — not a whole 3-step page.
             GeometryReader { geo in
-                let rowH = geo.size.height * 0.52
+                let rowH = geo.size.height * 0.68
                 // The wheel ignores the safe area and the status bar is hidden, so SwiftUI's
                 // insets are 0 and the step line runs under the Dynamic Island. Read the window
                 // and keep a floor that clears the island on whichever side the phone is rotated.
@@ -109,7 +115,23 @@ struct FlashcardCookScreen: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 0) {
                         ForEach(cards.indices, id: \.self) { i in
-                            CardContent(card: cards[i], stepCount: stepCount, ink: color(for: index).ink)
+                            CardContent(
+                                card: cards[i],
+                                stepCount: stepCount,
+                                ink: color(for: index).ink,
+                                isCurrent: i == index,
+                                currentDuration: i == index ? currentDuration : nil,
+                                currentStepNumber: i == index ? currentStepNumber : nil,
+                                timerStepNumber: timerStepNumber,
+                                timer: timer,
+                                timerTint: Color(hex: "F2B89B"),
+                                onStart: startTimer,
+                                onPause: pauseTimer,
+                                onResume: resumeTimer,
+                                onStop: stopTimer,
+                                onRestart: restartTimer,
+                                onDismiss: dismissCompletedTimer
+                            )
                                 .padding(.leading, max(88, edges.left + 24))
                                 .padding(.trailing, max(88, edges.right + 28))
                                 .frame(width: geo.size.width, height: rowH)
@@ -130,19 +152,6 @@ struct FlashcardCookScreen: View {
             }
             .ignoresSafeArea()
 
-            if timer.running || currentDuration != nil {
-                ClockRingView(timer: timer,
-                              idleMinutes: currentDuration ?? 0,
-                              diameter: 108,
-                              tint: Color(hex: "1B1712")) {
-                    toggleTimer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.trailing, 14)
-                .padding(.bottom, 14)
-                .transition(.scale.combined(with: .opacity))
-            }
-
             VStack {
                 topBar
                 if voice.permissionDenied { permissionBanner }
@@ -157,12 +166,14 @@ struct FlashcardCookScreen: View {
                 stepRail
                     .frame(maxHeight: .infinity, alignment: .center)
                     .padding(.top, 78)
-                    .padding(.bottom, (timer.running || currentDuration != nil) ? 140 : 28)
+                    .padding(.bottom, 28)
                     .padding(.trailing, max(18, Self.displayEdgeInsets.right + 10))
             }
             .animation(.spring(response: 0.45, dampingFraction: 0.75), value: voice.wakeActive)
             .animation(.easeInOut(duration: 0.25), value: voice.permissionDenied)
             .animation(reduceMotion ? nil : AppMotion.snappy, value: timer.running)
+            .animation(reduceMotion ? nil : AppMotion.snappy, value: timer.paused)
+            .animation(reduceMotion ? nil : AppMotion.snappy, value: timer.completed)
         }
         .foregroundStyle(color(for: index).ink)
         .onAppear {
@@ -200,19 +211,41 @@ struct FlashcardCookScreen: View {
 
     /// Voice "start" only begins a countdown, and only on a step that shows the clock.
     private func startTimer() {
-        guard let minutes = currentDuration, minutes > 0, !timer.running else { return }
+        guard let minutes = currentDuration, minutes > 0, !timer.running, !timer.paused else { return }
         Haptics.tap()
-        timer.toggle(minutes: minutes)
+        timerStepNumber = currentStepNumber
+        timer.start(minutes: minutes)
     }
 
-    private func toggleTimer() {
-        guard let minutes = currentDuration, minutes > 0 else {
-            if !timer.running { Haptics.warning() }   // nothing to time on this step
-            else { timer.stop(); Haptics.tap() }
-            return
-        }
+    private func pauseTimer() {
+        timer.pause()
         Haptics.tap()
-        timer.toggle(minutes: minutes)
+    }
+
+    private func resumeTimer() {
+        timer.resume()
+        Haptics.tap()
+    }
+
+    private func stopTimer() {
+        timer.stop()
+        timerStepNumber = nil
+        Haptics.tap()
+    }
+
+    private func restartTimer() {
+        let minutes = timer.total / 60
+        guard minutes > 0 else { return }
+        timerStepNumber = timerStepNumber ?? currentStepNumber
+        timer.start(minutes: minutes)
+        Haptics.tap()
+    }
+
+    private func dismissCompletedTimer() {
+        guard timer.completed else { return }
+        timer.stop()
+        timerStepNumber = nil
+        Haptics.tap()
     }
 
 
@@ -336,8 +369,11 @@ final class CookTimer {
     private(set) var remaining = 0   // seconds left
     private(set) var total = 0
     private(set) var running = false
+    private(set) var paused = false
+    private(set) var completed = false
 
     private var ticker: Timer?
+    private var deadline: Date?
 
     var progress: Double { total > 0 ? Double(remaining) / Double(total) : 0 }
     var clockText: String { String(format: "%d:%02d", remaining / 60, remaining % 60) }
@@ -350,23 +386,74 @@ final class CookTimer {
         remaining = total
         guard total > 0 else { return }
         running = true
-        ticker = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                if self.remaining <= 1 { self.finish() } else { self.remaining -= 1 }
-            }
-        }
+        deadline = Date().addingTimeInterval(TimeInterval(total))
+        scheduleTicker()
+        refreshCountdown()
+    }
+
+    func pause() {
+        refreshCountdown()
+        guard running else { return }
+        remaining = secondsRemaining(until: deadline)
+        deadline = nil
+        running = false
+        paused = true
+        invalidateTicker()
+    }
+
+    func resume() {
+        guard paused else { return }
+        guard remaining > 0 else { finish(); return }
+        deadline = Date().addingTimeInterval(TimeInterval(remaining))
+        paused = false
+        running = true
+        scheduleTicker()
+        refreshCountdown()
     }
 
     func stop() {
-        ticker?.invalidate(); ticker = nil
+        invalidateTicker()
+        deadline = nil
         running = false
+        paused = false
+        completed = false
     }
 
     private func finish() {
+        guard !completed else { return }
         remaining = 0
-        stop()
+        deadline = nil
+        invalidateTicker()
+        running = false
+        paused = false
+        completed = true
         Self.playAlarm()
+    }
+
+    private func refreshCountdown() {
+        guard running, let deadline else { return }
+        let seconds = secondsRemaining(until: deadline)
+        if seconds == 0 { finish() }
+        else { remaining = seconds }
+    }
+
+    private func secondsRemaining(until deadline: Date?) -> Int {
+        guard let deadline else { return 0 }
+        return max(0, Int(ceil(deadline.timeIntervalSinceNow)))
+    }
+
+    private func scheduleTicker() {
+        guard ticker == nil else { return }
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            DispatchQueue.main.async { self?.refreshCountdown() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        ticker = timer
+    }
+
+    private func invalidateTicker() {
+        ticker?.invalidate()
+        ticker = nil
     }
 
     /// Three system beeps + a success haptic — a clear "time's up" without bundling an audio file.
@@ -381,48 +468,215 @@ final class CookTimer {
     }
 }
 
-/// The white clock on a card. Idle: a timer glyph + the step's minutes. Running: the live countdown
-/// with the ring draining. Tap to start/stop.
-private struct ClockRingView: View {
-    var timer: CookTimer
-    var idleMinutes: Int
-    var diameter: CGFloat = 92
-    var tint: Color
-    var onTap: () -> Void
+/// Stable identity for a split line in a recipe direction. `stepIndex` identifies the source
+/// direction and `lineIndex` identifies the displayed line produced from that direction.
+struct RecipeDirectionLineID: Hashable {
+    let recipeID: String
+    let stepIndex: Int
+    let lineIndex: Int
+}
 
-    var body: some View {
-        Button(action: onTap) {
-            ZStack {
-                Circle().fill(.white)
-                    .shadow(color: .black.opacity(0.18), radius: 6, y: 2)
-                Circle().stroke(tint.opacity(0.18), lineWidth: 5)
-                    .padding(6)
-                Circle()
-                    .trim(from: 0, to: timer.running ? timer.progress : 1)
-                    .stroke(tint, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .padding(6)
-                    .animation(.linear(duration: 0.9), value: timer.progress)
-                VStack(spacing: 1) {
-                    if timer.running {
-                        Text(timer.clockText)
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(tint)
-                    } else {
-                        Image(systemName: "timer").font(.system(size: 17, weight: .bold)).foregroundStyle(tint)
-                        Text("\(idleMinutes) min")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(tint)
-                    }
-                }
-            }
-            .frame(width: 92, height: 92)
-            .scaleEffect(diameter / 92)
-            .frame(width: diameter, height: diameter)
+/// A display-ready direction line. The detail screen uses this same flattened representation for
+/// its checklist and timer actions so a timer stays attached to the instruction that started it.
+struct RecipeDirectionLine: Identifiable, Hashable {
+    let id: RecipeDirectionLineID
+    let stepNumber: Int
+    let text: String
+    let durationSeconds: Int?
+
+    var durationMinutes: Int? {
+        guard let durationSeconds else { return nil }
+        return max(1, durationSeconds / 60 + (durationSeconds % 60 == 0 ? 0 : 1))
+    }
+}
+
+/// Flatten directions using the same line splitting as the recipe detail UI and annotate explicit
+/// cooking durations. Stable IDs are independent of the flattened display number.
+func recipeDirectionLines(recipeID: String, directions: [DirectionStep]) -> [RecipeDirectionLine] {
+    var result: [RecipeDirectionLine] = []
+    for direction in directions.sorted(by: { $0.stepIndex < $1.stepIndex }) {
+        for (lineIndex, text) in DirectionStepParser.shortLines(direction.text).enumerated() {
+            result.append(RecipeDirectionLine(
+                id: RecipeDirectionLineID(recipeID: recipeID,
+                                          stepIndex: direction.stepIndex,
+                                          lineIndex: lineIndex),
+                stepNumber: result.count + 1,
+                text: text,
+                durationSeconds: stepDurationSeconds(text)
+            ))
         }
-        .buttonStyle(PressableStyle())
-        .accessibilityLabel(timer.running ? "Stop timer" : "Start \(idleMinutes) minute timer")
+    }
+    return result
+}
+
+enum RecipeDirectionTimerStatus: String, Hashable {
+    case running
+    case paused
+    case completed
+}
+
+/// One recipe-direction timer. An absent entry represents the idle state; completed entries remain
+/// in the store until dismissed so the UI can expose completion and restart actions.
+struct RecipeDirectionTimerEntry: Identifiable, Hashable {
+    let id: RecipeDirectionLineID
+    let stepNumber: Int
+    let instruction: String
+    let durationSeconds: Int
+    var remainingSeconds: Int
+    var status: RecipeDirectionTimerStatus
+    var deadline: Date?
+
+    var progress: Double {
+        guard durationSeconds > 0 else { return 0 }
+        return 1 - Double(remainingSeconds) / Double(durationSeconds)
+    }
+
+    var clockText: String {
+        if remainingSeconds >= 3_600 {
+            return String(format: "%d:%02d:%02d", remainingSeconds / 3_600,
+                          (remainingSeconds / 60) % 60, remainingSeconds % 60)
+        }
+        return String(format: "%d:%02d", remainingSeconds / 60, remainingSeconds % 60)
+    }
+}
+
+/// Holds independent timers for the recipe Directions screen. Deadlines, rather than accumulated
+/// ticks, keep countdowns accurate after view updates and refresh them when the app becomes active.
+@MainActor
+@Observable
+final class RecipeDirectionTimerStore {
+    private(set) var entries: [RecipeDirectionLineID: RecipeDirectionTimerEntry] = [:]
+
+    @ObservationIgnored private var ticker: Timer?
+    @ObservationIgnored private var activeObserver: NSObjectProtocol?
+
+    init() {
+        activeObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.refresh() }
+        }
+    }
+
+    deinit {
+        ticker?.invalidate()
+        if let activeObserver { NotificationCenter.default.removeObserver(activeObserver) }
+    }
+
+    var orderedEntries: [RecipeDirectionTimerEntry] {
+        entries.values.sorted {
+            if $0.status == .completed && $1.status != .completed { return false }
+            if $1.status == .completed && $0.status != .completed { return true }
+            return $0.stepNumber < $1.stepNumber
+        }
+    }
+
+    /// Starts a new timer or deliberately restarts a completed timer. Existing running or paused
+    /// timers are left untouched, so starting another direction never replaces one silently.
+    @discardableResult
+    func start(for line: RecipeDirectionLine) -> Bool {
+        guard let durationSeconds = line.durationSeconds, durationSeconds > 0 else { return false }
+        if let current = entries[line.id], current.status != .completed { return false }
+
+        entries[line.id] = RecipeDirectionTimerEntry(
+            id: line.id,
+            stepNumber: line.stepNumber,
+            instruction: line.text,
+            durationSeconds: durationSeconds,
+            remainingSeconds: durationSeconds,
+            status: .running,
+            deadline: Date().addingTimeInterval(TimeInterval(durationSeconds))
+        )
+        Haptics.tap()
+        refresh()
+        return true
+    }
+
+    func pause(_ id: RecipeDirectionLineID) {
+        refresh()
+        guard var entry = entries[id], entry.status == .running else { return }
+        entry.remainingSeconds = remaining(until: entry.deadline)
+        entry.deadline = nil
+        entry.status = .paused
+        entries[id] = entry
+        refreshTicker()
+    }
+
+    func resume(_ id: RecipeDirectionLineID) {
+        guard var entry = entries[id], entry.status == .paused else { return }
+        entry.deadline = Date().addingTimeInterval(TimeInterval(entry.remainingSeconds))
+        entry.status = .running
+        entries[id] = entry
+        refreshTicker()
+    }
+
+    /// Restarts a paused or completed timer at its original duration.
+    func restart(_ id: RecipeDirectionLineID) {
+        guard var entry = entries[id], entry.status != .running else { return }
+        entry.remainingSeconds = entry.durationSeconds
+        entry.deadline = Date().addingTimeInterval(TimeInterval(entry.durationSeconds))
+        entry.status = .running
+        entries[id] = entry
+        Haptics.tap()
+        refreshTicker()
+    }
+
+    /// Stops and removes a running or paused timer. Completed entries use `dismissCompleted`.
+    func stop(_ id: RecipeDirectionLineID) {
+        guard let existing = entries[id], existing.status != .completed else { return }
+        entries[id] = nil
+        Haptics.tap()
+        refreshTicker()
+    }
+
+    func dismissCompleted(_ id: RecipeDirectionLineID) {
+        guard entries[id]?.status == .completed else { return }
+        entries[id] = nil
+    }
+
+    /// Recomputes every running timer from its deadline. The UI can also call this on foreground
+    /// activation; the store observes `didBecomeActive` itself as a defensive refresh.
+    func refresh() {
+        let now = Date()
+        var finishedAny = false
+        for id in Array(entries.keys) {
+            guard var entry = entries[id], entry.status == .running,
+                  let deadline = entry.deadline else { continue }
+            let seconds = max(0, Int(ceil(deadline.timeIntervalSince(now))))
+            if seconds == 0 {
+                entry.remainingSeconds = 0
+                entry.deadline = nil
+                entry.status = .completed
+                finishedAny = true
+            } else {
+                entry.remainingSeconds = seconds
+            }
+            entries[id] = entry
+        }
+        if finishedAny { CookTimer.playAlarm() }
+        refreshTicker()
+    }
+
+    private func remaining(until deadline: Date?) -> Int {
+        guard let deadline else { return 0 }
+        return max(0, Int(ceil(deadline.timeIntervalSinceNow)))
+    }
+
+    private func refreshTicker() {
+        let hasRunning = entries.values.contains { $0.status == .running }
+        guard hasRunning else {
+            ticker?.invalidate()
+            ticker = nil
+            return
+        }
+        guard ticker == nil else { return }
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.refresh() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        ticker = timer
     }
 }
 
@@ -442,37 +696,324 @@ enum FlashCard {
     }
 }
 
-/// Parse an explicit cooking time out of step prose. Requires minute/hour WORDS so plain numbers
-/// (oven temps, counts) don't false-trigger. Sums hours + minutes.
+/// Parse one explicit duration from a direction. Plain numbers (oven temperatures and quantities)
+/// are ignored. A contiguous hour/minute/second amount such as "1 hour and 30 minutes" is treated
+/// as one duration; ranges and distinct intervals in a single line are considered ambiguous.
+func stepDurationSeconds(_ text: String) -> Int? {
+    parseStepDurationSeconds(text, includeSeconds: true)
+}
+
+/// Flashcards historically expose minute precision, so keep their parser on minute/hour values.
 func stepDurationMinutes(_ text: String) -> Int? {
-    let t = text.lowercased()
-    func firstInt(_ pattern: String) -> Int? {
-        guard let re = try? NSRegularExpression(pattern: pattern),
-              let m = re.firstMatch(in: t, range: NSRange(t.startIndex..., in: t)),
-              let r = Range(m.range(at: 1), in: t) else { return nil }
-        return Int(t[r])
+    guard text.range(of: #"(?i)\b(?:seconds?|secs?|sec)\b"#, options: .regularExpression) == nil,
+          let seconds = parseStepDurationSeconds(text, includeSeconds: false),
+          seconds % 60 == 0 else { return nil }
+    return seconds / 60
+}
+
+private func parseStepDurationSeconds(_ text: String, includeSeconds: Bool) -> Int? {
+    let normalized = text.lowercased()
+    let rangePattern = #"\b\d+\s*(?:[-–—]|\bto\b)\s*\d+\s*(?:hours?|hrs?|hr|minutes?|mins?|min|seconds?|secs?|sec)\b"#
+    if normalized.range(of: rangePattern, options: .regularExpression) != nil { return nil }
+
+    let unitPattern = includeSeconds
+        ? #"(?<![\p{L}\p{N}.])(\d+)\s*(hours?|hrs?|hr|minutes?|mins?|min|seconds?|secs?|sec)\b"#
+        : #"(?<![\p{L}\p{N}.])(\d+)\s*(hours?|hrs?|hr|minutes?|mins?|min)\b"#
+    guard let regex = try? NSRegularExpression(pattern: unitPattern, options: [.caseInsensitive]) else { return nil }
+    let searchRange = NSRange(normalized.startIndex..., in: normalized)
+    let matches = regex.matches(in: normalized, range: searchRange)
+    guard !matches.isEmpty, matches.count <= (includeSeconds ? 3 : 2) else { return nil }
+
+    struct Part {
+        let value: Int
+        let unitOrder: Int
+        let multiplier: Int
+        let fullRange: Range<String.Index>
     }
-    let h = firstInt("(\\d+)\\s*(?:hours?|hrs?|hr)\\b")
-    let m = firstInt("(\\d+)\\s*(?:minutes?|mins?|min)\\b")
-    guard h != nil || m != nil else { return nil }
-    return (h ?? 0) * 60 + (m ?? 0)
+    var parts: [Part] = []
+    for match in matches {
+        guard let valueRange = Range(match.range(at: 1), in: normalized),
+              let unitRange = Range(match.range(at: 2), in: normalized),
+              let fullRange = Range(match.range, in: normalized),
+              let value = Int(normalized[valueRange]) else { return nil }
+        let unit = String(normalized[unitRange])
+        let part: Part
+        if unit.hasPrefix("h") {
+            part = Part(value: value, unitOrder: 0, multiplier: 3_600, fullRange: fullRange)
+        } else if unit.hasPrefix("m") {
+            part = Part(value: value, unitOrder: 1, multiplier: 60, fullRange: fullRange)
+        } else {
+            part = Part(value: value, unitOrder: 2, multiplier: 1, fullRange: fullRange)
+        }
+        parts.append(part)
+    }
+
+    if parts.count > 1 {
+        for index in 1..<parts.count {
+            let previous = parts[index - 1]
+            let current = parts[index]
+            guard current.unitOrder > previous.unitOrder else { return nil }
+            let separator = String(normalized[previous.fullRange.upperBound..<current.fullRange.lowerBound])
+            guard separator.range(of: #"^\s*(?:and\s*)?$"#, options: .regularExpression) != nil else { return nil }
+        }
+    }
+
+    var total = 0
+    for part in parts {
+        let (seconds, multiplyOverflow) = part.value.multipliedReportingOverflow(by: part.multiplier)
+        guard !multiplyOverflow else { return nil }
+        let (sum, addOverflow) = total.addingReportingOverflow(seconds)
+        guard !addOverflow else { return nil }
+        total = sum
+    }
+    return total > 0 ? total : nil
 }
 
 /// One step = one wheel row. Renders just this step's content, centred vertically and left-aligned;
 /// the wheel itself shows the neighbouring steps (faint) above and below.
 private struct CardContent: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     let card: FlashCard
     let stepCount: Int
     let ink: Color
+    let isCurrent: Bool
+    let currentDuration: Int?
+    let currentStepNumber: Int?
+    let timerStepNumber: Int?
+    let timer: CookTimer
+    let timerTint: Color
+    let onStart: () -> Void
+    let onPause: () -> Void
+    let onResume: () -> Void
+    let onStop: () -> Void
+    let onRestart: () -> Void
+    let onDismiss: () -> Void
 
     var body: some View {
-        VStack {
+        VStack(spacing: AppSpacing.sm) {
             Spacer(minLength: 0)
-            content
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                content
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if isCurrent && (currentDuration != nil || timer.running || timer.paused || timer.completed) {
+                    timerBar
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder private var timerBar: some View {
+        Group {
+            if timer.completed {
+                if timerStepNumber == currentStepNumber {
+                    completedTimer
+                } else {
+                    compactTimerStatus(isComplete: true)
+                }
+            } else if timer.running || timer.paused {
+                if timerStepNumber == currentStepNumber {
+                    activeTimer
+                } else {
+                    compactTimerStatus(isComplete: false)
+                }
+            } else if let currentDuration {
+                idleTimer(durationMinutes: currentDuration)
+            }
+        }
+        .padding(14)
+        .background {
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .fill(reduceTransparency ? AnyShapeStyle(Color(hex: "201A16")) : AnyShapeStyle(.regularMaterial))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                        .fill(timerTint.opacity(0.07))
+                }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .stroke(timerTint.opacity(0.42), lineWidth: 1.8)
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.card - 2, style: .continuous)
+                        .stroke(Color.white.opacity(reduceTransparency ? 0.13 : 0.20), lineWidth: 0.8)
+                        .padding(2)
+                }
+                .allowsHitTesting(false)
+        }
+        .shadow(color: .black.opacity(0.20), radius: 12, y: 5)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var sourceStep: Int { timerStepNumber ?? currentStepNumber ?? 0 }
+
+    private var elapsedProgress: Double {
+        min(max(1 - timer.progress, 0), 1)
+    }
+
+    private func compactTimerStatus(isComplete: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(isComplete ? "Timer finished" : "Timer · Step \(sourceStep)",
+                      systemImage: isComplete ? "checkmark.circle.fill" : "timer")
+                    .font(AppFont.body(14, weight: .bold))
+                    .foregroundStyle(isComplete ? timerTint : ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                if !isComplete {
+                    Text(timer.paused ? "Paused · \(timer.clockText)" : timer.clockText)
+                        .font(AppFont.body(17, weight: .bold))
+                        .foregroundStyle(ink)
+                        .contentTransition(reduceMotion ? .identity : .numericText())
+                }
+            }
+
+            if !isComplete {
+                timerProgressTrack
+            } else {
+                Text("Step \(sourceStep) · \(timer.total / 60) min")
+                    .font(AppFont.body(14, weight: .medium))
+                    .foregroundStyle(ink.opacity(0.78))
+            }
+
+            compactTimerControls(isComplete: isComplete)
+        }
+    }
+
+    private var activeTimer: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("TIMER · STEP \(sourceStep)")
+                    .font(AppFont.body(13, weight: .bold))
+                    .tracking(0.8)
+                    .foregroundStyle(ink.opacity(0.80))
+                Spacer(minLength: 8)
+                Text(timer.paused ? "Paused · \(timer.clockText) remaining" : "\(timer.clockText) remaining")
+                    .font(AppFont.body(17, weight: .bold))
+                    .foregroundStyle(ink)
+                    .contentTransition(reduceMotion ? .identity : .numericText())
+            }
+
+            timerProgressTrack
+            compactTimerControls(isComplete: false)
+        }
+    }
+
+    private var timerProgressTrack: some View {
+        ProgressView(value: elapsedProgress)
+            .progressViewStyle(.linear)
+            .tint(timerTint)
+            .animation(reduceMotion ? nil : .linear(duration: 0.75), value: elapsedProgress)
+            .accessibilityLabel("Timer progress for step \(sourceStep)")
+            .accessibilityValue("\(timer.clockText) remaining")
+    }
+
+    @ViewBuilder private func compactTimerControls(isComplete: Bool) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                timerActionButtons(isCompleted: isComplete)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                timerActionButtons(isCompleted: isComplete)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private func timerActionButtons(isCompleted: Bool) -> some View {
+        if isCompleted {
+            timerButton(
+                title: "Start again",
+                symbol: "arrow.clockwise",
+                prominent: true,
+                accessibilityLabel: "Start timer again for step \(sourceStep)",
+                action: onRestart
+            )
+            timerButton(
+                title: "Dismiss",
+                symbol: "xmark",
+                prominent: false,
+                accessibilityLabel: "Dismiss completed timer for step \(sourceStep)",
+                action: onDismiss
+            )
+        } else {
+            timerButton(
+                title: timer.paused ? "Resume" : "Pause",
+                symbol: timer.paused ? "play.fill" : "pause.fill",
+                prominent: true,
+                accessibilityLabel: "\(timer.paused ? "Resume" : "Pause") timer for step \(sourceStep)",
+                action: timer.paused ? onResume : onPause
+            )
+            timerButton(
+                title: "Stop",
+                symbol: "stop.fill",
+                prominent: false,
+                accessibilityLabel: "Stop timer for step \(sourceStep)",
+                action: onStop
+            )
+        }
+    }
+
+    private var completedTimer: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("Timer finished", systemImage: "checkmark.circle.fill")
+                    .font(AppFont.body(14, weight: .bold))
+                    .foregroundStyle(timerTint)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Text("STEP \(sourceStep) · \(timer.total / 60) MIN")
+                    .font(AppFont.body(13, weight: .semibold))
+                    .foregroundStyle(ink.opacity(0.78))
+            }
+            compactTimerControls(isComplete: true)
+        }
+    }
+
+    private func idleTimer(durationMinutes: Int) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("STEP \(currentStepNumber ?? 0) TIMER", systemImage: "timer")
+                    .font(AppFont.body(13, weight: .bold))
+                    .foregroundStyle(ink.opacity(0.80))
+                Spacer(minLength: 8)
+                Text("\(durationMinutes) min")
+                    .font(AppFont.body(17, weight: .bold))
+                    .foregroundStyle(ink)
+            }
+            timerButton(
+                title: "Start",
+                symbol: "play.fill",
+                prominent: true,
+                accessibilityLabel: "Start \(durationMinutes) minute timer for step \(currentStepNumber ?? 0)",
+                action: onStart
+            )
+        }
+    }
+
+    private func timerButton(
+        title: String,
+        symbol: String,
+        prominent: Bool,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(AppFont.body(15, weight: .bold))
+                .foregroundStyle(prominent ? Color(hex: "26170F") : .white)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 44)
+                .background(
+                    prominent ? AnyShapeStyle(timerTint) : AnyShapeStyle(.white.opacity(0.14)),
+                    in: Capsule(style: .continuous)
+                )
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel(accessibilityLabel)
     }
 
     @ViewBuilder private var content: some View {
