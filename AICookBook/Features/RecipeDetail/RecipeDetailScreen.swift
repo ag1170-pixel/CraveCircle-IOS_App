@@ -127,28 +127,6 @@ struct RecipeDetailScreen: View {
             guard let selected, selected.id == recipe.id, selected.nutrition != recipe.nutrition else { return }
             recipe.nutrition = selected.nutrition
         }
-        .coordinateSpace(.named("detail"))
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 25, coordinateSpace: .named("detail"))
-                .onEnded { value in
-                    // When customization pop-out is open, swipes are ignored
-                    guard !showCustomizationMenu else { return }
-                    // Swipes that start on the photo gallery page the photos — don't toggle/switch.
-                    if galleryFrame.contains(value.startLocation) { return }
-                    guard abs(value.translation.width) > abs(value.translation.height) * 1.3,
-                          abs(value.translation.width) > 50 else { return }
-                    let dir = value.translation.width < 0 ? 1 : -1   // left = next, right = previous
-                    if segmentFrame.contains(value.startLocation) {
-                        // On the Ingredients/Directions box → toggle those two.
-                        let next = dir > 0 ? 1 : 0
-                        if next != tab { withAnimation(AppMotion.snappy) { tab = next }; Haptics.select() }
-                    } else {
-                        // Anywhere else on the page → previous / next recipe.
-                        onSwitchRecipe?(dir)
-                    }
-                }
-        )
-        .leadingEdgeBack { environment.dismissRecipeDetail() }
         .overlay(alignment: .bottom) {
             if showGroceryBanner {
                 HStack(spacing: 8) {
@@ -609,7 +587,6 @@ struct RecipeDetailScreen: View {
 
     private var topControls: some View {
         HStack {
-            GlassIconButton(systemImage: "chevron.left", size: 40, label: "Back") { environment.dismissRecipeDetail() }
             Spacer()
             HStack(spacing: 10) {
                 let isLiked = environment.isLiked(recipeId: recipe.id)
