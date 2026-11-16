@@ -37,10 +37,12 @@ struct FlashcardCookScreen: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var voice = VoiceCommandController()
     @State private var timer = CookTimer()
 
     @State private var index = 0
+    @State private var timerStepNumber: Int?
     @State private var voiceOn = true
     @State private var readAloud = false
     @State private var reader = SpeechReader()
@@ -78,6 +80,10 @@ struct FlashcardCookScreen: View {
 
     // Minutes mentioned in the current step, if any (drives the clock).
     private var currentDuration: Int? { cards.indices.contains(index) ? cards[index].durationMinutes : nil }
+    private var currentStepNumber: Int? {
+        guard cards.indices.contains(index), case .step(let number, _) = cards[index] else { return nil }
+        return number
+    }
 
     private var scrollBinding: Binding<Int?> {
         Binding(get: { index }, set: { if let v = $0 { index = v } })
@@ -130,16 +136,39 @@ struct FlashcardCookScreen: View {
             }
             .ignoresSafeArea()
 
-            if timer.running || currentDuration != nil {
-                ClockRingView(timer: timer,
-                              idleMinutes: currentDuration ?? 0,
-                              diameter: 108,
-                              tint: Color(hex: "F2B89B")) {
-                    toggleTimer()
+            if timer.running || timer.completed || currentDuration != nil {
+                HStack(spacing: 10) {
+                    ClockRingView(
+                        timer: timer,
+                        idleMinutes: timer.running || timer.completed ? timer.total / 60 : currentDuration ?? 0,
+                        stepNumber: timer.running || timer.completed ? timerStepNumber : currentStepNumber,
+                        diameter: 108,
+                        tint: Color(hex: "F2B89B")
+                    ) {
+                        toggleTimer()
+                    }
+
+                    if timer.completed {
+                        Button {
+                            dismissCompletedTimer()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Color(hex: "F2B89B"))
+                                .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(PressableStyle())
+                        .modifier(FlashcardTimerGlassSurface(
+                            reduceTransparency: reduceTransparency,
+                            tint: Color(hex: "F2B89B")
+                        ))
+                        .accessibilityLabel("Dismiss completed timer for step \(timerStepNumber ?? 0)")
+                        .accessibilityValue("Completed")
+                    }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.trailing, 14)
-                .padding(.bottom, 14)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .padding(.leading, max(14, Self.displayEdgeInsets.left + 10))
+                .padding(.bottom, max(14, Self.displayEdgeInsets.bottom + 8))
                 .transition(.scale.combined(with: .opacity))
             }
 
@@ -202,17 +231,38 @@ struct FlashcardCookScreen: View {
     private func startTimer() {
         guard let minutes = currentDuration, minutes > 0, !timer.running else { return }
         Haptics.tap()
-        timer.toggle(minutes: minutes)
+        timerStepNumber = currentStepNumber
+        timer.start(minutes: minutes)
     }
 
     private func toggleTimer() {
+        if timer.completed {
+            let minutes = timer.total / 60
+            guard minutes > 0 else { return }
+            Haptics.tap()
+            timer.start(minutes: minutes)
+            return
+        }
+        if timer.running {
+            timer.stop()
+            timerStepNumber = nil
+            Haptics.tap()
+            return
+        }
         guard let minutes = currentDuration, minutes > 0 else {
-            if !timer.running { Haptics.warning() }   // nothing to time on this step
-            else { timer.stop(); Haptics.tap() }
+            Haptics.warning()   // nothing to time on this step
             return
         }
         Haptics.tap()
-        timer.toggle(minutes: minutes)
+        timerStepNumber = currentStepNumber
+        timer.start(minutes: minutes)
+    }
+
+    private func dismissCompletedTimer() {
+        guard timer.completed else { return }
+        timer.stop()
+        timerStepNumber = nil
+        Haptics.tap()
     }
 
 
@@ -336,6 +386,7 @@ final class CookTimer {
     private(set) var remaining = 0   // seconds left
     private(set) var total = 0
     private(set) var running = false
+    private(set) var completed = false
 
     private var ticker: Timer?
 
@@ -361,11 +412,14 @@ final class CookTimer {
     func stop() {
         ticker?.invalidate(); ticker = nil
         running = false
+        completed = false
     }
 
     private func finish() {
         remaining = 0
-        stop()
+        ticker?.invalidate(); ticker = nil
+        running = false
+        completed = true
         Self.playAlarm()
     }
 
@@ -602,6 +656,7 @@ private struct ClockRingView: View {
 
     var timer: CookTimer
     var idleMinutes: Int
+    var stepNumber: Int?
     var diameter: CGFloat = 92
     var tint: Color
     var onTap: () -> Void
@@ -630,7 +685,23 @@ private struct ClockRingView: View {
                     .shadow(color: tint.opacity(0.36), radius: 4, y: 0)
                     .animation(reduceMotion ? nil : .linear(duration: 0.9), value: timer.progress)
                 VStack(spacing: 1) {
-                    if timer.running {
+                    if let stepNumber {
+                        Text("STEP \(stepNumber)")
+                            .font(AppFont.label(11, weight: .bold))
+                            .tracking(0.7)
+                            .foregroundStyle(tint.opacity(0.88))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    if timer.completed {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 16, weight: .heavy))
+                            .foregroundStyle(tint)
+                        Text("DONE")
+                            .font(AppFont.label(11, weight: .bold))
+                            .tracking(0.6)
+                            .foregroundStyle(tint)
+                    } else if timer.running {
                         Text(timer.clockText)
                             .font(AppFont.mono(19, weight: .bold))
                             .monospacedDigit()
@@ -651,8 +722,16 @@ private struct ClockRingView: View {
         }
         .buttonStyle(PressableStyle())
         .modifier(FlashcardTimerGlassSurface(reduceTransparency: reduceTransparency, tint: tint))
-        .accessibilityLabel(timer.running ? "Stop timer" : "Start \(idleMinutes) minute timer")
-        .accessibilityValue(timer.running ? "Running, \(timer.clockText) remaining" : "Ready, \(idleMinutes) minutes")
+        .accessibilityLabel(timer.completed
+                            ? "Restart completed timer for step \(stepNumber ?? 0)"
+                            : (timer.running
+                               ? "Stop timer for step \(stepNumber ?? 0)"
+                               : "Start \(idleMinutes) minute timer for step \(stepNumber ?? 0)"))
+        .accessibilityValue(timer.completed
+                            ? "Completed, \(timer.total / 60) minutes"
+                            : (timer.running
+                               ? "Running, \(timer.clockText) remaining"
+                               : "Ready, \(idleMinutes) minutes"))
     }
 }
 
