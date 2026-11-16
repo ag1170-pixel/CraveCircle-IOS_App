@@ -773,6 +773,7 @@ private func parseStepDurationSeconds(_ text: String, includeSeconds: Bool) -> I
 /// the wheel itself shows the neighbouring steps (faint) above and below.
 private struct CardContent: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     let card: FlashCard
     let stepCount: Int
@@ -796,7 +797,7 @@ private struct CardContent: View {
             VStack(alignment: .leading, spacing: AppSpacing.sm) {
                 content
                     .frame(maxWidth: .infinity, alignment: .leading)
-                if isCurrent {
+                if isCurrent && (currentDuration != nil || timer.running || timer.paused || timer.completed) {
                     timerBar
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
@@ -807,21 +808,44 @@ private struct CardContent: View {
     }
 
     @ViewBuilder private var timerBar: some View {
-        if timer.completed {
-            if timerStepNumber == currentStepNumber {
-                completedTimer
-            } else {
-                compactTimerStatus(isComplete: true)
+        Group {
+            if timer.completed {
+                if timerStepNumber == currentStepNumber {
+                    completedTimer
+                } else {
+                    compactTimerStatus(isComplete: true)
+                }
+            } else if timer.running || timer.paused {
+                if timerStepNumber == currentStepNumber {
+                    activeTimer
+                } else {
+                    compactTimerStatus(isComplete: false)
+                }
+            } else if let currentDuration {
+                idleTimer(durationMinutes: currentDuration)
             }
-        } else if timer.running || timer.paused {
-            if timerStepNumber == currentStepNumber {
-                activeTimer
-            } else {
-                compactTimerStatus(isComplete: false)
-            }
-        } else if let currentDuration {
-            idleTimer(durationMinutes: currentDuration)
         }
+        .padding(14)
+        .background {
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .fill(reduceTransparency ? AnyShapeStyle(Color(hex: "201A16")) : AnyShapeStyle(.regularMaterial))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                        .fill(timerTint.opacity(0.07))
+                }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous)
+                .stroke(timerTint.opacity(0.42), lineWidth: 1.8)
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.card - 2, style: .continuous)
+                        .stroke(Color.white.opacity(reduceTransparency ? 0.13 : 0.20), lineWidth: 0.8)
+                        .padding(2)
+                }
+                .allowsHitTesting(false)
+        }
+        .shadow(color: .black.opacity(0.20), radius: 12, y: 5)
+        .accessibilityElement(children: .contain)
     }
 
     private var sourceStep: Int { timerStepNumber ?? currentStepNumber ?? 0 }
@@ -831,41 +855,76 @@ private struct CardContent: View {
     }
 
     private func compactTimerStatus(isComplete: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if !isComplete {
-                ProgressView(value: elapsedProgress)
-                    .progressViewStyle(.linear)
-                    .tint(timerTint)
-                    .animation(reduceMotion ? nil : .linear(duration: 0.75), value: elapsedProgress)
-                    .accessibilityLabel("Timer progress for step \(sourceStep)")
-                    .accessibilityValue("\(timer.clockText) remaining")
-            }
-            HStack(spacing: 8) {
-                Image(systemName: isComplete ? "checkmark.circle.fill" : "timer")
-                    .foregroundStyle(timerTint)
-                Text(isComplete
-                     ? "Timer finished · Step \(sourceStep)"
-                     : "Timer · Step \(sourceStep) · \(timer.paused ? "Paused · " : "")\(timer.clockText) remaining")
-                    .font(AppFont.body(14, weight: .semibold))
-                    .foregroundStyle(ink)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(isComplete ? "Timer finished" : "Timer · Step \(sourceStep)",
+                      systemImage: isComplete ? "checkmark.circle.fill" : "timer")
+                    .font(AppFont.body(14, weight: .bold))
+                    .foregroundStyle(isComplete ? timerTint : ink)
                     .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                if !isComplete {
+                    Text(timer.paused ? "Paused · \(timer.clockText)" : timer.clockText)
+                        .font(AppFont.body(17, weight: .bold))
+                        .foregroundStyle(ink)
+                        .contentTransition(reduceMotion ? .identity : .numericText())
+                }
             }
-            .accessibilityElement(children: .combine)
 
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) {
-                    compactTimerControls
-                }
-                VStack(alignment: .leading, spacing: 8) {
-                    compactTimerControls
-                }
+            if !isComplete {
+                timerProgressTrack
+            } else {
+                Text("Step \(sourceStep) · \(timer.total / 60) min")
+                    .font(AppFont.body(14, weight: .medium))
+                    .foregroundStyle(ink.opacity(0.78))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            compactTimerControls(isComplete: isComplete)
         }
     }
 
-    @ViewBuilder private var compactTimerControls: some View {
-        if timer.completed {
+    private var activeTimer: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("TIMER · STEP \(sourceStep)")
+                    .font(AppFont.body(13, weight: .bold))
+                    .tracking(0.8)
+                    .foregroundStyle(ink.opacity(0.80))
+                Spacer(minLength: 8)
+                Text(timer.paused ? "Paused · \(timer.clockText) remaining" : "\(timer.clockText) remaining")
+                    .font(AppFont.body(17, weight: .bold))
+                    .foregroundStyle(ink)
+                    .contentTransition(reduceMotion ? .identity : .numericText())
+            }
+
+            timerProgressTrack
+            compactTimerControls(isComplete: false)
+        }
+    }
+
+    private var timerProgressTrack: some View {
+        ProgressView(value: elapsedProgress)
+            .progressViewStyle(.linear)
+            .tint(timerTint)
+            .animation(reduceMotion ? nil : .linear(duration: 0.75), value: elapsedProgress)
+            .accessibilityLabel("Timer progress for step \(sourceStep)")
+            .accessibilityValue("\(timer.clockText) remaining")
+    }
+
+    @ViewBuilder private func compactTimerControls(isComplete: Bool) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                timerActionButtons(isCompleted: isComplete)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                timerActionButtons(isCompleted: isComplete)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private func timerActionButtons(isCompleted: Bool) -> some View {
+        if isCompleted {
             timerButton(
                 title: "Start again",
                 symbol: "arrow.clockwise",
@@ -898,82 +957,33 @@ private struct CardContent: View {
         }
     }
 
-    private var activeTimer: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ProgressView(value: elapsedProgress)
-                .progressViewStyle(.linear)
-                .tint(timerTint)
-                .animation(reduceMotion ? nil : .linear(duration: 0.75), value: elapsedProgress)
-                .accessibilityLabel("Timer progress for step \(sourceStep)")
-                .accessibilityValue("\(timer.clockText) remaining")
-
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("TIMER · STEP \(sourceStep)")
-                        .font(AppFont.label(11, weight: .bold))
-                        .tracking(0.8)
-                        .foregroundStyle(ink.opacity(0.75))
-                    Text(timer.paused ? "Paused · \(timer.clockText) remaining" : "\(timer.clockText) remaining")
-                        .font(AppFont.mono(15, weight: .bold))
-                        .monospacedDigit()
-                        .foregroundStyle(ink)
-                        .contentTransition(reduceMotion ? .identity : .numericText())
-                }
-                Spacer(minLength: 8)
-                timerButton(
-                    title: timer.paused ? "Resume" : "Pause",
-                    symbol: timer.paused ? "play.fill" : "pause.fill",
-                    prominent: true,
-                    accessibilityLabel: "\(timer.paused ? "Resume" : "Pause") timer for step \(sourceStep)"
-                ) {
-                    timer.paused ? onResume() : onPause()
-                }
-                timerButton(
-                    title: "Stop",
-                    symbol: "stop.fill",
-                    prominent: false,
-                    accessibilityLabel: "Stop timer for step \(sourceStep)",
-                    action: onStop
-                )
-            }
-        }
-        .accessibilityElement(children: .contain)
-    }
-
     private var completedTimer: some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Label("Timer finished", systemImage: "checkmark.circle.fill")
                     .font(AppFont.body(14, weight: .bold))
                     .foregroundStyle(timerTint)
-                Text("Step \(sourceStep) · \(timer.total / 60) min")
-                    .font(AppFont.body(13, weight: .medium))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Text("STEP \(sourceStep) · \(timer.total / 60) MIN")
+                    .font(AppFont.body(13, weight: .semibold))
                     .foregroundStyle(ink.opacity(0.78))
             }
-            Spacer(minLength: 8)
-            timerButton(
-                title: "Start again",
-                symbol: "arrow.clockwise",
-                prominent: true,
-                accessibilityLabel: "Start timer again for step \(sourceStep)",
-                action: onRestart
-            )
-            timerButton(
-                title: "Dismiss",
-                symbol: "xmark",
-                prominent: false,
-                accessibilityLabel: "Dismiss completed timer for step \(sourceStep)",
-                action: onDismiss
-            )
+            compactTimerControls(isComplete: true)
         }
     }
 
     private func idleTimer(durationMinutes: Int) -> some View {
-        HStack(spacing: 10) {
-            Label("\(durationMinutes) min timer", systemImage: "timer")
-                .font(AppFont.body(14, weight: .semibold))
-                .foregroundStyle(ink)
-            Spacer(minLength: 8)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("STEP \(currentStepNumber ?? 0) TIMER", systemImage: "timer")
+                    .font(AppFont.body(13, weight: .bold))
+                    .foregroundStyle(ink.opacity(0.80))
+                Spacer(minLength: 8)
+                Text("\(durationMinutes) min")
+                    .font(AppFont.body(17, weight: .bold))
+                    .foregroundStyle(ink)
+            }
             timerButton(
                 title: "Start",
                 symbol: "play.fill",
@@ -993,9 +1003,9 @@ private struct CardContent: View {
     ) -> some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
-                .font(AppFont.body(13, weight: .bold))
+                .font(AppFont.body(15, weight: .bold))
                 .foregroundStyle(prominent ? Color(hex: "26170F") : .white)
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 14)
                 .frame(minHeight: 44)
                 .background(
                     prominent ? AnyShapeStyle(timerTint) : AnyShapeStyle(.white.opacity(0.14)),
