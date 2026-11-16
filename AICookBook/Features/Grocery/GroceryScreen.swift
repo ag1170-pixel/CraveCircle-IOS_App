@@ -31,6 +31,7 @@ import SwiftUI
 struct GroceryScreen: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var newItem = ""
+    @State private var catHeld = false          // true while dragging the grocery cat → freeze scroll
     @State private var selectedDish: String? = nil   // nil = All; else show only that dish's ingredients
     @State private var listHeight: CGFloat = 0
     @AppStorage("grocery_sort_mode") private var sortModeRaw = GrocerySortMode.recipe.rawValue
@@ -81,7 +82,11 @@ struct GroceryScreen: View {
                 .padding(.bottom, AppSpacing.xl)
             }
             .doodleScreenBackground()   // static wallpaper behind text/gaps; item boxes stay opaque
+            .overlayPreferenceValue(GRowKey.self) { rows in
+                GroceryCat(rows: rows, catHeld: $catHeld)   // fishes the list; draggable like the Home cat
+            }
             .scrollIndicators(.hidden)
+            .scrollDisabled(catHeld)          // don't let the page scroll (and cancel the drag) while held
             .navigationTitle("Grocery")
             .navigationBarTitleDisplayMode(.inline)
             .task {
@@ -308,6 +313,7 @@ struct GroceryScreen: View {
         }
         .listRowBackground(AppTheme.surface)
         .readChecklistHeight($listHeight)
+        .reportsGroceryRow(id: item.id, done: item.checked)
     }
 
     /// Aisle-view row. The same ingredient from several recipes is one row: a "2 recipes" tag
@@ -328,6 +334,7 @@ struct GroceryScreen: View {
         }
         .listRowBackground(AppTheme.surface)
         .readChecklistHeight($listHeight)
+        .reportsGroceryRow(id: first.id, done: row.checked)
     }
 
     // MARK: Add row

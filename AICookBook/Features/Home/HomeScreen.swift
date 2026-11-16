@@ -48,6 +48,7 @@ struct HomeScreen: View {
     @State private var showShared = false
     @State private var voiceSearch = VoiceSearchController()
     @FocusState private var searchFocused: Bool
+    @State private var catHeld = false                   // true while dragging the chef-cat → freeze scroll
     @AppStorage("last_opened_shared_screen") private var lastOpenedSharedScreen: Double = 0
 
     private var unreadSharedCount: Int {
@@ -130,7 +131,11 @@ struct HomeScreen: View {
                 .padding(.bottom, 72)
             }
             .doodleScreenBackground()   // static wallpaper behind text/gaps; cards stay opaque
+            .overlayPreferenceValue(CardFramesKey.self) { frames in
+                CatCompanion(cardFrames: frames, catHeld: $catHeld)   // peeks, walks, and is draggable
+            }
             .scrollIndicators(.hidden)
+            .scrollDisabled(catHeld)          // don't let the page scroll (and cancel the drag) while held
             .refreshable {
                 await environment.refreshRecipes()
                 await environment.fetchSuggestedFeed()
@@ -394,6 +399,7 @@ struct HomeScreen: View {
                             searchFocused = false
                             environment.selectRecipe(recipe, in: ideas)
                         }
+                        .reportsCardFrame(id: "idea-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
                     }
                 }
             }
@@ -729,6 +735,7 @@ struct HomeScreen: View {
                         LibraryCard(recipe: recipe, reservesTitleLines: recipes.count > 1) {
                             environment.selectRecipe(recipe, in: recipes)
                         }
+                        .reportsCardFrame(id: "res-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
                     }
                 }
                 .padding(.horizontal, AppSpacing.md)
@@ -863,6 +870,7 @@ struct HomeScreen: View {
                     HStack(alignment: .top, spacing: AppSpacing.md) {
                         ForEach(freshFeedRecipes) { recipe in
                             FreshCard(recipe: recipe) { environment.selectRecipe(recipe) }
+                                .reportsCardFrame(id: "fresh-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
                         }
                     }
                     .padding(.horizontal, AppSpacing.md)
@@ -997,6 +1005,7 @@ struct HomeScreen: View {
                 HStack(alignment: .top, spacing: AppSpacing.md) {
                     ForEach(libraryGridRecipes) { recipe in
                         FreshCard(recipe: recipe) { environment.selectRecipe(recipe) }
+                            .reportsCardFrame(id: "lib-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
                     }
                 }
                 .padding(.horizontal, AppSpacing.md)
@@ -1204,6 +1213,7 @@ struct FreshCard: View {
                     }
                 }
                 .overlay { CardLikeOverlay(recipeId: recipe.id, onSingleTap: onTap) }
+                .reportsCardFrame(id: "sugg-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
             Text(recipe.title)
                 .font(AppFont.body(15, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
@@ -1289,6 +1299,7 @@ struct LibraryCard: View {
                     }
                 }
                 .overlay { CardLikeOverlay(recipeId: recipe.id, onSingleTap: onTap) }
+                .reportsCardFrame(id: "sugg-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
             Text(recipe.title)
                 .font(AppFont.body(15, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
@@ -1359,6 +1370,7 @@ struct SuggestedGridCard: View {
                     }
                 }
                 .overlay { CardLikeOverlay(recipeId: recipe.id, onSingleTap: onTap) }
+                .reportsCardFrame(id: "sugg-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
             Text(recipe.title)
                 .font(AppFont.body(15, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
@@ -1419,6 +1431,7 @@ struct SuggestedRailCard: View {
                     }
                 }
                 .overlay { CardLikeOverlay(recipeId: recipe.id, onSingleTap: onTap) }
+                .reportsCardFrame(id: "sugg-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
             Text(recipe.title)
                 .font(AppFont.body(16, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
