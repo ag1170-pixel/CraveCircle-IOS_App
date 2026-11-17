@@ -133,6 +133,10 @@ struct RecipeDetailScreen: View {
         // this screen appears, so there is no later change to wait for.
         .onChange(of: environment.selectedRecipe, initial: true) { _, selected in
             guard let selected, selected.id == recipe.id, selected.nutrition != recipe.nutrition else { return }
+            // A refresh from the server brings the stored estimate back. Numbers already worked
+            // out from the ingredients (they carry a breakdown) are not swapped for it.
+            if recipe.nutrition?.breakdown?.isEmpty == false,
+               let incoming = selected.nutrition, incoming.estimated, incoming.breakdown?.isEmpty != false { return }
             recipe.nutrition = selected.nutrition
         }
         .coordinateSpace(.named("detail"))
@@ -1013,7 +1017,8 @@ struct RecipeDetailScreen: View {
     // MARK: Directions
 
     private var directionsList: some View {
-        let lines = recipeDirectionLines(recipeID: recipe.id, directions: recipe.directions)
+        let lines = recipeDirectionLines(recipeID: recipe.id, directions: recipe.directions,
+                                         ingredients: recipe.ingredients.flatMap(\.items))
         return VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(lines.enumerated()), id: \.element.id) { i, line in
                 VStack(alignment: .leading, spacing: 8) {

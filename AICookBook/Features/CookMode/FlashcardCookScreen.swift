@@ -69,7 +69,7 @@ struct FlashcardCookScreen: View {
         var list: [FlashCard] = []
         let steps = recipe.directions.sorted { $0.stepIndex < $1.stepIndex }
         for s in steps {
-            for chunk in DirectionStepParser.shortLines(s.text) {
+            for chunk in DirectionStepParser.shortLines(s.text, ingredients: recipe.ingredients.flatMap(\.items)) {
                 list.append(.step(number: list.filter(\.isStep).count + 1, text: chunk))
             }
         }
@@ -506,10 +506,10 @@ struct RecipeDirectionLine: Identifiable, Hashable {
 
 /// Flatten directions using the same line splitting as the recipe detail UI and annotate explicit
 /// cooking durations. Stable IDs are independent of the flattened display number.
-func recipeDirectionLines(recipeID: String, directions: [DirectionStep]) -> [RecipeDirectionLine] {
+func recipeDirectionLines(recipeID: String, directions: [DirectionStep], ingredients: [String] = []) -> [RecipeDirectionLine] {
     var result: [RecipeDirectionLine] = []
     for direction in directions.sorted(by: { $0.stepIndex < $1.stepIndex }) {
-        for (lineIndex, text) in DirectionStepParser.shortLines(direction.text).enumerated() {
+        for (lineIndex, text) in DirectionStepParser.shortLines(direction.text, ingredients: ingredients).enumerated() {
             result.append(RecipeDirectionLine(
                 id: RecipeDirectionLineID(recipeID: recipeID,
                                           stepIndex: direction.stepIndex,

@@ -918,14 +918,179 @@ enum DirectionStepParser {
         let badges: [String]
     }
 
-    /// One direction, broken into short lines. No stacked sentences, no trailing period.
-    static func shortLines(_ raw: String) -> [String] {
-        let trimmed = sanitized(raw)
+    /// About two lines of a direction card. A step longer than this gets split.
+    static let stepBudget = 56
+
+    /// One direction, broken into steps a cook can take in at a glance: each step says what goes
+    /// where, never lists more than two ingredients, and stays within about two lines.
+    /// `ingredients` are the recipe's ingredient lines. With them, a step that only says "the dry
+    /// items" names the flour and sugar it means.
+    static func shortLines(_ raw: String, ingredients: [String] = []) -> [String] {
+        let trimmed = namingIngredients(sanitized(raw), ingredients: ingredients)
         guard !trimmed.isEmpty else { return [] }
-        var pieces = splitClauses(trimmed).flatMap(splitThen)
-        pieces = pieces.flatMap { splitIfLong($0) }
-        let lines = pieces.map(tidyLine).filter { $0.count >= 2 }
-        return lines.isEmpty ? [tidyLine(trimmed)].filter { !$0.isEmpty } : lines
+        let sentences = splitClauses(trimmed).flatMap(splitThen)
+        let steps = joinScraps(sentences.flatMap(splitSentence).map(tidyLine).filter { $0.count >= 2 })
+        return steps.isEmpty ? [tidyLine(trimmed)].filter { !$0.isEmpty } : steps
+    }
+
+    private static let dryWords = ["flour", "sugar", "salt", "baking powder", "baking soda", "cocoa",
+        "cornstarch", "cornflour", "yeast", "oats", "semolina", "besan", "breadcrumbs", "spice", "masala",
+        "cinnamon", "nutmeg", "cumin", "turmeric", "paprika", "pepper", "chilli powder", "chili powder"]
+    private static let wetWords = ["milk", "egg", "oil", "butter", "water", "vanilla", "yogurt", "yoghurt",
+        "curd", "cream", "honey", "buttermilk", "syrup", "juice"]
+
+    /// "Mix the dry items first" tells a cook nothing at the counter. Swap the phrase for the
+    /// recipe's own dry (or wet) ingredients; leave the step alone when none can be found.
+    private static func namingIngredients(_ text: String, ingredients: [String]) -> String {
+        guard !ingredients.isEmpty,
+              let regex = try? NSRegularExpression(
+                pattern: #"(?:all (?:of )?)?(?:the |your )?(dry|wet) (?:items|ingredients)(?: (?:first|together))?"#,
+                options: .caseInsensitive) else { return text }
+        let names = ingredients.map { GrocerySort.coreName($0).lowercased() }.filter { !$0.isEmpty }
+        var out = text
+        for match in regex.matches(in: text, range: NSRange(location: 0, length: (text as NSString).length)).reversed() {
+            let kind = (text as NSString).substring(with: match.range(at: 1)).lowercased()
+            let words = kind == "dry" ? dryWords : wetWords
+            // "buttermilk" and "peanut butter" are not butter; a dry word wins over a wet one.
+            let found = names.filter { name in
+                words.contains { name.contains($0) } && (kind == "dry" || !dryWords.contains { name.contains($0) })
+            }
+            guard found.count >= 2, let range = Range(match.range, in: out) else { continue }
+            let list = found.dropLast().joined(separator: ", ") + " and " + found[found.count - 1]
+            out.replaceSubrange(range, with: list)
+        }
+        return out
+    }
+
+    private static func splitSentence(_ text: String) -> [String] {
+        // A run of three or more ingredients is paired up even when it would fit on two lines.
+        if let run = ingredientRun(text), run.count > 1 { return run }
+        guard text.count > stepBudget else { return [text] }
+        return ingredientRun(text) ?? groupByCommas(text)
+    }
+
+    /// "In a mixing bowl, combine water, salt, garlic, chilli flakes, onion and tomato sauce"
+    /// becomes pairs: "In a mixing bowl, combine water and salt", "Then add garlic and chilli
+    /// flakes to the mixing bowl", ... so the bowl stays in view and no card is a wall of names.
+    private static func ingredientRun(_ text: String) -> [String]? {
+        var rest = text
+        var leadPlace: String?, tool: String?, trailPlace: String?
+        let ns = rest as NSString
+        if let m = try? NSRegularExpression(pattern: #"^(?:in|into|to|on|onto|over)\s+(?:a|an|the|your)\s+([^,]{2,40}),\s*"#, options: .caseInsensitive)
+            .firstMatch(in: rest, range: NSRange(location: 0, length: ns.length)) {
+            tool = ns.substring(with: m.range(at: 1)).lowercased()
+            leadPlace = ns.substring(with: m.range).trimmingCharacters(in: CharacterSet(charactersIn: ", "))
+            rest = ns.substring(from: m.range.upperBound)
+        }
+        // "... until evenly coated" belongs to the last pair; anything after its comma is a step
+        // of its own ("stirring often so nothing sticks").
+        var tail = "", after: String?
+        if let r = rest.range(of: #"\s+(until|till)\s+.+$"#, options: [.regularExpression, .caseInsensitive]) {
+            let clause = String(rest[r]).components(separatedBy: ",")
+            tail = clause[0]
+            let extra = clause.dropFirst().joined(separator: ",").trimmingCharacters(in: .whitespaces)
+            after = extra.isEmpty ? nil : extra
+            rest.removeSubrange(r)
+        }
+        // "... to the pan and cook": the pan is the place, "and cook" goes with the last pair.
+        if leadPlace == nil,
+           let m = try? NSRegularExpression(pattern: #"(\s+(?:in|into|to|onto|on)\s+(?:a|an|the|your)\s+((?:(?!and\b)[A-Za-z\-]+\s?){1,4}))(\s+and\s+.+)?$"#, options: .caseInsensitive)
+            .firstMatch(in: rest, range: NSRange(location: 0, length: (rest as NSString).length)) {
+            let r = rest as NSString
+            trailPlace = r.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespaces)
+            trailPlace = " " + trailPlace!
+            tool = r.substring(with: m.range(at: 2)).trimmingCharacters(in: .whitespaces).lowercased()
+            if m.range(at: 3).location != NSNotFound { tail = r.substring(with: m.range(at: 3)) + tail }
+            rest = r.substring(to: m.range.location)
+        }
+        let words = rest.split(separator: " ", maxSplits: 1).map(String.init)
+        // Only a cooking verb starts a run: "These will be high, but light and fluffy" is not one.
+        guard words.count == 2, actionWords.union(["beat", "sift", "mash", "grind", "use", "take", "throw", "layer", "tip"])
+            .contains(words[0].lowercased()) else { return nil }
+        let verb = words[0]
+        let items = words[1]
+            .replacingOccurrences(of: #",?\s+(and|&)\s+"#, with: ",", options: .regularExpression)
+            .components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .map { $0.prefix(1).lowercased() + $0.dropFirst() }
+        guard items.count >= 3, items.allSatisfy({ $0.split(separator: " ").count <= 4 }) else { return nil }
+
+        var out: [String] = []
+        for start in stride(from: 0, to: items.count, by: 2) {
+            let pair = items[start..<min(start + 2, items.count)].joined(separator: " and ")
+            let last = start + 2 >= items.count
+            if start == 0 {
+                out.append((leadPlace.map { "\($0), \(verb.lowercased()) " } ?? "\(verb) ") + pair + (trailPlace ?? "") + (last ? tail : ""))
+                continue
+            }
+            // Name the bowl or pan again when it fits in two lines; say "Then" when that fits too.
+            let end = last ? tail : ""
+            let short = tool?.split(separator: " ").last.map(String.init)
+            let choices = [tool.map { "Then add \(pair) to the \($0)\(end)" },
+                           tool.map { "Add \(pair) to the \($0)\(end)" },
+                           short.map { "Add \(pair) to the \($0)\(end)" },
+                           "Then add \(pair)\(end)"].compactMap { $0 }
+            out.append(choices.first { $0.count <= stepBudget } ?? choices[choices.count - 1])
+        }
+        if let after { out.append(after) }
+        return out
+    }
+
+    /// A long sentence is cut at its commas, keeping as many clauses together as fit the budget.
+    private static func groupByCommas(_ text: String) -> [String] {
+        let parts = text.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard parts.count > 1 else { return splitAtSecondAction(text) }
+        var out: [String] = []
+        for part in parts {
+            if let last = out.last, last.count + part.count + 2 <= stepBudget {
+                out[out.count - 1] = last + ", " + part
+            } else {
+                out.append(part)
+            }
+        }
+        return out
+    }
+
+    private static let actionWords: Set<String> = ["stir", "cook", "mix", "add", "pour", "let", "bake", "fry",
+        "simmer", "serve", "set", "place", "transfer", "remove", "cover", "season", "heat", "whisk", "fold",
+        "bring", "reduce", "toss", "drain", "spread", "top", "garnish", "flip", "turn", "continue", "keep",
+        "leave", "allow", "cut", "chop", "slice", "blend", "knead", "roll", "rest", "cool", "boil", "saute",
+        "sauté", "grill", "roast", "sprinkle", "squeeze", "combine", "put", "repeat", "press", "shape",
+        "marinate", "refrigerate", "chill"]
+
+    /// A long sentence with no commas is two actions joined by "and": "Combine the eggs and butter
+    /// to the milk and slowly stir into the flour" splits before "slowly stir". "Salt and pepper"
+    /// never splits, because what follows "and" must be an action.
+    private static func splitAtSecondAction(_ text: String) -> [String] {
+        let words = text.split(separator: " ").map(String.init)
+        let cuts = words.indices.filter { i in
+            guard words[i].lowercased() == "and", i >= 5, i + 3 < words.count else { return false }
+            let next = words[i + 1].lowercased()
+            return actionWords.contains(next) || (next.hasSuffix("ly") && next.count > 4)
+        }
+        guard let cut = cuts.min(by: { abs($0 - words.count / 2) < abs($1 - words.count / 2) }) else { return [text] }
+        return [words[..<cut].joined(separator: " "), words[(cut + 1)...].joined(separator: " ")]
+    }
+
+    /// A step of one to three words ("Flip", "In a bowl") is not a step on its own: it joins a
+    /// neighbour.
+    private static func joinScraps(_ steps: [String]) -> [String] {
+        var out: [String] = []
+        var carry: String?
+        for step in steps {
+            var step = step
+            if let lead = carry { step = lead + ", " + step.prefix(1).lowercased() + step.dropFirst(); carry = nil }
+            guard step.split(separator: " ").count < 4 else { out.append(step); continue }
+            if let last = out.last {
+                let lowered = step.prefix(1).lowercased() + step.dropFirst()
+                out[out.count - 1] = last + (lowered.hasPrefix("then ") ? ", " : ", then ") + lowered
+            } else {
+                carry = step
+            }
+        }
+        if let carry { out.append(carry) }
+        return out
     }
 
     private static func splitClauses(_ text: String) -> [String] {
@@ -959,31 +1124,11 @@ enum DirectionStepParser {
         return parts.count > 1 ? parts : [text]
     }
 
-    /// A long line with commas becomes separate actions. A one-word scrap joins the next piece.
-    private static func splitIfLong(_ text: String) -> [String] {
-        let words = text.split(separator: " ")
-        guard words.count > 14, text.contains(",") else { return [text] }
-        var parts = text.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        var merged: [String] = []
-        var i = 0
-        while i < parts.count {
-            if parts[i].split(separator: " ").count < 3, i + 1 < parts.count {
-                parts[i + 1] = parts[i] + " " + parts[i + 1]
-            } else if parts[i].split(separator: " ").count < 3, let last = merged.popLast() {
-                merged.append(last + " " + parts[i])
-            } else {
-                merged.append(parts[i])
-            }
-            i += 1
-        }
-        return merged.isEmpty ? [text] : merged
-    }
-
     private static func tidyLine(_ text: String) -> String {
         var t = sanitized(text)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .trimmingCharacters(in: CharacterSet(charactersIn: ".,;"))
-        let fillers = ["and ", "then ", "thoroughly ", "gently ", "carefully ", "immediately ", "meanwhile ", "next ", "now ", "finally "]
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".,;-–— "))
+        let fillers = ["and ", "thoroughly ", "gently ", "carefully ", "immediately ", "meanwhile ", "next ", "now ", "finally "]
         var lower = t.lowercased()
         var changed = true
         while changed {

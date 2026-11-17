@@ -105,7 +105,7 @@ enum RecipeExtractor {
         var title: String
         @Guide(description: "Ingredient groups. Use a single group with an empty name when the recipe isn't grouped.")
         var groups: [GGroup]
-        @Guide(description: "The cooking steps in order, imperative voice, no numbering. Each step must be a complete, actionable sentence. Never emit empty brackets, placeholders, or a container phrase without its action.")
+        @Guide(description: "The cooking steps in order, imperative voice, no numbering. Read the whole transcript first, then write each step as one complete sentence of 8 to 14 words that names the action, the ingredients, and where they go (the bowl, pan, pot or tray being used). Name at most two ingredients in a step: when more go into the same bowl or pan, write a following step that adds the next two and names that bowl or pan again. Steps must follow on from each other in cooking order. Always name the actual ingredients: never write \"the dry ingredients\", \"the wet ingredients\" or \"the rest\" in place of their names. Never write a step that is only a place, only a list of ingredients, or longer than two short lines. Never emit empty brackets or placeholders.")
         var steps: [String]
     }
 

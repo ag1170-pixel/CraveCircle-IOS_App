@@ -37,10 +37,12 @@ struct NutritionScreen: View {
     @State private var portionPickerFrame: CGRect = .zero
 
     private var hasNutrition: Bool {
-        recipe.nutrition != nil || (environment.selectedRecipe?.id == recipe.id && environment.selectedRecipe?.nutrition != nil)
+        environment.shownNutrition(for: recipe) != nil
+            || (environment.selectedRecipe?.id == recipe.id && environment.selectedRecipe?.nutrition != nil)
     }
     private var nutrition: RecipeNutrition {
-        recipe.nutrition ?? (environment.selectedRecipe?.id == recipe.id ? environment.selectedRecipe?.nutrition : nil)
+        environment.shownNutrition(for: recipe)
+            ?? (environment.selectedRecipe?.id == recipe.id ? environment.selectedRecipe?.nutrition : nil)
             ?? recipe.nutritionOrEstimate
     }
     private var servings: Int { max(recipe.servings ?? 1, 1) }
@@ -414,7 +416,8 @@ struct NutritionSummaryCard: View {
     private let carbsColor = Color(hex: "E25B4C")
     private let fatColor = Color(hex: "4C8FE8")
 
-    private var nutrition: RecipeNutrition { recipe.nutritionOrEstimate }
+    @Environment(AppEnvironment.self) private var environment
+    private var nutrition: RecipeNutrition { environment.shownNutrition(for: recipe) ?? recipe.nutritionOrEstimate }
     private var shown: (kcal: Int, proteinG: Int, carbsG: Int, fatG: Int) {
         nutrition.shown(servings: max(recipe.servings ?? 1, 1), whole: false)
     }
