@@ -200,35 +200,28 @@ struct LoginView: View {
         .padding(AppSpacing.lg)
     }
 
-    /// Temporary demo shortcut. It deliberately creates a local guest session and does not
-    /// present Apple authentication or claim that an Apple account was verified.
+    /// Looks like the real button so the login page can be judged as it will ship, but Apple
+    /// sign-in is NOT connected yet: it opens a local guest session. Wire up
+    /// ASAuthorizationAppleIDProvider (or remove the button) before release.
     private var appleGuestDemoButton: some View {
-        VStack(spacing: 6) {
-            Button {
-                Haptics.tap()
-                environment.continueAsGuest()
-            } label: {
-                HStack(spacing: 9) {
-                    Image(systemName: "apple.logo")
-                        .font(.system(size: 18, weight: .medium))
-                    Text("Sign in with Apple · Guest demo")
-                        .font(AppFont.body(15, weight: .semibold))
-                }
-                .foregroundStyle(AppTheme.textPrimary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(AppTheme.surface, in: Capsule())
-                .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+        Button {
+            Haptics.tap()
+            environment.continueAsGuest()
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: "apple.logo")
+                    .font(.system(size: 18, weight: .medium))
+                Text("Sign in with Apple")
+                    .font(AppFont.body(15, weight: .semibold))
             }
-            .buttonStyle(PressableStyle())
-            .disabled(loading)
-            .accessibilityHint("Demo only. Continues as a guest without Apple account authentication.")
-
-            Text("Demo only — this opens a guest session; Apple sign-in is not connected.")
-                .font(AppFont.body(11, weight: .medium))
-                .foregroundStyle(AppTheme.textTertiary)
-                .multilineTextAlignment(.center)
+            .foregroundStyle(AppTheme.textPrimary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(AppTheme.surface, in: Capsule())
+            .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
         }
+        .buttonStyle(PressableStyle())
+        .disabled(loading)
     }
 
     private var submitButton: some View {
