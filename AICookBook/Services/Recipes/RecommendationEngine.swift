@@ -163,10 +163,18 @@ enum RecommendationEngine {
         ("thai",          "Thai",          ["thai","lemongrass","coconut milk","pad","tom yum","fish sauce","basil","pad thai"]),
         ("chinese",       "Chinese",       ["soy","hoisin","szechuan","sichuan","dumpling","fried rice","noodle","wok","ginger scallion","stir-fry","stir fry","egg foo young","scallion"]),
         ("japanese",      "Japanese",      ["miso","soy","teriyaki","udon","ramen","sushi","dashi","panko","gyoza"]),
-        ("mediterranean", "Mediterranean", ["hummus","feta","olive","falafel","tahini","pita","tzatziki","shakshuka","harissa","greek","kalamata"]),
         ("american",      "American",      ["burger","bbq","cheddar","bacon","fries","mac and cheese","buffalo","pancake","ribs","pot pie","chowder","chili","waffle","macaroni","french toast"]),
         ("desserts",      "Desserts",      ["sugar","chocolate","vanilla","cake","cookie","caramel","cream","pancake","tiramisu","brownie","cheesecake","shortbread","snickerdoodle","muffin","banana bread","pie","crepe"])
     ]
+
+    /// Preserve matching for Mediterranean IDs already saved on existing profiles.
+    private static let legacyCuisinePreferences: [(id: String, label: String, keywords: [String])] = [
+        ("mediterranean", "Mediterranean", ["hummus","feta","olive","falafel","tahini","pita","tzatziki","shakshuka","harissa","greek","kalamata"])
+    ]
+
+    private static var recommendationCuisines: [(id: String, label: String, keywords: [String])] {
+        cuisines + legacyCuisinePreferences
+    }
 
     private static func recipeText(_ r: Recipe) -> String {
         (r.title + " " + r.ingredients.flatMap { $0.items }.joined(separator: " ")).lowercased()
@@ -174,7 +182,7 @@ enum RecommendationEngine {
 
     private static func cuisineMatchCount(_ r: Recipe, _ ids: Set<String>) -> Int {
         let text = recipeText(r)
-        return cuisines
+        return recommendationCuisines
             .filter { ids.contains($0.id) }
             .reduce(0) { $0 + ($1.keywords.contains { text.contains($0) } ? 1 : 0) }
     }
@@ -182,7 +190,7 @@ enum RecommendationEngine {
     /// A cold-start reason ("Because you love Indian") when a suggestion matches a picked cuisine.
     static func cuisineReason(for r: Recipe, preferredCuisines ids: Set<String>) -> String? {
         let text = recipeText(r)
-        for c in cuisines where ids.contains(c.id) {
+        for c in recommendationCuisines where ids.contains(c.id) {
             if c.keywords.contains(where: { text.contains($0) }) { return "Because you love \(c.label)" }
         }
         return nil

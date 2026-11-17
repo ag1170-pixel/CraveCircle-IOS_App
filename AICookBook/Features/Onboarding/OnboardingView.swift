@@ -35,6 +35,8 @@ import SwiftUI
 // MARK: - SwiftUI View Component
 struct OnboardingView: View {
     @Environment(AppEnvironment.self) private var environment
+    var onCompletion: (() -> Void)? = nil
+    var onCancel: (() -> Void)? = nil
 
     @State private var step: Step = .welcome
     @State private var goals: Set<Goal> = []
@@ -45,10 +47,35 @@ struct OnboardingView: View {
     @State private var cuisines: Set<String> = []
     @State private var goalDetailIndex = 0   // for cycling through selected goals in .goalDetail
 
-    private let cuisineColumns = [GridItem(.adaptive(minimum: 104), spacing: 10)]
+    // Keep cuisine choices in a consistent three-column grid.
+    private let cuisineColumns = [
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10),
+        GridItem(.flexible(), spacing: 10)
+    ]
 
     var body: some View {
         VStack(spacing: 0) {
+            if let onCancel {
+                HStack {
+                    Spacer()
+                    Button(action: onCancel) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                            .frame(width: 32, height: 32)
+                            .background(AppTheme.surface, in: Circle())
+                            .overlay(Circle().stroke(AppTheme.hairline, lineWidth: 1))
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityLabel("Close onboarding preview")
+                }
+                .padding(.horizontal, AppSpacing.lg)
+                .padding(.top, AppSpacing.sm)
+            }
+
             // Welcome owns its own hero — the small brand header would double up with the big
             // logo + wordmark in the middle, so skip the header on that step.
             if step != .welcome {
@@ -330,20 +357,27 @@ struct OnboardingView: View {
 
     private var cuisinesStep: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .center, spacing: 6) {
                 Text("What do you love to cook?")
                     .font(AppFont.display(26, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("Pick a few — we'll make your feed yours.")
                     .font(AppFont.body(15))
                     .foregroundStyle(AppTheme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, AppSpacing.lg)
+            .frame(maxWidth: .infinity)
 
             ScrollView {
                 LazyVGrid(columns: cuisineColumns, spacing: 10) {
-                    ForEach(RecommendationEngine.cuisines, id: \.id) { c in
-                        cuisineChip(id: c.id, label: c.label)
+                    ForEach(RecommendationEngine.cuisines, id: \.id) { cuisine in
+                        cuisineChip(id: cuisine.id, label: cuisine.label)
                     }
                 }
                 .padding(.vertical, AppSpacing.sm)
@@ -365,17 +399,20 @@ struct OnboardingView: View {
                 if on { cuisines.remove(id) } else { cuisines.insert(id) }
             }
         } label: {
-            HStack(spacing: 6) {
-                if on { Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)) }
-                Text(label).font(AppFont.body(15, weight: .semibold))
-            }
-            .foregroundStyle(on ? AppTheme.onAccent : AppTheme.textPrimary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(on ? AppTheme.accent : AppTheme.surface, in: Capsule())
-            .overlay(Capsule().stroke(on ? Color.clear : AppTheme.hairline, lineWidth: 1))
+            Text(label)
+                .font(AppFont.body(15, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .foregroundStyle(on ? AppTheme.onAccent : AppTheme.textPrimary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(on ? AppTheme.accent : AppTheme.surface, in: Capsule())
+                .overlay(Capsule().stroke(on ? Color.clear : AppTheme.hairline, lineWidth: 1))
         }
         .buttonStyle(PressableStyle())
+        .accessibilityValue(on ? "Selected" : "Not selected")
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     // MARK: Step 8 — "Awesome!" — social imports intro
@@ -649,6 +686,7 @@ struct OnboardingView: View {
             hearAbout: hearAbout?.id
         )
         if thenImport { environment.pendingImportRequest = true }
+        onCompletion?()
     }
 
     private func toggleGoal(_ g: Goal) {

@@ -180,6 +180,7 @@ struct DeveloperToolsScreen: View {
     @AppStorage(PerformanceDiagnostics.enabledKey) private var performanceEnabled = false
     @State private var checks: [PerformanceDiagnostics.Check] = []
     @State private var running = false
+    @State private var showingOnboarding = false
 
     var body: some View {
         ScrollView {
@@ -210,6 +211,19 @@ struct DeveloperToolsScreen: View {
                 }
                 .disabled(running)
 
+                Button {
+                    showingOnboarding = true
+                } label: {
+                    Label("Run onboarding again", systemImage: "play.fill")
+                        .font(AppFont.body(16, weight: .bold))
+                        .foregroundStyle(AppTheme.onAccent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(AppTheme.accent, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(PressableStyle())
+
                 ForEach(checks) { check in
                     VStack(alignment: .leading, spacing: 5) {
                         Label(check.name, systemImage: check.passed ? "checkmark.circle.fill" : "xmark.circle.fill")
@@ -229,6 +243,12 @@ struct DeveloperToolsScreen: View {
         .background(AppScreenBackground())
         .navigationTitle("Developer Tools")
         .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(isPresented: $showingOnboarding) {
+            OnboardingView(
+                onCompletion: { showingOnboarding = false },
+                onCancel: { showingOnboarding = false }
+            )
+        }
         .task {
             if performanceEnabled && checks.isEmpty { runChecks() }
         }

@@ -492,10 +492,13 @@ struct MainTabView: View {
                 .sheet(item: importFeedbackTarget(whileRecipeOpen: true)) { importFeedbackSheet($0) }
             }
         }
-        // Osta-style: Import is a floating round button, not a tab (keeps the glassy 4-icon bar).
-        // Import FAB everywhere EXCEPT Discover — the reel is immersive and the FAB would cover the rail.
+        // Keep the floating add action on Home and Grocery, where it has a clear context.
+        // Discover is immersive, and Profile has no profile-specific add action.
         .overlay(alignment: .bottomTrailing) {
-            if tab != .discover && environment.selectedRecipe == nil && !environment.hidesImportFAB {
+            if tab != .discover,
+               tab != .profile,
+               environment.selectedRecipe == nil,
+               !environment.hidesImportFAB {
                 importFAB
             }
         }
