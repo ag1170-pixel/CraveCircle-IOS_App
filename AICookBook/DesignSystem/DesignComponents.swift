@@ -1015,6 +1015,13 @@ enum DirectionStepParser {
             .filter { !$0.isEmpty }
             .map { $0.prefix(1).lowercased() + $0.dropFirst() }
         guard items.count >= 3, items.allSatisfy({ $0.split(separator: " ").count <= 4 }) else { return nil }
+        // "reduce heat, cover, simmer for 12 minutes, stirring occasionally" is a list of actions,
+        // not ingredients: leave it to the comma splitter.
+        let looksLikeAction: (String) -> Bool = { item in
+            let first = item.split(separator: " ").first.map { $0.lowercased() } ?? ""
+            return actionWords.contains(first) || first.hasSuffix("ing") || item.contains(where: \.isNumber)
+        }
+        guard !items.dropFirst().contains(where: looksLikeAction) else { return nil }
 
         var out: [String] = []
         for start in stride(from: 0, to: items.count, by: 2) {

@@ -441,7 +441,7 @@ struct NutritionSummaryCard: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(AppTheme.textTertiary)
                 }
-                if recipe.nutrition != nil {
+                if environment.shownNutrition(for: recipe) != nil {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("\(shown.kcal)")
                             .font(AppFont.display(40, weight: .bold))
