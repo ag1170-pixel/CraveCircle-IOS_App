@@ -993,13 +993,21 @@ final class AppEnvironment {
         var openedRecipe = recipe
         if let cached = nutritionCache[recipe.id],
            cached.signature == NutritionEstimator.cacheSignature(for: recipe) {
-            openedRecipe.nutrition = recipe.nutrition ?? cached.nutrition
+            openedRecipe.nutrition = Self.preferredNutrition(stored: recipe.nutrition, computed: cached.nutrition)
         }
         selectedRecipe = openedRecipe
         refreshAuthoritativeNutrition(for: openedRecipe)
     }
 
     private var nutritionAttempted = Set<String>()
+
+    /// Which numbers to show. A stored value that is itself only an estimate (seed rows carry
+    /// one with no ingredient working behind it) loses to the estimate worked out from this
+    /// recipe's own ingredients. Stated or server-verified values always win.
+    static func preferredNutrition(stored: RecipeNutrition?, computed: RecipeNutrition) -> RecipeNutrition {
+        guard let stored else { return computed }
+        return stored.estimated && computed.calories > 0 ? computed : stored
+    }
 
     /// Estimate missing nutrition off-main with the bundled offline food database. Persist only
     /// this bounded per-account cache, including the ingredient breakdown. Server nutrition wins.
@@ -1012,7 +1020,7 @@ final class AppEnvironment {
         if let cached = nutritionCache[recipe.id] {
             if cached.signature == signature {
                 nutritionAttempted.insert(attemptKey)
-                selectedRecipe?.nutrition = recipe.nutrition ?? cached.nutrition
+                selectedRecipe?.nutrition = Self.preferredNutrition(stored: recipe.nutrition, computed: cached.nutrition)
                 return
             }
             nutritionCache.removeValue(forKey: recipe.id)

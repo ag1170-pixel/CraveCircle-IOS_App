@@ -309,6 +309,20 @@ enum NutritionEstimator {
         )
     }
 
+    /// How much of each ingredient the whole recipe uses, in grams, keyed by the same short name
+    /// the breakdown shows ("Flour"). Lets the nutrition page say "12 g protein, from 120 g" so a
+    /// macro amount is never mistaken for the ingredient's weight.
+    static func ingredientGrams(for recipe: Recipe) -> [String: Double] {
+        var out: [String: Double] = [:]
+        for group in recipe.ingredients {
+            for item in group.items where !item.trimmingCharacters(in: .whitespaces).isEmpty {
+                guard let (grams, _) = parse(item), grams > 0 else { continue }
+                out[displayName(item), default: 0] += grams
+            }
+        }
+        return out
+    }
+
     /// Colloquial/regional term -> a term USDA indexes well (used only for the offline DB fallback).
     private static let synonyms: [String: String] = [
         "capsicum": "sweet pepper", "bell pepper": "sweet pepper", "brinjal": "eggplant",

@@ -48,6 +48,11 @@ struct NutritionScreen: View {
         nutrition.shown(servings: servings, whole: whole)
     }
     private var scale: Double { RecipeNutrition.portionMultiplier(servings: servings, whole: whole) }
+    /// Grams of each ingredient in the portion on screen, by breakdown name.
+    private var ingredientGrams: [String: Double] {
+        let perServing = Double(max(recipe.servings ?? 2, 1))
+        return NutritionEstimator.ingredientGrams(for: recipe).mapValues { $0 / perServing * scale }
+    }
 
     private let proteinColor = Color(hex: "E0A02E")
     private let carbsColor = Color(hex: "E25B4C")
@@ -295,6 +300,7 @@ struct NutritionScreen: View {
         let rows = visible.isEmpty ? sources : visible
         let hidSmall = !visible.isEmpty && visible.count < sources.count
         let open = openMacro == kind
+        let usedGrams = open ? ingredientGrams : [:]
         return VStack(alignment: .leading, spacing: 8) {
             Button {
                 guard !sources.isEmpty else { return }
@@ -344,12 +350,22 @@ struct NutritionScreen: View {
                         let gramsShown = Int((row.item.value(for: kind) * scale).rounded())
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
-                                Text(row.item.name)
-                                    .font(AppFont.body(14, weight: .semibold))
-                                    .foregroundStyle(AppTheme.textPrimary)
-                                    .lineLimit(1)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(row.item.name)
+                                        .font(AppFont.body(14, weight: .semibold))
+                                        .foregroundStyle(AppTheme.textPrimary)
+                                        .lineLimit(1)
+                                    // "from 120 g": the ingredient's own weight, so "12 g" beside it
+                                    // reads as protein in the flour, not 12 g of flour.
+                                    if let used = usedGrams[row.item.name], used >= 1 {
+                                        Text("from \(Int(used.rounded())) g")
+                                            .font(AppFont.body(12))
+                                            .foregroundStyle(AppTheme.textTertiary)
+                                            .monospacedDigit()
+                                    }
+                                }
                                 Spacer()
-                                Text("\(gramsShown) g")
+                                Text("\(gramsShown) g \(kind.title.lowercased())")
                                     .font(AppFont.body(14, weight: .semibold))
                                     .foregroundStyle(AppTheme.textPrimary)
                                     .monospacedDigit()

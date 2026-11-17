@@ -129,7 +129,9 @@ struct RecipeDetailScreen: View {
         .doodleScreenBackground()   // static wallpaper behind the scroll
         .ignoresSafeArea(edges: .top)
         .task(id: recipe.id) { environment.refreshAuthoritativeNutrition(for: recipe) }
-        .onChange(of: environment.selectedRecipe) { _, selected in
+        // `initial`: a recipe opened before (estimate already cached) has its numbers ready before
+        // this screen appears, so there is no later change to wait for.
+        .onChange(of: environment.selectedRecipe, initial: true) { _, selected in
             guard let selected, selected.id == recipe.id, selected.nutrition != recipe.nutrition else { return }
             recipe.nutrition = selected.nutrition
         }
