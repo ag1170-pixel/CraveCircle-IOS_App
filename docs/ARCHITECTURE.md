@@ -125,8 +125,7 @@ Homelab [icon: server, color: green, label: "Homelab (Docker)"] {
     Whisper [icon: mic, label: "faster-whisper small"]
     Recipe Assembler [icon: list, label: "assemble_recipe + nutrition (offline USDA table)"]
     Translator [icon: type, label: "Ollama LLM translate"]
-    SQLite [icon: file, label: "SQLite\nimported recipes, devices, feedback"]
-    Job Table [icon: box, label: "JOBS dict (in memory)"]
+    SQLite [icon: file, label: "SQLite\nimport jobs + private results (deleted once delivered),\ndevices, feedback"]
   }
 }
 
@@ -245,9 +244,9 @@ Data Side [icon: database, color: green, label: "Supabase (self-hosted)"] {
 Import Side [icon: python, color: teal, label: "whisper-transcriber (FastAPI)"] {
   API [icon: server, label: "Endpoints\n/reels/download, /reels/media, /reels/import,\n/reels/import/{job}, /translate-text, /recipes,\n/devices, /feedback, /health, /recipe/{id} web page"]
   Worker [icon: cpu, label: "Import job\ndownloading > transcribing > extracting > done"]
-  Tools [icon: tool, label: "yt-dlp, ffmpeg, tesseract,\nfaster-whisper small"]
+  Tools [icon: tool, label: "yt-dlp (45 s timeout), ffmpeg, tesseract,\nfaster-whisper small"]
   LLM [icon: sparkles, label: "Ollama (translation)"]
-  Store [icon: file, label: "SQLite: recipes, devices, feedback\nJOBS: in memory only"]
+  Store [icon: file, label: "SQLite: import jobs + private results\n(deleted once delivered), devices, feedback"]
 }
 
 Outside [icon: cloud, color: gray] {
@@ -268,7 +267,7 @@ API > Worker: start job
 Worker > Tools
 Tools > Social: download
 Worker > LLM: translate
-Worker > Store: save recipe
+Worker > Store: hold result until the app collects it
 Worker > APNs: recipe ready
 ```
 
