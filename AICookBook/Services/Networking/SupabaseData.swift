@@ -536,6 +536,18 @@ struct SupabaseData {
         return (200..<300).contains(http.statusCode)
     }
 
+    /// Returns whether this signed-in account already has an NPS response. Nil means the
+    /// server could not be checked, so callers can fail closed instead of showing it again.
+    func hasSubmittedNPS() async -> Bool? {
+        guard hasSession, let userId = currentUserId(),
+              let encodedUserId = userId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let req = request(path: "rest/v1/user_feedback?select=id&user_id=eq.\(encodedUserId)&kind=eq.nps&limit=1", method: "GET"),
+              let (data, response) = try? await URLSession.shared.data(for: req),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
+        return !rows.isEmpty
+    }
+
     /// Admin inbox rows. Nil status returns all rows visible under the server's RLS policy.
     func listFeedback(status: String?) async -> [UserFeedbackRow] {
         var query = "select=*&order=created_at.desc"

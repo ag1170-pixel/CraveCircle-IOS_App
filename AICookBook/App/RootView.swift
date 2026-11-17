@@ -596,9 +596,8 @@ struct MainTabView: View {
         // Import feedback, earned on the recipe page (see `offerImportFeedbackIfEarned`).
         // Shown from here only when no recipe cover is up; the cover hosts its own copy.
         .sheet(item: importFeedbackTarget(whileRecipeOpen: false)) { importFeedbackSheet($0) }
-        // Quarterly NPS prompt. Triggered after the user's 10th cook event; gated to once per
-        // 90 days and stops asking after 3 dismissals so a user who clearly isn't interested
-        // isn't pursued forever.
+        // One-time star rating prompt. Offered after 10 imported recipes or 20 distinct views;
+        // a user who skips it can be asked again after 90 days, up to three skips.
         .sheet(isPresented: Binding(
             get: { environment.showNPSPrompt },
             set: { if !$0 { environment.acknowledgeNPSPrompt(dismissed: true) } }

@@ -95,6 +95,7 @@ final class AppEnvironment {
         var recent = recentImportTimes()
         recent[recipeId] = Date().timeIntervalSinceReferenceDate
         UserDefaults.standard.set(recent, forKey: Self.recentImportsKey)
+        maybeOfferNPS()
     }
 
     /// Recipe id → import time, limited to imports from the last 3 days.
@@ -127,31 +128,48 @@ final class AppEnvironment {
         pendingImportFeedbackRecipeId = nil
     }
 
-    /// Check whether the user is now eligible for the NPS prompt. Called after a cook event
-    /// so the counter is fresh. All of these must be true:
-    ///   • Signed in, not a guest
-    ///   • They've logged ≥10 "cook" interactions (grounded opinion)
-    ///   • Last prompt was ≥90 days ago (quarterly cadence)
-    ///   • They haven't dismissed 3+ times (don't nag someone who clearly isn't interested)
+    /// Offer the one-time account survey after 10 imported recipes or 20 distinct recipe views.
     func maybeOfferNPS() {
-        guard appState == .signedIn, !isGuest else { return }
-        let cookCount = interactionHistory.filter { $0.eventType == "cook" }.count
-        guard cookCount >= 10 else { return }
+        guard appState == .signedIn, !isGuest,
+              let userId = supabase.currentUserId(), !userId.isEmpty else { return }
+        let viewedRecipeCount = Set(interactionHistory.filter { $0.eventType == "view" }.map(\.recipeId)).count
+        let importedRecipeCount = recipes.filter { $0.ownerId == userId && $0.sourceUrl != nil }.count
+        guard importedRecipeCount >= 10 || viewedRecipeCount >= 20 else { return }
+        // A skip delays another ask, while a completed rating is permanently account-gated below.
         let last = Date(timeIntervalSinceReferenceDate: lastNPSPromptAtRaw)
         if Date().timeIntervalSince(last) < 90 * 24 * 60 * 60 { return }
         guard npsDismissCount < 3 else { return }
-        showNPSPrompt = true
+        guard !npsCheckInProgress else { return }
+        npsCheckInProgress = true
+        Task { @MainActor in
+            defer { npsCheckInProgress = false }
+            let key = AccountScope.defaultsKey(userId: userId, key: "nps_submitted")
+            guard !UserDefaults.standard.bool(forKey: key) else { return }
+            guard let submitted = await supabase.hasSubmittedNPS() else { return }
+            if submitted {
+                UserDefaults.standard.set(true, forKey: key)
+                return
+            }
+            showNPSPrompt = true
+        }
     }
 
-    /// Submit the NPS score. 0 = would never recommend, 10 = would absolutely recommend.
-    /// The 1-10 range check in the DB rejects 0 so we clamp before sending.
+    /// Submit a one-to-five star rating for CraveCircle.
     func submitNPS(rating: Int, text: String?) async -> Bool {
-        let r = max(1, min(10, rating))
+        let r = max(1, min(5, rating))
         let ok = await supabase.submitUserFeedback(
             kind: "nps", rating: r, text: text,
-            context: ["cook_count": "\(interactionHistory.filter { $0.eventType == "cook" }.count)"]
+            context: [
+                "imported_recipe_count": "\(recipes.filter { $0.ownerId == (supabase.currentUserId() ?? "") && $0.sourceUrl != nil }.count)",
+                "viewed_recipe_count": "\(Set(interactionHistory.filter { $0.eventType == "view" }.map(\.recipeId)).count)"
+            ]
         )
-        if ok { acknowledgeNPSPrompt(dismissed: false) }
+        if ok {
+            if let userId = supabase.currentUserId() {
+                UserDefaults.standard.set(true, forKey: AccountScope.defaultsKey(userId: userId, key: "nps_submitted"))
+            }
+            acknowledgeNPSPrompt(dismissed: false)
+        }
         return ok
     }
 
@@ -911,11 +929,11 @@ final class AppEnvironment {
     /// Transient: the imported recipe the "how did that go?" sheet is asking about.
     var pendingImportFeedbackRecipeId: String?
 
-    /// NPS runs quarterly (90 days) and only after the user has cooked enough that an opinion
-    /// is grounded. 10 "cook" events is roughly a month of real use.
+    /// NPS prompt timing and skip count; successful ratings are permanently account-gated.
     private var lastNPSPromptAtRaw: Double = AppEnvironment.storedDefault("last_nps_prompt_at", 0) { didSet { UserDefaults.standard.set(lastNPSPromptAtRaw, forKey: "last_nps_prompt_at") } }
     private var npsDismissCount: Int = AppEnvironment.storedDefault("nps_dismiss_count", 0) { didSet { UserDefaults.standard.set(npsDismissCount, forKey: "nps_dismiss_count") } }
     var showNPSPrompt: Bool = false
+    private var npsCheckInProgress = false
     private var lastAppActiveAt: Date? {
         lastAppActiveAtRaw > 0 ? Date(timeIntervalSinceReferenceDate: lastAppActiveAtRaw) : nil
     }
@@ -2990,13 +3008,8 @@ final class AppEnvironment {
             interactionHistory.removeFirst(interactionHistory.count - maxInteractionHistory)
         }
 
-        // They cooked it — no need to nudge them to.
-        if eventType == "cook" {
-            cancelCookNudge(recipeId: recipeId)
-            // Grounded opinion → eligible for the quarterly NPS prompt. All guards live inside
-            // `maybeOfferNPS` so this call is cheap and idempotent.
-            maybeOfferNPS()
-        }
+        if eventType == "cook" { cancelCookNudge(recipeId: recipeId) }
+        if eventType == "view" { maybeOfferNPS() }
 
         if pendingInteractions.count >= 10 {
             flushTelemetry()

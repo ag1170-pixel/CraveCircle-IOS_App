@@ -20,10 +20,8 @@
 //  NPSPromptSheet.swift
 //  CraveCircle (AICookBook)
 //
-//  Quarterly Net Promoter Score prompt. Fires after the user's 10th cook and at most once
-//  every 90 days. 0-10 scale (clamped to 1-10 server-side), optional reason, bucket label
-//  (Detractor / Passive / Promoter) revealed after a tap so the user knows what their rating
-//  means. Writes to cravecircle.user_feedback with kind='nps'.
+//  One-time five-star rating prompt. Offered after 10 imports or 20 distinct recipe views.
+//  Writes to user_feedback with kind='nps'.
 //
 
 import SwiftUI
@@ -42,11 +40,11 @@ struct NPSPromptSheet: View {
                 .padding(.top, AppSpacing.sm)
 
             VStack(spacing: 6) {
-                Text("How likely are you to recommend CraveCircle to a friend?")
+                Text("How would you rate CraveCircle?")
                     .font(AppFont.display(20, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
                     .multilineTextAlignment(.center)
-                Text("0 = not at all, 10 = absolutely. One tap.")
+                Text("Choose from 1 to 5 stars.")
                     .font(AppFont.body(13))
                     .foregroundStyle(AppTheme.textSecondary)
                     .multilineTextAlignment(.center)
@@ -55,14 +53,12 @@ struct NPSPromptSheet: View {
 
             scaleRow
 
-            // Bucket label — appears after tap so the user understands the shape of the signal
-            // they're giving. Keeps it human instead of a cold number.
             if let r = rating {
-                Text(bucketLabel(r))
+                Text("\(r) out of 5 stars")
                     .font(AppFont.body(13, weight: .bold))
-                    .foregroundStyle(bucketColor(r))
+                    .foregroundStyle(AppTheme.accent)
                     .padding(.horizontal, 14).padding(.vertical, 6)
-                    .background(bucketColor(r).opacity(0.12), in: Capsule())
+                    .background(AppTheme.accent.opacity(0.12), in: Capsule())
                     .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
 
@@ -112,23 +108,11 @@ struct NPSPromptSheet: View {
         .animation(.easeInOut(duration: 0.2), value: rating)
     }
 
-    /// 0-10 scale laid out as two rows so the buttons stay thumb-friendly on iPhone SE.
     private var scaleRow: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 6) {
-                ForEach(0...5, id: \.self) { n in ratingButton(n) }
-            }
-            HStack(spacing: 6) {
-                ForEach(6...10, id: \.self) { n in ratingButton(n) }
-            }
-            HStack {
-                Text("Not likely").font(AppFont.body(11)).foregroundStyle(AppTheme.textTertiary)
-                Spacer()
-                Text("Very likely").font(AppFont.body(11)).foregroundStyle(AppTheme.textTertiary)
-            }
-            .padding(.horizontal, AppSpacing.lg)
+        HStack(spacing: 14) {
+            ForEach(1...5, id: \.self) { n in ratingButton(n) }
         }
-        .padding(.horizontal, AppSpacing.md)
+        .padding(.horizontal, AppSpacing.lg)
     }
 
     private func ratingButton(_ n: Int) -> some View {
@@ -136,35 +120,17 @@ struct NPSPromptSheet: View {
             Haptics.select()
             rating = n
         } label: {
-            Text("\(n)")
-                .font(AppFont.body(15, weight: .bold))
-                .foregroundStyle(rating == n ? AppTheme.onAccent : AppTheme.textPrimary)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(rating == n ? bucketColor(n) : AppTheme.surface, in: RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(AppTheme.hairline, lineWidth: 1))
+            Image(systemName: (rating ?? 0) >= n ? "star.fill" : "star")
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundStyle((rating ?? 0) >= n ? AppTheme.accent : AppTheme.textTertiary)
+                .frame(width: 44, height: 48)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(n) star\(n == 1 ? "" : "s")")
     }
 
-    private var reasonPlaceholder: String {
-        guard let r = rating else { return "Anything to add? (optional)" }
-        if r <= 6 { return "What's getting in the way? (optional)" }
-        if r <= 8 { return "What would make it a 10? (optional)" }
-        return "What do you love most? (optional)"
-    }
-
-    /// Standard NPS buckets: 0-6 Detractors, 7-8 Passives, 9-10 Promoters.
-    private func bucketLabel(_ n: Int) -> String {
-        if n <= 6 { return "Detractor" }
-        if n <= 8 { return "Passive" }
-        return "Promoter"
-    }
-    private func bucketColor(_ n: Int) -> Color {
-        if n <= 6 { return .red }
-        if n <= 8 { return .orange }
-        return .green
-    }
+    private var reasonPlaceholder: String { "Anything to add? (optional)" }
 
     private func submit() {
         guard let r = rating else { return }
