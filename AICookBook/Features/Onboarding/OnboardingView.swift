@@ -535,8 +535,8 @@ struct OnboardingView: View {
                         .stroke(AppTheme.hairline, lineWidth: 1)
                 )
             content.view
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .padding(14)
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
         .frame(maxWidth: 280)
         .aspectRatio(0.52, contentMode: .fit)
@@ -958,43 +958,42 @@ private struct PhoneReel: View {
     var body: some View {
         // Original cooking-clip illustration: a bundled dish asset, never another app's UI or a
         // real creator profile.
-        ZStack {
-            Color.black.opacity(0.92)
-
-            // `scaledToFit` deliberately preserves the whole dish. The earlier fill treatment
-            // cut off the recipe photo on smaller phones, which made the tutorial look broken.
-            Image("recipe_chocolate_lava_cake")
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.72)],
-                startPoint: .center,
-                endPoint: .bottom
-            )
-
-            VStack {
-                Spacer()
-                HStack(alignment: .bottom, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Cooking clip")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("Tap Share to save this recipe")
-                            .font(.system(size: 9, weight: .medium))
-                    }
-                    .foregroundStyle(.white)
-                    Spacer()
+        // The photo fills the screen like a real clip: the black base takes the phone's size and the
+        // photo is laid over it, so filling can never widen the layout or leave black bars.
+        Color.black
+            .overlay {
+                Image("recipe_chocolate_lava_cake")
+                    .resizable()
+                    .scaledToFill()
+            }
+            .overlay {
+                LinearGradient(colors: [.clear, .black.opacity(0.78)], startPoint: .center, endPoint: .bottom)
+            }
+            .overlay(alignment: .bottom) {
+                // Share sits on the right rail above the caption, so the caption keeps the full
+                // width and never breaks mid-word.
+                VStack(alignment: .leading, spacing: 8) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 17, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 38, height: 38)
+                        .frame(width: 40, height: 40)
                         .background(AppTheme.brand, in: Circle())
-                        .overlay(Circle().stroke(.white.opacity(0.8), lineWidth: 2))
+                        .overlay(Circle().stroke(.white.opacity(0.85), lineWidth: 2))
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Cooking clip")
+                            .font(.system(size: 13, weight: .bold))
+                        Text("Tap Share to save it")
+                            .font(.system(size: 10, weight: .medium))
+                            .opacity(0.9)
+                    }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .foregroundStyle(.white)
                 }
                 .padding(12)
             }
-        }
+            .clipped()
     }
 }
 
