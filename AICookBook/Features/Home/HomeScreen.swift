@@ -558,6 +558,11 @@ struct HomeScreen: View {
             }
         }
         .scrollClipDisabled()
+        // Trending chips are horizontally scrollable. Mark their whole hit area so MainTabView's
+        // global tab-swipe gesture never treats this interaction as a request to open Grocery.
+        .background(GeometryReader { geo in
+            Color.clear.preference(key: HorizontalScrollFrameKey.self, value: [geo.frame(in: .global)])
+        })
     }
 
     private func creatorRow(creators: [String]) -> some View {
@@ -583,6 +588,10 @@ struct HomeScreen: View {
             }
         }
         .scrollClipDisabled()
+        // Creator suggestions scroll sideways too, so preserve that gesture for the row.
+        .background(GeometryReader { geo in
+            Color.clear.preference(key: HorizontalScrollFrameKey.self, value: [geo.frame(in: .global)])
+        })
     }
 
     // MARK: Suggestion data

@@ -54,6 +54,20 @@ final class IngredientScalerTests: XCTestCase {
     }
 }
 
+// MARK: - Direction output hygiene
+
+final class DirectionOutputHygieneTests: XCTestCase {
+    func testDirectionDisplayRemovesEmptyOCRDelimiters() {
+        let lines = DirectionStepParser.shortLines("Combine eggs () cocoa powder [ ] and sugar.")
+        XCTAssertEqual(lines, ["Combine eggs cocoa powder and sugar"])
+    }
+
+    func testDirectionDisplayPreservesMeaningfulNotes() {
+        let lines = DirectionStepParser.shortLines("Stir in the vanilla (optional) until combined.")
+        XCTAssertEqual(lines, ["Stir in the vanilla (optional) until combined"])
+    }
+}
+
 // MARK: - RecipeSearch
 
 final class RecipeSearchTests: XCTestCase {
@@ -239,8 +253,8 @@ final class NutritionPortionTests: XCTestCase {
             "250 to 300 grams (9 to 10 oz) paneer",
             "3 to 4 tablespoons (45 to 60 ml) heavy cream"
         ]
-        XCTAssertEqual(NutritionEstimator.parse("2 tablespoons (30 grams) unsalted butter").grams, 30, accuracy: 0.1)
-        XCTAssertGreaterThan(NutritionEstimator.parse("2 tablespoons butter").grams, 20)
+        XCTAssertEqual(try XCTUnwrap(NutritionEstimator.parse("2 tablespoons (30 grams) unsalted butter")).grams, 30, accuracy: 0.1)
+        XCTAssertGreaterThan(try XCTUnwrap(NutritionEstimator.parse("2 tablespoons butter")).grams, 20)
         let recipe = Recipe(
             id: "paneer", ownerId: "me", title: "Paneer Butter Masala", servings: 4,
             ingredients: [IngredientGroup(groupName: nil, items: lines)], directions: []
@@ -249,6 +263,23 @@ final class NutritionPortionTests: XCTestCase {
         XCTAssertGreaterThan(n.calories, 300)
         XCTAssertGreaterThan(n.proteinG, 8)
         XCTAssertTrue(n.estimated)
+    }
+
+    func testVolumeNutritionUsesIngredientSpecificMasses() throws {
+        XCTAssertEqual(try XCTUnwrap(NutritionEstimator.parse("1 cup flour")).grams, 120, accuracy: 0.1)
+        XCTAssertEqual(try XCTUnwrap(NutritionEstimator.parse("1 cup sugar")).grams, 200, accuracy: 0.1)
+        XCTAssertEqual(try XCTUnwrap(NutritionEstimator.parse("1 cup milk")).grams, 240, accuracy: 0.1)
+        XCTAssertEqual(try XCTUnwrap(NutritionEstimator.parse("250 ml water")).grams, 250, accuracy: 0.1)
+        XCTAssertNil(NutritionEstimator.parse("1 cup mystery ingredient"))
+        XCTAssertNil(NutritionEstimator.parse("30 ml mystery ingredient"))
+    }
+
+    func testUnknownVolumeDoesNotInventNutritionMass() {
+        let recipe = makeRecipe(title: "Unknown", ingredients: ["1 cup mystery ingredient"])
+        let estimate = NutritionEstimator.estimate(for: recipe)
+        XCTAssertEqual(estimate.calories, 0)
+        XCTAssertNil(estimate.breakdown)
+        XCTAssertTrue(estimate.estimated)
     }
 
     func testDailyValueMatchesTheNutritionPage() {
@@ -584,7 +615,7 @@ final class RecipeCoverFilenameTests: XCTestCase {
 }
 
 final class AccountIsolationTests: XCTestCase {
-    func testTwoAccountsDoNotShareALibraryAndOnlyAdminPublishes() {
+    func testAccountsStayIsolatedAndCreatorsOrAdminsCanPublish() {
         let krishna = AccountScope.fileName(userId: "krishna-id", file: "recipes.json")
         let aditya = AccountScope.fileName(userId: "aditya-id", file: "recipes.json")
         XCTAssertNotEqual(krishna, aditya)
@@ -597,9 +628,9 @@ final class AccountIsolationTests: XCTestCase {
         XCTAssertTrue(AccountScope.mayReadLegacy(userId: "krishna-id", recordedOwner: nil))
         XCTAssertFalse(AccountScope.mayReadLegacy(userId: "guest_4", recordedOwner: nil))
         XCTAssertFalse(AccountRole.user.canPublish)
-        XCTAssertFalse(AccountRole.creator.canPublish)
+        XCTAssertTrue(AccountRole.creator.canPublish)
         XCTAssertTrue(AccountRole.admin.canPublish)
-        XCTAssertFalse(UserProfile(id: "creator", role: .creator).canPublish)
+        XCTAssertTrue(UserProfile(id: "creator", role: .creator).canPublish)
         XCTAssertTrue(UserProfile(id: "admin", role: .admin).canPublish)
     }
 }
