@@ -121,13 +121,13 @@ struct RecipeDetailScreen: View {
                         .ignoresSafeArea(edges: .top)
                         .allowsHitTesting(false)
                 }
-                topControls
-                    .padding(.horizontal, AppSpacing.md)
-                    .padding(.top, safeTopInset())
             }
         }
         .doodleScreenBackground()   // static wallpaper behind the scroll
         .ignoresSafeArea(edges: .top)
+        // Like, Share and More sit in the navigation bar beside Back. Drawn as a floating overlay
+        // they were under the transparent bar, which took every tap.
+        .toolbar { topControls }
         .task(id: recipe.id) { environment.refreshAuthoritativeNutrition(for: recipe) }
         // `initial`: a recipe opened before (estimate already cached) has its numbers ready before
         // this screen appears, so there is no later change to wait for.
@@ -641,12 +641,11 @@ struct RecipeDetailScreen: View {
         }
     }
 
-    // MARK: Floating top controls
+    // MARK: Top controls (navigation bar)
 
-    private var topControls: some View {
-        HStack {
-            Spacer()
-            HStack(spacing: 10) {
+    @ToolbarContentBuilder
+    private var topControls: some ToolbarContent {
+        ToolbarItemGroup(placement: .topBarTrailing) {
                 let isLiked = environment.isLiked(recipeId: recipe.id)
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
@@ -655,24 +654,17 @@ struct RecipeDetailScreen: View {
                     if !isLiked { triggerHeartBurst() }
                 } label: {
                     Image(systemName: isLiked ? "heart.fill" : "heart")
-                        .font(.system(size: 40 * 0.42, weight: .semibold))
                         .foregroundStyle(isLiked ? Color(hex: "FF2D55") : .white)
-                        .frame(width: 40, height: 40)
-                        .background(
-                            reduceTransparency ? AnyShapeStyle(AppTheme.surfaceElevated) : AnyShapeStyle(.ultraThinMaterial),
-                            in: Circle()
-                        )
-                        .overlay(Circle().stroke(.white.opacity(0.14), lineWidth: 0.5))
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(PressableStyle())
                 .accessibilityLabel(isLiked ? "Unlike recipe" : "Like recipe")
 
-                GlassIconButton(systemImage: "square.and.arrow.up", size: 40, label: "Share recipe") {
+                Button {
                     Haptics.tap()
                     showShareSheet = true
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
                 }
+                .accessibilityLabel("Share recipe")
                 Menu {
                     if environment.canDelete(recipe) {
                         Button(role: .destructive) {
@@ -730,19 +722,8 @@ struct RecipeDetailScreen: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 40 * 0.42, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 40, height: 40)
-                        .background(
-                            reduceTransparency ? AnyShapeStyle(AppTheme.surfaceElevated) : AnyShapeStyle(.ultraThinMaterial),
-                            in: Circle()
-                        )
-                        .overlay(Circle().stroke(.white.opacity(0.14), lineWidth: 0.5))
-                        .frame(minWidth: 44, minHeight: 44)
-                        .contentShape(Rectangle())
                 }
                 .accessibilityLabel("More options")
-            }
         }
     }
 
