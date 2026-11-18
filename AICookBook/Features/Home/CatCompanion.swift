@@ -140,7 +140,10 @@ struct CatCompanion: View {
         if held { return CGPoint(x: dragPoint.x, y: dragPoint.y + h / 2 + Self.handGap) } // hangs below the finger
         if let f = freeCenter { return f }
         guard let c = currentCard else { return CGPoint(x: og.x + size.width / 2, y: og.y + size.height / 2) }
-        return CGPoint(x: anchor(c).x, y: anchor(c).y - h / 2 + Self.grip)      // paws on the card's top edge
+        let onCard = CGPoint(x: anchor(c).x, y: anchor(c).y - h / 2 + Self.grip) // paws on the card's top edge
+        // Never above the feed: when her card scrolls up (or she hops away from a card that has),
+        // she stops at the top of the playground instead of walking up by the clock.
+        return CGPoint(x: onCard.x, y: max(onCard.y, og.y + h / 2 + 8))
     }
 
     // MARK: Grab · drag · throw
