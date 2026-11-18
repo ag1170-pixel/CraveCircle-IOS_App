@@ -106,7 +106,7 @@ enum AccountScope {
         "interaction_history.json", "preferred_cuisines.json",
         "comments.json", "notifications.json", "circle_friends.json",
         "friend_requests_in.json", "friend_requests_out.json",
-        "meal_plan.json"
+        "meal_plan.json", "health_profile.json"
     ]
     static let personalDefaultsKeys = ["saved_recipe_ids", "liked_recipe_ids", "deleted_recipe_ids"]
 

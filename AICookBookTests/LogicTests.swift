@@ -856,3 +856,56 @@ final class AddSpecificIngredientsToGroceryTests: XCTestCase {
         XCTAssertEqual(env.groceryItems.count, 1)
     }
 }
+
+// MARK: - Health & diet checks
+
+
+final class HealthCheckTests: XCTestCase {
+    private func recipe(_ items: [String]) -> Recipe {
+        Recipe(id: "t", ownerId: "t", title: "t", servings: 2,
+               ingredients: [IngredientGroup(groupName: nil, items: items)], directions: [])
+    }
+
+    func testAllergensMatchRealIngredientsOnly() {
+        var p = HealthProfile()
+        p.allergens = [.peanuts, .dairy, .eggs, .wheat]
+        let texts = Set(HealthCheck.flags(for: recipe(["2 tbsp peanut butter", "1 cup coconut milk",
+                                                        "1 eggplant", "1 cup almond flour"]), profile: p).map(\.text))
+        XCTAssertEqual(texts, ["Contains peanuts"])
+    }
+
+    func testDietAndFaithAreHardConditionsSoft() {
+        var p = HealthProfile()
+        p.diets = [.vegetarian]
+        p.faith = [.halal]
+        p.conditions = [.diabetes]
+        let flags = HealthCheck.flags(for: recipe(["200g bacon", "1 tbsp honey"]), profile: p)
+        XCTAssertTrue(flags.contains(HealthFlag(text: "Not vegetarian", hard: true)))
+        XCTAssertTrue(flags.contains(HealthFlag(text: "Not halal", hard: true)))
+        XCTAssertTrue(flags.contains(HealthFlag(text: "Added sugar", hard: false)))
+    }
+
+    func testTargetsConvertPercentToGrams() {
+        let t = NutritionTargets(calories: 2000, carbsPercent: 50, fatPercent: 30, proteinPercent: 20)
+        XCTAssertEqual(t.carbsGrams, 250)
+        XCTAssertEqual(t.fatGrams, 66)
+        XCTAssertEqual(t.proteinGrams, 100)
+    }
+
+    func testOldSavedProfileStillDecodes() throws {
+        let data = Data(#"{"allergens":["peanuts"]}"#.utf8)
+        let p = try JSONDecoder().decode(HealthProfile.self, from: data)
+        XCTAssertEqual(p.allergens, [.peanuts])
+        XCTAssertEqual(p.targets, NutritionTargets())
+    }
+}
+
+final class TargetReminderTests: XCTestCase {
+    func testTipsUseTheUsersOwnNumbers() {
+        let t = NutritionTargets(calories: 1800, carbsPercent: 40, fatPercent: 30, proteinPercent: 30)
+        let tips = TargetReminderScheduler.tips(for: t)
+        XCTAssertEqual(tips.count, 7)
+        XCTAssertTrue(tips[0].title.contains("1,800"))
+        XCTAssertTrue(tips[1].title.contains("\(t.proteinGrams) g"))
+    }
+}

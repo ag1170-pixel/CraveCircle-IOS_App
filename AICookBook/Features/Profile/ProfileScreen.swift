@@ -69,6 +69,7 @@ struct ProfileScreen: View {
         ScrollView {
             VStack(spacing: AppSpacing.xl) {
                 header
+                HealthProfileSection()
                 settings
             }
             .padding(.horizontal, AppSpacing.md)

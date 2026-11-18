@@ -315,6 +315,7 @@ final class AppEnvironment {
 
         let saved = loadScoped([Recipe].self, "recipes.json", userId: userId) ?? []
         nutritionCache = loadScoped([String: CachedRecipeNutrition].self, "nutrition_cache.json", userId: userId) ?? [:]
+        healthProfile = loadScoped(HealthProfile.self, "health_profile.json", userId: userId) ?? HealthProfile()
         var merged = saved.filter { !localDeleted.contains($0.id) }
         for i in merged.indices {
             if let t = merged[i].thumbnailUrl, t.hasPrefix("file://"), let name = URL(string: t)?.lastPathComponent {
@@ -379,6 +380,7 @@ final class AppEnvironment {
     /// Drop the previous account's in-memory setup without writing empty files over their store.
     private func clearPersonalState() {
         recipes = []
+        healthProfile = HealthProfile()
         savedRecipeIds = []
         likedRecipeIds = []
         groceryItems = []
@@ -2931,6 +2933,44 @@ final class AppEnvironment {
     // suggestions personalize immediately and keep working with no server. Capped to stay light.
     private(set) var interactionHistory: [InteractionEvent] = [] { didSet { persist(interactionHistory, "interaction_history.json") } }
     private(set) var suggestedRecipes: [Recipe] = []
+
+    // MARK: Health & diet (on this phone only — see HealthProfile.swift)
+
+    var healthProfile = HealthProfile() {
+        didSet {
+            persist(healthProfile, "health_profile.json")
+            if healthProfile.targets != oldValue.targets || healthProfile.targetReminder != oldValue.targetReminder {
+                Task { await rescheduleTargetReminder() }
+            }
+        }
+    }
+
+    func rescheduleTargetReminder() async {
+        await TargetReminderScheduler.reschedule(targets: healthProfile.targets, enabled: healthProfile.targetReminder)
+    }
+
+    func healthFlags(for recipe: Recipe) -> [HealthFlag] {
+        HealthCheck.flags(for: recipe, profile: healthProfile)
+    }
+
+    /// Suggested for You without recipes that break an allergy, diet, faith rule or
+    /// intolerance; High-protein and Mediterranean move matching dishes to the front.
+    var suggestedForHealth: [Recipe] {
+        let fitting = suggestedRecipes.filter { !healthFlags(for: $0).contains(where: \.hard) }
+        let wantsProtein = healthProfile.diets.contains(.highProtein)
+        let wantsMed = healthProfile.diets.contains(.mediterranean)
+        guard wantsProtein || wantsMed else { return fitting }
+        let medWords = ["olive oil", "feta", "chickpea", "hummus", "tomato", "lentil", "salmon", "olive", "greek"]
+        func boosted(_ r: Recipe) -> Bool {
+            if wantsProtein, (shownNutrition(for: r)?.proteinG ?? 0) >= 20 { return true }
+            if wantsMed {
+                let text = (r.title + " " + r.ingredients.flatMap(\.items).joined(separator: " ")).lowercased()
+                return medWords.contains { text.contains($0) }
+            }
+            return false
+        }
+        return fitting.filter(boosted) + fitting.filter { !boosted($0) }
+    }
     /// recipeId → short "why you're seeing this" reason, when there's a real personalized signal.
     private(set) var suggestionReasons: [String: String] = [:]
     /// Cuisine ids picked at onboarding — seed the feed so it's personal before any behavior exists.
@@ -3211,6 +3251,7 @@ final class AppEnvironment {
             suggestedTitle: suggestedTitle
         )
         await DailyNudgeScheduler.rescheduleDailyNudges(context: ctx)
+        await rescheduleTargetReminder()
     }
 
     /// Pop the next queued URL and start importing it. Cancels any pending auto-dismiss timer.

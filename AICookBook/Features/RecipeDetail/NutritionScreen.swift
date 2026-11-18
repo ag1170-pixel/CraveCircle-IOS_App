@@ -286,9 +286,11 @@ struct NutritionScreen: View {
             }
             .padding(.horizontal, 4)
             .padding(.bottom, 6)
-            macroRow(.protein, grams: shown.proteinG, reference: RecipeNutrition.proteinDailyG, color: proteinColor)
-            macroRow(.carbs, grams: shown.carbsG, reference: RecipeNutrition.carbsDailyG, color: carbsColor)
-            macroRow(.fat, grams: shown.fatG, reference: RecipeNutrition.fatDailyG, color: fatColor)
+            // "% of your day" uses the user's own Daily targets (Profile → Health & diet).
+            let targets = environment.healthProfile.targets
+            macroRow(.protein, grams: shown.proteinG, reference: Double(targets.proteinGrams), color: proteinColor)
+            macroRow(.carbs, grams: shown.carbsG, reference: Double(targets.carbsGrams), color: carbsColor)
+            macroRow(.fat, grams: shown.fatG, reference: Double(targets.fatGrams), color: fatColor)
         }
         .padding(AppSpacing.md)
         .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
@@ -423,7 +425,7 @@ struct NutritionSummaryCard: View {
     }
 
     var body: some View {
-        let mark = RecipeNutrition.dayMark(amount: Double(shown.kcal), reference: nutrition.dailyCalories)
+        let mark = RecipeNutrition.dayMark(amount: Double(shown.kcal), reference: Double(environment.healthProfile.targets.calories))
         Button(action: onOpen) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 8) {

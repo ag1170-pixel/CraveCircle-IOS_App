@@ -748,6 +748,10 @@ struct RecipeDetailScreen: View {
             HStack(alignment: .center, spacing: 8) {
                 metaLine
                 Spacer(minLength: 8)
+                let healthFlags = environment.healthFlags(for: recipe)
+                if !healthFlags.isEmpty {
+                    HealthAlertPill(flags: healthFlags)
+                }
                 originChip
             }
 

@@ -925,7 +925,7 @@ struct HomeScreen: View {
             }
             .padding(.horizontal, AppSpacing.md)
 
-            let all = environment.suggestedRecipes
+            let all = environment.suggestedForHealth
             let gridPicks = Array(all.prefix(Self.gridTakeCount))
             let overflow  = Array(all.dropFirst(Self.gridTakeCount).prefix(Self.railLimit))
 
