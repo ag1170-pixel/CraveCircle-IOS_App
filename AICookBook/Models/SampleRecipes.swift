@@ -2785,4 +2785,9 @@ extension Recipe {
     ]
 
     static let placeholderRecipes: [Recipe] = starterRecipes + foodComRecipes
+
+    /// Bundled day-zero catalog. Never treated as the signed-in account's own library.
+    static let sampleCatalogIds: Set<String> = Set(placeholderRecipes.map(\.id))
+
+    static func isSampleCatalog(_ id: String) -> Bool { sampleCatalogIds.contains(id) }
 }

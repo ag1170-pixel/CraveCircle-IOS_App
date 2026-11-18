@@ -172,7 +172,17 @@ final class RecommendationEngineTests: XCTestCase {
         let candidate = makeRecipe(id: "cand", title: "Paneer Wrap", ingredients: ["paneer", "tortilla"])
         let history = [AppEnvironment.InteractionEvent(id: "e", recipeId: "src", eventType: "cook", durationSeconds: nil, timestamp: Date())]
         let reason = RecommendationEngine.reason(for: candidate, history: history, allRecipes: [cooked, candidate])
-        XCTAssertEqual(reason, "Because you cooked Paneer Tikka")
+        XCTAssertEqual(reason, "Because you viewed Paneer Tikka")
+    }
+
+    func testNewUserGetsNoCookedReason() {
+        let candidate = makeRecipe(id: "cand", title: "Paneer Wrap", ingredients: ["paneer", "tortilla"])
+        XCTAssertNil(RecommendationEngine.reason(for: candidate, history: [], allRecipes: [candidate]))
+    }
+
+    func testSampleCatalogIsNeverOwnedById() {
+        XCTAssertTrue(Recipe.isSampleCatalog("recipe-hot-honey-chicken"))
+        XCTAssertFalse(Recipe.isSampleCatalog("draft-mine"))
     }
 }
 
@@ -882,7 +892,7 @@ final class HealthCheckTests: XCTestCase {
         let flags = HealthCheck.flags(for: recipe(["200g bacon", "1 tbsp honey"]), profile: p)
         XCTAssertTrue(flags.contains(HealthFlag(text: "Not vegetarian", hard: true)))
         XCTAssertTrue(flags.contains(HealthFlag(text: "Not halal", hard: true)))
-        XCTAssertTrue(flags.contains(HealthFlag(text: "Added sugar", hard: false)))
+        XCTAssertTrue(flags.contains(HealthFlag(text: "High sugar or refined carb", hard: false)))
     }
 
     func testTargetsConvertPercentToGrams() {
@@ -897,6 +907,93 @@ final class HealthCheckTests: XCTestCase {
         let p = try JSONDecoder().decode(HealthProfile.self, from: data)
         XCTAssertEqual(p.allergens, [.peanuts])
         XCTAssertEqual(p.targets, NutritionTargets())
+    }
+
+    @MainActor
+    func testSuggestedForHealthBackfillsSafeRecipes() {
+        let env = AppEnvironment()
+        var p = HealthProfile()
+        p.diets = [.vegetarian]
+        env.healthProfile = p
+
+        let safeRecipes = (1...15).map { i in
+            Recipe(id: "veg_\(i)", ownerId: "chef", title: "Veggie Dish \(i)", servings: 2,
+                   ingredients: [IngredientGroup(groupName: nil, items: ["lettuce", "cucumber", "tomato"])],
+                   directions: [])
+        }
+        let meatRecipes = (1...10).map { i in
+            Recipe(id: "meat_\(i)", ownerId: "chef", title: "Meat Dish \(i)", servings: 2,
+                   ingredients: [IngredientGroup(groupName: nil, items: ["beef steak", "butter"])],
+                   directions: [])
+        }
+        env.recipes = safeRecipes + meatRecipes
+
+        let fitting = env.suggestedForHealth
+        XCTAssertTrue(
+            fitting.count > 4,
+            "suggestedForHealth must supply enough recipes for grid and More picks rail, got \(fitting.count)"
+        )
+        for r in fitting {
+            XCTAssertFalse(
+                env.healthFlags(for: r).contains(where: \.hard),
+                "No recipe in suggestedForHealth should violate hard health flags"
+            )
+        }
+    }
+
+    func testAllHealthConditionsTriggerAppropriateFlags() {
+        for condition in HealthCondition.allCases {
+            var profile = HealthProfile()
+            profile.conditions = [condition]
+
+            let testIngredients: [String] = switch condition {
+            case .diabetes: ["1 cup sugar"]
+            case .prediabetes: ["2 tbsp maple syrup"]
+            case .highCholesterol: ["1 cup heavy cream"]
+            case .hypertension: ["2 tbsp soy sauce"]
+            case .heartDisease: ["100g bacon"]
+            case .kidneyDisease: ["2 potatoes", "1 tbsp bouillon"]
+            case .gerd: ["1 can tomato paste", "1 tsp chili"]
+            case .ibs: ["2 cloves garlic", "1 onion"]
+            case .crohns: ["2 tbsp chili flakes", "popcorn"]
+            case .ulcerativeColitis: ["deep-fried chicken"]
+            case .celiac: ["1 cup wheat flour"]
+            case .gout: ["200g beef steak", "1 bottle beer"]
+            case .liverDisease: ["1 cup red wine"]
+            case .pancreatitis: ["1 cup vodka", "2 tbsp butter"]
+            }
+
+            let flags = HealthCheck.flags(for: recipe(testIngredients), profile: profile)
+            XCTAssertFalse(
+                flags.isEmpty,
+                "Selecting \(condition.title) must generate health flags for triggering ingredients"
+            )
+
+            if condition == .celiac {
+                XCTAssertTrue(flags.contains(where: \.hard), "Celiac condition must generate a hard flag")
+            } else {
+                XCTAssertTrue(flags.contains(where: { !$0.hard }), "\(condition.title) must generate soft flags")
+            }
+        }
+    }
+
+    func testFlaggedIngredientsMatchesInlineTriggers() {
+        var profile = HealthProfile()
+        profile.conditions = [.gerd, .hypertension]
+        profile.allergens = [.peanuts]
+
+        let testRecipe = recipe([
+            "1 tbsp peanut butter",
+            "1 can tomato paste",
+            "2 tbsp soy sauce",
+            "1 pinch black pepper"
+        ])
+
+        let flagged = HealthCheck.flaggedIngredients(for: testRecipe, profile: profile)
+        XCTAssertEqual(flagged["1 tbsp peanut butter"], "Contains peanuts")
+        XCTAssertEqual(flagged["1 can tomato paste"], "Acid reflux (acidic/citrus/tomato)")
+        XCTAssertEqual(flagged["2 tbsp soy sauce"], "High sodium")
+        XCTAssertNil(flagged["1 pinch black pepper"])
     }
 }
 

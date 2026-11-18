@@ -692,7 +692,8 @@ struct NutritionTargetsScreen: View {
                 }
             ))
             .labelsHidden()
-            .toggleStyle(GlassToggleStyle())
+            .toggleStyle(.switch)
+            .tint(AppTheme.brand)
             .accessibilityLabel("Daily reminder")
         }
         .card()
@@ -812,7 +813,7 @@ struct HealthAlertPill: View {
         .accessibilityValue(flags.map(\.text).joined(separator: ", "))
         .popover(isPresented: $showing, arrowEdge: .top) {
             VStack(alignment: .leading, spacing: 10) {
-                Text(hard ? "Check before cooking" : "Heads-up for you")
+                Text(hard ? "Health alerts" : "Health heads-up")
                     .font(AppFont.body(15, weight: .bold))
                     .foregroundStyle(AppTheme.textPrimary)
                 ForEach(flags, id: \.self) { flag in
@@ -825,7 +826,7 @@ struct HealthAlertPill: View {
                             .foregroundStyle(AppTheme.textPrimary)
                     }
                 }
-                Text("Based on your Health & diet settings.")
+                Text("From your Health & diet settings.")
                     .font(AppFont.body(12))
                     .foregroundStyle(AppTheme.textTertiary)
             }

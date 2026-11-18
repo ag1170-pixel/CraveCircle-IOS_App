@@ -110,45 +110,35 @@ enum RecommendationEngine {
     }
 
     /// A short, honest reason a recipe is suggested — the engaged recipe that most drove the match
-    /// (e.g. "Because you cooked Paneer Tikka"). Returns nil when there isn't a real personalized
-    /// signal yet, so the UI simply shows no chip rather than inventing one.
+    /// (e.g. "Because you viewed Paneer Tikka"). Returns nil when there isn't a real personalized
+    /// signal yet, so a new user sees no cook claim and the UI shows no chip.
     static func reason(for candidate: Recipe, history: [AppEnvironment.InteractionEvent], allRecipes: [Recipe]) -> String? {
+        guard !history.isEmpty else { return nil }
         let byId = Dictionary(allRecipes.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let candTokens = tokens(for: candidate)
         guard !candTokens.isEmpty else { return nil }
 
         // Strongest single interaction per source recipe (a cook outweighs a glance).
-        var strongest: [String: (weight: Double, event: String)] = [:]
+        var strongest: [String: Double] = [:]
         for e in history {
             guard let r = byId[e.recipeId], r.id != candidate.id else { continue }
             var w = baseWeight(for: e.eventType)
             if e.eventType == "view", let s = e.durationSeconds { w += min(Double(s) / 10.0, 4.0) }
-            if let ex = strongest[r.id], ex.weight >= w { continue }
-            strongest[r.id] = (w, e.eventType)
+            if let ex = strongest[r.id], ex >= w { continue }
+            strongest[r.id] = w
         }
 
         // Pick the source recipe whose token overlap × signal is largest.
-        var best: (title: String, event: String, score: Double)?
-        for (rid, info) in strongest {
+        var best: (title: String, score: Double)?
+        for (rid, weight) in strongest {
             guard let r = byId[rid] else { continue }
             let overlap = tokens(for: r).intersection(candTokens).count
             guard overlap > 0 else { continue }
-            let score = info.weight * Double(overlap)
-            if best == nil || score > best!.score { best = (r.title, info.event, score) }
+            let score = weight * Double(overlap)
+            if best == nil || score > best!.score { best = (r.title, score) }
         }
         guard let best else { return nil }
-        return "Because you \(verb(best.event)) \(best.title)"
-    }
-
-    private static func verb(_ eventType: String) -> String {
-        switch eventType {
-        case "cook":    return "cooked"
-        case "grocery": return "shopped for"
-        case "save":    return "saved"
-        case "like":    return "liked"
-        case "comment": return "commented on"
-        default:        return "viewed"
-        }
+        return "Because you viewed \(best.title)"
     }
 
     // MARK: - Cuisines (onboarding taste picks → day-one personalization)

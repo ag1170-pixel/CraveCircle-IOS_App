@@ -123,7 +123,7 @@ struct HomeScreen: View {
                             librarySection
                         }
                         freshSection
-                        if !environment.suggestedRecipes.isEmpty {
+                        if !environment.suggestedForHealth.isEmpty {
                             suggestedSection
                         }
                         if !communityRecipes.isEmpty {
@@ -937,7 +937,7 @@ struct HomeScreen: View {
             ], spacing: AppSpacing.md) {
                 ForEach(gridPicks) { recipe in
                     SuggestedGridCard(recipe: recipe) {
-                        environment.selectRecipe(recipe, in: environment.suggestedRecipes)
+                        environment.selectRecipe(recipe, in: all)
                     }
                 }
             }
@@ -948,9 +948,11 @@ struct HomeScreen: View {
                     Text("More picks")
                         .font(AppFont.body(15, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
-                    Text("swipe →")
-                        .font(AppFont.body(11, weight: .semibold))
-                        .foregroundStyle(AppTheme.textTertiary)
+                    if overflow.count > 1 {
+                        Text("swipe →")
+                            .font(AppFont.body(11, weight: .semibold))
+                            .foregroundStyle(AppTheme.textTertiary)
+                    }
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, AppSpacing.md)
@@ -960,7 +962,7 @@ struct HomeScreen: View {
                     HStack(alignment: .top, spacing: AppSpacing.md) {
                         ForEach(overflow) { recipe in
                             SuggestedRailCard(recipe: recipe) {
-                                environment.selectRecipe(recipe, in: environment.suggestedRecipes)
+                                environment.selectRecipe(recipe, in: all)
                             }
                         }
                     }

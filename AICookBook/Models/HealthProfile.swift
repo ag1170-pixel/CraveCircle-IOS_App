@@ -157,27 +157,27 @@ enum HealthCondition: String, Codable, CaseIterable, Identifiable {
     var whatChanges: String {
         switch self {
         case .diabetes, .prediabetes:
-            "Recipes with added sugar, honey or syrup get a heads-up, so you can plan portions."
+            "Recipes with added sugar, syrups or refined carbs get a heads-up so you can plan portions."
         case .highCholesterol:
-            "Recipes rich in butter, ghee, cream or fatty processed meat get a heads-up."
+            "Recipes rich in butter, ghee, cream, egg yolks or fatty meats get a heads-up."
         case .hypertension, .heartDisease:
-            "Recipes with salty sauces and cured meats (soy sauce, bacon, ham) get a heads-up."
+            "Recipes with salty sauces, bouillons and cured meats (soy sauce, bacon, ham) get a heads-up."
         case .kidneyDisease:
-            "Recipes with salty sauces and cured meats get a heads-up. Ask your care team about potassium and protein limits."
+            "Recipes high in sodium or potassium (cured meats, potatoes, tomato paste) get a heads-up."
         case .gerd:
-            "Spicy, fried and alcohol-containing recipes get a heads-up."
+            "Acidic (tomato, citrus), spicy, fried, mint, chocolate and alcohol-containing recipes get a heads-up."
         case .ibs:
-            "Recipes with onion, garlic and other common triggers get a heads-up."
+            "Recipes with onion, garlic, legumes and other high-FODMAP triggers get a heads-up."
         case .crohns, .ulcerativeColitis:
-            "Triggers differ from person to person, so nothing is hidden. Pair this with the intolerances you know you have."
+            "Common flare triggers like fiery spices, deep-fried foods, seeds and alcohol get a heads-up."
         case .celiac:
             "Recipes with wheat, barley or rye are treated like an allergy: flagged, and left out of Suggested for You."
         case .gout:
-            "Recipes with shellfish, anchovies, organ meat or beer get a heads-up."
+            "High-purine recipes with red meat, shellfish, organ meat or beer get a heads-up."
         case .liverDisease:
-            "Recipes containing alcohol get a heads-up."
+            "Recipes containing alcohol or high-sodium cured ingredients get a heads-up."
         case .pancreatitis:
-            "Recipes containing alcohol, or rich in butter, ghee or cream, get a heads-up."
+            "Recipes containing alcohol, deep-fried items or rich fats (butter, ghee, heavy cream) get a heads-up."
         }
     }
 }
@@ -312,6 +312,36 @@ enum HealthCheck {
                                "beer", "scallop"]
     private static let carbHeavy = ["sugar", "flour", "rice", "pasta", "bread", "potato", "noodle", "tortilla",
                                     "oats", "corn", "honey", "syrup"]
+    private static let gerdAcidic = [
+        "tomato", "tomatoes", "tomato paste", "tomato sauce", "marinara",
+        "lemon", "lime", "orange", "grapefruit", "citrus", "vinegar",
+        "chocolate", "cocoa", "coffee", "espresso", "mint", "peppermint"
+    ]
+    private static let friedOrGreasy = ["fried", "deep fried", "deep-fried", "crispy fried", "shortening"]
+    private static let ibdTriggers = [
+        "popcorn", "seeds", "sesame seeds", "chia seeds", "flaxseed",
+        "sunflower seeds", "caffeine", "coffee", "espresso", "soda"
+    ]
+    private static let highPurine = [
+        "beef", "steak", "pork", "lamb", "mutton", "veal", "venison",
+        "yeast extract", "vegemite", "marmite"
+    ]
+    private static let highPotassium = [
+        "banana", "bananas", "potato", "potatoes", "sweet potato", "sweet potatoes",
+        "tomato paste", "dried fruit", "prunes", "raisins", "avocado"
+    ]
+    private static let highSodiumExtra = [
+        "soy sauce", "tamari", "fish sauce", "bacon", "ham", "salami",
+        "pepperoni", "prosciutto", "pickle", "pickles", "stock cube",
+        "bouillon", "oyster sauce", "anchovy", "anchovies", "salted butter", "msg"
+    ]
+    private static let diabetesCarb = [
+        "white bread", "white rice", "soda", "corn syrup", "maple syrup",
+        "candy", "brown sugar", "confectioners sugar", "powdered sugar"
+    ]
+    private static let cholesterolHigh = [
+        "egg yolk", "egg yolks", "liver", "kidney", "deep fried", "deep-fried"
+    ]
 
     /// " Peanut-Butter, 2 tbsp " -> " peanut butter 2 tbsp ".
     private static func normalized(_ text: String) -> String {
@@ -409,20 +439,29 @@ enum HealthCheck {
             switch c {
             case .celiac where hasGluten:
                 hard.append("Contains gluten")
-            case .diabetes where has(addedSugar), .prediabetes where has(addedSugar):
-                soft.append("Added sugar")
-            case .highCholesterol where has(richFat), .pancreatitis where has(richFat):
+            case .diabetes where has(addedSugar) || has(diabetesCarb),
+                 .prediabetes where has(addedSugar) || has(diabetesCarb):
+                soft.append("High sugar or refined carb")
+            case .highCholesterol where has(richFat) || has(cholesterolHigh):
                 soft.append("Rich in saturated fat")
-            case .hypertension where has(salty), .heartDisease where has(salty), .kidneyDisease where has(salty):
-                soft.append("Salty ingredients")
-            case .gerd where has(spicy) || hasAlcohol:
-                soft.append("Spicy or alcohol")
-            case .ibs where has(pungent):
-                soft.append("Onion or garlic")
-            case .gout where has(gout):
-                soft.append("High-purine ingredients")
-            case .liverDisease where hasAlcohol, .pancreatitis where hasAlcohol:
-                soft.append("Contains alcohol")
+            case .hypertension where has(salty) || has(highSodiumExtra),
+                 .heartDisease where has(salty) || has(highSodiumExtra):
+                soft.append("Salty / high-sodium ingredient")
+            case .kidneyDisease where has(salty) || has(highSodiumExtra) || has(highPotassium):
+                soft.append("Watch sodium or potassium (kidney)")
+            case .gerd where has(spicy) || hasAlcohol || has(gerdAcidic) || has(friedOrGreasy):
+                soft.append("Acid reflux trigger (acidic, spicy or fried)")
+            case .ibs where has(pungent) || has(fodmap):
+                soft.append("High-FODMAP ingredient (onion, garlic, or legume)")
+            case .crohns where has(spicy) || has(friedOrGreasy) || has(ibdTriggers) || hasAlcohol,
+                 .ulcerativeColitis where has(spicy) || has(friedOrGreasy) || has(ibdTriggers) || hasAlcohol:
+                soft.append("Common IBD flare trigger (spicy, fried, or seeds)")
+            case .gout where has(gout) || has(highPurine):
+                soft.append("High-purine ingredient (red meat, shellfish, or beer)")
+            case .liverDisease where hasAlcohol || has(salty) || has(highSodiumExtra):
+                soft.append("Alcohol or high-sodium ingredient")
+            case .pancreatitis where has(richFat) || has(friedOrGreasy) || hasAlcohol:
+                soft.append("High fat, fried, or alcohol")
             default:
                 break
             }
@@ -441,6 +480,137 @@ enum HealthCheck {
         var seen = Set<String>()
         return (hard.map { HealthFlag(text: $0, hard: true) } + soft.map { HealthFlag(text: $0, hard: false) })
             .filter { seen.insert($0.text).inserted }
+    }
+
+    /// Returns a map of ingredient item string -> short flag label for ingredients that trigger
+    /// any active allergen, diet, faith rule, intolerance, or health condition.
+    static func flaggedIngredients(for recipe: Recipe, profile: HealthProfile) -> [String: String] {
+        var flagged: [String: String] = [:]
+        for item in recipe.ingredients.flatMap(\.items) {
+            let line = normalized(item)
+            func lineHas(_ words: [String], except: [String] = []) -> Bool {
+                let skip = except.map(normalized)
+                let cleaned = skip.reduce(line) { $0.replacingOccurrences(of: $1, with: " ") }
+                return words.contains { word in
+                    let w = normalized(word)
+                    return cleaned.contains(w) || cleaned.contains(String(w.dropLast()) + "s ")
+                }
+            }
+
+            // Allergens
+            if profile.allergens.contains(.peanuts), lineHas(peanut) { flagged[item] = "Contains peanuts"; continue }
+            if profile.allergens.contains(.treeNuts), lineHas(treeNut, except: ["coconut"]) {
+                flagged[item] = "Contains tree nuts"; continue
+            }
+            if profile.allergens.contains(.dairy), lineHas(dairy, except: notDairy) {
+                flagged[item] = "Contains dairy"; continue
+            }
+            if profile.allergens.contains(.eggs), lineHas(egg, except: notEgg) {
+                flagged[item] = "Contains eggs"; continue
+            }
+            if profile.allergens.contains(.fish), lineHas(fish) || lineHas(["fish sauce"]) {
+                flagged[item] = "Contains fish"; continue
+            }
+            if profile.allergens.contains(.shellfish), lineHas(shellfish) || lineHas(["oyster sauce"]) {
+                flagged[item] = "Contains shellfish"; continue
+            }
+            if profile.allergens.contains(.soy), lineHas(soy) || lineHas(["soy sauce"]) {
+                flagged[item] = "Contains soy"; continue
+            }
+            if profile.allergens.contains(.wheat), lineHas(wheat, except: notWheat) {
+                flagged[item] = "Contains wheat"; continue
+            }
+            if profile.allergens.contains(.sesame), lineHas(sesame) {
+                flagged[item] = "Contains sesame"; continue
+            }
+
+            // Diets
+            if profile.diets.contains(.vegetarian), lineHas(meat) || lineHas(fish) || lineHas(shellfish) {
+                flagged[item] = "Not vegetarian"; continue
+            }
+            if profile.diets.contains(.vegan), lineHas(meat) || lineHas(fish) || lineHas(shellfish) ||
+                lineHas(dairy, except: notDairy) || lineHas(egg, except: notEgg) || lineHas(["honey"]) {
+                flagged[item] = "Not vegan"; continue
+            }
+
+            // Intolerances & Celiac
+            if profile.intolerances.contains(.gluten) || profile.conditions.contains(.celiac) {
+                if lineHas(wheat, except: notWheat) || lineHas(glutenExtra) {
+                    flagged[item] = "Contains gluten"; continue
+                }
+            }
+            if profile.intolerances.contains(.lactose), lineHas(dairy, except: notDairy) {
+                flagged[item] = "Contains lactose"; continue
+            }
+            if profile.intolerances.contains(.alcohol), lineHas(alcohol) {
+                flagged[item] = "Contains alcohol"; continue
+            }
+
+            // Conditions
+            if profile.conditions.contains(.gerd) {
+                if lineHas(spicy) { flagged[item] = "Acid reflux (spicy)"; continue }
+                if lineHas(gerdAcidic) { flagged[item] = "Acid reflux (acidic/citrus/tomato)"; continue }
+                if lineHas(friedOrGreasy) { flagged[item] = "Acid reflux (fried/greasy)"; continue }
+                if lineHas(alcohol) { flagged[item] = "Acid reflux (alcohol)"; continue }
+            }
+            if profile.conditions.contains(.diabetes) || profile.conditions.contains(.prediabetes) {
+                if lineHas(addedSugar) || lineHas(diabetesCarb) {
+                    flagged[item] = "High sugar / carb"; continue
+                }
+            }
+            if profile.conditions.contains(.hypertension) || profile.conditions.contains(.heartDisease) {
+                if lineHas(salty) || lineHas(highSodiumExtra) {
+                    flagged[item] = "High sodium"; continue
+                }
+            }
+            if profile.conditions.contains(.kidneyDisease) {
+                if lineHas(salty) || lineHas(highSodiumExtra) { flagged[item] = "High sodium (kidney)"; continue }
+                if lineHas(highPotassium) { flagged[item] = "High potassium (kidney)"; continue }
+            }
+            if profile.conditions.contains(.ibs) {
+                if lineHas(pungent) { flagged[item] = "High-FODMAP (onion/garlic)"; continue }
+                if lineHas(fodmap) { flagged[item] = "High-FODMAP"; continue }
+            }
+            if profile.conditions.contains(.crohns) || profile.conditions.contains(.ulcerativeColitis) {
+                if lineHas(spicy) { flagged[item] = "IBD trigger (spicy)"; continue }
+                if lineHas(friedOrGreasy) { flagged[item] = "IBD trigger (fried)"; continue }
+                if lineHas(ibdTriggers) { flagged[item] = "IBD trigger (seeds/caffeine)"; continue }
+                if lineHas(alcohol) { flagged[item] = "IBD trigger (alcohol)"; continue }
+            }
+            if profile.conditions.contains(.gout) {
+                if lineHas(gout) || lineHas(highPurine) {
+                    flagged[item] = "High purine (gout)"; continue
+                }
+            }
+            if profile.conditions.contains(.highCholesterol) {
+                if lineHas(richFat) || lineHas(cholesterolHigh) {
+                    flagged[item] = "Saturated fat / cholesterol"; continue
+                }
+            }
+            if profile.conditions.contains(.pancreatitis) {
+                if lineHas(richFat) || lineHas(friedOrGreasy) { flagged[item] = "High fat (pancreatitis)"; continue }
+                if lineHas(alcohol) { flagged[item] = "Alcohol (pancreatitis)"; continue }
+            }
+            if profile.conditions.contains(.liverDisease) {
+                if lineHas(alcohol) { flagged[item] = "Alcohol (liver)"; continue }
+                if lineHas(salty) || lineHas(highSodiumExtra) { flagged[item] = "High sodium (liver)"; continue }
+            }
+
+            // Custom avoids & custom conditions
+            for word in profile.customAvoid where lineHas([word]) {
+                flagged[item] = "Avoid: \(word)"
+                break
+            }
+            if flagged[item] == nil {
+                for custom in profile.customConditions {
+                    if lineHas(custom.watch) {
+                        flagged[item] = "\(custom.name) trigger"
+                        break
+                    }
+                }
+            }
+        }
+        return flagged
     }
 
     #if DEBUG

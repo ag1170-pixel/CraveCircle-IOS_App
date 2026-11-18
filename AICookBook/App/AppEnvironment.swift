@@ -72,7 +72,7 @@ final class AppEnvironment {
     private var onboardingHearAboutRaw: String = AppEnvironment.storedDefault("onboarding.hearAbout", "") { didSet { UserDefaults.standard.set(onboardingHearAboutRaw, forKey: "onboarding.hearAbout") } }
     /// Per signed-in user. Not @AppStorage — that key was one list for the whole phone.
     private var deletedRecipeIdsRaw: String = ""
-    private(set) var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
+    var recipes: [Recipe] = [] { didSet { persist(recipes, "recipes.json") } }
     private(set) var selectedRecipe: Recipe?
     private(set) var importState: ImportFlowState = .idle {
         didSet {
@@ -322,18 +322,17 @@ final class AppEnvironment {
                 merged[i].thumbnailUrl = name
             }
         }
+        // Catalog dishes keep their creator ids. Never stamp them as this account's — a new user
+        // should not own the starter set, and Library / Suggested must not treat them as personal.
+        var restoredCatalog = false
         for (i, r) in merged.enumerated() {
             if let fresh = Recipe.placeholderRecipes.first(where: { $0.id == r.id }) {
+                if merged[i].ownerId != fresh.ownerId { restoredCatalog = true }
                 merged[i] = fresh
             }
         }
         let savedIds = Set(merged.map(\.id))
         for sample in Recipe.placeholderRecipes where !savedIds.contains(sample.id) { merged.append(sample) }
-        var stamped = false
-        for i in merged.indices where merged[i].ownerId == "you" || merged[i].ownerId == "local-user" || merged[i].ownerId == "local-chef" {
-            merged[i].ownerId = userId
-            stamped = true
-        }
         recipes = merged.map(NutritionEstimator.replacingCalorieHeadline)
 
         ownedCollections = loadScoped([CollectionItem].self, "owned_collections.json", userId: userId) ?? []
@@ -374,7 +373,7 @@ final class AppEnvironment {
         didThumbnailBackfill = false
 
         hydrated = true
-        if stamped { persist(recipes, "recipes.json") }
+        if restoredCatalog { persist(recipes, "recipes.json") }
     }
 
     /// Drop the previous account's in-memory setup without writing empty files over their store.
@@ -1272,8 +1271,10 @@ final class AppEnvironment {
 
     /// True only when this recipe was imported or created by the signed-in account.
     /// A social import is theirs because its owner id was stored at import time, not because it has a source URL.
+    /// Bundled catalog recipes are never owned, even if an older build stamped this account's id on them.
     func isOwner(of recipe: Recipe) -> Bool {
         guard let id = currentUser?.id, !id.isEmpty else { return false }
+        if Recipe.isSampleCatalog(recipe.id) { return false }
         return recipe.ownerId == id
     }
 
@@ -2939,8 +2940,12 @@ final class AppEnvironment {
     var healthProfile = HealthProfile() {
         didSet {
             persist(healthProfile, "health_profile.json")
+            healthFlagCache = [:]
             if healthProfile.targets != oldValue.targets || healthProfile.targetReminder != oldValue.targetReminder {
                 Task { await rescheduleTargetReminder() }
+            }
+            if healthProfile != oldValue {
+                Task { await fetchSuggestedFeed(force: true) }
             }
         }
     }
@@ -2966,10 +2971,42 @@ final class AppEnvironment {
         return flags
     }
 
+    /// Map of raw ingredient item string -> concise reason for any active health alert or heads-up.
+    func flaggedIngredients(for recipe: Recipe) -> [String: String] {
+        HealthCheck.flaggedIngredients(for: recipe, profile: healthProfile)
+    }
+
     /// Suggested for You without recipes that break an allergy, diet, faith rule or
     /// intolerance; High-protein and Mediterranean move matching dishes to the front.
+    /// If fitting recipes fall short of `suggestionLimit` (e.g. from an old cache or tight
+    /// restrictions), backfills from safe candidates so the grid and More picks stay filled.
     var suggestedForHealth: [Recipe] {
-        let fitting = suggestedRecipes.filter { !healthFlags(for: $0).contains(where: \.hard) }
+        var fitting = suggestedRecipes.filter { !healthFlags(for: $0).contains(where: \.hard) }
+        let targetCount = Self.suggestionLimit
+        if fitting.count < targetCount {
+            let excludedIds = Set(recipes.filter { isOwner(of: $0) || isSaved(recipeId: $0.id) }.map(\.id))
+                .union(fitting.map(\.id))
+            let candidates = recipes.filter { !excludedIds.contains($0.id) && !healthFlags(for: $0).contains(where: \.hard) }
+            if !candidates.isEmpty {
+                let extra = RecommendationEngine.suggestions(
+                    from: candidates,
+                    history: interactionHistory,
+                    excluding: [],
+                    preferredCuisines: preferredCuisines,
+                    limit: targetCount - fitting.count
+                )
+                for r in extra {
+                    if suggestionReasons[r.id] == nil {
+                        if let why = RecommendationEngine.reason(for: r, history: interactionHistory, allRecipes: recipes) {
+                            suggestionReasons[r.id] = why
+                        } else if let why = RecommendationEngine.cuisineReason(for: r, preferredCuisines: preferredCuisines) {
+                            suggestionReasons[r.id] = why
+                        }
+                    }
+                }
+                fitting.append(contentsOf: extra)
+            }
+        }
         let wantsProtein = healthProfile.diets.contains(.highProtein)
         let wantsMed = healthProfile.diets.contains(.mediterranean)
         guard wantsProtein || wantsMed else { return fitting }
@@ -3136,8 +3173,17 @@ final class AppEnvironment {
 
     private var activitySignature: String {
         let lastEvent = interactionHistory.last?.id ?? "-"
+        let healthSig = [
+            healthProfile.diets.map(\.rawValue).sorted().joined(separator: ","),
+            healthProfile.allergens.map(\.rawValue).sorted().joined(separator: ","),
+            healthProfile.faith.map(\.rawValue).sorted().joined(separator: ","),
+            healthProfile.intolerances.map(\.rawValue).sorted().joined(separator: ","),
+            healthProfile.conditions.map(\.rawValue).sorted().joined(separator: ","),
+            healthProfile.customAvoid.sorted().joined(separator: ",")
+        ].joined(separator: ";")
         return [lastEvent, "\(interactionHistory.count)", "\(likedRecipeIds.count)", "\(savedRecipeIds.count)",
-                "\(followedCreators.count)", "\(recipes.count)", preferredCuisines.sorted().joined(separator: ",")]
+                "\(followedCreators.count)", "\(recipes.count)", preferredCuisines.sorted().joined(separator: ","),
+                healthSig]
             .joined(separator: "|")
     }
 
@@ -3149,7 +3195,9 @@ final class AppEnvironment {
         }
         let performanceStart = PerformanceDiagnostics.start()
         defer { PerformanceDiagnostics.record("Suggestion feed", since: performanceStart) }
-        let excluded = Set(recipes.filter { isOwner(of: $0) || isSaved(recipeId: $0.id) }.map { $0.id })
+        let healthExcluded = Set(recipes.filter { healthFlags(for: $0).contains(where: \.hard) }.map(\.id))
+        let excluded = Set(recipes.filter { isOwner(of: $0) || isSaved(recipeId: $0.id) }.map(\.id))
+            .union(healthExcluded)
         let rankingStart = PerformanceDiagnostics.start()
         let local = RecommendationEngine.suggestions(
             from: recipes,
@@ -3164,7 +3212,8 @@ final class AppEnvironment {
         // …then blend in the cross-user server feed when it responds. Blend, not replace: the
         // built-in catalog (incl. the Food.com seed recipes) only exists on the phone.
         let picks: [Recipe]
-        if let remote = await supabase.suggestedRecipes(limit: Self.suggestionLimit / 2), !remote.isEmpty {
+        if let rawRemote = await supabase.suggestedRecipes(limit: Self.suggestionLimit / 2), !rawRemote.isEmpty {
+            let remote = rawRemote.filter { !healthFlags(for: $0).contains(where: \.hard) }
             picks = Self.interleave(remote, local, excluding: excluded, limit: Self.suggestionLimit)
         } else {
             picks = local

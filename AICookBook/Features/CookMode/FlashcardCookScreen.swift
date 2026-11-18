@@ -1038,12 +1038,13 @@ private struct CardContent: View {
                     .foregroundStyle(ink)
                     .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
-                    .minimumScaleFactor(0.6)
             }
 
         case .finish(let recipeTitle):
             VStack(alignment: .leading, spacing: 8) {
-                Text("🎉").font(.system(size: 44))
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 40, weight: .semibold))
+                    .accessibilityHidden(true)
                 Text("Enjoy your meal!")
                     .font(AppFont.display(32, weight: .bold)).foregroundStyle(ink)
                 Text("You finished \(recipeTitle). Bon appétit, chef!")

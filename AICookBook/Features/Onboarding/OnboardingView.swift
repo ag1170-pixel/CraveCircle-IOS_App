@@ -35,6 +35,7 @@ import SwiftUI
 // MARK: - SwiftUI View Component
 struct OnboardingView: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var onCompletion: (() -> Void)? = nil
     var onCancel: (() -> Void)? = nil
 
@@ -49,12 +50,13 @@ struct OnboardingView: View {
     @State private var isTransitioning = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    // Keep cuisine choices in a consistent three-column grid.
-    private let cuisineColumns = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10)
-    ]
+    // Two columns at Accessibility sizes preserve readable cuisine labels.
+    private var cuisineColumns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: 10),
+            count: dynamicTypeSize.isAccessibilitySize ? 2 : 3
+        )
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -411,8 +413,7 @@ struct OnboardingView: View {
         } label: {
             Text(label)
                 .font(AppFont.body(15, weight: .semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .foregroundStyle(on ? AppTheme.onAccent : AppTheme.textPrimary)
                 .frame(maxWidth: .infinity)
