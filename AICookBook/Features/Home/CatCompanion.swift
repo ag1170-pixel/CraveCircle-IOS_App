@@ -6,7 +6,11 @@
 //   • STOPPED → peeks over a card's top edge, two paws on the edge, FACING THE USER.
 //   • MOVING  → walks (side profile) FACING the travel direction, with a little hop, then peeks.
 //   • GRABBED → welded to the finger and hangs from it; drag anywhere (the page can't scroll while
-//               held) and release to throw her onto the nearest card.
+//               held) and release to throw her: she flies from your finger to the card nearest
+//               where the throw was heading.
+//   • SCROLLING → her playground is the part of the feed on screen. When her card scrolls away she
+//               jumps from the screen edge to the nearest card in view, so she follows the user from
+//               Fresh in your Circle to Suggested for You and on down, instead of vanishing.
 //
 //  Coordinates are GLOBAL throughout (cards report `.frame(in: .global)`, the drag uses `.global`,
 //  and we convert to the overlay's local space by subtracting its global origin). That keeps the cat
@@ -72,16 +76,24 @@ struct CatCompanion: View {
     @State private var nextHop = Date.distantPast
     @State private var nextBlink = Date.distantPast
     @State private var busyUntil: Date?
+    /// GLOBAL centre while she is between cards (mid-throw, or about to jump back into view).
+    @State private var freeCenter: CGPoint?
+    @State private var lastCenter: CGPoint?      // last on-card centre, for when her card is unloaded
 
     private let behavior = Timer.publish(every: 0.35, on: .main, in: .common).autoconnect()
 
-    private var currentCard: CardFrame? { cardFrames.first { $0.id == currentID } }
+    /// The same recipe can appear in several Home sections under one id. Prefer the copy that is
+    /// on screen, or she'd sit on an off-screen twin and look like she vanished.
+    private var currentCard: CardFrame? {
+        let copies = cardFrames.filter { $0.id == currentID }
+        return copies.first(where: isPerchable) ?? copies.first
+    }
 
     var body: some View {
         GeometryReader { geo in
             let og = geo.frame(in: .global).origin
             ZStack {
-                if enabled, held || currentCard != nil {
+                if enabled, held || freeCenter != nil || currentCard != nil {
                     let a = sprite()
                     let g = centerGlobal(a.h, og)                 // where the cat should be, in global space
                     Image(a.name)
@@ -104,6 +116,9 @@ struct CatCompanion: View {
             .onChange(of: geo.size) { _, s in size = s }
             .onChange(of: og) { _, v in originG = v }
             .onReceive(behavior) { tick($0) }
+            // Every scroll frame: the moment her card leaves the screen she jumps back into view,
+            // rather than waiting for the next behaviour tick and scrolling off with it.
+            .onChange(of: cardFrames) { _, _ in followUser() }
         }
     }
 
@@ -120,6 +135,7 @@ struct CatCompanion: View {
     /// Where the cat's CENTER belongs, in global coordinates.
     private func centerGlobal(_ h: CGFloat, _ og: CGPoint) -> CGPoint {
         if held { return CGPoint(x: dragPoint.x, y: dragPoint.y + h / 2 + Self.handGap) } // hangs below the finger
+        if let f = freeCenter { return f }
         guard let c = currentCard else { return CGPoint(x: og.x + size.width / 2, y: og.y + size.height / 2) }
         return CGPoint(x: anchor(c).x, y: anchor(c).y - h / 2 + Self.grip)      // paws on the card's top edge
     }
@@ -138,13 +154,19 @@ struct CatCompanion: View {
                 swing = max(-24, min(24, Double(dx) * 1.6))
             }
             .onEnded { v in
+                // Let go where the finger is, then fly toward where the throw was heading.
+                let release = CGPoint(x: dragPoint.x, y: dragPoint.y + Self.hangH / 2 + Self.handGap)
                 held = false; catHeld = false
+                freeCenter = clamped(release)
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) { swing = 0 }
                 let target = v.predictedEndLocation                    // GLOBAL throw target
-                if let dest = nearestCard(to: target) {
-                    facingRight = anchor(dest).x >= dragPoint.x
+                let fling = hypot(target.x - release.x, target.y - release.y)
+                busyUntil = Date().addingTimeInterval(1)               // no autonomous hop mid-air
+                DispatchQueue.main.async {
+                    guard let dest = nearestCard(to: target) else { return }
+                    facingRight = anchor(dest).x >= release.x
                     fx = min(max(0.15, (target.x - dest.rect.minX) / max(1, dest.rect.width)), 0.85)
-                    runTo(dest, duration: 0.5)
+                    runTo(dest, duration: min(0.75, 0.4 + Double(fling) / 2000))
                 }
                 nextHop = Date().addingTimeInterval(.random(in: 3.0...5.0))
             }
@@ -152,18 +174,41 @@ struct CatCompanion: View {
 
     // MARK: Autonomous behaviour
 
-    private func perchable() -> [CardFrame] {
-        cardFrames.filter { c in
-            c.rect.width > 80 &&
-            c.rect.midX > originG.x && c.rect.midX < originG.x + size.width &&
-            c.rect.minY > originG.y + Self.peekH * 0.7 + 40 &&
-            c.rect.minY < originG.y + size.height - 150
-        }
+    private func isPerchable(_ c: CardFrame) -> Bool {
+        c.rect.width > 80 &&
+        c.rect.midX > originG.x && c.rect.midX < originG.x + size.width &&
+        c.rect.minY > originG.y + Self.peekH * 0.7 + 40 &&
+        c.rect.minY < originG.y + size.height - 150
     }
+
+    private func perchable() -> [CardFrame] { cardFrames.filter(isPerchable) }
 
     private func nearestCard(to p: CGPoint) -> CardFrame? {
         perchable().min { a, b in
             hypot(anchor(a).x - p.x, a.rect.minY - p.y) < hypot(anchor(b).x - p.x, b.rect.minY - p.y)
+        }
+    }
+
+    /// The on-screen area she may stand in (global), so a jump never starts off screen.
+    private func clamped(_ p: CGPoint) -> CGPoint {
+        CGPoint(x: min(max(p.x, originG.x + 44), originG.x + size.width - 44),
+                y: min(max(p.y, originG.y + Self.peekH + 40), originG.y + size.height - 150))
+    }
+
+    /// Her card has scrolled out of the playground: appear at the screen edge she left from and
+    /// jump to the nearest card the user can see.
+    private func followUser() {
+        guard enabled, size != .zero, !held, busyUntil == nil, currentID != nil else { return }
+        if let c = currentCard { lastCenter = CGPoint(x: anchor(c).x, y: anchor(c).y - Self.peekH / 2 + Self.grip) }
+        guard !(currentCard.map(isPerchable) ?? false), let from = lastCenter else { return }
+        let start = clamped(from)
+        guard let dest = nearestCard(to: start) else { return }
+        freeCenter = start                                   // first frame: at the edge, in view
+        busyUntil = Date().addingTimeInterval(1)
+        DispatchQueue.main.async {                           // next frame: jump from there
+            facingRight = anchor(dest).x >= start.x
+            fx = min(max(0.2, (start.x - dest.rect.minX) / max(1, dest.rect.width)), 0.8)
+            runTo(dest, duration: reduceMotion ? 0.2 : 0.55)
         }
     }
 
@@ -172,11 +217,22 @@ struct CatCompanion: View {
         let visible = perchable()
         guard !visible.isEmpty else { return }
 
-        if currentID == nil || !visible.contains(where: { $0.id == currentID }) {
+        if currentID == nil {
             currentID = visible.randomElement()!.id; fx = .random(in: 0.25...0.75)
             moving = false; blink = false; busyUntil = nil
             nextHop = now.addingTimeInterval(.random(in: 3.0...5.0))
             nextBlink = now.addingTimeInterval(.random(in: 2.0...4.0))
+            return
+        }
+        // Thrown somewhere with no card, or her card is gone: hop to the nearest one in view.
+        if busyUntil == nil, freeCenter != nil || !(currentCard.map(isPerchable) ?? false) {
+            let from = freeCenter ?? lastCenter ?? CGPoint(x: originG.x + size.width / 2, y: originG.y + size.height / 2)
+            if let dest = nearestCard(to: from) {
+                freeCenter = clamped(from)
+                facingRight = anchor(dest).x >= from.x
+                busyUntil = now.addingTimeInterval(1)
+                DispatchQueue.main.async { runTo(dest, duration: 0.55) }
+            }
             return
         }
 
@@ -208,7 +264,7 @@ struct CatCompanion: View {
     private func runTo(_ dest: CardFrame, duration: Double) {
         blink = false
         moving = true
-        withAnimation(.easeInOut(duration: duration)) { currentID = dest.id }
+        withAnimation(.easeInOut(duration: duration)) { currentID = dest.id; freeCenter = nil }
         withAnimation(.easeOut(duration: duration * 0.45)) { lift = -30 }
         DispatchQueue.main.asyncAfter(deadline: .now() + duration * 0.45) {
             withAnimation(.easeIn(duration: duration * 0.45)) { lift = 0 }
