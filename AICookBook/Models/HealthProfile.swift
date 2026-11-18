@@ -199,6 +199,24 @@ struct NutritionTargets: Codable, Equatable {
     static let calorieRange = 1200...4000
 }
 
+// MARK: - The user's own entries
+
+/// A condition that isn't in our list. The user names it and lists the ingredients to watch;
+/// recipes using any of them get a heads-up naming the condition.
+struct CustomCondition: Codable, Hashable, Identifiable {
+    var id = UUID()
+    var name: String
+    var watch: [String]
+}
+
+/// Lowercased, trimmed, de-duplicated ingredient words from free text ("Garlic, onions;  leek").
+func ingredientWords(from text: String) -> [String] {
+    var seen = Set<String>()
+    return text.split(whereSeparator: { ",;\n".contains($0) })
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        .filter { !$0.isEmpty && $0.count <= 40 && seen.insert($0).inserted }
+}
+
 // MARK: - Profile
 
 struct HealthProfile: Codable, Equatable {
@@ -210,8 +228,12 @@ struct HealthProfile: Codable, Equatable {
     var targets = NutritionTargets()
     /// A daily notification with the user's targets and a cooking tip (Daily targets screen).
     var targetReminder = false
+    /// Ingredients the user added themselves (Diet & allergies → Your own). Treated like allergens.
+    var customAvoid: [String] = []
+    var customConditions: [CustomCondition] = []
 
-    var dietCount: Int { diets.count + faith.count + intolerances.count + allergens.count }
+    var dietCount: Int { diets.count + faith.count + intolerances.count + allergens.count + customAvoid.count }
+    var conditionCount: Int { conditions.count + customConditions.count }
 
     init() {}
 
@@ -225,6 +247,8 @@ struct HealthProfile: Codable, Equatable {
         conditions = try c.decodeIfPresent(Set<HealthCondition>.self, forKey: .conditions) ?? []
         targets = try c.decodeIfPresent(NutritionTargets.self, forKey: .targets) ?? NutritionTargets()
         targetReminder = try c.decodeIfPresent(Bool.self, forKey: .targetReminder) ?? false
+        customAvoid = try c.decodeIfPresent([String].self, forKey: .customAvoid) ?? []
+        customConditions = try c.decodeIfPresent([CustomCondition].self, forKey: .customConditions) ?? []
     }
 }
 
@@ -392,6 +416,16 @@ enum HealthCheck {
                 soft.append("Contains alcohol")
             default:
                 break
+            }
+        }
+
+        // The user's own entries.
+        for word in profile.customAvoid where has([word]) {
+            hard.append("Contains \(word)")
+        }
+        for custom in profile.customConditions {
+            for word in custom.watch where has([word]) {
+                soft.append("Has \(word) · \(custom.name)")
             }
         }
 

@@ -909,3 +909,19 @@ final class TargetReminderTests: XCTestCase {
         XCTAssertTrue(tips[1].title.contains("\(t.proteinGrams) g"))
     }
 }
+
+final class CustomHealthEntryTests: XCTestCase {
+    func testOwnIngredientsAndConditionsRaiseFlags() {
+        var p = HealthProfile()
+        p.customAvoid = ingredientWords(from: "Mushroom, coriander ;")
+        p.customConditions = [CustomCondition(name: "Migraine", watch: ["red wine"])]
+        let r = Recipe(id: "t", ownerId: "t", title: "t", servings: 2,
+                       ingredients: [IngredientGroup(groupName: nil, items: ["200g mushrooms", "1 cup red wine", "salt"])],
+                       directions: [])
+        let flags = HealthCheck.flags(for: r, profile: p)
+        XCTAssertEqual(p.customAvoid, ["mushroom", "coriander"])
+        XCTAssertTrue(flags.contains(HealthFlag(text: "Contains mushroom", hard: true)))
+        XCTAssertTrue(flags.contains(HealthFlag(text: "Has red wine · Migraine", hard: false)))
+        XCTAssertFalse(flags.contains { $0.text.contains("coriander") })
+    }
+}

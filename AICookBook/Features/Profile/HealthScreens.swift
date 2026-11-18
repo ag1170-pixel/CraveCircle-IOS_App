@@ -27,7 +27,7 @@ struct HealthProfileSection: View {
                            tint: Color(hex: "3A9D5D")) { showDiet = true }
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
                 SettingRow(icon: "heart.text.square.fill", title: "Health conditions",
-                           detail: profile.conditions.isEmpty ? "None" : "\(profile.conditions.count) on",
+                           detail: profile.conditionCount == 0 ? "None" : "\(profile.conditionCount) on",
                            tint: Color(hex: "D9485F")) { showConditions = true }
                 Divider().overlay(AppTheme.separator).padding(.leading, 56)
                 SettingRow(icon: "target", title: "Daily targets",
@@ -71,6 +71,7 @@ struct DietAllergiesScreen: View {
                 ChoiceCard(title: "Faith & culture", note: nil,
                            options: FaithRule.allCases, selection: $env.healthProfile.faith,
                            label: \.title, symbol: \.symbol)
+                OwnIngredientsCard(words: $env.healthProfile.customAvoid)
                 Text("We match ingredient names, so always check packaged sauces and stocks yourself.")
                     .font(AppFont.body(12))
                     .foregroundStyle(AppTheme.textTertiary)
@@ -93,18 +94,44 @@ private struct ChoiceCard<Option: Hashable & Identifiable>: View {
     @Binding var selection: Set<Option>
     let label: KeyPath<Option, String>
     let symbol: KeyPath<Option, String>
+    /// Closed by default so the screen opens as short rows, not a wall of chips.
+    @State private var open = false
+
+    private var summary: String {
+        let picked = options.filter { selection.contains($0) }.map { $0[keyPath: label] }
+        return picked.isEmpty ? "None selected" : picked.joined(separator: ", ")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(title)
-                    .font(AppFont.body(17, weight: .bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                Spacer()
-                Text(selection.isEmpty ? "None" : "\(selection.count) selected")
-                    .font(AppFont.body(13, weight: .medium))
-                    .foregroundStyle(AppTheme.textSecondary)
+            Button {
+                Haptics.tap()
+                withAnimation(.snappy) { open.toggle() }
+            } label: {
+                HStack(alignment: .center, spacing: AppSpacing.sm) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(title)
+                            .font(AppFont.body(17, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                        Text(summary)
+                            .font(AppFont.body(13, weight: .medium))
+                            .foregroundStyle(selection.isEmpty ? AppTheme.textTertiary : AppTheme.textSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .rotationEffect(.degrees(open ? 180 : 0))
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityValue(summary)
+            .accessibilityHint(open ? "Collapses" : "Shows the options")
+
+            if open {
             if let note {
                 Text(note)
                     .font(AppFont.body(13))
@@ -134,11 +161,89 @@ private struct ChoiceCard<Option: Hashable & Identifiable>: View {
                     .accessibilityAddTraits(on ? .isSelected : [])
                 }
             }
+            .transition(.opacity)
+            }
         }
         .padding(AppSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+    }
+}
+
+/// "Your own": ingredients the user wants flagged that aren't in our lists.
+private struct OwnIngredientsCard: View {
+    @Binding var words: [String]
+    @State private var draft = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Your own")
+                    .font(AppFont.body(17, weight: .bold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text("Anything else to avoid, like mushroom or coriander. Recipes with it get the flag.")
+                    .font(AppFont.body(13))
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
+            if !words.isEmpty {
+                ChipFlow(spacing: 8) {
+                    ForEach(words, id: \.self) { word in
+                        Button {
+                            Haptics.tap()
+                            withAnimation(.snappy) { words.removeAll { $0 == word } }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(word.capitalized)
+                                    .font(AppFont.body(14, weight: .semibold))
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                            .foregroundStyle(AppTheme.onAccent)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 40)
+                            .background(AppTheme.accent, in: Capsule())
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(PressableStyle())
+                        .accessibilityLabel("Remove \(word)")
+                    }
+                }
+            }
+            HStack(spacing: AppSpacing.xs) {
+                TextField("Add an ingredient", text: $draft)
+                    .font(AppFont.body(15))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.done)
+                    .onSubmit(add)
+                    .padding(.horizontal, 14)
+                    .frame(height: 44)
+                    .background(AppTheme.background, in: Capsule())
+                    .overlay(Capsule().stroke(AppTheme.hairline, lineWidth: 1))
+                Button("Add", action: add)
+                    .font(AppFont.body(15, weight: .bold))
+                    .foregroundStyle(AppTheme.onAccent)
+                    .padding(.horizontal, 18)
+                    .frame(height: 44)
+                    .background(AppTheme.accent, in: Capsule())
+                    .disabled(ingredientWords(from: draft).isEmpty)
+                    .opacity(ingredientWords(from: draft).isEmpty ? 0.4 : 1)
+            }
+        }
+        .padding(AppSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+    }
+
+    /// Accepts one word or a comma-separated list ("mushroom, coriander").
+    private func add() {
+        let new = ingredientWords(from: draft).filter { !words.contains($0) }
+        guard !new.isEmpty else { return }
+        Haptics.tap()
+        withAnimation(.snappy) { words.append(contentsOf: new) }
+        draft = ""
     }
 }
 
@@ -188,6 +293,8 @@ private struct ChipFlow: Layout {
 struct HealthConditionsScreen: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var pending: HealthCondition?
+    /// The user's own condition being added (new) or edited.
+    @State private var editing: CustomCondition?
 
     var body: some View {
         ScrollView {
@@ -205,6 +312,8 @@ struct HealthConditionsScreen: View {
                 }
                 .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+
+                ownConditions
 
                 Text("CraveCircle gives cooking guidance, not medical advice. Follow your doctor's or dietitian's plan.")
                     .font(AppFont.body(12))
@@ -226,6 +335,85 @@ struct HealthConditionsScreen: View {
             }
             .presentationDetents([.height(340)])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $editing) { condition in
+            CustomConditionSheet(condition: condition,
+                                 isNew: !environment.healthProfile.customConditions.contains { $0.id == condition.id }) { saved in
+                if let i = environment.healthProfile.customConditions.firstIndex(where: { $0.id == saved.id }) {
+                    environment.healthProfile.customConditions[i] = saved
+                } else {
+                    environment.healthProfile.customConditions.append(saved)
+                }
+                editing = nil
+            } onDelete: {
+                environment.healthProfile.customConditions.removeAll { $0.id == condition.id }
+                editing = nil
+            }
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    /// "Your own" conditions: tap one to edit, or add a new one.
+    private var ownConditions: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Text("Your own").sectionLabelStyle()
+            VStack(spacing: 0) {
+                ForEach(environment.healthProfile.customConditions) { condition in
+                    Button {
+                        Haptics.tap()
+                        editing = condition
+                    } label: {
+                        HStack(spacing: AppSpacing.sm) {
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(AppTheme.onAccent)
+                                .frame(width: 30, height: 30)
+                                .background(AppTheme.accent, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(condition.name)
+                                    .font(AppFont.body(16, weight: .medium))
+                                    .foregroundStyle(AppTheme.textPrimary)
+                                Text("Watch: " + condition.watch.joined(separator: ", "))
+                                    .font(AppFont.body(13))
+                                    .foregroundStyle(AppTheme.textSecondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            Text("Edit")
+                                .font(AppFont.body(14, weight: .semibold))
+                                .foregroundStyle(AppTheme.textSecondary)
+                        }
+                        .padding(.horizontal, AppSpacing.md)
+                        .padding(.vertical, 12)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    Divider().overlay(AppTheme.separator).padding(.leading, 56)
+                }
+                Button {
+                    Haptics.tap()
+                    editing = CustomCondition(name: "", watch: [])
+                } label: {
+                    HStack(spacing: AppSpacing.sm) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                            .frame(width: 30, height: 30)
+                            .background(AppTheme.background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        Text("Add your own condition")
+                            .font(AppFont.body(16, weight: .semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, AppSpacing.md)
+                    .padding(.vertical, 13)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: AppRadius.card, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
         }
     }
 
@@ -270,6 +458,69 @@ struct HealthConditionsScreen: View {
         .buttonStyle(.plain)
         .accessibilityValue(on ? "On" : "Off")
         .accessibilityHint(on ? "Turns it off" : "Shows what it changes")
+    }
+}
+
+/// Add or edit a condition that isn't in our list: its name and the ingredients to watch.
+private struct CustomConditionSheet: View {
+    let condition: CustomCondition
+    let isNew: Bool
+    let onSave: (CustomCondition) -> Void
+    let onDelete: () -> Void
+    @State private var name = ""
+    @State private var watch = ""
+    @State private var loaded = false
+
+    private var canSave: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty && !ingredientWords(from: watch).isEmpty
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            Text(isNew ? "Add your own condition" : "Edit condition")
+                .font(AppFont.display(22, weight: .bold))
+                .foregroundStyle(AppTheme.textPrimary)
+            field("Name", text: $name, prompt: "e.g. Migraine")
+            field("Ingredients to watch", text: $watch, prompt: "e.g. aged cheese, red wine")
+            Text("Separate with commas. Recipes using any of these get a heads-up naming this condition.")
+                .font(AppFont.body(12))
+                .foregroundStyle(AppTheme.textTertiary)
+            Spacer(minLength: 0)
+            PillButton(title: isNew ? "Add" : "Save", kind: .filled, fullWidth: true) {
+                onSave(CustomCondition(id: condition.id,
+                                       name: name.trimmingCharacters(in: .whitespaces),
+                                       watch: ingredientWords(from: watch)))
+            }
+            .disabled(!canSave)
+            .opacity(canSave ? 1 : 0.5)
+            if !isNew {
+                Button("Delete condition", role: .destructive, action: onDelete)
+                    .font(AppFont.body(15, weight: .semibold))
+                    .foregroundStyle(AppTheme.destructive)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+        }
+        .padding(AppSpacing.lg)
+        .background(AppScreenBackground())
+        .onAppear {
+            guard !loaded else { return }
+            name = condition.name
+            watch = condition.watch.joined(separator: ", ")
+            loaded = true
+        }
+    }
+
+    private func field(_ title: String, text: Binding<String>, prompt: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).sectionLabelStyle()
+            TextField(prompt, text: text)
+                .font(AppFont.body(16))
+                .autocorrectionDisabled()
+                .padding(.horizontal, 14)
+                .frame(height: 46)
+                .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(AppTheme.hairline, lineWidth: 1))
+        }
     }
 }
 
