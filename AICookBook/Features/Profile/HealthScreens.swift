@@ -547,17 +547,10 @@ struct HealthAlertPill: View {
             Haptics.tap()
             showing = true
         } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "flag.fill")
-                    .font(.system(size: 12, weight: .bold))
-                if flags.count > 1 {
-                    Text("\(flags.count)")
-                        .font(AppFont.body(13, weight: .bold))
-                        .monospacedDigit()
-                }
-            }
+            Image(systemName: "flag.fill")
+                .font(.system(size: 12, weight: .bold))
             .foregroundStyle(.white)
-            .padding(.horizontal, 11)
+            .padding(.horizontal, 13)
             .frame(height: 28)
             .background(tint, in: Capsule())
             .frame(minWidth: 44, minHeight: 44)
