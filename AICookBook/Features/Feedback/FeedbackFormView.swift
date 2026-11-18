@@ -125,7 +125,7 @@ struct FeedbackFormView: View {
                 .font(AppFont.display(26, weight: .bold))
                 .foregroundStyle(AppTheme.textPrimary)
 
-            Text("No thought is too small. We're here to listen. We read every word, and we care ❤️")
+            Text("No thought is too small. We're here to listen. We read every word.")
                 .font(AppFont.body(16))
                 .foregroundStyle(AppTheme.textSecondary)
                 .lineSpacing(4)

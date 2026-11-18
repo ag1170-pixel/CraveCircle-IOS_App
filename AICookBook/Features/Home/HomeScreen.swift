@@ -303,6 +303,8 @@ struct HomeScreen: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(AppTheme.textTertiary)
             TextField("", text: $query)
+                .accessibilityLabel("Search recipes")
+                .accessibilityHint("Searches recipes, ingredients, and creators")
                 .font(AppFont.body(16))
                 .foregroundStyle(AppTheme.textPrimary)
                 .autocorrectionDisabled()

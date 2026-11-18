@@ -88,6 +88,7 @@ struct RecipeReelScreen: View {
     @Binding var currentID: String?
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     @AppStorage("reel_autoplay")        private var autoplay = false
 
     // A STABLE snapshot of the feed. Built once, then only on an explicit Discover-tab double-tap.
@@ -184,8 +185,8 @@ struct RecipeReelScreen: View {
             guard tabSignal.token > 0 else { return }
             refreshReel(excludingShown: true)
         }
-        .task(id: autoplay) {
-            guard autoplay, !reduceMotion else { return }
+        .task(id: autoplay && !voiceOverEnabled) {
+            guard autoplay, !reduceMotion, !voiceOverEnabled else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(6))
                 if Task.isCancelled { break }
@@ -356,6 +357,12 @@ private struct ReelCell: View {
             let open = DispatchWorkItem { environment.selectRecipe(recipe) }
             pendingOpen = open
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.28, execute: open)
+        }
+        .accessibilityLabel(recipe.title)
+        .accessibilityHint("Double-tap to open this recipe")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: "Like") {
+            if !liked { doubleTapLike() }
         }
         .overlay(alignment: .bottom) {
             AppTheme.heroScrim

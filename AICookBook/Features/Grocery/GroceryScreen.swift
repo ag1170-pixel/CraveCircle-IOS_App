@@ -343,6 +343,7 @@ struct GroceryScreen: View {
     private var addRow: some View {
         HStack(spacing: AppSpacing.xs) {
             TextField("", text: $newItem)
+                .accessibilityLabel("Add grocery item")
                 .font(AppFont.body(16))
                 .foregroundStyle(AppTheme.textPrimary)
                 .autocorrectionDisabled()
@@ -413,6 +414,7 @@ struct AddGroceryItemSheet: View {
                 .foregroundStyle(AppTheme.textPrimary)
             HStack(spacing: AppSpacing.xs) {
                 TextField("", text: $text)
+                    .accessibilityLabel("Grocery item")
                     .font(AppFont.body(17))
                     .foregroundStyle(AppTheme.textPrimary)
                     .autocorrectionDisabled()

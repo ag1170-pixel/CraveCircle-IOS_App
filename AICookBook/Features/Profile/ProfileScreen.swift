@@ -157,8 +157,8 @@ struct ProfileScreen: View {
                     Text(environment.currentUser?.fullName ?? "Your Profile")
                         .font(AppFont.display(19, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(displayHandle)
                         .font(AppFont.body(13, weight: .medium))
                         .foregroundStyle(AppTheme.textSecondary)
@@ -281,10 +281,10 @@ struct ProfileScreen: View {
                         .font(AppFont.body(16, weight: .medium))
                         .foregroundStyle(AppTheme.textPrimary)
                     Spacer()
-                    // Empty title: GlassToggleStyle draws its label, so a title here shows twice.
                     Toggle("", isOn: $kitchenCatEnabled)
                         .labelsHidden()
-                        .toggleStyle(GlassToggleStyle())
+                        .toggleStyle(.switch)
+                        .tint(AppTheme.brand)
                         .accessibilityLabel("Kitchen cat")
                 }
                 .padding(.horizontal, AppSpacing.md)

@@ -114,7 +114,9 @@ struct CookModeScreen: View {
                         Text("Flashcards").font(AppFont.body(13, weight: .bold))
                     }
                     .foregroundStyle(AppTheme.onAccent)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .frame(minHeight: 44)
                     .background(AppTheme.accent, in: Capsule())
                 }
                 .buttonStyle(PressableStyle())
@@ -126,6 +128,8 @@ struct CookModeScreen: View {
                         .foregroundStyle(AppTheme.textPrimary)
                         .frame(width: 36, height: 36)
                         .background(AppTheme.surface, in: Circle())
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityLabel("Exit Cook Mode")

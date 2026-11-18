@@ -75,7 +75,10 @@ struct CEOMessageScreen: View {
                     .font(AppFont.display(20, weight: .bold)).foregroundStyle(AppTheme.textPrimary)
             }
             Spacer()
-            Text("✉️").font(.system(size: 40))
+            Image(systemName: "envelope.fill")
+                .font(.system(size: 32, weight: .semibold))
+                .foregroundStyle(coral)
+                .accessibilityHidden(true)
         }
         .padding(.top, AppSpacing.sm)
     }

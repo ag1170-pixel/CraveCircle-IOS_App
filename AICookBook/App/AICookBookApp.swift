@@ -148,15 +148,6 @@ final class ShortcutSceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 }
 
-/// Ask for notification permission and, if granted, register for remote (APNs) pushes so the server
-/// can say "your recipe is ready" after a background share-import. Harmless where APNs isn't set up.
-@MainActor func requestPushAuthorization() {
-    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
-        guard granted else { return }
-        DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
-    }
-}
-
 @main
 struct CraveCircleApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -242,7 +233,6 @@ struct CraveCircleApp: App {
                     // reel finishes processing ~1-2 min AFTER the share, so refresh a few times over
                     // ~90s so it appears on its own without the user pulling to refresh.
                     if phase == .active {
-                        if environment.appState == .signedIn { requestPushAuthorization() }
                         // Apply a quick action chosen at cold launch (app wasn't running yet).
                         if let s = AppDelegate.pendingShortcut {
                             AppDelegate.pendingShortcut = nil

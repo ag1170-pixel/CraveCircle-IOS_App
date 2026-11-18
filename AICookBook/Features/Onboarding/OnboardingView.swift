@@ -46,6 +46,8 @@ struct OnboardingView: View {
     @State private var hearAbout: HearAbout? = nil
     @State private var cuisines: Set<String> = []
     @State private var goalDetailIndex = 0   // for cycling through selected goals in .goalDetail
+    @State private var isTransitioning = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Keep cuisine choices in a consistent three-column grid.
     private let cuisineColumns = [
@@ -103,9 +105,16 @@ struct OnboardingView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
-                                    removal: .move(edge: .leading).combined(with: .opacity)))
+            .transition(
+                reduceMotion
+                    ? .opacity
+                    : .asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    )
+            )
         }
+        .disabled(isTransitioning)
         .background(AppScreenBackground())
     }
 
@@ -201,7 +210,7 @@ struct OnboardingView: View {
             VStack(spacing: 12) {
                 ForEach(Goal.allCases) { goal in
                     optionRow(
-                        emoji: goal.emoji,
+                        systemImage: goal.symbol,
                         label: goal.label,
                         selected: goals.contains(goal)
                     ) {
@@ -305,8 +314,9 @@ struct OnboardingView: View {
             Circle()
                 .fill(AppTheme.surface)
                 .frame(width: 120, height: 120)
-            Text(goal?.emoji ?? "✨")
-                .font(.system(size: 54))
+            Image(systemName: goal?.symbol ?? "fork.knife")
+                .font(.system(size: 46, weight: .semibold))
+                .accessibilityHidden(true)
         }
     }
 
@@ -322,7 +332,7 @@ struct OnboardingView: View {
         ) {
             VStack(spacing: 12) {
                 ForEach(RecipeSource.allCases) { src in
-                    optionRow(emoji: src.emoji, label: src.label, selected: sources.contains(src)) {
+                    optionRow(systemImage: src.symbol, label: src.label, selected: sources.contains(src)) {
                         toggleSource(src)
                     }
                 }
@@ -343,7 +353,7 @@ struct OnboardingView: View {
         ) {
             VStack(spacing: 12) {
                 ForEach(HearAbout.allCases) { opt in
-                    optionRow(emoji: opt.emoji, label: opt.label, selected: hearAbout == opt) {
+                    optionRow(systemImage: opt.symbol, label: opt.label, selected: hearAbout == opt) {
                         Haptics.select()
                         withAnimation(AppMotion.snappy) { hearAbout = opt }
                     }
@@ -614,13 +624,14 @@ struct OnboardingView: View {
         .padding(AppSpacing.lg)
     }
 
-    private func optionRow(emoji: String, label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+    private func optionRow(systemImage: String, label: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 14) {
                 ZStack {
                     Circle().fill(selected ? Color.white.opacity(0.9) : AppTheme.accentSoft)
                         .frame(width: 36, height: 36)
-                    Text(emoji).font(.system(size: 20))
+                    Image(systemName: systemImage)
+                        .font(.system(size: 18, weight: .semibold))
                 }
                 .accessibilityHidden(true)
                 Text(label)
@@ -663,17 +674,28 @@ struct OnboardingView: View {
     // MARK: Navigation
 
     private func advance(to next: Step) {
+        guard !isTransitioning else { return }
         Haptics.tap()
-        withAnimation(AppMotion.smooth) {
-            step = next
-            if next == .goalDetail { goalDetailIndex = 0 }
-        }
+        transition(to: next)
     }
 
     private func goBack() {
+        guard !isTransitioning,
+              let previous = step.previous(goalsPicked: !goals.isEmpty) else { return }
         Haptics.tap()
-        guard let prev = step.previous(goalsPicked: !goals.isEmpty) else { return }
-        withAnimation(AppMotion.smooth) { step = prev }
+        transition(to: previous)
+    }
+
+    private func transition(to next: Step) {
+        isTransitioning = true
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
+            step = next
+            if next == .goalDetail { goalDetailIndex = 0 }
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(reduceMotion ? 0 : 250))
+            isTransitioning = false
+        }
     }
 
     private func finishOnboarding(thenImport: Bool) {
@@ -755,13 +777,13 @@ private enum Goal: String, CaseIterable, Identifiable, Hashable {
     case improve, tryNew, healthier, organize, protein
     var id: String { rawValue }
 
-    var emoji: String {
+    var symbol: String {
         switch self {
-        case .improve:   return "👨‍🍳"
-        case .tryNew:    return "🔍"
-        case .healthier: return "🥗"
-        case .organize:  return "📁"
-        case .protein:   return "💪"
+        case .improve:   return "frying.pan"
+        case .tryNew:    return "globe"
+        case .healthier: return "leaf"
+        case .organize:  return "square.grid.2x2"
+        case .protein:   return "figure.strengthtraining.traditional"
         }
     }
 
@@ -808,11 +830,11 @@ private enum RecipeSource: String, CaseIterable, Identifiable, Hashable {
     case social, websites, printed
     var id: String { rawValue }
 
-    var emoji: String {
+    var symbol: String {
         switch self {
-        case .social:   return "📱"
-        case .websites: return "🌐"
-        case .printed:  return "📓"
+        case .social:   return "play.rectangle"
+        case .websites: return "safari"
+        case .printed:  return "book.closed"
         }
     }
 
@@ -829,14 +851,14 @@ private enum HearAbout: String, CaseIterable, Identifiable, Hashable {
     case friend, tiktok, google, instagram, appStore, other
     var id: String { rawValue }
 
-    var emoji: String {
+    var symbol: String {
         switch self {
-        case .friend:    return "❤️"
-        case .tiktok:    return "🎵"
-        case .google:    return "🔎"
-        case .instagram: return "📷"
-        case .appStore:  return "🛍️"
-        case .other:     return "❓"
+        case .friend:    return "person.2"
+        case .tiktok:    return "music.note"
+        case .google:    return "magnifyingglass"
+        case .instagram: return "camera"
+        case .appStore:  return "app.badge"
+        case .other:     return "questionmark.circle"
         }
     }
 

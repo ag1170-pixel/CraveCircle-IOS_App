@@ -66,17 +66,5 @@ enum AppTab: CaseIterable, Hashable {
         }
     }
 
-    /// Next tab in order (clamped at end).
-    var next: AppTab? {
-        let all = Self.allCases
-        guard let i = all.firstIndex(of: self), all.index(after: i) < all.endIndex else { return nil }
-        return all[all.index(after: i)]
-    }
-    /// Previous tab in order (clamped at start).
-    var previous: AppTab? {
-        let all = Self.allCases
-        guard let i = all.firstIndex(of: self), i > all.startIndex else { return nil }
-        return all[all.index(before: i)]
-    }
 }
 
