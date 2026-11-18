@@ -154,12 +154,13 @@ def _norm_lang(code: Optional[str]) -> str:
     return (code or "")[:2].lower()
 
 
-def recipe_text_lang(transcript: str, source_lang: str) -> str:
-    """Language of the text we are about to save."""
-    # ponytail: this import always calls Whisper with task=translate, so a non-empty
-    # transcript is English even when source_lang is the spoken language. If that call
-    # switches to task=transcribe, detect the transcript instead of assuming English.
-    return "en" if (transcript or "").strip() else (source_lang or "")
+def recipe_text_lang(transcript: str, source_lang: str, caption: str = "", ocr_text: str = "") -> str:
+    """Language of the normalized text passed to the final recipe translator."""
+    # Whisper's `task=translate` produces English regardless of the spoken language.
+    if (transcript or "").strip():
+        return "en"
+    from .translate import detect_confident_language
+    return detect_confident_language(caption) or detect_confident_language(ocr_text) or source_lang or ""
 
 
 def translate_recipe(parsed: dict, source_lang: str, target_lang: str) -> dict:
@@ -1656,7 +1657,8 @@ def _process_reel_import(job_id: str, url: str, target_language: str, user_id: O
             video_title = meta.get("title") or ""
 
             # PIPELINE v2 — best source per field (audio-first for steps, caption for quantities).
-            transcript, source_lang, has_speech = "", "en", False
+            transcript, source_lang, has_speech = "", "", False
+            audio_language_probability = None
 
             # 1) Download AUDIO only (small & fast) to check for narration and transcribe it.
             _update_import_job(job_id, status="downloading")
@@ -1676,13 +1678,23 @@ def _process_reel_import(job_id: str, url: str, target_language: str, user_id: O
                         # Translate natively to English for the extraction pipeline
                         r = transcribe(audio_files[0], language=None, task="translate")
                         transcript, source_lang = r.text, (r.language or "en")
+                        audio_language_probability = r.language_probability
                     except Exception:
                         transcript = ""
 
             # 3) Merge caption + audio (best per field). 
             # Our extraction heuristics (like quantities) and food gate are English-based.
             _update_import_job(job_id, status="extracting")
-            from .translate import translate_texts
+            from .translate import detect_confident_language, translate_texts
+            # Whisper's language label can be wrong on short, noisy, or music-heavy clips. A
+            # substantial caption is independent evidence for the language of the recipe itself;
+            # use it when confident so a false audio guess doesn't become a permanent UI badge.
+            caption_source_lang = detect_confident_language(caption)
+            if caption_source_lang:
+                source_lang = caption_source_lang
+            elif audio_language_probability is not None and audio_language_probability < 0.75:
+                # Don't persist a weak Whisper guess as a user-visible language claim.
+                source_lang = ""
             if caption:
                 t_cap = translate_texts([caption], "en")
                 if t_cap: caption = t_cap[0]
@@ -1703,6 +1715,8 @@ def _process_reel_import(job_id: str, url: str, target_language: str, user_id: O
                     if need_ocr:
                         ocr_text = _ocr_video_frames(vids[0], tmp)
                         if ocr_text.strip():
+                            if not transcript.strip() and not caption_source_lang:
+                                source_lang = detect_confident_language(ocr_text) or source_lang
                             t_ocr = translate_texts([ocr_text], "en")
                             if t_ocr: ocr_text = t_ocr[0]
                             parsed = assemble_recipe(caption, transcript, ocr_text, has_speech,
@@ -1727,12 +1741,10 @@ def _process_reel_import(job_id: str, url: str, target_language: str, user_id: O
                     "reels into recipes — try one where someone's making a dish."
                 )
 
-            # 5) Deliver into the user's preferred language. Whisper task=translate already
-            #    wrote English, so compare against that text, not the spoken-language tag.
-            #    A reel that is actually in another language (no English transcript yet)
-            #    still goes through the LLM. source_language stays the DETECTED one so the
-            #    iOS "Translated from …" badge lights up.
-            text_lang = recipe_text_lang(transcript, source_lang)
+            # 5) Deliver into the user's preferred language. Compare against the normalized
+            #    extraction text (usually English), but keep source_lang separately as the
+            #    original-language metadata used by iOS's "Translated from …" badge.
+            text_lang = recipe_text_lang(transcript, source_lang, caption, ocr_text)
             if _norm_lang(target_language) and _norm_lang(target_language) != _norm_lang(text_lang):
                 _update_import_job(job_id, status="extracting")
                 parsed = translate_recipe(parsed, text_lang, target_language)
@@ -1754,7 +1766,9 @@ def _process_reel_import(job_id: str, url: str, target_language: str, user_id: O
                 "directions": parsed["directions"],
                 "thumbnail_url": thumbnail,
                 "owner_username": f"@{author}" if not author.startswith("@") else author,
-                "source_language": parsed.get("source_language") or source_lang,
+                # Keep original source metadata separate from the intermediate English text used
+                # by the parser/translator. `parsed.source_language` may be that intermediate.
+                "source_language": source_lang or None,
                 "source_url": url,
                 "nutrition": parsed["nutrition"],
                 "visibility": "everyone"

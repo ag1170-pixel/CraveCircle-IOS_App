@@ -30,6 +30,27 @@ def _detect(text: str) -> str | None:
         return None
 
 
+def detect_confident_language(text: str, *, min_letters: int = 50, min_probability: float = 0.9) -> str | None:
+    """Detect a language only when the text has enough natural-language signal to trust it.
+
+    Captions can contain handles, hashtags, links, and short ingredient labels that confuse
+    language detectors. Strip those first, then require both enough letters and a high score.
+    """
+    clean = re.sub(r"https?://\S+|www\.\S+|@[\w.]+|#[\w]+", " ", text or "")
+    clean = re.sub(r"\s+", " ", clean).strip()
+    if sum(char.isalpha() for char in clean) < min_letters:
+        return None
+    try:
+        from langdetect import DetectorFactory, detect_langs
+        DetectorFactory.seed = 0
+        candidates = detect_langs(clean)
+        if candidates and candidates[0].prob >= min_probability:
+            return candidates[0].lang.split("-")[0].lower()
+    except Exception:
+        pass
+    return None
+
+
 def _looks_untranslatable(s: str) -> bool:
     """Skip pure numbers/symbols (e.g. '250') — nothing to translate, avoids wasted calls."""
     return not re.search(r"[A-Za-zऀ-෿Ѐ-ӿ]", s or "")
