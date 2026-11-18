@@ -339,6 +339,7 @@ struct GroceryScreen: View {
 
     // MARK: Add row
 
+    // Return adds the typed item; the orange + is the page's only add button.
     private var addRow: some View {
         HStack(spacing: AppSpacing.xs) {
             TextField("", text: $newItem)
@@ -358,19 +359,6 @@ struct GroceryScreen: View {
                             .allowsHitTesting(false)
                     }
                 }
-            Button {
-                addItem()
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(AppTheme.onAccent)
-                    .frame(width: 46, height: 46)
-                    .background(AppTheme.accent, in: Circle())
-                    .opacity(newItem.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
-            }
-            .buttonStyle(PressableStyle())
-            .accessibilityLabel("Add item")
-            .disabled(newItem.trimmingCharacters(in: .whitespaces).isEmpty)
         }
     }
 
