@@ -2949,8 +2949,21 @@ final class AppEnvironment {
         await TargetReminderScheduler.reschedule(targets: healthProfile.targets, enabled: healthProfile.targetReminder)
     }
 
+    /// Flags per recipe, kept until the profile changes. Home asks for these on every redraw.
+    @ObservationIgnored private var healthFlagCache: [String: [HealthFlag]] = [:]
+    @ObservationIgnored private var healthFlagCacheProfile = HealthProfile()
+
     func healthFlags(for recipe: Recipe) -> [HealthFlag] {
-        HealthCheck.flags(for: recipe, profile: healthProfile)
+        if healthFlagCacheProfile != healthProfile {
+            healthFlagCache = [:]
+            healthFlagCacheProfile = healthProfile
+        }
+        // The ingredient list is part of the key, so an edited recipe is checked again.
+        let key = recipe.id + "|" + String(recipe.ingredients.flatMap(\.items).joined(separator: "\u{1F}").hashValue)
+        if let cached = healthFlagCache[key] { return cached }
+        let flags = HealthCheck.flags(for: recipe, profile: healthProfile)
+        healthFlagCache[key] = flags
+        return flags
     }
 
     /// Suggested for You without recipes that break an allergy, diet, faith rule or

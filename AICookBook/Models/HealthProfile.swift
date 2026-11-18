@@ -313,16 +313,25 @@ enum HealthCheck {
     private static let carbHeavy = ["sugar", "flour", "rice", "pasta", "bread", "potato", "noodle", "tortilla",
                                     "oats", "corn", "honey", "syrup"]
 
+    /// " Peanut-Butter, 2 tbsp " -> " peanut butter 2 tbsp ".
+    private static func normalized(_ text: String) -> String {
+        let words = text.lowercased().split { !$0.isLetter && !$0.isNumber }
+        return " " + words.joined(separator: " ") + " "
+    }
+
     /// Every reason this recipe may not suit `profile`, hard ones first, without duplicates.
     static func flags(for recipe: Recipe, profile: HealthProfile) -> [HealthFlag] {
-        let lines = recipe.ingredients.flatMap(\.items).map { " " + $0.lowercased() + " " }
+        // Each line becomes " word word word " (letters and digits only), so a whole word or phrase
+        // is a plain substring search: " ham " never hits "shampoo". No regex: this runs for
+        // every suggested recipe, and building patterns here made Home stutter while scrolling.
+        let lines = recipe.ingredients.flatMap(\.items).map(normalized)
         func has(_ words: [String], except: [String] = []) -> Bool {
-            lines.contains { line in
-                let cleaned = except.reduce(line) { $0.replacingOccurrences(of: $1, with: " ") }
+            let skip = except.map(normalized)
+            return lines.contains { line in
+                let cleaned = skip.reduce(line) { $0.replacingOccurrences(of: $1, with: " ") }
                 return words.contains { word in
-                    // Whole-word match ("ham" must not hit "shampoo"); multi-word phrases match as written.
-                    cleaned.range(of: "\\b\(NSRegularExpression.escapedPattern(for: word.trimmingCharacters(in: .whitespaces)))s?\\b",
-                                  options: .regularExpression) != nil
+                    let w = normalized(word)
+                    return cleaned.contains(w) || cleaned.contains(String(w.dropLast()) + "s ")
                 }
             }
         }
