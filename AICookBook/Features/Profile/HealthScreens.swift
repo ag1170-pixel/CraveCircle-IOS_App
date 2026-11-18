@@ -548,7 +548,7 @@ struct HealthAlertPill: View {
             showing = true
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: "exclamationmark.triangle.fill")
+                Image(systemName: "flag.fill")
                     .font(.system(size: 12, weight: .bold))
                 if flags.count > 1 {
                     Text("\(flags.count)")
