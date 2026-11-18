@@ -1024,12 +1024,17 @@ struct HomeScreen: View {
             .padding(.horizontal, AppSpacing.md)
 
             if communityRecipes.count > preview.count || environment.hasMoreRecipes {
+                Text("You're all caught up")
+                    .font(AppFont.body(13))
+                    .foregroundStyle(AppTheme.textTertiary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, AppSpacing.md)
                 Button {
                     Haptics.tap()
                     showCommunity = true
                 } label: {
                     HStack(spacing: 6) {
-                        Text("See all community recipes")
+                        Text("See more recipes")
                             .font(AppFont.body(14, weight: .bold))
                         Image(systemName: "chevron.right")
                             .font(.system(size: 12, weight: .bold))
@@ -1042,41 +1047,7 @@ struct HomeScreen: View {
                 .frame(maxWidth: .infinity)
                 .padding(.top, AppSpacing.sm)
             }
-            communityEndMarker
-                .padding(.top, AppSpacing.lg)
-                .padding(.horizontal, AppSpacing.md)
         }
-    }
-
-    private var communityEndMarker: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                Rectangle().fill(AppTheme.hairline).frame(height: 1)
-                Image(systemName: "sparkles")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(AppTheme.textTertiary)
-                Rectangle().fill(AppTheme.hairline).frame(height: 1)
-            }
-            Text("You're all caught up")
-                .font(AppFont.body(13))
-                .foregroundStyle(AppTheme.textTertiary)
-            Button {
-                Haptics.tap()
-                environment.requestTabSwitch(.discover)
-            } label: {
-                HStack(spacing: 6) {
-                    Text("Browse Discover")
-                        .font(AppFont.body(14, weight: .bold))
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 12, weight: .bold))
-                }
-                .foregroundStyle(AppTheme.accentInk)
-                .padding(.horizontal, 18).padding(.vertical, 10)
-                .background(AppTheme.accentSoft, in: Capsule())
-            }
-            .buttonStyle(.plain)
-        }
-        .frame(maxWidth: .infinity)
     }
 
     private var suggestedEndMarker: some View {
