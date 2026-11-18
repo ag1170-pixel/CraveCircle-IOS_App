@@ -41,9 +41,10 @@ struct HomeScreen: View {
     @State private var showNotifications = false
     @State private var showMealPlan = false
     /// Community Recipes shows this many cards; reaching the last one reveals the next batch.
-    @State private var communityVisibleCount = HomeScreen.communityBatchSize
-    @State private var isRevealingCommunity = false
-    private static let communityBatchSize = 10
+    @State private var showCommunity = false
+    /// Home shows a taste of each section (App Store style); the › arrow opens the full list.
+    private static let railLimit = 10
+    private static let communityPreviewCount = 6
     @State private var query = ""                       // search moved here from the old Search tab
     @State private var searchQuery = ""
     @AppStorage("recent_home_searches") private var recentSearchesCSV: String = ""
@@ -172,6 +173,9 @@ struct HomeScreen: View {
             .onChange(of: showMealPlan) { _, open in environment.hidesImportFAB = open }
             .navigationDestination(isPresented: $navigateToLibrary) {
                 LibraryScreen()
+            }
+            .navigationDestination(isPresented: $showCommunity) {
+                CommunityRecipesScreen()
             }
             .navigationDestination(isPresented: $showNotifications) {
                 CircleNotificationsScreen()
@@ -883,7 +887,7 @@ struct HomeScreen: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: AppSpacing.md) {
-                        ForEach(freshFeedRecipes) { recipe in
+                        ForEach(freshFeedRecipes.prefix(Self.railLimit)) { recipe in
                             FreshCard(recipe: recipe) { environment.selectRecipe(recipe) }
                                 .reportsCardFrame(id: "fresh-\(recipe.id)", liked: environment.isLiked(recipeId: recipe.id))
                         }
@@ -923,7 +927,7 @@ struct HomeScreen: View {
 
             let all = environment.suggestedRecipes
             let gridPicks = Array(all.prefix(Self.gridTakeCount))
-            let overflow  = Array(all.dropFirst(Self.gridTakeCount))
+            let overflow  = Array(all.dropFirst(Self.gridTakeCount).prefix(Self.railLimit))
 
             LazyVGrid(columns: [
                 GridItem(.flexible(), spacing: AppSpacing.md, alignment: .top),
@@ -982,16 +986,28 @@ struct HomeScreen: View {
     }
 
     private var communitySection: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: "fork.knife")
-                    .foregroundStyle(Color(hex: "FF6B4A"))
-                    .font(.system(size: 18, weight: .semibold))
-                Text("Community Recipes")
-                    .font(AppFont.display(20, weight: .bold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                Spacer(minLength: 0)
+        let preview = Array(communityRecipes.prefix(Self.communityPreviewCount))
+        return VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Button {
+                Haptics.tap()
+                showCommunity = true
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "fork.knife")
+                        .foregroundStyle(Color(hex: "FF6B4A"))
+                        .font(.system(size: 18, weight: .semibold))
+                    Text("Community Recipes")
+                        .font(AppFont.display(20, weight: .bold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AppTheme.textSecondary)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("Shows all community recipes")
             .padding(.horizontal, AppSpacing.md)
             .padding(.top, AppSpacing.sm)
 
@@ -999,51 +1015,36 @@ struct HomeScreen: View {
                 GridItem(.flexible(), spacing: AppSpacing.md, alignment: .top),
                 GridItem(.flexible(), spacing: AppSpacing.md, alignment: .top)
             ], spacing: AppSpacing.md) {
-                ForEach(visibleCommunityRecipes) { recipe in
+                ForEach(preview) { recipe in
                     SuggestedGridCard(recipe: recipe) {
-                        environment.selectRecipe(recipe, in: visibleCommunityRecipes)
-                    }
-                    .onAppear {
-                        if recipe.id == visibleCommunityRecipes.last?.id { revealMoreCommunity() }
+                        environment.selectRecipe(recipe, in: preview)
                     }
                 }
             }
             .padding(.horizontal, AppSpacing.md)
 
-            if isRevealingCommunity {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, AppSpacing.md)
-                    .accessibilityLabel("Loading more recipes")
-            } else if !hasMoreCommunity {
-                communityEndMarker
-                    .padding(.top, AppSpacing.lg)
-                    .padding(.horizontal, AppSpacing.md)
+            if communityRecipes.count > preview.count || environment.hasMoreRecipes {
+                Button {
+                    Haptics.tap()
+                    showCommunity = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("See all community recipes")
+                            .font(AppFont.body(14, weight: .bold))
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundStyle(AppTheme.accentInk)
+                    .padding(.horizontal, 18).padding(.vertical, 10)
+                    .background(AppTheme.accentSoft, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+                .padding(.top, AppSpacing.sm)
             }
-        }
-    }
-
-    private var visibleCommunityRecipes: [Recipe] {
-        Array(communityRecipes.prefix(communityVisibleCount))
-    }
-
-    private var hasMoreCommunity: Bool {
-        communityVisibleCount < communityRecipes.count || environment.hasMoreRecipes
-    }
-
-    /// Show the next batch of 10 when the last visible card scrolls in. Fetches another page
-    /// from the server first when the phone has run out of loaded recipes.
-    private func revealMoreCommunity() {
-        guard !isRevealingCommunity, hasMoreCommunity else { return }
-        isRevealingCommunity = true
-        Task {
-            if communityVisibleCount + Self.communityBatchSize > communityRecipes.count {
-                await environment.loadMoreRecipes()
-            } else {
-                try? await Task.sleep(for: .milliseconds(350))   // brief pause so batches read as batches
-            }
-            communityVisibleCount = min(communityVisibleCount + Self.communityBatchSize, communityRecipes.count)
-            isRevealingCommunity = false
+            communityEndMarker
+                .padding(.top, AppSpacing.lg)
+                .padding(.horizontal, AppSpacing.md)
         }
     }
 
